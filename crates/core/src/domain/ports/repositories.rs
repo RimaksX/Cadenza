@@ -1,0 +1,338 @@
+//! Storage contracts.
+//!
+//! One trait per aggregate rather than one god-repository, so a service declares
+//! exactly what it touches and a test fake only implements what it needs.
+//!
+//! Methods are added when a milestone needs them. Guessing at a full query
+//! surface now would produce a large trait whose unused half still has to be
+//! implemented by every fake.
+//!
+//! # Profile isolation
+//!
+//! Anything holding user data takes a [`ProfileId`] on every read. That is not
+//! defensive style, it is the isolation rule of PROJECT_MASTER 12.1 made
+//! impossible to forget: there is no "list all playlists" to call by accident.
+//! The exceptions are the global catalogue — media files, artists, albums,
+//! genres, features, analysis jobs — which describe the music rather than the
+//! listener.
+
+use std::path::Path;
+
+use crate::Result;
+use crate::domain::album::Album;
+use crate::domain::analysis::{AnalysisJob, AnalysisKind};
+use crate::domain::artist::Artist;
+use crate::domain::eq::EqPreset;
+use crate::domain::genre::Genre;
+use crate::domain::ids::{
+    AlbumId, AnalysisJobId, ArtistId, EqPresetId, GenreId, ImportReviewId, MediaFileId, MoodId,
+    PlaylistId, PlaylistItemId, ProfileId, RadioSessionId,
+};
+use crate::domain::media_file::{FileState, MediaFile};
+use crate::domain::mood::MoodPreset;
+use crate::domain::playlist::{Playlist, PlaylistItem};
+use crate::domain::profile::Profile;
+use crate::domain::queue::Queue;
+use crate::domain::radio::{RadioSession, RadioSessionItem};
+use crate::domain::review::{ImportReview, ReviewState};
+use crate::domain::settings::ProfileFolder;
+use crate::domain::stats::PlayEvent;
+use crate::domain::track::{Track, TrackFeatures};
+use crate::domain::value_objects::Timestamp;
+
+/// Listener profiles.
+pub trait ProfileRepositoryPort: Send + Sync {
+    /// Every profile, ordered by name.
+    fn list(&self) -> Result<Vec<Profile>>;
+
+    /// One profile.
+    fn get(&self, id: ProfileId) -> Result<Option<Profile>>;
+
+    /// Inserts or updates.
+    fn save(&self, profile: &Profile) -> Result<()>;
+
+    /// Deletes a profile and everything scoped to it.
+    fn delete(&self, id: ProfileId) -> Result<()>;
+}
+
+/// Application and per-profile settings, plus library folders.
+///
+/// Values are opaque JSON text at this level. The typed accessors that know what
+/// each key means live in the settings service, which keeps the storage layer
+/// from needing a schema for every preference ever added.
+pub trait SettingsRepositoryPort: Send + Sync {
+    /// A global setting, such as which profile is active.
+    fn app_get(&self, key: &str) -> Result<Option<String>>;
+
+    /// Writes a global setting.
+    fn app_set(&self, key: &str, value_json: &str, now: Timestamp) -> Result<()>;
+
+    /// A profile-scoped setting.
+    fn profile_get(&self, profile_id: ProfileId, key: &str) -> Result<Option<String>>;
+
+    /// Writes a profile-scoped setting.
+    fn profile_set(
+        &self,
+        profile_id: ProfileId,
+        key: &str,
+        value_json: &str,
+        now: Timestamp,
+    ) -> Result<()>;
+
+    /// Library folders belonging to a profile.
+    fn list_folders(&self, profile_id: ProfileId) -> Result<Vec<ProfileFolder>>;
+
+    /// Inserts or updates a library folder.
+    fn save_folder(&self, folder: &ProfileFolder) -> Result<()>;
+
+    /// Removes a library folder. Files already imported are unaffected.
+    fn delete_folder(&self, folder: &ProfileFolder) -> Result<()>;
+}
+
+/// The global catalogue of physical files.
+pub trait MediaFileRepositoryPort: Send + Sync {
+    /// One file by identifier.
+    fn get(&self, id: MediaFileId) -> Result<Option<MediaFile>>;
+
+    /// One file by path, which is unique across the catalogue.
+    fn find_by_path(&self, path: &Path) -> Result<Option<MediaFile>>;
+
+    /// Every file sharing a content hash — the duplicate-detection query.
+    fn find_by_hash(&self, hash: &str) -> Result<Vec<MediaFile>>;
+
+    /// Inserts or updates.
+    fn save(&self, media_file: &MediaFile) -> Result<()>;
+
+    /// Marks a file present, missing or unreadable.
+    fn set_state(&self, id: MediaFileId, state: FileState, now: Timestamp) -> Result<()>;
+}
+
+/// Per-profile library membership.
+pub trait TrackRepositoryPort: Send + Sync {
+    /// One track as a profile sees it.
+    fn get(&self, profile_id: ProfileId, media_file_id: MediaFileId) -> Result<Option<Track>>;
+
+    /// Every track currently in a profile's library, excluding tombstones.
+    fn list_for_profile(&self, profile_id: ProfileId) -> Result<Vec<Track>>;
+
+    /// Inserts or updates.
+    fn save(&self, track: &Track) -> Result<()>;
+
+    /// Tombstones a track. The file stays on disk and in the catalogue.
+    fn remove(
+        &self,
+        profile_id: ProfileId,
+        media_file_id: MediaFileId,
+        now: Timestamp,
+    ) -> Result<()>;
+
+    /// Audio features for a file, when analysis has run.
+    fn features(&self, media_file_id: MediaFileId) -> Result<Option<TrackFeatures>>;
+
+    /// Stores extracted features.
+    fn save_features(&self, features: &TrackFeatures) -> Result<()>;
+}
+
+/// The global artist catalogue.
+pub trait ArtistRepositoryPort: Send + Sync {
+    /// One artist.
+    fn get(&self, id: ArtistId) -> Result<Option<Artist>>;
+
+    /// Finds an artist by exact name, for deduplicating during import.
+    fn find_by_name(&self, name: &str) -> Result<Option<Artist>>;
+
+    /// Inserts or updates.
+    fn save(&self, artist: &Artist) -> Result<()>;
+}
+
+/// The global album catalogue.
+pub trait AlbumRepositoryPort: Send + Sync {
+    /// One album.
+    fn get(&self, id: AlbumId) -> Result<Option<Album>>;
+
+    /// Finds an album by title and album artist.
+    fn find(&self, title: &str, artist_id: Option<ArtistId>) -> Result<Option<Album>>;
+
+    /// Inserts or updates.
+    fn save(&self, album: &Album) -> Result<()>;
+}
+
+/// The global genre vocabulary and its links to files.
+pub trait GenreRepositoryPort: Send + Sync {
+    /// Finds a genre by its normalised name.
+    fn find_by_name(&self, name: &str) -> Result<Option<Genre>>;
+
+    /// Inserts or updates.
+    fn save(&self, genre: &Genre) -> Result<()>;
+
+    /// Genres attached to a file.
+    fn for_media_file(&self, media_file_id: MediaFileId) -> Result<Vec<Genre>>;
+
+    /// Replaces the genres attached to a file.
+    fn set_for_media_file(&self, media_file_id: MediaFileId, genres: &[GenreId]) -> Result<()>;
+}
+
+/// Playlists and their contents.
+pub trait PlaylistRepositoryPort: Send + Sync {
+    /// Every playlist a profile owns.
+    fn list_for_profile(&self, profile_id: ProfileId) -> Result<Vec<Playlist>>;
+
+    /// One playlist.
+    fn get(&self, id: PlaylistId) -> Result<Option<Playlist>>;
+
+    /// Inserts or updates.
+    fn save(&self, playlist: &Playlist) -> Result<()>;
+
+    /// Deletes a playlist and its entries. The tracks stay in the library.
+    fn delete(&self, id: PlaylistId) -> Result<()>;
+
+    /// Entries in playback order.
+    fn items(&self, playlist_id: PlaylistId) -> Result<Vec<PlaylistItem>>;
+
+    /// Replaces the entries wholesale.
+    ///
+    /// One call rather than per-item edits, because reordering by drag-and-drop
+    /// renumbers many rows at once and doing that as separate writes would leave
+    /// the positions briefly inconsistent.
+    fn replace_items(&self, playlist_id: PlaylistId, items: &[PlaylistItem]) -> Result<()>;
+
+    /// Removes one entry.
+    fn delete_item(&self, id: PlaylistItemId) -> Result<()>;
+}
+
+/// The saved playback queue.
+///
+/// PROJECT_MASTER 2.3 requires restoring the last queue and 2.5 makes the queue
+/// per-profile, but section 7 defines no table for it. The storage shape is
+/// settled in M7 alongside the queue service; this port is the contract that
+/// migration has to satisfy.
+pub trait QueueRepositoryPort: Send + Sync {
+    /// The queue as it was left, or `None` if the profile has never played.
+    fn load(&self, profile_id: ProfileId) -> Result<Option<Queue>>;
+
+    /// Persists the queue so it survives a restart or a profile switch.
+    fn save(&self, queue: &Queue) -> Result<()>;
+
+    /// Discards a profile's saved queue.
+    fn clear(&self, profile_id: ProfileId) -> Result<()>;
+}
+
+/// Raw listening events.
+pub trait PlayEventRepositoryPort: Send + Sync {
+    /// Records one listen.
+    ///
+    /// Callers check [`crate::domain::policies::history_policy::should_record`]
+    /// first; this port does not second-guess them.
+    fn append(&self, event: &PlayEvent) -> Result<()>;
+
+    /// Events for a profile since a point in time, most recent first.
+    fn recent(&self, profile_id: ProfileId, since: Timestamp, limit: u32)
+    -> Result<Vec<PlayEvent>>;
+
+    /// Deletes everything older than the cutoff. Returns how many rows went.
+    fn purge_before(&self, profile_id: ProfileId, cutoff: Timestamp) -> Result<u64>;
+
+    /// Deletes every event for a profile, for when history is switched off.
+    fn purge_all(&self, profile_id: ProfileId) -> Result<u64>;
+}
+
+/// Aggregated listening statistics.
+///
+/// The daily rollup tables of PROJECT_MASTER 7.4 and the dashboard queries that
+/// read them arrive in M14. Only the query radio needs before then is declared
+/// here.
+pub trait StatsRepositoryPort: Send + Sync {
+    /// Most-played files in a window, as `(file, play count)`, highest first.
+    fn top_tracks(
+        &self,
+        profile_id: ProfileId,
+        since: Timestamp,
+        limit: u32,
+    ) -> Result<Vec<(MediaFileId, u32)>>;
+}
+
+/// Radio sessions and the picks they made.
+pub trait RadioRepositoryPort: Send + Sync {
+    /// One session.
+    fn get_session(&self, id: RadioSessionId) -> Result<Option<RadioSession>>;
+
+    /// Inserts or updates a session.
+    fn save_session(&self, session: &RadioSession) -> Result<()>;
+
+    /// Appends a chosen track.
+    fn append_item(&self, item: &RadioSessionItem) -> Result<()>;
+
+    /// The most recent picks, newest last — what diversity rules read to avoid
+    /// repeating an artist or genre too soon.
+    fn recent_items(&self, session_id: RadioSessionId, limit: u32)
+    -> Result<Vec<RadioSessionItem>>;
+}
+
+/// Mood and activity presets.
+pub trait MoodRepositoryPort: Send + Sync {
+    /// Built-in moods plus the profile's own.
+    fn list_for_profile(&self, profile_id: ProfileId) -> Result<Vec<MoodPreset>>;
+
+    /// One preset.
+    fn get(&self, id: MoodId) -> Result<Option<MoodPreset>>;
+
+    /// Inserts or updates. Built-ins are rejected.
+    fn save(&self, preset: &MoodPreset) -> Result<()>;
+
+    /// Deletes a custom preset. Built-ins are rejected.
+    fn delete(&self, id: MoodId) -> Result<()>;
+}
+
+/// Equaliser presets.
+pub trait EqPresetRepositoryPort: Send + Sync {
+    /// Built-in presets plus the profile's own.
+    fn list_for_profile(&self, profile_id: ProfileId) -> Result<Vec<EqPreset>>;
+
+    /// One preset.
+    fn get(&self, id: EqPresetId) -> Result<Option<EqPreset>>;
+
+    /// Inserts or updates. Built-ins are rejected.
+    fn save(&self, preset: &EqPreset) -> Result<()>;
+
+    /// Deletes a custom preset. Built-ins are rejected.
+    fn delete(&self, id: EqPresetId) -> Result<()>;
+}
+
+/// The background analysis work queue.
+pub trait AnalysisJobRepositoryPort: Send + Sync {
+    /// Enqueues work, ignoring a request that is already queued for the same
+    /// file and kind.
+    fn enqueue(&self, job: &AnalysisJob) -> Result<()>;
+
+    /// Takes the highest-priority queued job and marks it running.
+    ///
+    /// Claiming and marking are one call so that two workers cannot pick up the
+    /// same job.
+    fn claim_next(&self, kind: Option<AnalysisKind>, now: Timestamp)
+    -> Result<Option<AnalysisJob>>;
+
+    /// Marks a job finished.
+    fn complete(&self, id: AnalysisJobId, now: Timestamp) -> Result<()>;
+
+    /// Records a failure, incrementing the attempt count.
+    fn fail(&self, id: AnalysisJobId, error: &str, now: Timestamp) -> Result<()>;
+
+    /// How much work is outstanding, for the progress indicator.
+    fn pending_count(&self) -> Result<u64>;
+}
+
+/// Files awaiting an import decision.
+pub trait ImportReviewRepositoryPort: Send + Sync {
+    /// Entries in a given state for a profile.
+    fn list_for_profile(
+        &self,
+        profile_id: ProfileId,
+        state: ReviewState,
+    ) -> Result<Vec<ImportReview>>;
+
+    /// Inserts or updates.
+    fn save(&self, review: &ImportReview) -> Result<()>;
+
+    /// Marks an entry resolved or dismissed.
+    fn set_state(&self, id: ImportReviewId, state: ReviewState, now: Timestamp) -> Result<()>;
+}

@@ -32,7 +32,24 @@ May: render view state, invoke commands, subscribe to events.
 May not: touch the database, read files directly, drive the audio stream, hold business
 rules, or contain radio/shuffle/history algorithms.
 
+## Ports are synchronous
+
+No async runtime is part of the stack. rusqlite, cpal and Symphonia are blocking
+APIs, and a desktop player has no concurrency load that would justify one. Long-running
+work — scanning, hashing, feature extraction — runs on ordinary threads whose priority is
+lowered through `SystemPriorityPort`. Every port is `Send + Sync` so those threads can
+share it.
+
 ## Composition
 
 `crates/app` is the only place allowed to construct concrete infrastructure and hand it
 to the application layer as port implementations.
+
+`AppContext` carries only the ports that exist. It gains a field per milestone rather
+than declaring all twenty now and forcing each milestone to stub the ones it does not
+have yet.
+
+## Where the master file was wrong
+
+Contradictions and gaps found in `PROJECT_MASTER.json` during implementation, and the
+option chosen for each, are recorded in [MASTER_ISSUES.md](MASTER_ISSUES.md).

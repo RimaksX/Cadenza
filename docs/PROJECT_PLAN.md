@@ -6,7 +6,7 @@ section `11_План_реализации`. This file tracks progress only.
 | # | Milestone | Status |
 |---|---|---|
 | M0 | Scaffold проекта | done |
-| M1 | Core skeleton | not started |
+| M1 | Core skeleton | done |
 | M2 | SQLite infrastructure | not started |
 | M3 | Профили и настройки | not started |
 | M4 | Библиотека и сканирование | not started |
@@ -38,5 +38,33 @@ as an empty stub now):
 - every third-party dependency: `rusqlite`, `slint`, `cpal`, `symphonia`, `rubato`,
   `rustfft`, `lofty`, `notify`, `directories`
 - `deny.toml` — nothing to audit until there are dependencies
-- `LICENSE` — needs the verbatim GPLv3 text
 - `packaging/`, `resources/` — M15/M16
+
+## M1 — what was actually built
+
+The whole domain layer of `crates/core`, plus the application context: typed
+identifiers, the error type, eight value objects, sixteen entities, eight
+policies and twenty ports, with 105 unit tests.
+
+Two additions to the file list in section 5, both because section 7 or 4.4 refers
+to something section 5 gives no home: `domain/analysis.rs` for `analysis_jobs`,
+and `domain/value_objects/timestamp.rs` for `ClockPort`'s return type.
+
+`core` depends on `thiserror` and `uuid` and nothing else. No calendar crate: a
+timestamp is unix milliseconds, and the local-date handling the daily aggregates
+need arrives with them in M14.
+
+Policies whose formulas the master file fixes are implemented and tested now —
+history classification, retention, the previous-track threshold, the
+source-driven transition rule, the transition score of 9.3, the similarity score
+of 10.3, and the equaliser band layout. The two it leaves open, smart shuffle
+selection and radio ranking, expose only their hard constraints and gain their
+scoring in M12 and M13.
+
+Deferred: `commands.rs`, `events.rs`, `dto.rs`, `view_state.rs`, `services/` and
+`state/` — none are in M1's task list, and each belongs to the milestone that
+first has something to put in it.
+
+Contradictions found in the master file while doing this, and what was chosen for
+each, are in [MASTER_ISSUES.md](MASTER_ISSUES.md). Two remain open: per-profile
+genre overrides, and refreshing section 16's status.

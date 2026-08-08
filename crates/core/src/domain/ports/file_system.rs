@@ -1,0 +1,39 @@
+//! Reading the filesystem.
+
+use std::path::{Path, PathBuf};
+
+use crate::Result;
+use crate::domain::value_objects::Timestamp;
+
+/// What the scanner needs to know about a path without opening it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FileMetadata {
+    /// Size in bytes.
+    pub size: u64,
+    /// Last modification time.
+    pub modified: Timestamp,
+    /// True for directories.
+    pub is_dir: bool,
+}
+
+/// Filesystem access.
+///
+/// Read-only by design. Cadenza never deletes a file from disk: removing a track
+/// removes it from the library only (PROJECT_MASTER 2.1), and tag writing is not
+/// required (2.1), so no write method exists to be called by mistake.
+pub trait FileSystemPort: Send + Sync {
+    /// True when the path resolves.
+    fn exists(&self, path: &Path) -> bool;
+
+    /// Size, modification time and kind.
+    fn metadata(&self, path: &Path) -> Result<FileMetadata>;
+
+    /// Immediate children of a directory, files and subdirectories alike.
+    fn list_dir(&self, path: &Path) -> Result<Vec<PathBuf>>;
+
+    /// A content hash for duplicate detection.
+    ///
+    /// Reads the whole file, so it is a background job rather than something the
+    /// scanner does inline (PROJECT_MASTER 2.11).
+    fn hash_file(&self, path: &Path) -> Result<String>;
+}
