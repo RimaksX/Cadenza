@@ -9,5 +9,18 @@ repository.workspace = true
 
 [dependencies]
 cadenza-core.workspace = true
-# rusqlite (M2), cpal/symphonia/rubato/rustfft (M5+), lofty (M4), notify (M4)
-# are added in the milestone that first needs them.
+
+# `bundled` compiles SQLite into the binary. Cadenza ships as a single executable
+# with no runtime to install (PROJECT_MASTER 1.2), so linking against whatever
+# SQLite the machine happens to have is not an option.
+rusqlite = { version = "0.40.2", features = ["bundled"] }
+
+# cpal/symphonia/rubato/rustfft (M5+), lofty (M4), notify (M4) and directories
+# (M3) are added in the milestone that first needs them.
+
+# A dev-dependency cycle: testkit depends on infra for the migration runner, and
+# infra's integration tests depend on testkit for a migrated database. Cargo
+# supports this, and the alternative — a second schema builder inside the tests —
+# would test something production never runs.
+[dev-dependencies]
+cadenza-testkit.workspace = true

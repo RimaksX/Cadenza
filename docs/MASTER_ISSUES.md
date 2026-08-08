@@ -140,7 +140,31 @@ Not a decision for M1, but M5 must verify both against real files before the
 audio engine is called done. If coverage falls short, `DecoderPort` is the seam an
 alternative adapter plugs into (ADR 0005) — the stack does not need to change.
 
-## 14. Section 16 status is stale — **open**
+## 15. Timestamps are `TEXT` in some columns and `INTEGER` in others — resolved
+
+Section 7 stores `media_files.file_mtime` as `INTEGER` and `media_files.created_at`
+as `TEXT`, in the same table. Both are instants.
+
+**Chosen:** every instant is `INTEGER` unix milliseconds. It matches the domain's
+`Timestamp` exactly, sorts and indexes correctly, needs no calendar library in the
+infrastructure layer, and removes a format-parsing step from every read and write.
+`TEXT` would also only compare correctly if every writer used an identical,
+zero-padded UTC format forever.
+
+`daily_*.date` stays `TEXT`: a civil date in the listener's timezone is genuinely
+a different thing from a point in time, and `YYYY-MM-DD` sorts and groups
+correctly as text.
+
+## 16. `profiles.settings_json` duplicates the `profile_settings` table — resolved
+
+Section 7.1 gives `profiles` a `settings_json` blob while section 7.7 defines a
+`profile_settings` key/value table. Same reasoning as finding 4: two writable
+copies of one setting drift apart, and a blob cannot be queried or constrained.
+
+**Chosen:** `settings_json` is not created. `profile_settings` is the only place a
+per-profile setting lives.
+
+## 17. Section 16 status is stale — **open**
 
 `16_Текущий_статус` still reads "Реализация кода еще не начата" and
 `next_step: M0`. M0 and M1 are complete.

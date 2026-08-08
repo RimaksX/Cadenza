@@ -10,4 +10,7 @@ publish = false
 
 [dependencies]
 cadenza-core.workspace = true
-# cadenza-infra is added in M2, when temp_db.rs needs a real SQLite connection.
+
+# temp_db needs the real migration runner: a helper that built the schema its own
+# way would let the tests pass against a schema production never sees.
+cadenza-infra.workspace = true

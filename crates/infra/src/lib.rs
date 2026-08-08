@@ -1,3 +1,10 @@
 //! Cadenza infrastructure: implements the ports declared in `cadenza-core`.
 //!
-//! Populated from M2 onwards (db, audio, metadata, library, analysis, events, system).
+//! This is the only layer allowed to touch SQLite, audio devices, the filesystem
+//! and the operating system. It depends on `cadenza-core` and nothing else in the
+//! workspace (PROJECT_MASTER 4.2).
+//!
+//! Populated by milestone: `db` in M2, `metadata` and `library` in M4, `audio`
+//! from M5, `analysis` in M11.
+
+pub mod db;

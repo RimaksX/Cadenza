@@ -7,7 +7,7 @@ section `11_План_реализации`. This file tracks progress only.
 |---|---|---|
 | M0 | Scaffold проекта | done |
 | M1 | Core skeleton | done |
-| M2 | SQLite infrastructure | not started |
+| M2 | SQLite infrastructure | done |
 | M3 | Профили и настройки | not started |
 | M4 | Библиотека и сканирование | not started |
 | M5 | Базовый audio engine | not started |
@@ -68,3 +68,38 @@ first has something to put in it.
 Contradictions found in the master file while doing this, and what was chosen for
 each, are in [MASTER_ISSUES.md](MASTER_ISSUES.md). Two remain open: per-profile
 genre overrides, and refreshing section 16's status.
+
+## M2 — what was actually built
+
+The whole schema of PROJECT_MASTER section 7, as twelve append-only migrations,
+behind a connection pool. 17 integration tests against a real file.
+
+- `db/sqlite.rs` — one place that opens a connection and applies the pragmas.
+  WAL, foreign keys, `synchronous = NORMAL`, a 5 s busy timeout. Opening refuses
+  to continue if WAL did not take effect.
+- `db/pool.rs` — four connections, checkout blocks with a timeout rather than
+  forever, guards return their connection on drop including during a panic.
+- `db/migrations/` — the runner plus `m0001`..`m0012`. Each migration runs in a
+  transaction with the row that records it, so a failure leaves nothing behind.
+  Version numbering is checked at compile time; a database from a newer build is
+  refused rather than half-read.
+- `testkit/temp_db.rs` — a migrated database in a temp directory, deleted on
+  drop. On disk rather than in memory, because an in-memory database cannot use
+  WAL and would not exercise what production runs.
+
+The schema does more than store rows: `CHECK` constraints reject unknown enum
+values, gains outside ±12 dB, retention windows over 30 days, a listen that is
+both completed and skipped, a built-in preset owned by a profile, and a duplicate
+review that cannot say what it duplicates. Deleting a profile cascades to
+everything scoped to it and leaves the shared catalogue alone.
+
+Three corrections to section 7, all in [MASTER_ISSUES.md](MASTER_ISSUES.md):
+instants are `INTEGER` unix milliseconds, and the two redundant JSON blobs
+(`profiles.settings_json`, `profile_tracks.metadata_override_json`) and the
+redundant `track_features.scale` are not created.
+
+Deferred: the sixteen repository files. M2's task list says "repository stubs",
+but sixteen files of `todo!()` are dead code that M3–M14 would rewrite. The
+schema is proven by integration tests using plain SQL — which also means a
+failure points at the schema rather than at a mapping layer. `profile_repo` and
+`settings_repo` arrive in M3, where the plan already puts them.

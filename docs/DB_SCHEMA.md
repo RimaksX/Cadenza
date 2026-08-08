@@ -4,8 +4,13 @@ Normative table and column definitions: `PROJECT_MASTER.json`, section
 `7_Модель_данных`. Do not restate them here — this file records how the schema is
 applied and evolved.
 
-Status: no tables exist yet. The schema lands in M2 as numbered migrations
-(`crates/infra/src/db/migrations/m0001_initial.rs` .. `m0012_review.rs`).
+Status: created in M2 as twelve append-only migrations,
+`crates/infra/src/db/migrations/m0001_initial.rs` .. `m0012_review.rs`.
+
+Three columns from section 7 are deliberately not created, and every instant is
+stored as an integer rather than text. The reasoning is in
+[MASTER_ISSUES.md](MASTER_ISSUES.md) findings 4, 5, 15 and 16, and in the module
+documentation of `crates/infra/src/db/mod.rs`.
 
 ## Rules
 
