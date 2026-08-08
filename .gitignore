@@ -1,0 +1,17 @@
+/target
+**/*.rs.bk
+*.pdb
+
+# local DB / logs / cache produced while running from the repo
+*.db
+*.db-wal
+*.db-shm
+/logs
+
+# packaging output
+/packaging/windows/out
+
+# editors and local tooling
+.vscode/
+.idea/
+.claude/settings.local.json

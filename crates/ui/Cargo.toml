@@ -1,0 +1,13 @@
+[package]
+name = "cadenza-ui"
+description = "Cadenza Slint UI: views, view models, commands, theme."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+# Layering rule (PROJECT_MASTER 4.2): ui -> infra is forbidden.
+[dependencies]
+cadenza-core.workspace = true
+# slint + build.rs / slint-build arrive in M6.

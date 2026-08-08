@@ -1,0 +1,26 @@
+[workspace]
+resolver = "3"
+members = [
+    "crates/app",
+    "crates/core",
+    "crates/infra",
+    "crates/ui",
+    "crates/testkit",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+license = "GPL-3.0-or-later"
+repository = "https://github.com/cadenza-player/cadenza"
+
+[workspace.dependencies]
+cadenza-core = { path = "crates/core" }
+cadenza-infra = { path = "crates/infra" }
+cadenza-ui = { path = "crates/ui" }
+cadenza-testkit = { path = "crates/testkit" }
+
+[profile.release]
+lto = "thin"
+codegen-units = 1

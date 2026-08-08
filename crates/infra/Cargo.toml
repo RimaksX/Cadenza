@@ -1,0 +1,13 @@
+[package]
+name = "cadenza-infra"
+description = "Cadenza infrastructure: SQLite, audio engine, metadata, file watching, analysis."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+cadenza-core.workspace = true
+# rusqlite (M2), cpal/symphonia/rubato/rustfft (M5+), lofty (M4), notify (M4)
+# are added in the milestone that first needs them.

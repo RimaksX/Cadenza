@@ -1,0 +1,13 @@
+[package]
+name = "cadenza-testkit"
+description = "Test fixtures, fakes and helpers shared across Cadenza crates."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[dependencies]
+cadenza-core.workspace = true
+# cadenza-infra is added in M2, when temp_db.rs needs a real SQLite connection.

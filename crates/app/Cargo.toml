@@ -1,0 +1,17 @@
+[package]
+name = "cadenza-app"
+description = "Cadenza composition root: wires core, infra and ui together."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "cadenza"
+path = "src/main.rs"
+
+[dependencies]
+cadenza-core.workspace = true
+cadenza-infra.workspace = true
+cadenza-ui.workspace = true
