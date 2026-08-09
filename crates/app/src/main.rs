@@ -10,16 +10,24 @@
 
 mod cli;
 
+use std::path::Path;
 use std::process::ExitCode;
 use std::sync::Arc;
 use std::{env, io};
 
+use cadenza_core::application::services::{LibraryPorts, LibraryService};
 use cadenza_core::application::{AppContext, ProfileService};
 use cadenza_core::domain::profile::Profile;
 use cadenza_core::{CoreError, Result};
 use cadenza_infra::db;
-use cadenza_infra::db::repositories::{SqliteProfileRepository, SqliteSettingsRepository};
+use cadenza_infra::db::repositories::{
+    SqliteAlbumRepository, SqliteArtistRepository, SqliteGenreRepository,
+    SqliteImportReviewRepository, SqliteMediaFileRepository, SqliteProfileRepository,
+    SqliteSettingsRepository, SqliteTrackRepository,
+};
 use cadenza_infra::events::InProcessEventBus;
+use cadenza_infra::library::LocalFileSystem;
+use cadenza_infra::metadata::{FileArtworkCache, LoftyMetadataReader};
 use cadenza_infra::system::{AppPaths, SystemClock};
 
 use cli::Command;
@@ -60,18 +68,40 @@ fn run() -> std::result::Result<(), String> {
         Arc::new(SystemClock),
         Arc::new(InProcessEventBus::new()),
         Arc::new(SqliteProfileRepository::new(pool.clone())),
-        Arc::new(SqliteSettingsRepository::new(pool)),
+        Arc::new(SqliteSettingsRepository::new(pool.clone())),
     ));
     let profiles = ProfileService::new(Arc::clone(&context));
+
+    let library = LibraryService::new(
+        Arc::clone(&context),
+        LibraryPorts {
+            files: Arc::new(LocalFileSystem),
+            metadata: Arc::new(LoftyMetadataReader),
+            artwork: Arc::new(
+                FileArtworkCache::new(paths.artwork_cache_dir()).map_err(|err| err.to_string())?,
+            ),
+            media_files: Arc::new(SqliteMediaFileRepository::new(pool.clone())),
+            tracks: Arc::new(SqliteTrackRepository::new(pool.clone())),
+            artists: Arc::new(SqliteArtistRepository::new(pool.clone())),
+            albums: Arc::new(SqliteAlbumRepository::new(pool.clone())),
+            genres: Arc::new(SqliteGenreRepository::new(pool.clone())),
+            reviews: Arc::new(SqliteImportReviewRepository::new(pool)),
+        },
+    );
 
     // Before anything else: the pointer left by the previous run decides who the
     // application is running as.
     let active = profiles.restore_active().map_err(|err| err.to_string())?;
 
-    dispatch(&command, &profiles, active).map_err(|err| err.to_string())
+    dispatch(&command, &profiles, &library, active).map_err(|err| err.to_string())
 }
 
-fn dispatch(command: &Command, profiles: &ProfileService, active: Option<Profile>) -> Result<()> {
+fn dispatch(
+    command: &Command,
+    profiles: &ProfileService,
+    library: &LibraryService,
+    active: Option<Profile>,
+) -> Result<()> {
     match command {
         Command::Help | Command::Paths => unreachable!("handled before the database is opened"),
 
@@ -115,6 +145,66 @@ fn dispatch(command: &Command, profiles: &ProfileService, active: Option<Profile
                 if updated.history_enabled { "on" } else { "off" },
                 updated.name
             );
+        }
+
+        Command::Folders => {
+            let folders = library.folders()?;
+            if folders.is_empty() {
+                println!("no folders yet — run: cadenza add-folder <path> [-r]");
+            }
+            for folder in folders {
+                println!(
+                    "  {} {}{}",
+                    if folder.enabled { "*" } else { " " },
+                    folder.path.display(),
+                    if folder.include_subfolders {
+                        " (with subfolders)"
+                    } else {
+                        ""
+                    }
+                );
+            }
+        }
+
+        Command::AddFolder { path, recursive } => {
+            let folder = library.add_folder(Path::new(path), *recursive)?;
+            println!("watching {}", folder.path.display());
+            println!("run: cadenza scan");
+        }
+
+        Command::Scan => {
+            let report = library.scan_all()?;
+            println!(
+                "{} file(s) seen: {} added, {} updated, {} unchanged",
+                report.seen, report.added, report.updated, report.unchanged
+            );
+            if report.duplicates > 0 || report.failed > 0 {
+                println!(
+                    "{} duplicate(s) and {} unreadable file(s) need a decision — \
+                     run: cadenza reviews",
+                    report.duplicates, report.failed
+                );
+            }
+        }
+
+        Command::Tracks => {
+            let tracks = library.tracks()?;
+            if tracks.is_empty() {
+                println!("the library is empty — run: cadenza scan");
+            }
+            for track in tracks {
+                println!("  {}", track.title);
+            }
+        }
+
+        Command::Reviews => {
+            let pending = library.pending_reviews()?;
+            if pending.is_empty() {
+                println!("nothing is waiting for a decision");
+            }
+            for entry in pending {
+                println!("  {} {}", entry.reason.as_str(), entry.media_file_id);
+            }
         }
     }
 

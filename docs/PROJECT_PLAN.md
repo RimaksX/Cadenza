@@ -9,7 +9,7 @@ section `11_План_реализации`. This file tracks progress only.
 | M1 | Core skeleton | done |
 | M2 | SQLite infrastructure | done |
 | M3 | Профили и настройки | done |
-| M4 | Библиотека и сканирование | not started |
+| M4 | Библиотека и сканирование | done |
 | M5 | Базовый audio engine | not started |
 | M6 | UI shell | not started |
 | M7 | Плейлисты, очередь, repeat/shuffle | not started |
@@ -134,6 +134,32 @@ logging,lifecycle,runtime}.rs` — four dependencies do not need a wiring file.
 
 Running the binary on a real machine found a defect the tests had not:
 see finding 19.
+
+## M4 — what was actually built
+
+A folder of music becomes a library: scanned, tagged, hashed, de-duplicated,
+with anything ambiguous held back for a decision. 197 tests.
+
+- `infra/metadata/` — `lofty_reader` reads tags *and* stream properties in one
+  pass, `normalize` cleans up what real tags contain, `artwork` caches cover art
+  on disk and refuses anything that is not an image.
+- `infra/library/` — `scanner` walks the filesystem in a stable sorted order,
+  `hash` computes a blake3 content hash.
+- Six more adapters: media files, tracks, artists, albums, genres, review queue.
+- `core/application/services/library_service.rs` — the decisions: new, changed,
+  unchanged, duplicate or problem.
+- `testkit/audio_fixtures.rs` generates real WAV files, so duplicate detection
+  can be tested with genuinely identical bytes.
+
+`MetadataReaderPort::read` was changed to return format, stream properties and
+tags together. Tags alone are not enough to fill `media_files`, and reading each
+file twice to get the rest would have doubled the cost of every scan.
+
+Running the binary found two defects the tests had not — see findings 21 and 22.
+Both now have regression tests.
+
+Deferred within M4: the filesystem watcher. Scanning had to be right first, and
+it is the thing the definition of done names.
 
 ## M2 — deferred repository files
 

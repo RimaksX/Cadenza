@@ -198,6 +198,51 @@ The lesson is worth keeping: a green test suite said nothing about what happens
 to a file the tests never create. Every milestone from here runs the binary as
 well as the tests.
 
+## 20. Import orchestration is placed in infrastructure — resolved
+
+Section 5 lists `infra/src/library/importer.rs`, `duplicate.rs` and `review.rs`.
+Deciding whether a file is new, changed, a duplicate or a problem is a business
+rule, and section 4.1 keeps business rules out of the layer that touches disks.
+
+**Chosen:** `infra/library/` holds mechanisms only — walking directories and
+hashing. The decisions are in `core/application/services/library_service.rs`.
+`duplicate.rs` would have duplicated `core/policies/duplicate_policy.rs`, and
+`review.rs` is the review repository. Three files not created.
+
+Section 5 also gives each of artists, albums and genres its own repository file.
+They are a dozen lines each over the same three-table corner of the schema and
+are always changed together, so they share `catalog_repo.rs`.
+
+## 21. A file awaiting a decision was imported by the next scan — fixed
+
+Found by running the binary, not by the tests.
+
+A duplicate is catalogued but deliberately kept out of the library until the
+listener decides. On the next scan that file took the "nothing changed" fast
+path, which found no library row and helpfully created one — importing the very
+file the review queue was holding back. The queue looked correct the whole time;
+only the library was wrong.
+
+**Fixed:** the fast path checks for an unresolved review entry before adding
+anything. Regression test included.
+
+## 22. Duplicates were detected against files that no longer exist — fixed
+
+Also found by running the binary.
+
+The catalogue is global and outlives the profiles that used it, so it fills up
+with rows for files that have since been deleted or moved. A new file whose
+contents matched one of those rows was held back as a duplicate of something the
+listener could no longer look at — leaving them an empty library and a decision
+they could not act on.
+
+**Fixed:** a duplicate only counts if the other copy is still on disk. A row that
+points at nothing is marked `file_state = 'missing'` on the way past, which is
+what that column is for. Regression test included.
+
+The sweep that marks *every* vanished file missing, rather than only the ones a
+duplicate check walks past, belongs with the filesystem watcher.
+
 ## 17. Section 16 status is stale — **open**
 
 `16_Текущий_статус` still reads "Реализация кода еще не начата" and

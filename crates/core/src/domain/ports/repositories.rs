@@ -37,7 +37,7 @@ use crate::domain::radio::{RadioSession, RadioSessionItem};
 use crate::domain::review::{ImportReview, ReviewState};
 use crate::domain::settings::{ProfileFolder, SettingValue};
 use crate::domain::stats::PlayEvent;
-use crate::domain::track::{Track, TrackFeatures};
+use crate::domain::track::Track;
 use crate::domain::value_objects::Timestamp;
 
 /// Listener profiles.
@@ -132,12 +132,14 @@ pub trait TrackRepositoryPort: Send + Sync {
         now: Timestamp,
     ) -> Result<()>;
 
-    /// Audio features for a file, when analysis has run.
-    fn features(&self, media_file_id: MediaFileId) -> Result<Option<TrackFeatures>>;
-
-    /// Stores extracted features.
-    fn save_features(&self, features: &TrackFeatures) -> Result<()>;
+    /// Restores a tombstoned track, for when a listener re-adds a file they
+    /// removed earlier. Their title and artist edits come back with it.
+    fn restore(&self, profile_id: ProfileId, media_file_id: MediaFileId) -> Result<()>;
 }
+
+// Reading and writing `track_features` belongs here too, but arrives in M11 with
+// the analysis that produces the values. Declaring it now would mean an adapter
+// mapping fourteen columns that nothing writes and nothing reads.
 
 /// The global artist catalogue.
 pub trait ArtistRepositoryPort: Send + Sync {

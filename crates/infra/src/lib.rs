@@ -9,4 +9,6 @@
 
 pub mod db;
 pub mod events;
+pub mod library;
+pub mod metadata;
 pub mod system;

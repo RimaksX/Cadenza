@@ -27,6 +27,21 @@ pub enum Command {
     },
     /// Turn listening history on or off for the active profile.
     History(bool),
+    /// List the folders the active profile scans.
+    Folders,
+    /// Add a folder to the active profile's library.
+    AddFolder {
+        /// Which folder.
+        path: String,
+        /// Whether to descend into subdirectories.
+        recursive: bool,
+    },
+    /// Scan every folder of the active profile.
+    Scan,
+    /// List what is in the active profile's library.
+    Tracks,
+    /// List files waiting for an import decision.
+    Reviews,
     /// Print where Cadenza keeps its files.
     Paths,
     /// Print the usage text.
@@ -43,6 +58,13 @@ USAGE:
     cadenza switch <name>            switch to a profile
     cadenza delete <name> --yes      delete a profile and all of its data
     cadenza history <on|off>         set history for the active profile
+
+    cadenza folders                  list the folders being scanned
+    cadenza add-folder <path> [-r]   add a folder, -r to include subfolders
+    cadenza scan                     scan every folder and import what is new
+    cadenza tracks                   list the library
+    cadenza reviews                  list files waiting for a decision
+
     cadenza paths                    show where data is stored
     cadenza help                     this text
 
@@ -71,6 +93,19 @@ pub fn parse<I: IntoIterator<Item = String>>(args: I) -> Result<Command, String>
             // history and presets with it, and none of that comes back.
             let confirmed = args.next().as_deref() == Some("--yes");
             Command::Delete { name, confirmed }
+        }
+
+        "folders" => Command::Folders,
+        "scan" => Command::Scan,
+        "tracks" => Command::Tracks,
+        "reviews" => Command::Reviews,
+
+        "add-folder" => {
+            let path = require_value(args.next(), "add-folder", "a folder path")?;
+            // Subfolders are opt-in. Pointing at a drive root and walking all of
+            // it by default is a surprise nobody wants twice.
+            let recursive = matches!(args.next().as_deref(), Some("-r" | "--recursive"));
+            Command::AddFolder { path, recursive }
         }
 
         "history" => match require_value(args.next(), "history", "on or off")?.as_str() {

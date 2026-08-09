@@ -8,6 +8,8 @@
 //! Services arrive with the milestone that needs them: profiles in M3, the
 //! library in M4, playback in M5, queue and playlists in M7.
 
+pub mod library_service;
 pub mod profile_service;
 
+pub use library_service::{LibraryPorts, LibraryService, ScanReport};
 pub use profile_service::ProfileService;
