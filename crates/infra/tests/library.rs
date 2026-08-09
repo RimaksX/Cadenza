@@ -11,6 +11,7 @@ use cadenza_core::application::services::{LibraryPorts, LibraryService, ScanRepo
 use cadenza_core::application::{AppContext, ProfileService};
 use cadenza_core::domain::ids::ProfileId;
 use cadenza_core::domain::media_file::{AudioFormat, FileState};
+use cadenza_core::domain::ports::file_watcher::FileChange;
 use cadenza_core::domain::ports::repositories::MediaFileRepositoryPort;
 use cadenza_core::domain::review::{ReviewReason, ReviewResolution};
 use cadenza_infra::db::repositories::{
@@ -310,23 +311,32 @@ fn a_vanished_copy_does_not_hold_back_a_new_file() {
     write_wav(&harness.music, "found_again.wav", 1, 77);
     let report = harness.scan(true);
 
-    assert_eq!(report.duplicates, 0, "the other copy no longer exists");
-    assert_eq!(report.added, 1);
-    assert!(
-        harness.titles().contains(&"found again".to_owned()),
-        "the new file must reach the library, got {:?}",
-        harness.titles()
+    assert_eq!(
+        report.duplicates, 0,
+        "the other copy no longer exists, so there is nothing to decide about"
+    );
+    assert_eq!(
+        harness.titles(),
+        vec!["found again"],
+        "the content is in the library exactly once"
     );
 
-    let vanished = harness
+    // Same content, old path gone: this is the same recording somewhere else,
+    // not a second one. Keeping the identity keeps its listening history and its
+    // playlist entries.
+    let moved = harness
         .media_files
-        .find_by_path(&original)
+        .find_by_path(&harness.music.join("found_again.wav"))
         .expect("looking it up")
-        .expect("the row survives the file");
-    assert_eq!(
-        vanished.state,
-        FileState::Missing,
-        "and the row that pointed at nothing is marked as such"
+        .expect("catalogued at the new path");
+    assert_eq!(moved.state, FileState::Available);
+    assert!(
+        harness
+            .media_files
+            .find_by_path(&original)
+            .expect("looking it up")
+            .is_none(),
+        "and nothing is left pointing at the old path"
     );
 }
 
@@ -428,6 +438,202 @@ fn an_unreadable_file_does_not_stop_the_scan() {
     assert_eq!(report.added, 1, "the good file still imported");
     assert_eq!(report.failed, 1);
     assert_eq!(harness.titles(), vec!["good"]);
+}
+
+#[test]
+fn a_file_deleted_while_cadenza_was_closed_is_noticed() {
+    let harness = harness("refresh-missing");
+    let path = write_wav(&harness.music, "gone.wav", 1, 55);
+    harness.scan(true);
+
+    // A scan only ever meets files that exist, so on its own it can never see a
+    // deletion. This is the pass that closes that gap.
+    std::fs::remove_file(&path).expect("deleting");
+    assert_eq!(harness.library.refresh_missing().expect("refreshing"), 1);
+
+    let file = harness
+        .media_files
+        .find_by_path(&path)
+        .expect("looking it up")
+        .expect("the row survives the file");
+    assert_eq!(file.state, FileState::Missing);
+
+    assert_eq!(
+        harness.library.refresh_missing().expect("refreshing"),
+        0,
+        "a second pass over healthy rows must write nothing"
+    );
+}
+
+#[test]
+fn a_file_that_came_back_stops_being_missing() {
+    let harness = harness("refresh-returned");
+    let path = write_wav(&harness.music, "flaky.wav", 1, 56);
+    harness.scan(true);
+
+    let bytes = std::fs::read(&path).expect("reading");
+    std::fs::remove_file(&path).expect("deleting");
+    harness.library.refresh_missing().expect("refreshing");
+
+    // A network drive reconnects, a removable disk comes back.
+    std::fs::write(&path, bytes).expect("restoring");
+    assert_eq!(harness.library.refresh_missing().expect("refreshing"), 1);
+
+    let file = harness
+        .media_files
+        .find_by_path(&path)
+        .expect("looking it up")
+        .expect("catalogued");
+    assert_eq!(file.state, FileState::Available);
+}
+
+#[test]
+fn a_rename_moves_the_row_instead_of_replacing_it() {
+    let harness = harness("rename");
+    let from = write_wav(&harness.music, "old_name.wav", 1, 57);
+    harness.scan(true);
+
+    let before = harness
+        .media_files
+        .find_by_path(&from)
+        .expect("looking it up")
+        .expect("catalogued");
+
+    let to = harness.music.join("new_name.wav");
+    std::fs::rename(&from, &to).expect("renaming");
+    harness
+        .library
+        .apply_change(&FileChange::Renamed {
+            from: from.clone(),
+            to: to.clone(),
+        })
+        .expect("applying the rename");
+
+    let after = harness
+        .media_files
+        .find_by_path(&to)
+        .expect("looking it up")
+        .expect("catalogued at the new path");
+
+    assert_eq!(
+        after.id, before.id,
+        "a moved file is the same recording; a new identity would take its \
+         listening history and playlist entries with it"
+    );
+    assert_eq!(after.state, FileState::Available);
+    assert!(
+        harness
+            .media_files
+            .find_by_path(&from)
+            .expect("looking it up")
+            .is_none(),
+        "and nothing is left behind at the old path"
+    );
+}
+
+#[test]
+fn a_rename_reported_as_a_removal_and_a_creation_still_moves_the_row() {
+    // Found by running the watcher on Windows, which reports a rename as two
+    // separate events. Treating the second as a new file left a phantom entry
+    // pointing at nothing and a duplicate row beside it.
+    let harness = harness("split-rename");
+    let from = write_wav(&harness.music, "before.wav", 1, 60);
+    harness.scan(true);
+    let before = harness
+        .media_files
+        .find_by_path(&from)
+        .expect("looking it up")
+        .expect("catalogued");
+
+    let to = harness.music.join("after.wav");
+    std::fs::rename(&from, &to).expect("renaming");
+
+    harness
+        .library
+        .apply_change(&FileChange::Removed(from.clone()))
+        .expect("the removal half");
+    harness
+        .library
+        .apply_change(&FileChange::Created(to.clone()))
+        .expect("the creation half");
+
+    let after = harness
+        .media_files
+        .find_by_path(&to)
+        .expect("looking it up")
+        .expect("catalogued at the new path");
+    assert_eq!(after.id, before.id, "the same recording, moved");
+    assert_eq!(after.created_at, before.created_at);
+    assert_eq!(after.state, FileState::Available);
+
+    assert_eq!(
+        harness.titles(),
+        vec!["after"],
+        "no phantom left behind at the old name"
+    );
+}
+
+#[test]
+fn a_removal_keeps_the_row_and_marks_it() {
+    let harness = harness("watch-removal");
+    let path = write_wav(&harness.music, "one.wav", 1, 58);
+    harness.scan(true);
+
+    std::fs::remove_file(&path).expect("deleting");
+    harness
+        .library
+        .apply_change(&FileChange::Removed(path.clone()))
+        .expect("applying the removal");
+
+    let file = harness
+        .media_files
+        .find_by_path(&path)
+        .expect("looking it up")
+        .expect("the row survives, carrying history and playlist entries");
+    assert_eq!(file.state, FileState::Missing);
+}
+
+#[test]
+fn a_file_dropped_into_a_watched_folder_is_imported() {
+    let harness = harness("watch-create");
+    harness.scan(true);
+    assert!(harness.titles().is_empty());
+
+    let path = write_wav(&harness.music, "dropped.wav", 1, 59);
+    harness
+        .library
+        .apply_change(&FileChange::Created(path))
+        .expect("applying the creation");
+
+    assert_eq!(harness.titles(), vec!["dropped"]);
+}
+
+#[test]
+fn changes_to_things_that_are_not_music_are_shrugged_off() {
+    let harness = harness("watch-noise");
+    harness.scan(true);
+
+    // The watcher reports everything under the folder, including cover art the
+    // listener drops in and files that vanish before anything reads them.
+    let cover = harness.music.join("cover.jpg");
+    std::fs::write(&cover, b"not audio").expect("a stray file");
+
+    harness
+        .library
+        .apply_change(&FileChange::Created(cover))
+        .expect("a stray file is nothing to do");
+    harness
+        .library
+        .apply_change(&FileChange::Removed(
+            harness.music.join("never-existed.wav"),
+        ))
+        .expect("a removal of something unknown is nothing to do");
+    harness
+        .library
+        .apply_change(&FileChange::Modified(harness.music.join("gone.wav")))
+        .expect("a file that vanished before we looked is nothing to do");
+
+    assert!(harness.titles().is_empty());
 }
 
 #[test]

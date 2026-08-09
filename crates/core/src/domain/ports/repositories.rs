@@ -111,6 +111,13 @@ pub trait MediaFileRepositoryPort: Send + Sync {
 
     /// Marks a file present, missing or unreadable.
     fn set_state(&self, id: MediaFileId, state: FileState, now: Timestamp) -> Result<()>;
+
+    /// Moves a catalogue row to a new path.
+    ///
+    /// A renamed file is the same recording. Deleting the old row and inserting
+    /// a new one would give it a new identity and take its listening history and
+    /// playlist membership with it.
+    fn set_path(&self, id: MediaFileId, path: &Path, now: Timestamp) -> Result<()>;
 }
 
 /// Per-profile library membership.

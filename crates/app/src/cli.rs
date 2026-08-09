@@ -42,6 +42,8 @@ pub enum Command {
     Tracks,
     /// List files waiting for an import decision.
     Reviews,
+    /// Watch the folders and import changes as they happen.
+    Watch,
     /// Print where Cadenza keeps its files.
     Paths,
     /// Print the usage text.
@@ -62,6 +64,7 @@ USAGE:
     cadenza folders                  list the folders being scanned
     cadenza add-folder <path> [-r]   add a folder, -r to include subfolders
     cadenza scan                     scan every folder and import what is new
+    cadenza watch                    keep watching for changes until Enter
     cadenza tracks                   list the library
     cadenza reviews                  list files waiting for a decision
 
@@ -99,6 +102,7 @@ pub fn parse<I: IntoIterator<Item = String>>(args: I) -> Result<Command, String>
         "scan" => Command::Scan,
         "tracks" => Command::Tracks,
         "reviews" => Command::Reviews,
+        "watch" => Command::Watch,
 
         "add-folder" => {
             let path = require_value(args.next(), "add-folder", "a folder path")?;

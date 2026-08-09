@@ -7,5 +7,7 @@
 
 pub mod hash;
 pub mod scanner;
+pub mod watcher;
 
 pub use scanner::LocalFileSystem;
+pub use watcher::NotifyFileWatcher;

@@ -135,6 +135,21 @@ impl MediaFileRepositoryPort for SqliteMediaFileRepository {
             .map_err(db_error_in("marking a media file"))?;
         Ok(())
     }
+
+    fn set_path(&self, id: MediaFileId, path: &Path, now: Timestamp) -> Result<()> {
+        let text = path_to_sql(path)?;
+        let connection = self.pool.get()?;
+        connection
+            // A move also means the file is there again: a rename is usually
+            // reported after the row was marked missing at the old location.
+            .execute(
+                "UPDATE media_files SET path = ?2, file_state = 'ok', updated_at = ?3
+                 WHERE id = ?1",
+                (id.to_string(), text, now.as_millis()),
+            )
+            .map_err(db_error_in("moving a media file"))?;
+        Ok(())
+    }
 }
 
 /// Converts a path for storage, refusing anything that would not survive.

@@ -243,6 +243,25 @@ what that column is for. Regression test included.
 The sweep that marks *every* vanished file missing, rather than only the ones a
 duplicate check walks past, belongs with the filesystem watcher.
 
+## 23. A rename is two events, and became two library entries — fixed
+
+Found by running the watcher, not by the tests.
+
+Windows reports a rename as a removal followed by a creation, in either order.
+Treating the creation as a new file left a phantom entry pointing at nothing and
+a second one beside it, and the moved file lost its identifier — and with it the
+listening history and playlist entries hanging off that identifier.
+
+**Fixed:** content matching a catalogued row whose file is gone is that file in a
+new place. The row moves; nothing is created. Order does not matter, because the
+test is whether the old path still exists rather than which event arrived first.
+Covered by a test that feeds the two halves in separately.
+
+A note for whoever debugs a scan next: the catalogue is global and outlives
+profiles, so deleting a profile does not clear it. Two experiments using the same
+folder path will contaminate each other, and the second will look like a bug in
+duplicate detection. It cost an hour here.
+
 ## 17. Section 16 status is stale — **open**
 
 `16_Текущий_статус` still reads "Реализация кода еще не начата" and

@@ -17,6 +17,7 @@ use std::{env, io};
 
 use cadenza_core::application::services::{LibraryPorts, LibraryService};
 use cadenza_core::application::{AppContext, ProfileService};
+use cadenza_core::domain::ports::file_watcher::FileWatcherPort;
 use cadenza_core::domain::profile::Profile;
 use cadenza_core::{CoreError, Result};
 use cadenza_infra::db;
@@ -26,7 +27,7 @@ use cadenza_infra::db::repositories::{
     SqliteSettingsRepository, SqliteTrackRepository,
 };
 use cadenza_infra::events::InProcessEventBus;
-use cadenza_infra::library::LocalFileSystem;
+use cadenza_infra::library::{LocalFileSystem, NotifyFileWatcher};
 use cadenza_infra::metadata::{FileArtworkCache, LoftyMetadataReader};
 use cadenza_infra::system::{AppPaths, SystemClock};
 
@@ -72,7 +73,7 @@ fn run() -> std::result::Result<(), String> {
     ));
     let profiles = ProfileService::new(Arc::clone(&context));
 
-    let library = LibraryService::new(
+    let library = Arc::new(LibraryService::new(
         Arc::clone(&context),
         LibraryPorts {
             files: Arc::new(LocalFileSystem),
@@ -87,13 +88,69 @@ fn run() -> std::result::Result<(), String> {
             genres: Arc::new(SqliteGenreRepository::new(pool.clone())),
             reviews: Arc::new(SqliteImportReviewRepository::new(pool)),
         },
-    );
+    ));
 
     // Before anything else: the pointer left by the previous run decides who the
     // application is running as.
     let active = profiles.restore_active().map_err(|err| err.to_string())?;
 
+    if command == Command::Watch {
+        return watch(&library).map_err(|err| err.to_string());
+    }
+
     dispatch(&command, &profiles, &library, active).map_err(|err| err.to_string())
+}
+
+/// Watches the library folders until the listener stops it.
+///
+/// Blocks, unlike every other command. Until the interface exists in M6 this is
+/// the only way to see the watcher work.
+fn watch(library: &Arc<LibraryService>) -> Result<()> {
+    let folders = library.folders()?;
+    if folders.is_empty() {
+        println!("no folders to watch — run: cadenza add-folder <path> [-r]");
+        return Ok(());
+    }
+
+    let watcher = NotifyFileWatcher::new()?;
+
+    let handler = Arc::clone(library);
+    watcher.set_handler(Box::new(move |change| {
+        // A failure here concerns one file. Reporting it and carrying on beats
+        // tearing down the watcher over a single unreadable download.
+        if let Err(err) = handler.apply_change(&change) {
+            eprintln!("cadenza: {err}");
+        } else {
+            println!("  {change:?}");
+        }
+    }));
+
+    for folder in &folders {
+        watcher.watch(&folder.path, folder.include_subfolders)?;
+        println!("watching {}", folder.path.display());
+    }
+
+    println!("\npress Enter to stop");
+    let mut line = String::new();
+
+    match io::stdin().read_line(&mut line) {
+        // No terminal: started detached, or with input redirected. Reading gives
+        // an immediate end of file, and exiting on that would stop the watcher
+        // before it had seen anything — which is exactly what a background
+        // watcher must not do.
+        Ok(0) | Err(_) => {
+            println!("no terminal attached — watching until this process is stopped");
+            loop {
+                std::thread::sleep(std::time::Duration::from_secs(60));
+            }
+        }
+        Ok(_) => {}
+    }
+
+    // Dropping the watcher stops its thread and joins it, so nothing runs
+    // against a half-dropped application.
+    drop(watcher);
+    Ok(())
 }
 
 fn dispatch(
@@ -103,7 +160,9 @@ fn dispatch(
     active: Option<Profile>,
 ) -> Result<()> {
     match command {
-        Command::Help | Command::Paths => unreachable!("handled before the database is opened"),
+        Command::Help | Command::Paths | Command::Watch => {
+            unreachable!("handled before dispatch, because they need no profile or must block")
+        }
 
         Command::Status => report_status(profiles, active.as_ref())?,
 

@@ -158,8 +158,20 @@ file twice to get the rest would have doubled the cost of every scan.
 Running the binary found two defects the tests had not — see findings 21 and 22.
 Both now have regression tests.
 
-Deferred within M4: the filesystem watcher. Scanning had to be right first, and
-it is the thing the definition of done names.
+The filesystem watcher completes M4. `infra/library/watcher.rs` wraps `notify`
+with a debouncer whose timing logic is pure and takes the instant as an
+argument, so its tests assert on exact boundaries instead of sleeping. Copying
+an album produces several events per file; acting on the first would mean
+reading a file still being written.
+
+`LibraryService` gained `apply_change`, which turns one filesystem change into a
+library change, and `refresh_missing`, which reconciles what happened while
+Cadenza was closed — a scan only ever meets files that exist, so on its own it
+can never notice a deletion.
+
+A file whose content matches a catalogued row whose file is gone is treated as
+that file moved, not as a new one: it keeps its identifier, and with it its
+listening history and playlist entries. See finding 23.
 
 ## M2 — deferred repository files
 

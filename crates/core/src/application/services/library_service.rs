@@ -19,6 +19,7 @@ use crate::domain::policies::duplicate_policy::{self, DuplicateVerdict};
 use crate::domain::ports::artwork_cache::ArtworkCachePort;
 use crate::domain::ports::event_bus::DomainEvent;
 use crate::domain::ports::file_system::FileSystemPort;
+use crate::domain::ports::file_watcher::FileChange;
 use crate::domain::ports::metadata_reader::{FileMetadata, MetadataReaderPort, TrackTags};
 use crate::domain::ports::repositories::{
     AlbumRepositoryPort, ArtistRepositoryPort, GenreRepositoryPort, ImportReviewRepositoryPort,
@@ -211,6 +212,105 @@ impl LibraryService {
         Ok(report)
     }
 
+    /// Marks catalogued files that are no longer on disk, and unmarks any that
+    /// came back. Returns how many rows changed.
+    ///
+    /// A scan only ever meets files that exist, so on its own it can never
+    /// notice a deletion. Running this after a scan is what closes that gap for
+    /// changes made while Cadenza was not running; the watcher covers the rest.
+    ///
+    /// ponytail: one catalogue lookup per track in the library. At the five
+    /// thousand tracks the requirements name that is fine for something run once
+    /// after a scan. If it ever runs per keystroke it wants a single query
+    /// joining the two tables.
+    pub fn refresh_missing(&self) -> Result<usize> {
+        let profile_id = self.context.require_active_profile()?;
+        let now = self.context.now();
+        let mut changed = 0;
+
+        for track in self.ports.tracks.list_for_profile(profile_id)? {
+            let Some(file) = self.ports.media_files.get(track.media_file_id)? else {
+                continue;
+            };
+
+            let present = self.ports.files.exists(&file.path);
+            let should_be = if present {
+                FileState::Available
+            } else {
+                FileState::Missing
+            };
+
+            // Only touch rows whose verdict actually changed, so a library of
+            // five thousand healthy files costs five thousand reads and no
+            // writes at all.
+            if file.state != should_be {
+                self.ports.media_files.set_state(file.id, should_be, now)?;
+                changed += 1;
+            }
+        }
+
+        if changed > 0 {
+            self.context.events.publish(DomainEvent::LibraryChanged);
+        }
+        Ok(changed)
+    }
+
+    /// Applies one change reported by the filesystem watcher.
+    ///
+    /// Deliberately tolerant: a change concerning a file Cadenza never
+    /// catalogued, or one with an extension it does not handle, is simply
+    /// nothing to do. The watcher reports everything under a watched folder,
+    /// including the listener's cover art and text files.
+    pub fn apply_change(&self, change: &FileChange) -> Result<()> {
+        let profile_id = self.context.require_active_profile()?;
+        let now = self.context.now();
+
+        match change {
+            FileChange::Created(path) | FileChange::Modified(path) => {
+                if !has_supported_extension(path) {
+                    return Ok(());
+                }
+                let Ok(metadata) = self.ports.files.metadata(path) else {
+                    // It went away again between the event and now. The removal
+                    // event that follows will deal with it.
+                    return Ok(());
+                };
+                if metadata.is_dir {
+                    return Ok(());
+                }
+
+                match self.import_file(profile_id, path, metadata.size, metadata.modified) {
+                    Ok(_) => {}
+                    Err(err) => self.record_failure(profile_id, path, &err)?,
+                }
+            }
+
+            FileChange::Removed(path) => {
+                let Some(file) = self.ports.media_files.find_by_path(path)? else {
+                    return Ok(());
+                };
+                // The catalogue row survives the file. It carries the listening
+                // history and the playlist entries, and the file may well be
+                // back in a moment — a rename often arrives as a removal
+                // followed by a creation.
+                self.ports
+                    .media_files
+                    .set_state(file.id, FileState::Missing, now)?;
+            }
+
+            FileChange::Renamed { from, to } => {
+                let Some(file) = self.ports.media_files.find_by_path(from)? else {
+                    // Not something we knew about; treat the destination as new.
+                    return self.apply_change(&FileChange::Created(to.clone()));
+                };
+                self.ports.media_files.set_path(file.id, to, now)?;
+            }
+        }
+
+        self.context.events.publish(DomainEvent::LibraryChanged);
+        Ok(())
+    }
+
     /// Everything currently in the active profile's library.
     pub fn tracks(&self) -> Result<Vec<Track>> {
         let profile_id = self.context.require_active_profile()?;
@@ -310,8 +410,29 @@ impl LibraryService {
         let read = self.ports.metadata.read(path)?;
         let hash = self.ports.files.hash_file(path)?;
 
-        let id = known.as_ref().map_or_else(MediaFileId::new, |file| file.id);
-        let created_at = known.as_ref().map_or(now, |file| file.created_at);
+        // Content that matches a catalogued row whose file is gone is that file
+        // in a new place, not a new file. Without this a rename leaves a phantom
+        // entry pointing at nothing and a second one beside it — and on Windows
+        // a rename is reported as a removal followed by a creation, so this is
+        // the common case rather than the exotic one.
+        let moved = match &known {
+            Some(_) => None,
+            None => self.find_moved(&hash)?,
+        };
+        if let Some((id, _)) = &moved {
+            self.ports.media_files.set_path(*id, path, now)?;
+        }
+
+        let id = known
+            .as_ref()
+            .map(|file| file.id)
+            .or_else(|| moved.as_ref().map(|(id, _)| *id))
+            .unwrap_or_else(MediaFileId::new);
+        let created_at = known
+            .as_ref()
+            .map(|file| file.created_at)
+            .or_else(|| moved.as_ref().map(|(_, created_at)| *created_at))
+            .unwrap_or(now);
 
         let media_file = MediaFile {
             id,
@@ -345,6 +466,20 @@ impl LibraryService {
         }
 
         self.upsert_track(profile_id, &media_file, &read, now)
+    }
+
+    /// Finds a catalogued row with this content whose file is no longer there.
+    ///
+    /// Returns its identifier and the moment it was first seen, both of which
+    /// the moved file keeps: it is the same recording, and its listening history
+    /// and playlist entries hang off that identifier.
+    fn find_moved(&self, hash: &str) -> Result<Option<(MediaFileId, Timestamp)>> {
+        for candidate in self.ports.media_files.find_by_hash(hash)? {
+            if !self.ports.files.exists(&candidate.path) {
+                return Ok(Some((candidate.id, candidate.created_at)));
+            }
+        }
+        Ok(None)
     }
 
     /// True when this file already has an unresolved entry in the review queue.
