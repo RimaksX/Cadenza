@@ -164,6 +164,40 @@ copies of one setting drift apart, and a blob cannot be queried or constrained.
 **Chosen:** `settings_json` is not created. `profile_settings` is the only place a
 per-profile setting lives.
 
+## 18. Data paths have two homes in section 5 — resolved
+
+Section 5 lists both `crates/app/src/paths.rs` and
+`crates/infra/src/system/paths.rs`. Resolving `%APPDATA%` is an operating-system
+call, and section 4.2 puts operating-system calls in infrastructure.
+
+**Chosen:** only `infra/src/system/paths.rs` exists. `app` calls it. A second
+copy in `app` would be either dead code or a second answer to "where is the
+database", which is the sort of question that must have exactly one.
+
+## 19. The migration runner trusted a foreign bookkeeping table — fixed
+
+Not a contradiction in the master file but a defect in the M2 code, found by
+running the binary rather than the tests.
+
+`%APPDATA%/Cadenza/app.db` on the development machine held a database from an
+earlier, abandoned build with a different schema — `created_at TEXT`,
+`track_features.scale`, and a `schema_migrations` table carrying versions 1 to 5
+but no `name` column. The runner read those versions as its own, skipped the
+five migrations they named, and failed on the sixth with "table
+schema_migrations has no column named name" — five migrations away from the
+actual problem.
+
+No data was lost: each migration runs inside a transaction with the row that
+records it, so the failed one rolled back and the file was not modified.
+
+**Fixed:** the runner checks the shape of `schema_migrations` before believing
+anything in it, and refuses a file it did not write with a message that says so.
+Covered by a regression test that reproduces the exact table.
+
+The lesson is worth keeping: a green test suite said nothing about what happens
+to a file the tests never create. Every milestone from here runs the binary as
+well as the tests.
+
 ## 17. Section 16 status is stale — **open**
 
 `16_Текущий_статус` still reads "Реализация кода еще не начата" and

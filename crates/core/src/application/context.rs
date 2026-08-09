@@ -90,6 +90,17 @@ impl AppContext {
             .publish(DomainEvent::ProfileSwitched(profile_id));
     }
 
+    /// Leaves no profile active.
+    ///
+    /// Used when the active profile is deleted. No event: nothing has been
+    /// switched *to*, and a subscriber told "the profile changed" with no
+    /// profile to load would have nothing useful to do.
+    pub fn clear_active_profile(&self) {
+        if let Ok(mut active) = self.active_profile.write() {
+            *active = None;
+        }
+    }
+
     /// Reads the active profile, treating a poisoned lock as "nobody".
     ///
     /// A poisoned lock means another thread panicked mid-switch. Refusing to
@@ -111,7 +122,7 @@ mod tests {
     use crate::domain::ports::event_bus::{DomainEvent, EventBusPort, EventHandler};
     use crate::domain::ports::repositories::{ProfileRepositoryPort, SettingsRepositoryPort};
     use crate::domain::profile::Profile;
-    use crate::domain::settings::ProfileFolder;
+    use crate::domain::settings::{ProfileFolder, SettingValue};
     use crate::domain::value_objects::Timestamp;
 
     struct FixedClock(Timestamp);
@@ -148,22 +159,28 @@ mod tests {
 
     struct NoSettings;
     impl SettingsRepositoryPort for NoSettings {
-        fn app_get(&self, _key: &str) -> crate::Result<Option<String>> {
+        fn app_get(&self, _key: &str) -> crate::Result<Option<SettingValue>> {
             Ok(None)
         }
-        fn app_set(&self, _key: &str, _value: &str, _now: Timestamp) -> crate::Result<()> {
+        fn app_set(&self, _key: &str, _value: &SettingValue, _now: Timestamp) -> crate::Result<()> {
             Ok(())
         }
-        fn profile_get(&self, _p: ProfileId, _key: &str) -> crate::Result<Option<String>> {
+        fn app_remove(&self, _key: &str) -> crate::Result<()> {
+            Ok(())
+        }
+        fn profile_get(&self, _p: ProfileId, _key: &str) -> crate::Result<Option<SettingValue>> {
             Ok(None)
         }
         fn profile_set(
             &self,
             _p: ProfileId,
             _key: &str,
-            _value: &str,
+            _value: &SettingValue,
             _now: Timestamp,
         ) -> crate::Result<()> {
+            Ok(())
+        }
+        fn profile_remove(&self, _p: ProfileId, _key: &str) -> crate::Result<()> {
             Ok(())
         }
         fn list_folders(&self, _p: ProfileId) -> crate::Result<Vec<ProfileFolder>> {

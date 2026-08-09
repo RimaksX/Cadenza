@@ -8,7 +8,7 @@ section `11_План_реализации`. This file tracks progress only.
 | M0 | Scaffold проекта | done |
 | M1 | Core skeleton | done |
 | M2 | SQLite infrastructure | done |
-| M3 | Профили и настройки | not started |
+| M3 | Профили и настройки | done |
 | M4 | Библиотека и сканирование | not started |
 | M5 | Базовый audio engine | not started |
 | M6 | UI shell | not started |
@@ -98,7 +98,46 @@ instants are `INTEGER` unix milliseconds, and the two redundant JSON blobs
 (`profiles.settings_json`, `profile_tracks.metadata_override_json`) and the
 redundant `track_features.scale` are not created.
 
-Deferred: the sixteen repository files. M2's task list says "repository stubs",
+## M3 — what was actually built
+
+Profiles work end to end: created, renamed, switched, deleted, and still there
+after a restart. 164 tests across the workspace.
+
+- `infra/db/repositories/{profile_repo,settings_repo}.rs` — the first two
+  adapters. Rows are read into a plain `*Row` struct and validated into an
+  entity separately, because the conversion can fail and rusqlite's row closure
+  has no room for a domain error.
+- `infra/system/{clock,paths}.rs` — the system clock, and the exact path layout
+  of section 6. `BaseDirs` rather than `ProjectDirs`: the latter would have put
+  the database in `%APPDATA%/Cadenza/config/`.
+- `infra/events/event_bus.rs` — synchronous in-process fan-out. It snapshots the
+  subscriber list and releases the lock before calling anything, so a handler
+  that subscribes or publishes does not deadlock the bus.
+- `core/application/services/profile_service.rs` — the use cases.
+- `testkit/test_clock.rs` — a clock the test drives, starting at a fixed instant
+  so nothing depends on when the suite runs.
+- `app/src/{main,cli}.rs` — real wiring, plus a temporary command line so the
+  milestone can be checked by hand. Both the CLI and its usage text say it is
+  replaced in M6.
+
+One port written in M1 was corrected: `SettingsRepositoryPort` took `&str
+value_json`, which would have made `core` assemble JSON — serialisation is the
+adapter's job. It now deals in `SettingValue`, and `serde_json` lives only in
+`infra`. There were no implementations yet, so this was the last free moment to
+fix it.
+
+Deferred: `settings_service.rs` — the active profile is the profile service's
+business and no per-profile setting has a consumer yet. `app/src/{wiring,config,
+logging,lifecycle,runtime}.rs` — four dependencies do not need a wiring file.
+`app/src/paths.rs` — it would duplicate `infra/src/system/paths.rs`; see
+[MASTER_ISSUES.md](MASTER_ISSUES.md) finding 18.
+
+Running the binary on a real machine found a defect the tests had not:
+see finding 19.
+
+## M2 — deferred repository files
+
+M2's task list says "repository stubs",
 but sixteen files of `todo!()` are dead code that M3–M14 would rewrite. The
 schema is proven by integration tests using plain SQL — which also means a
 failure points at the schema rather than at a mapping layer. `profile_repo` and

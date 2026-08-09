@@ -29,6 +29,7 @@ use cadenza_core::{CoreError, Result};
 pub mod error;
 pub mod migrations;
 pub mod pool;
+pub mod repositories;
 pub mod sqlite;
 
 pub use error::db_error;

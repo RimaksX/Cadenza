@@ -15,6 +15,115 @@ pub const MAX_CROSSFADE: DurationMs = DurationMs::from_secs(5);
 /// Crossfade length used unless the listener changes it.
 pub const DEFAULT_CROSSFADE: DurationMs = DurationMs::from_secs(4);
 
+/// A value stored under a settings key.
+///
+/// Four scalar shapes and deliberately no nesting. Infrastructure encodes these
+/// as JSON in `app_settings.value_json` and `profile_settings.value_json`; the
+/// domain never sees the encoding, which is what keeps serialisation out of
+/// `core`.
+///
+/// A setting that wants structure gets its own table instead. A nested blob
+/// cannot be queried, indexed or constrained — the same reasoning that removed
+/// `profiles.settings_json` and `profile_tracks.metadata_override_json`.
+#[derive(Debug, Clone, PartialEq)]
+pub enum SettingValue {
+    /// A flag.
+    Bool(bool),
+    /// A whole number.
+    Integer(i64),
+    /// A fractional number. Must be finite; infinities and NaN have no JSON form.
+    Float(f64),
+    /// Text, including identifiers stored in their hyphenated UUID form.
+    Text(String),
+}
+
+impl SettingValue {
+    /// The variant name, for error messages.
+    pub const fn type_name(&self) -> &'static str {
+        match self {
+            Self::Bool(_) => "bool",
+            Self::Integer(_) => "integer",
+            Self::Float(_) => "float",
+            Self::Text(_) => "text",
+        }
+    }
+
+    /// Reads the value as a flag.
+    ///
+    /// Type mismatches are errors rather than silent defaults: a setting written
+    /// as text and read as a flag means something upstream is confused, and
+    /// quietly substituting `false` would hide it.
+    pub fn as_bool(&self) -> Result<bool> {
+        match self {
+            Self::Bool(value) => Ok(*value),
+            other => Err(other.mismatch("bool")),
+        }
+    }
+
+    /// Reads the value as a whole number.
+    pub fn as_integer(&self) -> Result<i64> {
+        match self {
+            Self::Integer(value) => Ok(*value),
+            other => Err(other.mismatch("integer")),
+        }
+    }
+
+    /// Reads the value as a number, accepting a stored integer.
+    ///
+    /// JSON does not distinguish `1` from `1.0`, so a float setting that happens
+    /// to hold a round number comes back as an integer. Refusing it here would
+    /// make settings fail depending on their value.
+    pub fn as_float(&self) -> Result<f64> {
+        match self {
+            Self::Float(value) => Ok(*value),
+            Self::Integer(value) => Ok(*value as f64),
+            other => Err(other.mismatch("float")),
+        }
+    }
+
+    /// Reads the value as text.
+    pub fn as_text(&self) -> Result<&str> {
+        match self {
+            Self::Text(value) => Ok(value),
+            other => Err(other.mismatch("text")),
+        }
+    }
+
+    fn mismatch(&self, wanted: &str) -> CoreError {
+        CoreError::invalid(
+            "setting",
+            format!(
+                "expected {wanted} but the stored value is {}",
+                self.type_name()
+            ),
+        )
+    }
+}
+
+impl From<bool> for SettingValue {
+    fn from(value: bool) -> Self {
+        Self::Bool(value)
+    }
+}
+
+impl From<i64> for SettingValue {
+    fn from(value: i64) -> Self {
+        Self::Integer(value)
+    }
+}
+
+impl From<String> for SettingValue {
+    fn from(value: String) -> Self {
+        Self::Text(value)
+    }
+}
+
+impl From<&str> for SettingValue {
+    fn from(value: &str) -> Self {
+        Self::Text(value.to_owned())
+    }
+}
+
 /// A validated crossfade length.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct CrossfadeDuration(DurationMs);

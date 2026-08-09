@@ -9,5 +9,7 @@
 //! M3, the library in M4, playback in M5, and the view states the UI reads in M6.
 
 pub mod context;
+pub mod services;
 
 pub use context::AppContext;
+pub use services::ProfileService;

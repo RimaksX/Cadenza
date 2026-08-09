@@ -184,6 +184,8 @@ pub fn applied_versions(connection: &Connection) -> Result<Vec<i64>> {
         return Ok(Vec::new());
     }
 
+    ensure_bookkeeping_shape(connection)?;
+
     let mut statement = connection
         .prepare("SELECT version FROM schema_migrations ORDER BY version")
         .map_err(db_error_in("reading applied migrations"))?;
@@ -199,4 +201,45 @@ pub fn applied_versions(connection: &Connection) -> Result<Vec<i64>> {
 /// The schema version currently in the database, or `None` if it has none.
 pub fn current_version(connection: &Connection) -> Result<Option<i64>> {
     Ok(applied_versions(connection)?.last().copied())
+}
+
+/// Columns migration 1 gives `schema_migrations`.
+const BOOKKEEPING_COLUMNS: [&str; 3] = ["version", "name", "applied_at"];
+
+/// Refuses a `schema_migrations` table that is not the one migration 1 creates.
+///
+/// A file can carry a table of that name written by something else — a different
+/// program, or a pre-release build of Cadenza whose schema no longer matches.
+/// Without this check the version numbers in it would be read as Cadenza's own,
+/// the migrations they name would be skipped, and the first one that did run
+/// would fail with a message about a missing column five migrations away from
+/// the actual problem.
+///
+/// Refusing is the only safe answer: the rows are somebody's data, and there is
+/// no way to tell what they mean.
+fn ensure_bookkeeping_shape(connection: &Connection) -> Result<()> {
+    let mut statement = connection
+        .prepare("SELECT name FROM pragma_table_info('schema_migrations')")
+        .map_err(db_error_in("inspecting the migration table"))?;
+
+    let columns = statement
+        .query_map([], |row| row.get::<_, String>(0))
+        .map_err(db_error_in("inspecting the migration table"))?
+        .collect::<rusqlite::Result<Vec<_>>>()
+        .map_err(db_error_in("inspecting the migration table"))?;
+
+    let missing: Vec<&str> = BOOKKEEPING_COLUMNS
+        .into_iter()
+        .filter(|expected| !columns.iter().any(|column| column == expected))
+        .collect();
+
+    if missing.is_empty() {
+        return Ok(());
+    }
+
+    Err(CoreError::Storage(format!(
+        "this file has a schema_migrations table without {missing:?}, so it was not \
+         written by this version of Cadenza (it has {columns:?}). Refusing to migrate it: \
+         move the file aside and let Cadenza create a new one."
+    )))
 }

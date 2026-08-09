@@ -35,7 +35,7 @@ use crate::domain::profile::Profile;
 use crate::domain::queue::Queue;
 use crate::domain::radio::{RadioSession, RadioSessionItem};
 use crate::domain::review::{ImportReview, ReviewState};
-use crate::domain::settings::ProfileFolder;
+use crate::domain::settings::{ProfileFolder, SettingValue};
 use crate::domain::stats::PlayEvent;
 use crate::domain::track::{Track, TrackFeatures};
 use crate::domain::value_objects::Timestamp;
@@ -57,27 +57,33 @@ pub trait ProfileRepositoryPort: Send + Sync {
 
 /// Application and per-profile settings, plus library folders.
 ///
-/// Values are opaque JSON text at this level. The typed accessors that know what
-/// each key means live in the settings service, which keeps the storage layer
-/// from needing a schema for every preference ever added.
+/// Values cross this boundary as [`SettingValue`], not as JSON text. The domain
+/// has no business assembling or parsing an encoding; the adapter owns that, and
+/// replacing JSON with something else would not touch a line of `core`.
 pub trait SettingsRepositoryPort: Send + Sync {
     /// A global setting, such as which profile is active.
-    fn app_get(&self, key: &str) -> Result<Option<String>>;
+    fn app_get(&self, key: &str) -> Result<Option<SettingValue>>;
 
     /// Writes a global setting.
-    fn app_set(&self, key: &str, value_json: &str, now: Timestamp) -> Result<()>;
+    fn app_set(&self, key: &str, value: &SettingValue, now: Timestamp) -> Result<()>;
+
+    /// Forgets a global setting. Removing one that was never set is not an error.
+    fn app_remove(&self, key: &str) -> Result<()>;
 
     /// A profile-scoped setting.
-    fn profile_get(&self, profile_id: ProfileId, key: &str) -> Result<Option<String>>;
+    fn profile_get(&self, profile_id: ProfileId, key: &str) -> Result<Option<SettingValue>>;
 
     /// Writes a profile-scoped setting.
     fn profile_set(
         &self,
         profile_id: ProfileId,
         key: &str,
-        value_json: &str,
+        value: &SettingValue,
         now: Timestamp,
     ) -> Result<()>;
+
+    /// Forgets a profile-scoped setting.
+    fn profile_remove(&self, profile_id: ProfileId, key: &str) -> Result<()>;
 
     /// Library folders belonging to a profile.
     fn list_folders(&self, profile_id: ProfileId) -> Result<Vec<ProfileFolder>>;

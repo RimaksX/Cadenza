@@ -162,6 +162,47 @@ fn a_database_from_a_newer_build_is_refused() {
 }
 
 #[test]
+fn a_foreign_migration_table_is_refused_rather_than_half_applied() {
+    // Found by running the binary on a real machine: a database left by an
+    // earlier build had a schema_migrations table with only a version column.
+    // Its rows were read as Cadenza's own, five migrations were skipped, and the
+    // sixth failed with a message about a missing column — nowhere near the
+    // actual problem.
+    let directory = std::env::temp_dir().join(format!(
+        "cadenza-foreign-{}-{}",
+        std::process::id(),
+        line!()
+    ));
+    std::fs::create_dir_all(&directory).expect("a directory");
+    let path = directory.join("app.db");
+
+    {
+        let mut connection = sqlite::open(&path).expect("a connection");
+        connection
+            .execute_batch(
+                "CREATE TABLE schema_migrations (version INTEGER PRIMARY KEY) STRICT;
+                 INSERT INTO schema_migrations (version)
+                 VALUES (1), (2), (3), (4), (5);",
+            )
+            .expect("a table written by something else");
+
+        let err = migrations::apply(&mut connection).expect_err("this is not our database");
+        let message = err.to_string();
+        assert!(
+            message.contains("not written by this version"),
+            "the error should point at the file, got: {message}"
+        );
+
+        assert!(
+            !table_exists(&connection, "profiles"),
+            "nothing may be created in a database we refused to migrate"
+        );
+    }
+
+    let _ = std::fs::remove_dir_all(&directory);
+}
+
+#[test]
 fn every_pooled_connection_enforces_foreign_keys_and_uses_wal() {
     let db = TempDb::new();
 
