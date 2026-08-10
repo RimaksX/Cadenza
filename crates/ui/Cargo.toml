@@ -7,7 +7,15 @@ rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
 
-# Layering rule (PROJECT_MASTER 4.2): ui -> infra is forbidden.
+# Layering rule (PROJECT_MASTER 4.2): ui -> infra is forbidden. The absence of
+# cadenza-infra here is what enforces it — a violation fails to compile.
 [dependencies]
 cadenza-core.workspace = true
-# slint + build.rs / slint-build arrive in M6.
+
+# The interface (PROJECT_MASTER 3.2). Pinned to 1.13 rather than the newest
+# release: 1.17 requires rustc 1.92 and would raise the workspace's minimum
+# toolchain for no feature this milestone needs.
+slint = "1.13"
+
+[build-dependencies]
+slint-build = "1.13"

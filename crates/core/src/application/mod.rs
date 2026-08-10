@@ -10,6 +10,8 @@
 
 pub mod context;
 pub mod services;
+pub mod view_state;
 
 pub use context::AppContext;
 pub use services::ProfileService;
+pub use view_state::PlayerView;

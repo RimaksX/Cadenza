@@ -1,0 +1,24 @@
+// The light palette.
+//
+// The same ladder walked the other way, at the same hue, so every component
+// keeps its meaning: `bg-0` is still the page, `bg-3` is still the most raised
+// surface, `ink-0` is still the loudest text.
+//
+// PROJECT_MASTER 2.10 requires both themes. The visual reference is dark only,
+// so this side is derived rather than given: lightness mirrored, chroma kept
+// low enough that white surfaces do not read as tinted.
+
+export global LightPalette {
+    out property <color> bg-0: #fcfaf8;
+    out property <color> bg-1: #f5f3f1;
+    out property <color> bg-2: #edeae8;
+    out property <color> bg-3: #e0dddb;
+
+    out property <color> line: #d0cdca;
+    out property <color> line-soft: #e3e1df;
+
+    out property <color> ink-mute: #837f7d;
+    out property <color> ink-2: #585452;
+    out property <color> ink-1: #2b2826;
+    out property <color> ink-0: #0f0d0b;
+}

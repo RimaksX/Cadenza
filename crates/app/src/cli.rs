@@ -12,6 +12,8 @@
 /// What the user asked for.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Command {
+    /// Open the window. What running Cadenza with no arguments means.
+    Ui,
     /// Show the active profile and everything else that exists.
     Status,
     /// Create a profile and, if it is the first, start as it.
@@ -66,7 +68,8 @@ pub const USAGE: &str = "\
 cadenza — local music player (milestone M5: basic audio engine)
 
 USAGE:
-    cadenza                          show the active profile and the others
+    cadenza                          open the window
+    cadenza status                   show the active profile and the others
     cadenza create <name>            create a profile
     cadenza switch <name>            switch to a profile
     cadenza delete <name> --yes      delete a profile and all of its data
@@ -94,8 +97,9 @@ milestone M6.";
 pub fn parse<I: IntoIterator<Item = String>>(args: I) -> Result<Command, String> {
     let mut args = args.into_iter();
 
+    // No arguments is the ordinary way to start a music player.
     let Some(verb) = args.next() else {
-        return Ok(Command::Status);
+        return Ok(Command::Ui);
     };
 
     let command = match verb.as_str() {
@@ -180,8 +184,13 @@ mod tests {
     }
 
     #[test]
-    fn no_arguments_shows_the_status() {
-        assert_eq!(parse_args(&[]), Ok(Command::Status));
+    fn no_arguments_opens_the_window() {
+        assert_eq!(parse_args(&[]), Ok(Command::Ui));
+        assert_eq!(
+            parse_args(&["status"]),
+            Ok(Command::Status),
+            "the old default is still reachable by name"
+        );
     }
 
     #[test]

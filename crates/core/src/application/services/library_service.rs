@@ -27,7 +27,7 @@ use crate::domain::ports::repositories::{
 };
 use crate::domain::review::{ImportReview, ReviewReason, ReviewResolution, ReviewState};
 use crate::domain::settings::ProfileFolder;
-use crate::domain::track::Track;
+use crate::domain::track::{Track, TrackSummary};
 use crate::domain::value_objects::Timestamp;
 use crate::{CoreError, Result};
 
@@ -328,6 +328,15 @@ impl LibraryService {
             .remove(profile_id, media_file_id, self.context.now())?;
         self.context.events.publish(DomainEvent::LibraryChanged);
         Ok(())
+    }
+
+    /// The active profile's library, ready to be listed.
+    ///
+    /// The same content as [`Self::tracks`] with artist and album names resolved.
+    /// The interface wants names; editing wants identifiers.
+    pub fn summaries(&self) -> Result<Vec<TrackSummary>> {
+        let profile_id = self.context.require_active_profile()?;
+        self.ports.tracks.summaries_for_profile(profile_id)
     }
 
     /// Genres of a track as the active profile sees them.

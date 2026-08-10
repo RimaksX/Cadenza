@@ -9,7 +9,9 @@
 //! library in M4, playback in M5, queue and playlists in M7.
 
 pub mod library_service;
+pub mod playback_service;
 pub mod profile_service;
 
 pub use library_service::{LibraryPorts, LibraryService, ScanReport};
+pub use playback_service::{PlaybackPorts, PlaybackService};
 pub use profile_service::ProfileService;

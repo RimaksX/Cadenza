@@ -11,7 +11,7 @@ section `11_План_реализации`. This file tracks progress only.
 | M3 | Профили и настройки | done |
 | M4 | Библиотека и сканирование | done |
 | M5 | Базовый audio engine | done |
-| M6 | UI shell | not started |
+| M6 | UI shell | done |
 | M7 | Плейлисты, очередь, repeat/shuffle | not started |
 | M8 | Crossfade и gapless | not started |
 | M9 | Эквалайзер | not started |
@@ -237,6 +237,55 @@ and CI has none. Everything below it is — the ring, the resampler, the channel
 map, the callback and the decode thread all run without one. What no test can
 claim is that the result sounds right, and that is checked by running
 `cadenza play`.
+
+## M6 — what was actually built
+
+A window. It lists the library, plays what is double-clicked, pauses, stops,
+seeks, changes level, and remembers which theme the listener prefers. 271 tests.
+
+- `core/application/view_state.rs` — `PlayerView`, the whole of what the player
+  bar draws. Listings are `domain::track::TrackSummary`, a read model rather than
+  a view: the queue, playlists and radio will want the same rows and none of
+  them is the interface.
+- `core/application/services/playback_service.rs` — the only door between the
+  interface and the audio engine, which section 4.3 forbids the UI to open
+  itself. Eight tests against a fake engine cover what the buttons do.
+- `TrackRepositoryPort` gained two projections and `infra` one `LEFT JOIN`. A
+  listing needs names where an edit needs identifiers, and resolving them row by
+  row would turn one query into thousands.
+- `ui/slint/` — `theme/{tokens,dark,light}`, `components/{AppShell,Sidebar,
+  PlayerBar,TrackRow}`, `views/LibraryView`, `app_window`. No component names a
+  colour or a size of its own.
+- `ui/src/` — `view_models/` (formatting, tested without a window), `controller`
+  (translation and calls, no rules), `app` (window, callbacks, a 250 ms tick that
+  asks the engine where it is).
+- `app` — `cadenza` with no arguments now opens the window; every verb still
+  works, and `cadenza status` is the old default under its own name.
+
+The visual language follows the reference mockup rather than its markup: one warm
+hue climbed in lightness so depth comes from a step rather than a shadow, a serif
+for names, mono capitals for anything read as a number, hairlines instead of
+boxes. Placeholder system faces until the real ones are bundled.
+
+Deferred, each named rather than quietly skipped: the ~25 other views and
+components section 5 lists, which need screens that do not exist yet;
+`commands.rs` and `ui/src/commands/` (finding 30); `subscriptions.rs`, because
+nothing else in this process changes the library while the window is open;
+`scaling.rs`, which needs a settings screen; a custom title bar, because the
+native frame costs nothing and looks like the platform.
+
+Running the binary showed a defect the tests could not: the column headers and
+the rows disagreed by a few pixels, because a Slint layout gives each cell its
+natural width first and shares only the remainder by stretch factor — so a
+column was as wide as the longest string in it. Fixed by pinning the stretching
+cells to `preferred-width: 0`.
+
+What nothing here covers is the click itself. The window was launched and its
+rendering checked; the listing is right, the theme applies, and the services
+behind every button have tests. What was **not** verified is that a double-click
+on a row arrives at `PlaybackService` — synthetic mouse messages are ignored by
+the windowing backend, and driving the real pointer is not something to do on
+somebody's desk. The first person to click is the check.
 
 ## M2 — deferred repository files
 

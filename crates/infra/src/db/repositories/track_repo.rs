@@ -2,8 +2,8 @@
 
 use cadenza_core::domain::ids::{AlbumId, ArtistId, MediaFileId, ProfileId};
 use cadenza_core::domain::ports::repositories::TrackRepositoryPort;
-use cadenza_core::domain::track::Track;
-use cadenza_core::domain::value_objects::Timestamp;
+use cadenza_core::domain::track::{Track, TrackSummary};
+use cadenza_core::domain::value_objects::{DurationMs, Timestamp};
 use cadenza_core::{CoreError, Result};
 use rusqlite::{OptionalExtension, Row};
 
@@ -12,6 +12,18 @@ use crate::db::error::db_error_in;
 
 const COLUMNS: &str = "profile_id, media_file_id, title, artist_id, album_id, \
      track_no, disc_no, year, added_at, removed_at";
+
+/// A listing row: the profile's own title beside the catalogue's names.
+///
+/// `LEFT JOIN` throughout — a track with no artist tag, no album, or a
+/// catalogue row that lost its file must still appear in the library rather
+/// than vanish from a listing because one join found nothing.
+const SUMMARY_SELECT: &str = "SELECT pt.media_file_id, pt.title, ar.name AS artist, \
+     al.title AS album, IFNULL(mf.duration_ms, 0) AS duration_ms \
+     FROM profile_tracks pt \
+     LEFT JOIN artists    ar ON ar.id = pt.artist_id \
+     LEFT JOIN albums     al ON al.id = pt.album_id \
+     LEFT JOIN media_files mf ON mf.id = pt.media_file_id";
 
 /// Reads and writes `profile_tracks`.
 pub struct SqliteTrackRepository {
@@ -63,6 +75,45 @@ impl TrackRepositoryPort for SqliteTrackRepository {
             .map_err(db_error_in("listing a library"))?;
 
         rows.into_iter().map(TrackRow::into_domain).collect()
+    }
+
+    fn summaries_for_profile(&self, profile_id: ProfileId) -> Result<Vec<TrackSummary>> {
+        let connection = self.pool.get()?;
+        let mut statement = connection
+            .prepare(&format!(
+                "{SUMMARY_SELECT}
+                 WHERE pt.profile_id = ?1 AND pt.removed_at IS NULL
+                 ORDER BY pt.title COLLATE NOCASE"
+            ))
+            .map_err(db_error_in("listing a library"))?;
+
+        let rows = statement
+            .query_map([profile_id.to_string()], read_summary)
+            .map_err(db_error_in("listing a library"))?
+            .collect::<rusqlite::Result<Vec<_>>>()
+            .map_err(db_error_in("listing a library"))?;
+
+        rows.into_iter().collect()
+    }
+
+    fn summary(
+        &self,
+        profile_id: ProfileId,
+        media_file_id: MediaFileId,
+    ) -> Result<Option<TrackSummary>> {
+        let connection = self.pool.get()?;
+        connection
+            .query_row(
+                &format!(
+                    "{SUMMARY_SELECT}
+                     WHERE pt.profile_id = ?1 AND pt.media_file_id = ?2"
+                ),
+                (profile_id.to_string(), media_file_id.to_string()),
+                read_summary,
+            )
+            .optional()
+            .map_err(db_error_in("reading a track"))?
+            .transpose()
     }
 
     fn save(&self, track: &Track) -> Result<()> {
@@ -182,6 +233,31 @@ impl TrackRow {
             removed_at: self.removed_at.map(Timestamp::from_millis),
         })
     }
+}
+
+/// Reads one listing row.
+///
+/// Returns the domain error inside the row result, like the entity readers
+/// above: rusqlite's closure can only fail with its own error type, and a
+/// malformed identifier is not a database failure.
+fn read_summary(row: &Row<'_>) -> rusqlite::Result<Result<TrackSummary>> {
+    let media_file_id: String = row.get("media_file_id")?;
+    let title: String = row.get("title")?;
+    let artist: Option<String> = row.get("artist")?;
+    let album: Option<String> = row.get("album")?;
+    let duration_ms: i64 = row.get("duration_ms")?;
+
+    Ok(
+        MediaFileId::parse(&media_file_id).map(|media_file_id| TrackSummary {
+            media_file_id,
+            title,
+            artist,
+            album,
+            // A negative duration cannot reach here — the column has a CHECK — but
+            // clamping beats a panic if one ever does.
+            duration: DurationMs::from_millis(duration_ms.unsigned_abs()),
+        }),
+    )
 }
 
 fn small(value: Option<i64>, field: &'static str) -> Result<Option<u16>> {

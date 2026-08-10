@@ -1,0 +1,191 @@
+import { Theme } from "../theme/tokens.slint";
+
+// One line of navigation.
+//
+// The dot in front is the whole selection indicator: no pill, no bar, no fill
+// that has to be recoloured for the light theme. It brightens, and that is the
+// difference between "here" and "not here".
+component NavItem inherits Rectangle {
+    in property <string> label;
+    in property <bool> selected;
+    in property <bool> enabled: true;
+
+    callback chosen();
+
+    height: 30px;
+    background: root.selected ? Theme.bg-1 : transparent;
+    border-radius: Theme.radius;
+
+    touch := TouchArea {
+        enabled: root.enabled;
+        clicked => {
+            root.chosen();
+        }
+    }
+
+    HorizontalLayout {
+        padding-left: Theme.space-3;
+        padding-right: Theme.space-3;
+        spacing: Theme.space-3;
+
+        Rectangle {
+            width: 4px;
+            height: 4px;
+            y: (parent.height - 4px) / 2;
+            border-radius: 2px;
+            background: root.selected
+                ? Theme.ink-0
+                : (touch.has-hover && root.enabled ? Theme.ink-2 : Theme.line);
+            animate background { duration: 120ms; }
+        }
+
+        Text {
+            text: root.label;
+            font-family: Theme.sans;
+            font-size: Theme.text-body;
+            color: root.enabled
+                ? (root.selected ? Theme.ink-0 : (touch.has-hover ? Theme.ink-1 : Theme.ink-2))
+                : Theme.ink-mute;
+            vertical-alignment: center;
+        }
+    }
+}
+
+component NavLabel inherits HorizontalLayout {
+    in property <string> text;
+
+    padding-left: Theme.space-3;
+    padding-right: Theme.space-3;
+    padding-bottom: Theme.space-2;
+    spacing: Theme.space-2;
+
+    Text {
+        text: root.text;
+        font-family: Theme.mono;
+        font-size: Theme.text-label;
+        letter-spacing: Theme.label-spacing;
+        color: Theme.ink-mute;
+        vertical-alignment: center;
+    }
+
+    // The rule runs from the label to the edge, which is how the eye finds the
+    // group boundary without a heavier separator.
+    Rectangle {
+        y: (parent.height - 1px) / 2;
+        height: 1px;
+        background: Theme.line-soft;
+    }
+}
+
+export component Sidebar inherits Rectangle {
+    in property <string> profile-name;
+
+    callback toggle-theme();
+
+    width: Theme.sidebar-width;
+    background: Theme.bg-0;
+
+    // A single hairline, not a border: the sidebar and the content are one
+    // surface with a seam, not two panels.
+    Rectangle {
+        x: parent.width - 1px;
+        width: 1px;
+        background: Theme.line-soft;
+    }
+
+    VerticalLayout {
+        padding-top: Theme.space-6;
+        padding-bottom: Theme.space-5;
+        spacing: Theme.space-6;
+
+        // Wordmark. The name is the only place the serif is set this large.
+        VerticalLayout {
+            padding-left: Theme.space-5;
+            padding-right: Theme.space-5;
+            spacing: 2px;
+
+            Text {
+                text: "Cadenza";
+                font-family: Theme.serif;
+                font-size: 28px;
+                color: Theme.ink-0;
+            }
+            Text {
+                text: "LOCAL PLAYER";
+                font-family: Theme.mono;
+                font-size: Theme.text-label;
+                letter-spacing: Theme.label-spacing;
+                color: Theme.ink-mute;
+            }
+        }
+
+        VerticalLayout {
+            padding-left: Theme.space-3;
+            padding-right: Theme.space-3;
+            spacing: 2px;
+
+            NavLabel {
+                text: "COLLECTION";
+            }
+            NavItem {
+                label: "Library";
+                selected: true;
+            }
+            // Everything below waits for the milestone that gives it a screen.
+            // Shown rather than hidden so the shape of the application is
+            // legible, and disabled rather than clickable so it cannot lie.
+            NavItem {
+                label: "Playlists";
+                enabled: false;
+            }
+            NavItem {
+                label: "Queue";
+                enabled: false;
+            }
+            NavItem {
+                label: "Radio";
+                enabled: false;
+            }
+        }
+
+        Rectangle { }
+
+        // Who is listening, and the one control that belongs to them.
+        VerticalLayout {
+            padding-left: Theme.space-5;
+            padding-right: Theme.space-5;
+            spacing: Theme.space-2;
+
+            Text {
+                text: "LISTENING AS";
+                font-family: Theme.mono;
+                font-size: Theme.text-label;
+                letter-spacing: Theme.label-spacing;
+                color: Theme.ink-mute;
+            }
+            Text {
+                text: root.profile-name;
+                font-family: Theme.serif;
+                font-size: Theme.text-title;
+                color: Theme.ink-1;
+                overflow: elide;
+            }
+
+            theme-toggle := TouchArea {
+                height: 24px;
+                clicked => {
+                    root.toggle-theme();
+                }
+
+                Text {
+                    text: Theme.dark ? "→ LIGHT" : "→ DARK";
+                    font-family: Theme.mono;
+                    font-size: Theme.text-label;
+                    letter-spacing: Theme.label-spacing;
+                    color: theme-toggle.has-hover ? Theme.ink-1 : Theme.ink-mute;
+                    vertical-alignment: center;
+                }
+            }
+        }
+    }
+}

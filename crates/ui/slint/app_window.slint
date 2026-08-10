@@ -1,0 +1,104 @@
+import { Theme } from "theme/tokens.slint";
+import { AppShell } from "components/AppShell.slint";
+import { TrackRowData } from "components/TrackRow.slint";
+
+// Re-exported so the controller can set the palette. A global's input is set
+// from the native side; markup may read it but never assign to it, which is
+// what keeps the theme a decision of the application layer rather than of a
+// view that happens to know about profiles.
+export { Theme }
+
+// The window, and the whole boundary between Rust and the markup.
+//
+// Everything in is a property, everything out is a callback. There is no other
+// channel: the markup cannot reach a database, a file or the audio engine
+// (PROJECT_MASTER 4.3), and this file is where that is checked by reading.
+export component AppWindow inherits Window {
+    title: "Cadenza";
+    background: Theme.bg-0;
+    default-font-family: Theme.sans;
+    default-font-size: Theme.text-body;
+    preferred-width: 1180px;
+    preferred-height: 760px;
+    min-width: 880px;
+    min-height: 560px;
+
+    // Down: what to draw.
+    in property <[TrackRowData]> tracks;
+    in property <string> library-summary;
+    in property <string> empty-hint;
+    in property <string> profile-name;
+    in property <string> now-title;
+    in property <string> now-artist;
+    in property <string> now-position: "0:00";
+    in property <string> now-duration: "0:00";
+    in property <string> playing-id;
+    in property <float> progress;
+    in property <bool> playing;
+    in property <bool> loaded;
+    in property <bool> muted;
+    in property <float> volume: 1.0;
+    in property <string> message;
+
+    // Up: what the listener asked for.
+    callback play(string);
+    callback toggle-play();
+    callback stop();
+    callback seek(float);
+    callback set-volume(float);
+    callback toggle-mute();
+    callback toggle-theme();
+
+    AppShell {
+        tracks: root.tracks;
+        library-summary: root.library-summary;
+        empty-hint: root.empty-hint;
+        profile-name: root.profile-name;
+        now-title: root.now-title;
+        now-artist: root.now-artist;
+        now-position: root.now-position;
+        now-duration: root.now-duration;
+        playing-id: root.playing-id;
+        progress: root.progress;
+        playing: root.playing;
+        loaded: root.loaded;
+        muted: root.muted;
+        volume: root.volume;
+        message: root.message;
+
+        play(id) => {
+            root.play(id);
+        }
+        toggle-play => {
+            root.toggle-play();
+        }
+        stop => {
+            root.stop();
+        }
+        seek(fraction) => {
+            root.seek(fraction);
+        }
+        set-volume(level) => {
+            root.set-volume(level);
+        }
+        toggle-mute => {
+            root.toggle-mute();
+        }
+        toggle-theme => {
+            root.toggle-theme();
+        }
+    }
+
+    // Space is the one shortcut worth having before there is a settings screen
+    // to list shortcuts in.
+    forward-focus: keys;
+    keys := FocusScope {
+        key-pressed(event) => {
+            if (event.text == " ") {
+                root.toggle-play();
+                return accept;
+            }
+            return reject;
+        }
+    }
+}

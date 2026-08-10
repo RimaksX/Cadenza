@@ -406,6 +406,62 @@ fn genre_names(harness: &Harness) -> Vec<String> {
 }
 
 #[test]
+fn a_listing_carries_names_rather_than_identifiers() {
+    let harness = harness("summaries");
+    let path = write_wav(&harness.music, "mysterons.wav", 2, 10);
+    tag_file(&path, "Mysterons", "Portishead", "Dummy", "Trip-Hop");
+    harness.scan(true);
+
+    let listing = harness.library.summaries().expect("listing");
+    assert_eq!(listing.len(), 1);
+
+    let row = &listing[0];
+    assert_eq!(row.title, "Mysterons");
+    assert_eq!(row.artist.as_deref(), Some("Portishead"));
+    assert_eq!(row.album.as_deref(), Some("Dummy"));
+    assert_eq!(
+        row.duration.as_millis(),
+        2_000,
+        "the length comes from the file, not from the library row"
+    );
+}
+
+#[test]
+fn a_listing_keeps_a_track_whose_tags_were_missing() {
+    let harness = harness("summaries-untagged");
+    write_wav(&harness.music, "01_unnamed.wav", 1, 10);
+    harness.scan(true);
+
+    let listing = harness.library.summaries().expect("listing");
+    assert_eq!(
+        listing.len(),
+        1,
+        "a left join, not an inner one: no artist must not mean no row"
+    );
+    assert!(listing[0].artist.is_none());
+    assert!(listing[0].album.is_none());
+}
+
+#[test]
+fn a_removed_track_leaves_the_listing() {
+    let harness = harness("summaries-removed");
+    let path = write_wav(&harness.music, "mysterons.wav", 1, 10);
+    tag_file(&path, "Mysterons", "Portishead", "Dummy", "Trip-Hop");
+    harness.scan(true);
+
+    let media_file_id = harness.library.summaries().expect("listing")[0].media_file_id;
+    harness
+        .library
+        .remove_track(media_file_id)
+        .expect("removing");
+
+    assert!(
+        harness.library.summaries().expect("listing").is_empty(),
+        "a tombstone is not part of the library"
+    );
+}
+
+#[test]
 fn correcting_a_genre_does_not_reach_the_other_profile() {
     let harness = harness("genre-leak");
     let path = write_wav(&harness.music, "mysterons.wav", 1, 10);

@@ -37,7 +37,7 @@ use crate::domain::radio::{RadioSession, RadioSessionItem};
 use crate::domain::review::{ImportReview, ReviewState};
 use crate::domain::settings::{ProfileFolder, SettingValue};
 use crate::domain::stats::PlayEvent;
-use crate::domain::track::Track;
+use crate::domain::track::{Track, TrackSummary};
 use crate::domain::value_objects::Timestamp;
 
 /// Listener profiles.
@@ -127,6 +127,20 @@ pub trait TrackRepositoryPort: Send + Sync {
 
     /// Every track currently in a profile's library, excluding tombstones.
     fn list_for_profile(&self, profile_id: ProfileId) -> Result<Vec<Track>>;
+
+    /// The same library, with artist and album names and durations resolved.
+    ///
+    /// Separate from [`Self::list_for_profile`] because a listing needs names
+    /// and an edit needs identifiers, and resolving the names row by row would
+    /// turn one query into thousands.
+    fn summaries_for_profile(&self, profile_id: ProfileId) -> Result<Vec<TrackSummary>>;
+
+    /// One row of a listing.
+    fn summary(
+        &self,
+        profile_id: ProfileId,
+        media_file_id: MediaFileId,
+    ) -> Result<Option<TrackSummary>>;
 
     /// Inserts or updates.
     fn save(&self, track: &Track) -> Result<()>;

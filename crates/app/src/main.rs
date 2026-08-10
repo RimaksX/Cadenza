@@ -15,7 +15,9 @@ use std::process::ExitCode;
 use std::sync::Arc;
 use std::{env, io};
 
-use cadenza_core::application::services::{LibraryPorts, LibraryService};
+use cadenza_core::application::services::{
+    LibraryPorts, LibraryService, PlaybackPorts, PlaybackService,
+};
 use cadenza_core::application::{AppContext, ProfileService};
 use cadenza_core::domain::playback::PlaybackState;
 use cadenza_core::domain::ports::audio_engine::AudioEnginePort;
@@ -97,7 +99,7 @@ fn run() -> std::result::Result<(), String> {
             artists: Arc::new(SqliteArtistRepository::new(pool.clone())),
             albums: Arc::new(SqliteAlbumRepository::new(pool.clone())),
             genres: Arc::new(SqliteGenreRepository::new(pool.clone())),
-            reviews: Arc::new(SqliteImportReviewRepository::new(pool)),
+            reviews: Arc::new(SqliteImportReviewRepository::new(pool.clone())),
         },
     ));
 
@@ -107,6 +109,27 @@ fn run() -> std::result::Result<(), String> {
 
     if command == Command::Watch {
         return watch(&library).map_err(|err| err.to_string());
+    }
+
+    if command == Command::Ui {
+        // The audio device is opened here and nowhere else: a command line that
+        // lists profiles has no business claiming the speakers.
+        let playback = Arc::new(PlaybackService::new(
+            Arc::clone(&context),
+            PlaybackPorts {
+                engine: Arc::new(CpalAudioEngine::new().map_err(|err| err.to_string())?),
+                media_files: Arc::new(SqliteMediaFileRepository::new(pool.clone())),
+                tracks: Arc::new(SqliteTrackRepository::new(pool)),
+            },
+        ));
+
+        return cadenza_ui::run(cadenza_ui::UiServices {
+            library: Arc::clone(&library),
+            playback,
+            profiles: Arc::new(ProfileService::new(Arc::clone(&context))),
+            profile: active,
+        })
+        .map_err(|err| err.to_string());
     }
 
     dispatch(&command, &profiles, &library, active).map_err(|err| err.to_string())
@@ -262,7 +285,7 @@ fn dispatch(
     active: Option<Profile>,
 ) -> Result<()> {
     match command {
-        Command::Help | Command::Paths | Command::Watch | Command::Play(_) => {
+        Command::Help | Command::Paths | Command::Watch | Command::Play(_) | Command::Ui => {
             unreachable!("handled before dispatch, because they need no profile or must block")
         }
 

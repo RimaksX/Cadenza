@@ -384,6 +384,42 @@ The fix also deleted the duplicated `Track` construction — the fast path now
 delegates to the same `upsert_track` the ordinary import uses, which is why the
 two could disagree in the first place.
 
+## 29. `forbid(unsafe_code)` cannot survive generated code — resolved
+
+Every crate except `infra` opens with `#![forbid(unsafe_code)]`. Slint compiles
+the markup into Rust that carries its own `allow(unsafe_code)` for the vtables
+it builds, and `forbid` outranks any inner `allow` — including one nobody wrote
+by hand. The UI crate would not compile.
+
+**Chosen:** `#![deny(unsafe_code)]` in `crates/ui` and nowhere else. Hand-written
+code in that crate is still refused an `unsafe` block; what changes is that
+machine output may exempt itself, which is the case the lint was never aimed at.
+`core`, `app` and `testkit` keep `forbid`.
+
+Worth knowing rather than hiding: the realtime audio path, which is the place
+where `unsafe` would actually be tempting, is in `infra` and contains none — see
+`audio/ring_buffer.rs`.
+
+## 30. The UI's command channel is the services themselves — resolved
+
+`docs/UI_CONTRACT.md` and section 5 both describe commands travelling up from
+the interface through `core/src/application/commands.rs`, and section 5 lists a
+`crates/ui/src/commands/` directory of eight files beside it.
+
+**Chosen:** the application services *are* the command surface.
+`PlaybackService::toggle` is a command; wrapping it in a `Command::TogglePlay`
+enum that a dispatcher immediately matches back into the same call adds a name,
+a match arm and a file per verb, and removes nothing.
+
+The contract it was there to protect is unchanged and still checkable by
+reading: `crates/ui` depends on `cadenza-core` and `slint` and on nothing else,
+so a view cannot reach a database, a file or the audio engine whatever it calls.
+
+An enum earns its place when a command needs to be queued, retried, logged or
+undone — a background scan that must not block the window, which is M7's
+problem. Section 5's `commands/` directory and `commands.rs` are not created
+until then.
+
 ## 17. Section 16 status is stale — resolved
 
 `16_Текущий_статус` read "Реализация кода еще не начата" and `next_step: M0`

@@ -1,0 +1,149 @@
+import { ListView } from "std-widgets.slint";
+import { Theme } from "../theme/tokens.slint";
+import { TrackRow, TrackRowData } from "../components/TrackRow.slint";
+
+// The library, and nothing else yet. Artists, albums, playlists and radio each
+// get their own view in the milestone that gives them something to show.
+export component LibraryView inherits Rectangle {
+    in property <[TrackRowData]> tracks;
+    in property <string> summary;
+    in property <string> playing-id;
+    in property <string> empty-hint;
+
+    callback play(string);
+
+    background: Theme.bg-0;
+
+    VerticalLayout {
+        // The page head. One title, set large, with the count beneath it in the
+        // same mono capitals the column labels use — the eye learns one rule.
+        VerticalLayout {
+            padding-left: Theme.space-6;
+            padding-right: Theme.space-6;
+            padding-top: Theme.space-6;
+            padding-bottom: Theme.space-5;
+            spacing: Theme.space-2;
+
+            Text {
+                text: "YOUR LIBRARY";
+                font-family: Theme.mono;
+                font-size: Theme.text-label;
+                letter-spacing: Theme.label-spacing;
+                color: Theme.ink-mute;
+            }
+
+            Text {
+                text: "Everything you have";
+                font-family: Theme.serif;
+                font-size: Theme.text-display;
+                color: Theme.ink-0;
+            }
+
+            Text {
+                text: root.summary;
+                font-family: Theme.mono;
+                font-size: Theme.text-small;
+                color: Theme.ink-2;
+            }
+        }
+
+        // Column labels, then the rule that separates them from the rows.
+        HorizontalLayout {
+            padding-left: Theme.space-4;
+            padding-right: Theme.space-4;
+            padding-bottom: Theme.space-2;
+            spacing: Theme.space-4;
+
+            Text {
+                width: 32px;
+                text: "№";
+                font-family: Theme.mono;
+                font-size: Theme.text-label;
+                letter-spacing: Theme.label-spacing;
+                color: Theme.ink-mute;
+                horizontal-alignment: right;
+            }
+            Text {
+                text: "TITLE";
+                font-family: Theme.mono;
+                font-size: Theme.text-label;
+                letter-spacing: Theme.label-spacing;
+                color: Theme.ink-mute;
+                horizontal-alignment: left;
+                overflow: elide;
+                horizontal-stretch: 3;
+                preferred-width: 0px;
+            }
+            Text {
+                text: "ARTIST";
+                font-family: Theme.mono;
+                font-size: Theme.text-label;
+                letter-spacing: Theme.label-spacing;
+                color: Theme.ink-mute;
+                horizontal-alignment: left;
+                overflow: elide;
+                horizontal-stretch: 2;
+                preferred-width: 0px;
+            }
+            Text {
+                text: "ALBUM";
+                font-family: Theme.mono;
+                font-size: Theme.text-label;
+                letter-spacing: Theme.label-spacing;
+                color: Theme.ink-mute;
+                horizontal-alignment: left;
+                overflow: elide;
+                horizontal-stretch: 2;
+                preferred-width: 0px;
+            }
+            Text {
+                width: 56px;
+                text: "TIME";
+                font-family: Theme.mono;
+                font-size: Theme.text-label;
+                letter-spacing: Theme.label-spacing;
+                color: Theme.ink-mute;
+                horizontal-alignment: right;
+            }
+        }
+
+        Rectangle {
+            height: 1px;
+            background: Theme.line;
+        }
+
+        // An empty library is a state with an answer, not a blank page.
+        if root.tracks.length == 0: Rectangle {
+            VerticalLayout {
+                alignment: center;
+                spacing: Theme.space-3;
+
+                Text {
+                    text: "Nothing here yet";
+                    font-family: Theme.serif;
+                    font-size: Theme.text-title;
+                    color: Theme.ink-2;
+                    horizontal-alignment: center;
+                }
+                Text {
+                    text: root.empty-hint;
+                    font-family: Theme.mono;
+                    font-size: Theme.text-small;
+                    color: Theme.ink-mute;
+                    horizontal-alignment: center;
+                    wrap: word-wrap;
+                }
+            }
+        }
+
+        if root.tracks.length > 0: ListView {
+            for entry in root.tracks: TrackRow {
+                data: entry;
+                playing: entry.id == root.playing-id;
+                activated => {
+                    root.play(entry.id);
+                }
+            }
+        }
+    }
+}

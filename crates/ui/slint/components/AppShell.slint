@@ -1,0 +1,90 @@
+import { Theme } from "../theme/tokens.slint";
+import { Sidebar } from "Sidebar.slint";
+import { PlayerBar } from "PlayerBar.slint";
+import { TrackRowData } from "TrackRow.slint";
+import { LibraryView } from "../views/LibraryView.slint";
+
+// The frame every screen lives in: navigation down the left, the player across
+// the bottom, one content area between them.
+//
+// A fixed arrangement, which PROJECT_MASTER 2.10 requires — the listener does
+// not rearrange it. The content area is a single view today; it becomes a
+// switch when there is a second screen to switch to in M7.
+export component AppShell inherits Rectangle {
+    in property <[TrackRowData]> tracks;
+    in property <string> library-summary;
+    in property <string> empty-hint;
+    in property <string> profile-name;
+
+    in property <string> now-title;
+    in property <string> now-artist;
+    in property <string> now-position;
+    in property <string> now-duration;
+    in property <string> playing-id;
+    in property <float> progress;
+    in property <bool> playing;
+    in property <bool> loaded;
+    in property <bool> muted;
+    in property <float> volume;
+    in property <string> message;
+
+    callback play(string);
+    callback toggle-play();
+    callback stop();
+    callback seek(float);
+    callback set-volume(float);
+    callback toggle-mute();
+    callback toggle-theme();
+
+    background: Theme.bg-0;
+
+    VerticalLayout {
+        HorizontalLayout {
+            Sidebar {
+                profile-name: root.profile-name;
+                toggle-theme => {
+                    root.toggle-theme();
+                }
+            }
+
+            LibraryView {
+                tracks: root.tracks;
+                summary: root.library-summary;
+                playing-id: root.playing-id;
+                empty-hint: root.empty-hint;
+                play(id) => {
+                    root.play(id);
+                }
+            }
+        }
+
+        PlayerBar {
+            title: root.now-title;
+            artist: root.now-artist;
+            position: root.now-position;
+            duration: root.now-duration;
+            progress: root.progress;
+            playing: root.playing;
+            loaded: root.loaded;
+            muted: root.muted;
+            volume: root.volume;
+            message: root.message;
+
+            toggle-play => {
+                root.toggle-play();
+            }
+            stop => {
+                root.stop();
+            }
+            seek(fraction) => {
+                root.seek(fraction);
+            }
+            set-volume(level) => {
+                root.set-volume(level);
+            }
+            toggle-mute => {
+                root.toggle-mute();
+            }
+        }
+    }
+}

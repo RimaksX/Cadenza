@@ -1,0 +1,113 @@
+import { Theme } from "../theme/tokens.slint";
+
+// One row of a listing, as the view model hands it over.
+//
+// Every field is already a string: formatting a duration or deciding what to
+// show for a missing artist is presentation, and presentation that happens in
+// Rust can be tested. `id` is the media file's identifier in its text form —
+// the markup never interprets it, it only hands it back with a click.
+export struct TrackRowData {
+    id: string,
+    position: string,
+    title: string,
+    artist: string,
+    album: string,
+    duration: string,
+}
+
+export component TrackRow inherits Rectangle {
+    // Not `row`: a Rectangle already has one, for grid placement.
+    in property <TrackRowData> data;
+    in property <bool> playing;
+
+    callback activated();
+
+    height: Theme.row-height;
+    background: touch.has-hover ? Theme.bg-1 : transparent;
+    animate background { duration: 120ms; }
+
+    touch := TouchArea {
+        // Double-click to play matches every file listing on the platform, and
+        // leaves a single click free for the selection M7 adds.
+        double-clicked => {
+            root.activated();
+        }
+    }
+
+    HorizontalLayout {
+        padding-left: Theme.space-4;
+        padding-right: Theme.space-4;
+        spacing: Theme.space-4;
+
+        // The number column doubles as the playing marker, so a row never
+        // changes width when it starts playing.
+        Text {
+            width: 32px;
+            text: root.playing ? "▸" : root.data.position;
+            font-family: Theme.mono;
+            font-size: Theme.text-small;
+            color: root.playing ? Theme.ink-0 : Theme.ink-mute;
+            vertical-alignment: center;
+            horizontal-alignment: right;
+        }
+
+        // `preferred-width: 0` on every stretching column, here and in the
+        // header. Without it a layout hands each cell its natural width first
+        // and shares only the remainder by stretch factor, so a column is as
+        // wide as the longest thing in it — and a header that says ARTIST no
+        // longer sits above the artists.
+        Text {
+            text: root.data.title;
+            font-family: Theme.serif;
+            font-size: Theme.text-title;
+            color: root.playing ? Theme.ink-0 : Theme.ink-1;
+            vertical-alignment: center;
+            horizontal-alignment: left;
+            overflow: elide;
+            horizontal-stretch: 3;
+            preferred-width: 0px;
+        }
+
+        Text {
+            text: root.data.artist;
+            font-family: Theme.sans;
+            font-size: Theme.text-body;
+            color: Theme.ink-2;
+            vertical-alignment: center;
+            horizontal-alignment: left;
+            overflow: elide;
+            horizontal-stretch: 2;
+            preferred-width: 0px;
+        }
+
+        Text {
+            text: root.data.album;
+            font-family: Theme.sans;
+            font-size: Theme.text-body;
+            color: Theme.ink-mute;
+            vertical-alignment: center;
+            horizontal-alignment: left;
+            overflow: elide;
+            horizontal-stretch: 2;
+            preferred-width: 0px;
+        }
+
+        Text {
+            width: 56px;
+            text: root.data.duration;
+            font-family: Theme.mono;
+            font-size: Theme.text-small;
+            color: Theme.ink-mute;
+            vertical-alignment: center;
+            horizontal-alignment: right;
+        }
+    }
+
+    // A hairline under every row rather than a box around each: the list reads
+    // as one object, which is what a library is.
+    Rectangle {
+        y: parent.height - 1px;
+        height: 1px;
+        background: Theme.line-soft;
+    }
+}

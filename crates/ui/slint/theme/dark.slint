@@ -1,0 +1,26 @@
+// The dark palette.
+//
+// A single warm hue climbed in lightness: four background steps instead of
+// shadows, four ink steps instead of opacity. Depth comes from the step, so a
+// panel never needs a border and a border never needs to be dark.
+//
+// Values converted from the oklch ladder in the visual reference: hue 60,
+// chroma 0.005 — just enough warmth that the greys are not clinical.
+
+export global DarkPalette {
+    // Surfaces, base to raised.
+    out property <color> bg-0: #0a0806;
+    out property <color> bg-1: #100e0c;
+    out property <color> bg-2: #171413;
+    out property <color> bg-3: #201e1c;
+
+    // Separators. `line` is visible, `line-soft` is felt rather than seen.
+    out property <color> line: #2b2826;
+    out property <color> line-soft: #1c1a18;
+
+    // Text, quietest to loudest.
+    out property <color> ink-mute: #605d5b;
+    out property <color> ink-2: #95918f;
+    out property <color> ink-1: #d3d0ce;
+    out property <color> ink-0: #f8f8f8;
+}

@@ -1,0 +1,60 @@
+import { DarkPalette } from "dark.slint";
+import { LightPalette } from "light.slint";
+
+// The only thing components are allowed to read.
+//
+// No component names a colour, a size or a font family of its own. That is what
+// makes the design arrive in M15 as an edit to these files rather than a sweep
+// through every view (PROJECT_MASTER 14).
+
+export global Theme {
+    // Set from Rust out of the active profile's `theme` column.
+    in property <bool> dark: true;
+
+    out property <color> bg-0: dark ? DarkPalette.bg-0 : LightPalette.bg-0;
+    out property <color> bg-1: dark ? DarkPalette.bg-1 : LightPalette.bg-1;
+    out property <color> bg-2: dark ? DarkPalette.bg-2 : LightPalette.bg-2;
+    out property <color> bg-3: dark ? DarkPalette.bg-3 : LightPalette.bg-3;
+
+    out property <color> line: dark ? DarkPalette.line : LightPalette.line;
+    out property <color> line-soft: dark ? DarkPalette.line-soft : LightPalette.line-soft;
+
+    out property <color> ink-mute: dark ? DarkPalette.ink-mute : LightPalette.ink-mute;
+    out property <color> ink-2: dark ? DarkPalette.ink-2 : LightPalette.ink-2;
+    out property <color> ink-1: dark ? DarkPalette.ink-1 : LightPalette.ink-1;
+    out property <color> ink-0: dark ? DarkPalette.ink-0 : LightPalette.ink-0;
+
+    // Three faces, three jobs: serif names things, sans explains them, mono
+    // carries anything a listener reads as a number rather than as a word.
+    //
+    // System families for now. The reference uses Instrument Serif, Inter and
+    // JetBrains Mono; bundling them is M15's business, when the design document
+    // says which they finally are, and `resources/fonts/` is where they go.
+    out property <string> serif: "Georgia";
+    out property <string> sans: "Segoe UI";
+    out property <string> mono: "Consolas";
+
+    // Type scale. Display is for the one title on a page, body for everything
+    // read as prose, label for mono capitals, micro for counts beside them.
+    out property <length> text-display: 34px;
+    out property <length> text-title: 17px;
+    out property <length> text-body: 13.5px;
+    out property <length> text-small: 12px;
+    out property <length> text-label: 9px;
+
+    // Spacing, in one series, so nothing lands between two steps.
+    out property <length> space-1: 4px;
+    out property <length> space-2: 8px;
+    out property <length> space-3: 12px;
+    out property <length> space-4: 16px;
+    out property <length> space-5: 24px;
+    out property <length> space-6: 32px;
+
+    out property <length> radius: 4px;
+    out property <length> sidebar-width: 240px;
+    out property <length> player-height: 92px;
+    out property <length> row-height: 40px;
+
+    // Mono capitals are set wide; a label at 9px is otherwise a smudge.
+    out property <length> label-spacing: 1.6px;
+}

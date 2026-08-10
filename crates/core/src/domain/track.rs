@@ -1,7 +1,7 @@
 //! A track as one profile sees it, plus the audio features derived from its file.
 
 use super::ids::{AlbumId, ArtistId, MediaFileId, ProfileId};
-use super::value_objects::{Bpm, MusicalKey, Timestamp};
+use super::value_objects::{Bpm, DurationMs, MusicalKey, Timestamp};
 
 /// A media file as it appears in one profile's library.
 ///
@@ -42,6 +42,27 @@ impl Track {
     pub const fn is_in_library(&self) -> bool {
         self.removed_at.is_none()
     }
+}
+
+/// A track with its artist and album resolved, ready to be listed.
+///
+/// A read model rather than an entity: nothing is saved through it. It exists
+/// because [`Track`] holds identifiers where a listing needs names, and looking
+/// each one up per row turns a two-thousand-track library into four thousand
+/// queries. The repository resolves them in the same statement that reads the
+/// rows.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TrackSummary {
+    /// The file this row plays.
+    pub media_file_id: MediaFileId,
+    /// Effective title, as this profile sees it.
+    pub title: String,
+    /// Artist name. Absent when the file carried no artist tag.
+    pub artist: Option<String>,
+    /// Album title. Absent when the file carried no album tag.
+    pub album: Option<String>,
+    /// Playing time, from the file's own stream properties.
+    pub duration: DurationMs,
 }
 
 /// Audio features extracted by local DSP analysis.
