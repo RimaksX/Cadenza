@@ -5,12 +5,18 @@ Normative table and column definitions: `PROJECT_MASTER.json`, section
 applied and evolved.
 
 Status: created in M2 as twelve append-only migrations,
-`crates/infra/src/db/migrations/m0001_initial.rs` .. `m0012_review.rs`.
+`crates/infra/src/db/migrations/m0001_initial.rs` .. `m0012_review.rs`, with a
+thirteenth added in M5.
 
 Three columns from section 7 are deliberately not created, and every instant is
 stored as an integer rather than text. The reasoning is in
 [MASTER_ISSUES.md](MASTER_ISSUES.md) findings 4, 5, 15 and 16, and in the module
 documentation of `crates/infra/src/db/mod.rs`.
+
+One table is not in section 7 at all. `profile_track_genres`, with
+`profile_tracks.genres_overridden` beside it, is what lets one listener correct a
+genre without correcting it for everyone who shares the file — section 2.1
+against 12.1, finding 10. Section 7.2 should gain both.
 
 ## Rules
 

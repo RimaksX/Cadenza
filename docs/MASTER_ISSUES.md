@@ -97,13 +97,13 @@ containers, so a scanner cannot fill `media_files.format` from the filename.
 `DecoderPort::probe` decides the actual format. The two concerns are separate
 functions rather than one lookup table.
 
-## 10. Genre edits leak between profiles — **open**
+## 10. Genre edits leak between profiles — resolved
 
 Section 2.1 lets a profile edit metadata locally, and 12.1 forbids profile data
 leaking. But `track_genres` in section 7.2 is keyed on `media_file_id` alone, so
-one profile correcting a genre changes it for every profile sharing that file.
+one profile correcting a genre changed it for every profile sharing that file.
 
-Three options, none free:
+Three options were open, none free:
 
 1. Add a per-profile genre override table. Correct, costs a table and a join on
    every genre query.
@@ -112,8 +112,24 @@ Three options, none free:
 3. Keep the tag-derived genre global and add profile-scoped *tags* separately.
    Most flexible, most work.
 
-Needs a decision before M4 implements metadata editing. Option 1 is the one that
-honours both rules as written.
+**Chosen: option 1.** It is the only one that honours both rules as written, and
+it matches what `profile_tracks` already does for title, artist, album and year —
+genre was the odd one out only because it is many-to-many and so could not be a
+column. Option 2 would need 2.1 amended; option 3 invents a second vocabulary the
+interface would then have to explain.
+
+Implemented in migration 13:
+
+- `profile_track_genres (profile_id, media_file_id, genre_id)`, keyed to the
+  library entry so that deleting a profile takes its corrections with it, and a
+  track removed and re-added keeps them.
+- `profile_tracks.genres_overridden`, because "file this under nothing" is a
+  decision a listener can make, and an empty override is otherwise
+  indistinguishable from having made none.
+
+`track_genres` stays as the tags describe the recording. A profile sees its own
+correction when it has one and the file's own genres otherwise. The leak itself
+has a test: two profiles, one file, different genres.
 
 ## 11. Monthly statistics against a 30-day window — not a contradiction
 
@@ -345,11 +361,40 @@ loses the centre of a 5.1 file. Proper downmix coefficients are a table and a
 listening test, and the material section 2.2 describes is overwhelmingly stereo.
 Section 8.1 should gain the stage.
 
-## 17. Section 16 status is stale — **open**
+## 28. The second profile to import a file got its filename, not its tags — fixed
 
-`16_Текущий_статус` still reads "Реализация кода еще не начата" and
-`next_step: M0`. M0 and M1 are complete.
+Found by running the binary while checking finding 10, and not by the tests.
+
+Two profiles sharing a folder: the first scan reads tags and fills the library
+properly. The second profile's scan finds every file already catalogued and
+unchanged, takes the fast path that never opens a file, and added its library
+rows from the filename — `mysterons` instead of `Mysterons`, with no artist and
+no album. Every listener after the first got a worse library than the first one,
+for no reason they could see.
+
+**Fixed:** joining a file that is new to *this* profile reads its tags, which is
+the same cost the first profile paid and is paid once per listener per file. The
+early return for a track already in the library is untouched, so a rescan of an
+unchanged library still opens nothing.
+
+Copying the other profile's row would have been cheaper and wrong: it would hand
+over their corrections, which is the leak 12.1 forbids and finding 10 fixes.
+
+The fix also deleted the duplicated `Track` construction — the fast path now
+delegates to the same `upsert_track` the ordinary import uses, which is why the
+two could disagree in the first place.
+
+## 17. Section 16 status is stale — resolved
+
+`16_Текущий_статус` read "Реализация кода еще не начата" and `next_step: M0`
+through five completed milestones.
 
 Keeping it current is maintenance rather than an architecture change, but the
 master file is the source of truth and should not be edited as a side effect of
-implementation work. Awaiting confirmation before updating it.
+implementation work, so it waited for the go-ahead.
+
+**Chosen:** `status` now names what is finished and points at this file and
+`PROJECT_PLAN.md` for the detail; `next_step` is the milestone actually next.
+Nothing else in the master file was touched — `implementation_order` and every
+other section stand as written, and the deviations recorded here stay recorded
+here rather than being edited into the source of truth.

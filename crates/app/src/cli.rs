@@ -40,6 +40,15 @@ pub enum Command {
     Scan,
     /// List what is in the active profile's library.
     Tracks,
+    /// Correct the genres of one track, for the active profile only.
+    Genre {
+        /// Position in the `tracks` listing, counting from one.
+        index: usize,
+        /// The genres to file it under. Empty means none at all.
+        names: Vec<String>,
+        /// Set by `--reset`: forget the correction and use the file's own tags.
+        reset: bool,
+    },
     /// List files waiting for an import decision.
     Reviews,
     /// Watch the folders and import changes as they happen.
@@ -67,7 +76,9 @@ USAGE:
     cadenza add-folder <path> [-r]   add a folder, -r to include subfolders
     cadenza scan                     scan every folder and import what is new
     cadenza watch                    keep watching for changes until Enter
-    cadenza tracks                   list the library
+    cadenza tracks                   list the library with genres
+    cadenza genre <n> <genre>...     set the genres of track n, this profile only
+    cadenza genre <n> --reset        restore the genres the file itself carries
     cadenza reviews                  list files waiting for a decision
 
     cadenza play <file>              play a file: p pause, s <sec> seek,
@@ -116,6 +127,29 @@ pub fn parse<I: IntoIterator<Item = String>>(args: I) -> Result<Command, String>
             // it by default is a surprise nobody wants twice.
             let recursive = matches!(args.next().as_deref(), Some("-r" | "--recursive"));
             Command::AddFolder { path, recursive }
+        }
+
+        "genre" => {
+            let index = require_value(args.next(), "genre", "a track number from: cadenza tracks")?
+                .parse::<usize>()
+                .map_err(|_| "genre takes a track number, for example: genre 3 Jazz".to_owned())?;
+
+            let rest: Vec<String> = args.collect();
+            let reset = rest.iter().any(|word| word == "--reset");
+            let names = rest
+                .into_iter()
+                .filter(|word| word != "--reset")
+                .collect::<Vec<_>>();
+
+            if reset && !names.is_empty() {
+                return Err("--reset takes no genres: it restores the file's own".to_owned());
+            }
+
+            Command::Genre {
+                index,
+                names,
+                reset,
+            }
         }
 
         "history" => match require_value(args.next(), "history", "on or off")?.as_str() {
@@ -170,6 +204,35 @@ mod tests {
     }
 
     #[test]
+    fn genres_are_taken_as_written_and_reset_is_recognised() {
+        assert_eq!(
+            parse_args(&["genre", "3", "Jazz", "Bebop"]),
+            Ok(Command::Genre {
+                index: 3,
+                names: vec!["Jazz".to_owned(), "Bebop".to_owned()],
+                reset: false,
+            })
+        );
+        assert_eq!(
+            parse_args(&["genre", "3", "--reset"]),
+            Ok(Command::Genre {
+                index: 3,
+                names: Vec::new(),
+                reset: true,
+            })
+        );
+        assert_eq!(
+            parse_args(&["genre", "3"]),
+            Ok(Command::Genre {
+                index: 3,
+                names: Vec::new(),
+                reset: false,
+            }),
+            "no genres at all is a decision the listener is allowed to make"
+        );
+    }
+
+    #[test]
     fn deleting_needs_saying_so_twice() {
         assert_eq!(
             parse_args(&["delete", "Sasha"]),
@@ -196,6 +259,12 @@ mod tests {
         assert!(parse_args(&["history"]).is_err());
         assert!(parse_args(&["history", "maybe"]).is_err());
         assert!(parse_args(&["play"]).is_err());
+        assert!(parse_args(&["genre"]).is_err());
+        assert!(parse_args(&["genre", "one"]).is_err(), "not a number");
+        assert!(
+            parse_args(&["genre", "1", "Jazz", "--reset"]).is_err(),
+            "resetting and setting at once means nothing"
+        );
     }
 
     #[test]

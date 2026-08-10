@@ -6,15 +6,15 @@
 //! they are always changed together. Splitting them would be three files of
 //! imports for no reader's benefit.
 
-use cadenza_core::Result;
 use cadenza_core::domain::album::Album;
 use cadenza_core::domain::artist::Artist;
 use cadenza_core::domain::genre::Genre;
-use cadenza_core::domain::ids::{AlbumId, ArtistId, GenreId, MediaFileId};
+use cadenza_core::domain::ids::{AlbumId, ArtistId, GenreId, MediaFileId, ProfileId};
 use cadenza_core::domain::ports::repositories::{
     AlbumRepositoryPort, ArtistRepositoryPort, GenreRepositoryPort,
 };
 use cadenza_core::domain::value_objects::Timestamp;
+use cadenza_core::{CoreError, Result};
 use rusqlite::{OptionalExtension, Row};
 
 use crate::db::SqlitePool;
@@ -275,6 +275,136 @@ impl GenreRepositoryPort for SqliteGenreRepository {
         transaction
             .commit()
             .map_err(db_error_in("replacing the genres of a file"))
+    }
+
+    fn for_profile_track(
+        &self,
+        profile_id: ProfileId,
+        media_file_id: MediaFileId,
+    ) -> Result<Vec<Genre>> {
+        let connection = self.pool.get()?;
+
+        let overridden: Option<i64> = connection
+            .query_row(
+                "SELECT genres_overridden FROM profile_tracks
+                 WHERE profile_id = ?1 AND media_file_id = ?2",
+                (profile_id.to_string(), media_file_id.to_string()),
+                |row| row.get(0),
+            )
+            .optional()
+            .map_err(db_error_in("reading a genre override"))?;
+
+        // Not in this profile's library, or never corrected: the file's own
+        // genres are the answer.
+        if overridden != Some(1) {
+            return self.for_media_file(media_file_id);
+        }
+
+        let mut statement = connection
+            .prepare(
+                "SELECT g.id, g.name FROM genres g
+                 JOIN profile_track_genres ptg ON ptg.genre_id = g.id
+                 WHERE ptg.profile_id = ?1 AND ptg.media_file_id = ?2
+                 ORDER BY g.name",
+            )
+            .map_err(db_error_in("listing a profile's genres for a track"))?;
+
+        let rows = statement
+            .query_map(
+                (profile_id.to_string(), media_file_id.to_string()),
+                read_genre,
+            )
+            .map_err(db_error_in("listing a profile's genres for a track"))?
+            .collect::<rusqlite::Result<Vec<_>>>()
+            .map_err(db_error_in("listing a profile's genres for a track"))?;
+
+        rows.into_iter().collect()
+    }
+
+    fn set_for_profile_track(
+        &self,
+        profile_id: ProfileId,
+        media_file_id: MediaFileId,
+        genres: &[GenreId],
+    ) -> Result<()> {
+        let mut connection = self.pool.get()?;
+        let transaction = connection
+            .transaction()
+            .map_err(db_error_in("correcting the genres of a track"))?;
+
+        let changed = transaction
+            .execute(
+                "UPDATE profile_tracks SET genres_overridden = 1
+                 WHERE profile_id = ?1 AND media_file_id = ?2",
+                (profile_id.to_string(), media_file_id.to_string()),
+            )
+            .map_err(db_error_in("correcting the genres of a track"))?;
+
+        // The foreign key below would refuse the rows anyway, but as a
+        // constraint violation rather than a sentence naming what went wrong.
+        if changed == 0 {
+            return Err(CoreError::not_found(
+                "track in this profile's library",
+                media_file_id,
+            ));
+        }
+
+        transaction
+            .execute(
+                "DELETE FROM profile_track_genres
+                 WHERE profile_id = ?1 AND media_file_id = ?2",
+                (profile_id.to_string(), media_file_id.to_string()),
+            )
+            .map_err(db_error_in("correcting the genres of a track"))?;
+
+        for genre_id in genres {
+            transaction
+                .execute(
+                    "INSERT INTO profile_track_genres (profile_id, media_file_id, genre_id)
+                     VALUES (?1, ?2, ?3)",
+                    (
+                        profile_id.to_string(),
+                        media_file_id.to_string(),
+                        genre_id.to_string(),
+                    ),
+                )
+                .map_err(db_error_in("correcting the genres of a track"))?;
+        }
+
+        transaction
+            .commit()
+            .map_err(db_error_in("correcting the genres of a track"))
+    }
+
+    fn clear_for_profile_track(
+        &self,
+        profile_id: ProfileId,
+        media_file_id: MediaFileId,
+    ) -> Result<()> {
+        let mut connection = self.pool.get()?;
+        let transaction = connection
+            .transaction()
+            .map_err(db_error_in("dropping a genre correction"))?;
+
+        transaction
+            .execute(
+                "DELETE FROM profile_track_genres
+                 WHERE profile_id = ?1 AND media_file_id = ?2",
+                (profile_id.to_string(), media_file_id.to_string()),
+            )
+            .map_err(db_error_in("dropping a genre correction"))?;
+
+        transaction
+            .execute(
+                "UPDATE profile_tracks SET genres_overridden = 0
+                 WHERE profile_id = ?1 AND media_file_id = ?2",
+                (profile_id.to_string(), media_file_id.to_string()),
+            )
+            .map_err(db_error_in("dropping a genre correction"))?;
+
+        transaction
+            .commit()
+            .map_err(db_error_in("dropping a genre correction"))
     }
 }
 

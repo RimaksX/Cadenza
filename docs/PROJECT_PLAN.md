@@ -211,6 +211,27 @@ an abstraction with one implementation), `biquad.rs`/`eq.rs` (M9),
 counter inside `Shared`. `decoder.rs` alongside `symphonia_decoder.rs` would be a
 second name for one adapter.
 
+### The two questions that were open
+
+Both were decided once the engine was working, and both are now closed.
+
+**Per-profile genres** (finding 10). One listener correcting a genre used to
+correct it for everyone sharing the file. Migration 13 adds
+`profile_track_genres` and `profile_tracks.genres_overridden`; a profile sees its
+own correction when it has made one and the file's own genres otherwise, and
+"file this under nothing" is a decision distinct from having made none.
+`GenreRepositoryPort` gained three methods, `LibraryService` gained
+`genres_of` / `set_genres` / `reset_genres`, and `cadenza tracks` now numbers the
+library and shows genres so `cadenza genre <n> ...` can be checked by hand.
+
+**Section 16 of the master file** (finding 17) now says what is actually built
+and points at the milestone that is really next. Nothing else in that file was
+touched.
+
+Running the two-profile demo found a third defect — see finding 28. The second
+profile to import a shared file was getting its filename where the first got its
+tags.
+
 The engine itself is not covered by automated tests: it needs an output device,
 and CI has none. Everything below it is — the ring, the resampler, the channel
 map, the callback and the decode thread all run without one. What no test can

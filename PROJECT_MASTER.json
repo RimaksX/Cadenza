@@ -1471,8 +1471,8 @@
       ]
     },
     "16_Текущий_статус": {
-      "status": "Реализация кода еще не начата.",
-      "next_step": "M0",
+      "status": "M0-M5 завершены: workspace, доменный слой, схема SQLite, профили и настройки, библиотека со сканированием и слежением за файлами, базовый audio engine (воспроизведение MP3/AAC/ALAC/FLAC/WAV, pause, seek, volume). Отклонения от этого файла и их обоснования - в docs/MASTER_ISSUES.md, фактический состав каждого milestone - в docs/PROJECT_PLAN.md.",
+      "next_step": "M6",
       "implementation_order": [
         "M0",
         "M1",

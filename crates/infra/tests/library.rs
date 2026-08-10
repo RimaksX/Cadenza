@@ -33,6 +33,7 @@ struct Harness {
     music: PathBuf,
     library: LibraryService,
     media_files: Arc<SqliteMediaFileRepository>,
+    profiles: ProfileService,
     profile_id: ProfileId,
 }
 
@@ -70,6 +71,7 @@ fn harness(tag: &str) -> Harness {
         library: LibraryService::new(Arc::clone(&context), ports),
         music,
         media_files,
+        profiles: ProfileService::new(context),
         profile_id: profile.id,
         _db: db,
     }
@@ -387,6 +389,143 @@ fn tags_become_artists_albums_and_genres() {
     assert!(
         tracks[0].album_id.is_some(),
         "the album tag should have produced an album"
+    );
+}
+
+/// Names of the genres the active profile sees for its only track.
+fn genre_names(harness: &Harness) -> Vec<String> {
+    let tracks = harness.library.tracks().expect("listing");
+    let track = tracks.first().expect("one track");
+    harness
+        .library
+        .genres_of(track.media_file_id)
+        .expect("listing genres")
+        .into_iter()
+        .map(|genre| genre.name)
+        .collect()
+}
+
+#[test]
+fn correcting_a_genre_does_not_reach_the_other_profile() {
+    let harness = harness("genre-leak");
+    let path = write_wav(&harness.music, "mysterons.wav", 1, 10);
+    tag_file(&path, "Mysterons", "Portishead", "Dummy", "Trip-Hop");
+    harness.scan(true);
+
+    // Sasha disagrees with the tag.
+    let tracks = harness.library.tracks().expect("listing");
+    let media_file_id = tracks[0].media_file_id;
+    harness
+        .library
+        .set_genres(media_file_id, &["Downtempo".to_owned()])
+        .expect("correcting a genre");
+    assert_eq!(genre_names(&harness), vec!["downtempo".to_owned()]);
+
+    // Kim shares the machine, the folder and the file.
+    let kim = harness.profiles.create("Kim").expect("a second profile");
+    harness.profiles.switch_to(kim.id).expect("switching");
+    harness.scan(true);
+
+    assert_eq!(
+        genre_names(&harness),
+        vec!["trip-hop".to_owned()],
+        "Kim sees what the file says, not what Sasha decided (PROJECT_MASTER 12.1)"
+    );
+
+    harness
+        .profiles
+        .switch_to(harness.profile_id)
+        .expect("switching back");
+    assert_eq!(
+        genre_names(&harness),
+        vec!["downtempo".to_owned()],
+        "and Sasha still sees their own"
+    );
+}
+
+#[test]
+fn the_second_profile_to_import_a_file_gets_its_tags_too() {
+    let harness = harness("second-profile-tags");
+    let path = write_wav(&harness.music, "01_track.wav", 1, 10);
+    tag_file(&path, "Mysterons", "Portishead", "Dummy", "Trip-Hop");
+    harness.scan(true);
+
+    let kim = harness.profiles.create("Kim").expect("a second profile");
+    harness.profiles.switch_to(kim.id).expect("switching");
+    harness.scan(true);
+
+    let tracks = harness.library.tracks().expect("listing");
+    assert_eq!(
+        tracks[0].title, "Mysterons",
+        "the file was already catalogued, but Kim is owed its tags, not its filename"
+    );
+    assert!(
+        tracks[0].artist_id.is_some() && tracks[0].album_id.is_some(),
+        "and its artist and album"
+    );
+}
+
+#[test]
+fn filing_a_track_under_nothing_is_a_decision_and_survives() {
+    let harness = harness("genre-empty");
+    let path = write_wav(&harness.music, "mysterons.wav", 1, 10);
+    tag_file(&path, "Mysterons", "Portishead", "Dummy", "Trip-Hop");
+    harness.scan(true);
+
+    let media_file_id = harness.library.tracks().expect("listing")[0].media_file_id;
+    harness
+        .library
+        .set_genres(media_file_id, &[])
+        .expect("clearing every genre");
+
+    assert!(
+        genre_names(&harness).is_empty(),
+        "an empty correction is not the same as having made none"
+    );
+
+    // A rescan re-reads the tags into the catalogue and must not undo it.
+    harness.scan(true);
+    assert!(genre_names(&harness).is_empty(), "and a rescan leaves it");
+}
+
+#[test]
+fn resetting_a_genre_restores_what_the_file_says() {
+    let harness = harness("genre-reset");
+    let path = write_wav(&harness.music, "mysterons.wav", 1, 10);
+    tag_file(&path, "Mysterons", "Portishead", "Dummy", "Trip-Hop");
+    harness.scan(true);
+
+    let media_file_id = harness.library.tracks().expect("listing")[0].media_file_id;
+    harness
+        .library
+        .set_genres(media_file_id, &["Downtempo".to_owned()])
+        .expect("correcting a genre");
+    harness
+        .library
+        .reset_genres(media_file_id)
+        .expect("dropping the correction");
+
+    assert_eq!(genre_names(&harness), vec!["trip-hop".to_owned()]);
+}
+
+#[test]
+fn a_genre_cannot_be_set_on_a_track_this_profile_does_not_have() {
+    let harness = harness("genre-stranger");
+    let path = write_wav(&harness.music, "mysterons.wav", 1, 10);
+    tag_file(&path, "Mysterons", "Portishead", "Dummy", "Trip-Hop");
+    harness.scan(true);
+
+    let media_file_id = harness.library.tracks().expect("listing")[0].media_file_id;
+
+    let kim = harness.profiles.create("Kim").expect("a second profile");
+    harness.profiles.switch_to(kim.id).expect("switching");
+
+    assert!(
+        harness
+            .library
+            .set_genres(media_file_id, &["Downtempo".to_owned()])
+            .is_err(),
+        "the file is catalogued but not in Kim's library"
     );
 }
 

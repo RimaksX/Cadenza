@@ -353,9 +353,56 @@ fn dispatch(
             if tracks.is_empty() {
                 println!("the library is empty — run: cadenza scan");
             }
-            for track in tracks {
-                println!("  {}", track.title);
+            // Numbered, because `cadenza genre` needs a way to name a track and
+            // nobody is going to type a UUID at a command line.
+            for (position, track) in tracks.iter().enumerate() {
+                let genres = library.genres_of(track.media_file_id)?;
+                let names = genres
+                    .iter()
+                    .map(|genre| genre.name.as_str())
+                    .collect::<Vec<_>>()
+                    .join(", ");
+
+                if names.is_empty() {
+                    println!("  {} {}", position + 1, track.title);
+                } else {
+                    println!("  {} {} [{names}]", position + 1, track.title);
+                }
             }
+        }
+
+        Command::Genre {
+            index,
+            names,
+            reset,
+        } => {
+            let tracks = library.tracks()?;
+            let track = tracks
+                .get(index.wrapping_sub(1))
+                .ok_or_else(|| CoreError::not_found("track number", index))?;
+
+            if *reset {
+                library.reset_genres(track.media_file_id)?;
+            } else {
+                library.set_genres(track.media_file_id, names)?;
+            }
+
+            let genres = library.genres_of(track.media_file_id)?;
+            let listed = genres
+                .iter()
+                .map(|genre| genre.name.as_str())
+                .collect::<Vec<_>>()
+                .join(", ");
+
+            println!(
+                "{} is filed under {} for this profile only",
+                track.title,
+                if listed.is_empty() {
+                    "nothing".to_owned()
+                } else {
+                    listed
+                }
+            );
         }
 
         Command::Reviews => {

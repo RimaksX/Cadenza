@@ -330,6 +330,44 @@ impl LibraryService {
         Ok(())
     }
 
+    /// Genres of a track as the active profile sees them.
+    pub fn genres_of(&self, media_file_id: MediaFileId) -> Result<Vec<Genre>> {
+        let profile_id = self.context.require_active_profile()?;
+        self.ports
+            .genres
+            .for_profile_track(profile_id, media_file_id)
+    }
+
+    /// Corrects the genres of a track for the active profile only.
+    ///
+    /// The file's own genres are left as its tags describe them, and no other
+    /// profile is affected: a correction is one listener's opinion about a
+    /// recording they share (PROJECT_MASTER 2.1, 12.1).
+    ///
+    /// An empty list is a decision, not a reset — it means this listener wants
+    /// the track filed under nothing. [`Self::reset_genres`] is the reset.
+    pub fn set_genres(&self, media_file_id: MediaFileId, names: &[String]) -> Result<()> {
+        let profile_id = self.context.require_active_profile()?;
+        let ids = self.genre_ids(names)?;
+
+        self.ports
+            .genres
+            .set_for_profile_track(profile_id, media_file_id, &ids)?;
+        self.context.events.publish(DomainEvent::LibraryChanged);
+        Ok(())
+    }
+
+    /// Drops the active profile's correction, restoring the file's own genres.
+    pub fn reset_genres(&self, media_file_id: MediaFileId) -> Result<()> {
+        let profile_id = self.context.require_active_profile()?;
+
+        self.ports
+            .genres
+            .clear_for_profile_track(profile_id, media_file_id)?;
+        self.context.events.publish(DomainEvent::LibraryChanged);
+        Ok(())
+    }
+
     /// Files waiting for a decision.
     pub fn pending_reviews(&self) -> Result<Vec<ImportReview>> {
         let profile_id = self.context.require_active_profile()?;
@@ -593,20 +631,14 @@ impl LibraryService {
             return Ok(Imported::Unchanged);
         }
 
-        let track = Track {
-            profile_id,
-            media_file_id: media_file.id,
-            title: title_from_path(&media_file.path),
-            artist_id: None,
-            album_id: None,
-            track_no: None,
-            disc_no: None,
-            year: None,
-            added_at: now,
-            removed_at: None,
-        };
-        self.ports.tracks.save(&track)?;
-        Ok(Imported::Added)
+        // The file is catalogued, so this scan took the fast path and never
+        // opened it. Read it now: a listener joining a file another profile
+        // imported first is owed the same title, artist and album as they got.
+        //
+        // Copying the other profile's row instead would be cheaper and wrong —
+        // it would hand over their corrections, which is the leak 12.1 forbids.
+        let read = self.ports.metadata.read(&media_file.path)?;
+        self.upsert_track(profile_id, media_file, &read, now)
     }
 
     /// Adds a catalogued file to a profile's library by identifier.
@@ -681,6 +713,15 @@ impl LibraryService {
 
     /// Attaches a file to its genres, creating any that are new.
     fn link_genres(&self, media_file_id: MediaFileId, names: &[String]) -> Result<()> {
+        let ids = self.genre_ids(names)?;
+        self.ports.genres.set_for_media_file(media_file_id, &ids)
+    }
+
+    /// Turns genre names into identifiers, adding any the vocabulary lacks.
+    ///
+    /// Normalisation happens here rather than in the caller, so a genre typed by
+    /// a listener and one read from a tag collapse onto the same row.
+    fn genre_ids(&self, names: &[String]) -> Result<Vec<GenreId>> {
         let mut ids: Vec<GenreId> = Vec::with_capacity(names.len());
 
         for name in names {
@@ -706,7 +747,7 @@ impl LibraryService {
             }
         }
 
-        self.ports.genres.set_for_media_file(media_file_id, &ids)
+        Ok(ids)
     }
 
     /// Caches embedded cover art, if the file had any.

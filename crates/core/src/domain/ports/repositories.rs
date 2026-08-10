@@ -180,11 +180,38 @@ pub trait GenreRepositoryPort: Send + Sync {
     /// Inserts or updates.
     fn save(&self, genre: &Genre) -> Result<()>;
 
-    /// Genres attached to a file.
+    /// Genres attached to a file, as its tags describe it.
     fn for_media_file(&self, media_file_id: MediaFileId) -> Result<Vec<Genre>>;
 
-    /// Replaces the genres attached to a file.
+    /// Replaces the genres attached to a file. Seeded from tags by the scanner.
     fn set_for_media_file(&self, media_file_id: MediaFileId, genres: &[GenreId]) -> Result<()>;
+
+    /// Genres as one profile sees them.
+    ///
+    /// Its own if it has corrected them, and the file's own otherwise. A profile
+    /// that has deliberately cleared every genre sees none, which is a different
+    /// answer from having never touched them (PROJECT_MASTER 2.1, 12.1).
+    fn for_profile_track(
+        &self,
+        profile_id: ProfileId,
+        media_file_id: MediaFileId,
+    ) -> Result<Vec<Genre>>;
+
+    /// Replaces what one profile sees, leaving the file and every other profile
+    /// alone.
+    fn set_for_profile_track(
+        &self,
+        profile_id: ProfileId,
+        media_file_id: MediaFileId,
+        genres: &[GenreId],
+    ) -> Result<()>;
+
+    /// Drops the correction, so the file's own genres show again.
+    fn clear_for_profile_track(
+        &self,
+        profile_id: ProfileId,
+        media_file_id: MediaFileId,
+    ) -> Result<()>;
 }
 
 /// Playlists and their contents.
