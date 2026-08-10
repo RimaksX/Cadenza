@@ -34,7 +34,21 @@ blake3 = "1.8"
 # Filesystem watching (PROJECT_MASTER 3.6).
 notify = "8"
 
-# cpal/symphonia/rubato/rustfft are added in M5 and later.
+# Audio output (PROJECT_MASTER 3.4). On Windows this is WASAPI in shared mode.
+cpal = "0.18"
+
+# Decoding (PROJECT_MASTER 3.4). Only the five required formats are enabled:
+# every additional codec is code compiled into the binary that the scanner would
+# never hand it, because 2.2 fixes the list. `isomp4` is the container AAC and
+# ALAC arrive in; `flac`, `wav` and `pcm` are already on by default.
+symphonia = { version = "0.6", features = ["mp3", "aac", "alac", "isomp4"] }
+
+# Sample-rate conversion (PROJECT_MASTER 3.4). The output device runs at one
+# fixed rate — usually 48 kHz on Windows — while most files are 44.1 kHz, and
+# playing one at the other's rate shifts the pitch.
+rubato = "4"
+
+# rustfft is added in M10 with the visualiser.
 
 # A dev-dependency cycle: testkit depends on infra for the migration runner, and
 # infra's integration tests depend on testkit for a migrated database. Cargo

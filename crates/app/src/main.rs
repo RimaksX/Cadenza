@@ -17,9 +17,14 @@ use std::{env, io};
 
 use cadenza_core::application::services::{LibraryPorts, LibraryService};
 use cadenza_core::application::{AppContext, ProfileService};
+use cadenza_core::domain::playback::PlaybackState;
+use cadenza_core::domain::ports::audio_engine::AudioEnginePort;
+use cadenza_core::domain::ports::decoder::DecoderPort;
 use cadenza_core::domain::ports::file_watcher::FileWatcherPort;
 use cadenza_core::domain::profile::Profile;
+use cadenza_core::domain::value_objects::{PlaybackPosition, Volume};
 use cadenza_core::{CoreError, Result};
+use cadenza_infra::audio::{CpalAudioEngine, SymphoniaDecoder};
 use cadenza_infra::db;
 use cadenza_infra::db::repositories::{
     SqliteAlbumRepository, SqliteArtistRepository, SqliteGenreRepository,
@@ -50,6 +55,12 @@ fn run() -> std::result::Result<(), String> {
     if command == Command::Help {
         println!("{}", cli::USAGE);
         return Ok(());
+    }
+
+    // Playing a file by path needs neither a profile nor the database: it is the
+    // audio engine on its own, which is exactly what M5 is for.
+    if let Command::Play(path) = &command {
+        return play(Path::new(path)).map_err(|err| err.to_string());
     }
 
     let paths = AppPaths::resolve().map_err(|err| err.to_string())?;
@@ -153,6 +164,97 @@ fn watch(library: &Arc<LibraryService>) -> Result<()> {
     Ok(())
 }
 
+/// Plays one file until it ends or the listener stops it.
+///
+/// Blocks, like `watch`. Until M6 there is no other way to hear the engine, and
+/// the M5 definition of done — WAV, FLAC and MP3 play, pause works, seek works —
+/// is a claim about a speaker that no test can make.
+fn play(path: &Path) -> Result<()> {
+    let probed = SymphoniaDecoder.probe(path)?;
+    let engine = CpalAudioEngine::new()?;
+
+    engine.load(path)?;
+    engine.play()?;
+
+    println!("output: {}", engine.description());
+    println!(
+        "file:   {} — {}, {} Hz, {} channels, {}",
+        path.display(),
+        probed.format,
+        probed.properties.sample_rate,
+        probed.properties.channels,
+        probed.properties.duration
+    );
+    println!("\ncommands: p pause or resume, s <seconds> seek, v <0-100> volume, q quit");
+
+    let mut line = String::new();
+    loop {
+        line.clear();
+        match io::stdin().read_line(&mut line) {
+            // No terminal: started detached or with input redirected. Play to
+            // the end rather than exit on the immediate end of file.
+            Ok(0) | Err(_) => {
+                follow(&engine);
+                break;
+            }
+            Ok(_) => {}
+        }
+
+        let mut words = line.split_whitespace();
+        match words.next() {
+            None => {}
+            Some("q") => break,
+            Some("p") => {
+                if engine.state().is_playing() {
+                    engine.pause()?;
+                } else {
+                    engine.play()?;
+                }
+            }
+            Some("s") => match words.next().and_then(|value| value.parse::<u64>().ok()) {
+                Some(seconds) => engine.seek(PlaybackPosition::from_secs(seconds))?,
+                None => println!("s takes a number of seconds, for example: s 30"),
+            },
+            Some("v") => match words.next().and_then(|value| value.parse::<f32>().ok()) {
+                Some(percent) => engine.set_volume(Volume::clamped(percent / 100.0))?,
+                None => println!("v takes 0 to 100, for example: v 40"),
+            },
+            Some(other) => println!("unknown command {other:?}"),
+        }
+
+        report(&engine);
+    }
+
+    engine.stop()?;
+    if let Some(failure) = engine.failure() {
+        println!("stopped: {failure}");
+    }
+    println!("underruns: {}", engine.underruns());
+    Ok(())
+}
+
+/// Prints progress until the track ends. Used when there is no terminal to type
+/// commands into.
+fn follow(engine: &CpalAudioEngine) {
+    while engine.state() != PlaybackState::Stopped {
+        report(engine);
+        std::thread::sleep(std::time::Duration::from_secs(1));
+    }
+}
+
+fn report(engine: &CpalAudioEngine) {
+    let state = match engine.state() {
+        PlaybackState::Playing => "playing",
+        PlaybackState::Paused => "paused",
+        PlaybackState::Stopped => "stopped",
+    };
+    println!(
+        "  {state} {} / {}",
+        engine.position().elapsed(),
+        engine.duration()
+    );
+}
+
 fn dispatch(
     command: &Command,
     profiles: &ProfileService,
@@ -160,7 +262,7 @@ fn dispatch(
     active: Option<Profile>,
 ) -> Result<()> {
     match command {
-        Command::Help | Command::Paths | Command::Watch => {
+        Command::Help | Command::Paths | Command::Watch | Command::Play(_) => {
             unreachable!("handled before dispatch, because they need no profile or must block")
         }
 

@@ -130,15 +130,23 @@ has no listed home either.
 **Chosen:** added `domain/analysis.rs` and `domain/value_objects/timestamp.rs`.
 Section 5 should list both.
 
-## 13. Symphonia's AAC and ALAC coverage — risk, not a contradiction
+## 13. Symphonia's AAC and ALAC coverage — checked at M5, adequate
 
 Section 2.2 requires AAC and ALAC; section 3.4 fixes Symphonia as the decoder.
 Symphonia's AAC support is limited to AAC-LC, and gapless MP3 needs LAME/Xing
 delay and padding tags to be read correctly.
 
-Not a decision for M1, but M5 must verify both against real files before the
-audio engine is called done. If coverage falls short, `DecoderPort` is the seam an
-alternative adapter plugs into (ADR 0005) — the stack does not need to change.
+**Verified at M5** against real files in all five formats: MP3, AAC in MP4, ALAC
+in MP4, FLAC and WAV all probe correctly and play through to the end with no
+underruns. No alternative decoder adapter is needed and the stack does not
+change.
+
+Two limits stand, neither of them blocking:
+
+- HE-AAC is not decoded. A container does not say which profile it holds until it
+  is opened, so `supports` answers per format and `probe` is the real check.
+- The MP3 delay and padding tags are read by nothing yet. They matter for gapless
+  joins rather than for playback, and belong with M8.
 
 ## 15. Timestamps are `TEXT` in some columns and `INTEGER` in others — resolved
 
@@ -261,6 +269,81 @@ A note for whoever debugs a scan next: the catalogue is global and outlives
 profiles, so deleting a profile does not clear it. Two experiments using the same
 folder path will contaminate each other, and the second will look like a bug in
 duplicate detection. It cost an hour here.
+
+## 24. Two components decide what format a file is — resolved
+
+Finding 9 chose `DecoderPort::probe` as the thing that decides an `.m4a` is AAC
+or ALAC. M4 then shipped the scanner filling `media_files.format` from lofty,
+because reading tags, stream properties and format in one pass is one file open
+instead of two across a five-thousand-track library. M5 adds a second opinion.
+
+**Chosen:** they answer different questions and both stay.
+
+- lofty is the catalogue's oracle. It is what a scan can afford.
+- Symphonia is playback's oracle, and it is the authoritative one: it is the
+  component that has to produce samples.
+
+A disagreement is not a tie to break. It means the file is catalogued as
+something Cadenza cannot play, which is what `file_state = 'error'` exists for.
+Nothing writes that yet — playback failure has no path back into the library
+until there is a player in M6 to notice it — and this is the note that says so.
+
+Symphonia also reports no average bitrate, so `properties.bitrate` from a probe
+is always `None`. lofty fills that column; nothing on the playback path reads it.
+
+## 25. Every track began with an underrun — fixed
+
+Not a contradiction in the master file but a defect in the M5 code, found by
+running the binary rather than by the tests.
+
+cpal starts asking for samples the moment the stream is created, and the decode
+thread is at that point still opening the file. The callback found an empty ring
+and reported an underrun on every track — one for WAV and AAC, four for FLAC,
+whose first packet takes longest.
+
+Nothing was audible: the callback outputs silence when the ring is dry. But the
+underrun counter is the number the next person will look at when playback
+stutters for a real reason, and a counter that is never zero says nothing.
+
+**Fixed:** the callback does not start consuming until 50 ms is queued, and the
+gate is cleared on every flush so a seek refills before it plays instead of
+starting on whatever fragment arrived first. Underruns are now zero across all
+five formats. Covered by a test.
+
+## 26. The end of every track was unseekable — fixed
+
+Also found by running the binary, four seconds into a six-second file.
+
+The decoder runs up to two seconds ahead of the speakers, so it reaches the end
+of a file long before the last note is heard — and it dropped its `TrackStream`
+there. Seeking after that point answered "nothing is loaded to seek in", while
+the track was still playing and its progress bar still moving. On a file shorter
+than the prebuffer it was unseekable from the first moment.
+
+**Fixed:** reaching the end of the stream marks the track finished and stops
+decoding, but the file stays open until the track is stopped or replaced. Two
+tests cover it: a finished track can still be seeked back into, and an unloaded
+one cannot.
+
+This is the fourth defect in a row that the tests were green through and running
+the binary caught. The tests never had a file play *past* the decoder.
+
+## 27. The signal chain has no channel mapping stage — resolved
+
+Section 8.1 runs decoder, resampler, EQ, volume, mixer, tap, output. It accounts
+for a file's sample rate differing from the device's and not for its channel
+count differing, which happens just as often: a mono recording on a stereo
+device, or either on a machine reporting a 5.1 layout.
+
+**Chosen:** a channel map between decoding and resampling, so the resampler and
+everything after it work at one fixed layout. Mono is duplicated across the
+outputs — sending it to the left channel alone is indistinguishable from a broken
+speaker — and stereo into one output is averaged rather than halved.
+
+Wider layouts are truncated to the first channels rather than folded down, which
+loses the centre of a 5.1 file. Proper downmix coefficients are a table and a
+listening test, and the material section 2.2 describes is overwhelmingly stereo.
+Section 8.1 should gain the stage.
 
 ## 17. Section 16 status is stale — **open**
 

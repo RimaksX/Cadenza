@@ -10,7 +10,7 @@ section `11_План_реализации`. This file tracks progress only.
 | M2 | SQLite infrastructure | done |
 | M3 | Профили и настройки | done |
 | M4 | Библиотека и сканирование | done |
-| M5 | Базовый audio engine | not started |
+| M5 | Базовый audio engine | done |
 | M6 | UI shell | not started |
 | M7 | Плейлисты, очередь, repeat/shuffle | not started |
 | M8 | Crossfade и gapless | not started |
@@ -172,6 +172,50 @@ can never notice a deletion.
 A file whose content matches a catalogued row whose file is gone is treated as
 that file moved, not as a new one: it keeps its identifier, and with it its
 listening history and playlist entries. See finding 23.
+
+## M5 — what was actually built
+
+Files become sound. All five required formats play through to the end with no
+underruns, pause holds its position, and seek lands where it says it does. 244
+tests.
+
+- `infra/audio/ring_buffer.rs` — the single-producer, single-consumer ring the
+  decoder and the audio callback meet across. Samples live in relaxed atomics
+  rather than an `UnsafeCell`, so the realtime path contains no `unsafe` at all;
+  on x86 a relaxed load is a plain move, and the price is a missed vectorisation
+  in the copy.
+- `infra/audio/symphonia_decoder.rs` — `DecoderPort::probe`, and `TrackStream`,
+  the streaming half the engine drives directly.
+- `infra/audio/resampler.rs` — rubato, engaged only when the file's rate differs
+  from the device's. It usually does: Windows mixes at 48 kHz and most music is
+  44.1 kHz.
+- `infra/audio/stream.rs` — the shared state, the decode thread, and
+  `fill_output`, which is the whole of what runs on the audio callback. Keeping
+  it to one function is what makes section 8.2's contract checkable by reading.
+- `infra/audio/engine.rs` — `CpalAudioEngine`. The cpal stream is not `Send` and
+  `AudioEnginePort` is `Send + Sync`, so the stream lives on a thread that does
+  nothing but hold it open.
+- `testkit/temp_dir.rs` — a temporary directory for tests that need real files
+  and no database.
+- `app`: `cadenza play <file>`, with pause, seek and volume from the keyboard.
+  Temporary, like the rest of the command line, and replaced in M6.
+
+Running the binary found two more defects the tests had not — see findings 25 and
+26. Both now have regression tests. Two additions to section 8.1's chain are
+recorded as findings 27 and 24.
+
+Deferred, each to the milestone that first has something to put in it:
+`mixer.rs` and `crossfade.rs`/`gapless.rs` (M8 — a mixer over a single stream is
+an abstraction with one implementation), `biquad.rs`/`eq.rs` (M9),
+`visualizer.rs` (M10), and `clock.rs`, whose entire content is one atomic frame
+counter inside `Shared`. `decoder.rs` alongside `symphonia_decoder.rs` would be a
+second name for one adapter.
+
+The engine itself is not covered by automated tests: it needs an output device,
+and CI has none. Everything below it is — the ring, the resampler, the channel
+map, the callback and the decode thread all run without one. What no test can
+claim is that the result sounds right, and that is checked by running
+`cadenza play`.
 
 ## M2 — deferred repository files
 

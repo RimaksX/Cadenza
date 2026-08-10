@@ -44,6 +44,8 @@ pub enum Command {
     Reviews,
     /// Watch the folders and import changes as they happen.
     Watch,
+    /// Play a file, with pause, seek and volume from the keyboard.
+    Play(String),
     /// Print where Cadenza keeps its files.
     Paths,
     /// Print the usage text.
@@ -52,7 +54,7 @@ pub enum Command {
 
 /// What to print when asked, and when the arguments make no sense.
 pub const USAGE: &str = "\
-cadenza — local music player (milestone M3: profiles and settings)
+cadenza — local music player (milestone M5: basic audio engine)
 
 USAGE:
     cadenza                          show the active profile and the others
@@ -67,6 +69,9 @@ USAGE:
     cadenza watch                    keep watching for changes until Enter
     cadenza tracks                   list the library
     cadenza reviews                  list files waiting for a decision
+
+    cadenza play <file>              play a file: p pause, s <sec> seek,
+                                     v <0-100> volume, q quit
 
     cadenza paths                    show where data is stored
     cadenza help                     this text
@@ -103,6 +108,7 @@ pub fn parse<I: IntoIterator<Item = String>>(args: I) -> Result<Command, String>
         "tracks" => Command::Tracks,
         "reviews" => Command::Reviews,
         "watch" => Command::Watch,
+        "play" => Command::Play(require_value(args.next(), "play", "a file to play")?),
 
         "add-folder" => {
             let path = require_value(args.next(), "add-folder", "a folder path")?;
@@ -157,6 +163,10 @@ mod tests {
         assert_eq!(parse_args(&["history", "on"]), Ok(Command::History(true)));
         assert_eq!(parse_args(&["history", "off"]), Ok(Command::History(false)));
         assert_eq!(parse_args(&["paths"]), Ok(Command::Paths));
+        assert_eq!(
+            parse_args(&["play", "C:/music/a.flac"]),
+            Ok(Command::Play("C:/music/a.flac".to_owned()))
+        );
     }
 
     #[test]
@@ -185,6 +195,7 @@ mod tests {
         assert!(parse_args(&["switch"]).is_err());
         assert!(parse_args(&["history"]).is_err());
         assert!(parse_args(&["history", "maybe"]).is_err());
+        assert!(parse_args(&["play"]).is_err());
     }
 
     #[test]
