@@ -24,6 +24,7 @@ use cadenza_core::domain::ports::audio_engine::AudioEnginePort;
 use cadenza_core::domain::ports::decoder::DecoderPort;
 use cadenza_core::domain::ports::file_watcher::FileWatcherPort;
 use cadenza_core::domain::profile::Profile;
+use cadenza_core::domain::value_objects::theme_mode::ThemeMode;
 use cadenza_core::domain::value_objects::{PlaybackPosition, Volume};
 use cadenza_core::{CoreError, Result};
 use cadenza_infra::audio::{CpalAudioEngine, SymphoniaDecoder};
@@ -329,6 +330,19 @@ fn dispatch(
                 if updated.history_enabled { "on" } else { "off" },
                 updated.name
             );
+        }
+
+        Command::Theme(dark) => {
+            let Some(profile) = active else {
+                return Err(CoreError::NoActiveProfile);
+            };
+            let mode = if *dark {
+                ThemeMode::Dark
+            } else {
+                ThemeMode::Light
+            };
+            let updated = profiles.set_theme(profile.id, mode)?;
+            println!("{} now uses the {} theme", updated.name, updated.theme);
         }
 
         Command::Folders => {

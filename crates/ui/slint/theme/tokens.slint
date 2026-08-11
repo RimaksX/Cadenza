@@ -27,19 +27,25 @@ export global Theme {
     // Three faces, three jobs: serif names things, sans explains them, mono
     // carries anything a listener reads as a number rather than as a word.
     //
-    // System families for now. The reference uses Instrument Serif, Inter and
-    // JetBrains Mono; bundling them is M15's business, when the design document
-    // says which they finally are, and `resources/fonts/` is where they go.
-    out property <string> serif: "Georgia";
-    out property <string> sans: "Segoe UI";
-    out property <string> mono: "Consolas";
+    // The families are bundled — see the imports at the top of `app_window.slint`
+    // — so they are the same on every machine and need no network. These are the
+    // names the fonts declare inside themselves, not their file names: the
+    // static Inter cuts call themselves "Inter 18pt 18pt", which is why the
+    // variable file is the one shipped.
+    out property <string> serif: "Instrument Serif";
+    out property <string> sans: "Inter";
+    out property <string> mono: "JetBrains Mono";
 
-    // Type scale. Display is for the one title on a page, body for everything
-    // read as prose, label for mono capitals, micro for counts beside them.
+    // Type scale. Display is for the one title on a page, row-title for a track
+    // in a list, body for prose, meta for the quieter things beside it, number
+    // for anything monospaced, label for mono capitals.
     out property <length> text-display: 34px;
     out property <length> text-title: 17px;
+    out property <length> text-row-title: 18px;
     out property <length> text-body: 13.5px;
+    out property <length> text-meta: 12px;
     out property <length> text-small: 12px;
+    out property <length> text-number: 11px;
     out property <length> text-label: 9px;
 
     // Spacing, in one series, so nothing lands between two steps.
@@ -53,8 +59,23 @@ export global Theme {
     out property <length> radius: 4px;
     out property <length> sidebar-width: 240px;
     out property <length> player-height: 92px;
-    out property <length> row-height: 40px;
+
+    // A listing is inset from the window edge rather than run to it. The
+    // separators are then the width of the content, not of the screen, which is
+    // what stops a long list reading as a spreadsheet.
+    out property <length> page-inset: 56px;
+
+    // Track list geometry, all of it from one grid: a number, the names, a time.
+    out property <length> column-gap: 20px;
+    out property <length> number-column: 40px;
+    out property <length> album-column: 180px;
+    out property <length> time-column: 60px;
+    out property <length> row-padding: 14px;
+    out property <length> row-height: 52px;
 
     // Mono capitals are set wide; a label at 9px is otherwise a smudge.
-    out property <length> label-spacing: 1.6px;
+    out property <length> label-spacing: 2px;
+    // Digits get a hair of the same treatment, so a column of times reads as a
+    // column rather than as a word.
+    out property <length> number-spacing: 0.5px;
 }

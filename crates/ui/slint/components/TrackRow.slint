@@ -2,10 +2,11 @@ import { Theme } from "../theme/tokens.slint";
 
 // One row of a listing, as the view model hands it over.
 //
-// Every field is already a string: formatting a duration or deciding what to
-// show for a missing artist is presentation, and presentation that happens in
-// Rust can be tested. `id` is the media file's identifier in its text form —
-// the markup never interprets it, it only hands it back with a click.
+// Every field is already a string: formatting a duration, choosing a fallback
+// for a missing artist, taking the first letter of a title — all presentation,
+// and presentation that happens in Rust can be tested. `id` is the media file's
+// identifier in its text form; the markup never interprets it, it only hands it
+// back with a click.
 export struct TrackRowData {
     id: string,
     position: string,
@@ -35,17 +36,19 @@ export component TrackRow inherits Rectangle {
     }
 
     HorizontalLayout {
-        padding-left: Theme.space-4;
-        padding-right: Theme.space-4;
-        spacing: Theme.space-4;
+        padding-top: Theme.row-padding;
+        padding-bottom: Theme.row-padding;
+        spacing: Theme.column-gap;
 
-        // The number column doubles as the playing marker, so a row never
-        // changes width when it starts playing.
+        // The number. Quiet until this is the track playing, and then simply
+        // brighter — no glyph swap, so the column never changes width and the
+        // eye is not dragged to a symbol it has to decode.
         Text {
-            width: 32px;
-            text: root.playing ? "▸" : root.data.position;
+            width: Theme.number-column;
+            text: root.data.position;
             font-family: Theme.mono;
-            font-size: Theme.text-small;
+            font-size: Theme.text-number;
+            letter-spacing: Theme.number-spacing;
             color: root.playing ? Theme.ink-0 : Theme.ink-mute;
             vertical-alignment: center;
             horizontal-alignment: right;
@@ -59,44 +62,47 @@ export component TrackRow inherits Rectangle {
         Text {
             text: root.data.title;
             font-family: Theme.serif;
-            font-size: Theme.text-title;
-            color: root.playing ? Theme.ink-0 : Theme.ink-1;
+            font-size: Theme.text-row-title;
+            color: Theme.ink-0;
             vertical-alignment: center;
             horizontal-alignment: left;
             overflow: elide;
-            horizontal-stretch: 3;
+            horizontal-stretch: 1;
             preferred-width: 0px;
         }
 
         Text {
             text: root.data.artist;
             font-family: Theme.sans;
-            font-size: Theme.text-body;
+            font-size: Theme.text-meta;
             color: Theme.ink-2;
             vertical-alignment: center;
             horizontal-alignment: left;
             overflow: elide;
-            horizontal-stretch: 2;
+            horizontal-stretch: 1;
             preferred-width: 0px;
         }
 
+        // The album is set in italic serif rather than in the interface face:
+        // it is the name of a work, like the title, and reads as one.
         Text {
+            width: Theme.album-column;
             text: root.data.album;
-            font-family: Theme.sans;
-            font-size: Theme.text-body;
+            font-family: Theme.serif;
+            font-italic: true;
+            font-size: Theme.text-meta;
             color: Theme.ink-mute;
             vertical-alignment: center;
             horizontal-alignment: left;
             overflow: elide;
-            horizontal-stretch: 2;
-            preferred-width: 0px;
         }
 
         Text {
-            width: 56px;
+            width: Theme.time-column;
             text: root.data.duration;
             font-family: Theme.mono;
-            font-size: Theme.text-small;
+            font-size: Theme.text-number;
+            letter-spacing: Theme.number-spacing;
             color: Theme.ink-mute;
             vertical-alignment: center;
             horizontal-alignment: right;
@@ -104,7 +110,8 @@ export component TrackRow inherits Rectangle {
     }
 
     // A hairline under every row rather than a box around each: the list reads
-    // as one object, which is what a library is.
+    // as one object, which is what a library is. It spans the row, and the row
+    // is inset from the window, so the line stops where the content stops.
     Rectangle {
         y: parent.height - 1px;
         height: 1px;

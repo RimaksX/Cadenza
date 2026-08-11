@@ -1,3 +1,15 @@
+// The three faces, compiled into the binary. Cadenza is offline (PROJECT_MASTER
+// 1.2): a font fetched at runtime is a font that is missing on the machine that
+// matters. All three are SIL OFL 1.1, whose licence text ships beside them.
+//
+// Instrument Serif is the only one with a separate italic file; Inter is the
+// variable cut, because its static cuts declare themselves as "Inter 18pt 18pt"
+// and a family name is not something to fight.
+import "../../../resources/ui/fonts/Instrument_Serif/InstrumentSerif-Regular.ttf";
+import "../../../resources/ui/fonts/Instrument_Serif/InstrumentSerif-Italic.ttf";
+import "../../../resources/ui/fonts/Inter/Inter-VariableFont_opsz,wght.ttf";
+import "../../../resources/ui/fonts/JetBrains_Mono/static/JetBrainsMono-Regular.ttf";
+
 import { Theme } from "theme/tokens.slint";
 import { AppShell } from "components/AppShell.slint";
 import { TrackRowData } from "components/TrackRow.slint";

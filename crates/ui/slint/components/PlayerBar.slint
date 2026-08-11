@@ -1,7 +1,11 @@
 import { Theme } from "../theme/tokens.slint";
 
+// The icons are line drawings in `currentColor`; `colorize` repaints whatever
+// they render as, so one file serves both themes and every state. Sizes are set
+// here rather than in the file: the SVGs carry a viewBox and no dimensions on
+// purpose.
 component TransportButton inherits Rectangle {
-    in property <string> glyph;
+    in property <image> glyph;
     in property <bool> primary;
     in property <bool> enabled: true;
 
@@ -22,15 +26,15 @@ component TransportButton inherits Rectangle {
         }
     }
 
-    Text {
-        text: root.glyph;
-        font-family: Theme.sans;
-        font-size: root.primary ? 15px : 13px;
-        color: root.enabled
+    Image {
+        source: root.glyph;
+        width: root.primary ? 16px : 15px;
+        height: self.width;
+        image-fit: contain;
+        colorize: root.enabled
             ? (touch.has-hover || root.primary ? Theme.ink-0 : Theme.ink-2)
             : Theme.line;
-        horizontal-alignment: center;
-        vertical-alignment: center;
+        animate colorize { duration: 120ms; }
     }
 }
 
@@ -170,11 +174,13 @@ export component PlayerBar inherits Rectangle {
                         // Previous and next need a queue to move through, and
                         // the queue is M7.
                         TransportButton {
-                            glyph: "◄◄";
+                            glyph: @image-url("../../../../resources/ui/icons/previous.svg");
                             enabled: false;
                         }
                         TransportButton {
-                            glyph: root.playing ? "❚❚" : "▶";
+                            glyph: root.playing
+                                ? @image-url("../../../../resources/ui/icons/pause.svg")
+                                : @image-url("../../../../resources/ui/icons/play.svg");
                             primary: true;
                             enabled: root.loaded;
                             pressed => {
@@ -182,11 +188,11 @@ export component PlayerBar inherits Rectangle {
                             }
                         }
                         TransportButton {
-                            glyph: "►►";
+                            glyph: @image-url("../../../../resources/ui/icons/next.svg");
                             enabled: false;
                         }
                         TransportButton {
-                            glyph: "■";
+                            glyph: @image-url("../../../../resources/ui/icons/stop.svg");
                             enabled: root.loaded;
                             pressed => {
                                 root.stop();

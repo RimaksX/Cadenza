@@ -22,14 +22,40 @@ pub fn rows(summaries: &[TrackSummary]) -> Vec<TrackRowData> {
         .enumerate()
         .map(|(index, summary)| TrackRowData {
             id: summary.media_file_id.to_string().into(),
-            // One-based: the list is read by people, not indexed by machines.
-            position: format!("{}", index + 1).into(),
+            position: position(index).into(),
             title: summary.title.as_str().into(),
             artist: summary.artist.as_deref().unwrap_or(UNKNOWN_ARTIST).into(),
             album: summary.album.as_deref().unwrap_or(NO_ALBUM).into(),
-            duration: format!("{}", summary.duration).into(),
+            duration: clock(summary.duration).into(),
         })
         .collect()
+}
+
+/// The number in the left column.
+///
+/// One-based, because the list is read by people rather than indexed by
+/// machines, and padded to two digits so a column of them is a column: `9`
+/// above `10` puts a ragged edge in the quietest part of the row. Past 99 the
+/// number simply grows — padding further would widen every row in the library
+/// for the sake of the last few.
+fn position(index: usize) -> String {
+    format!("{:02}", index + 1)
+}
+
+/// A duration in a column of durations.
+///
+/// `mm:ss` with both parts padded, and hours only when there are any. The
+/// player bar uses the domain's own `m:ss` instead: one readout reads better
+/// unpadded, a column reads better aligned.
+fn clock(duration: DurationMs) -> String {
+    let total = duration.as_secs();
+    let (hours, minutes, seconds) = (total / 3_600, (total % 3_600) / 60, total % 60);
+
+    if hours > 0 {
+        format!("{hours}:{minutes:02}:{seconds:02}")
+    } else {
+        format!("{minutes:02}:{seconds:02}")
+    }
 }
 
 /// The line under the page title: how much there is, and how long it runs.
@@ -53,7 +79,7 @@ mod tests {
     use cadenza_core::domain::track::TrackSummary;
     use cadenza_core::domain::value_objects::DurationMs;
 
-    use super::{NO_ALBUM, UNKNOWN_ARTIST, rows, summary_line};
+    use super::{NO_ALBUM, UNKNOWN_ARTIST, clock, rows, summary_line};
 
     fn summary(title: &str, artist: Option<&str>, seconds: u64) -> TrackSummary {
         TrackSummary {
@@ -73,11 +99,23 @@ mod tests {
         ];
         let rows = rows(&library);
 
-        assert_eq!(rows[0].position, "1");
-        assert_eq!(rows[1].position, "2");
-        assert_eq!(rows[0].duration, "5:05");
+        assert_eq!(rows[0].position, "01");
+        assert_eq!(rows[1].position, "02");
+        assert_eq!(rows[0].duration, "05:05");
         assert_eq!(rows[1].artist, UNKNOWN_ARTIST, "a missing tag is not blank");
         assert_eq!(rows[1].album, NO_ALBUM);
+    }
+
+    #[test]
+    fn times_in_a_column_are_padded_so_the_column_is_straight() {
+        assert_eq!(clock(DurationMs::from_secs(9)), "00:09");
+        assert_eq!(clock(DurationMs::from_secs(65)), "01:05");
+        assert_eq!(clock(DurationMs::from_secs(600)), "10:00");
+        assert_eq!(
+            clock(DurationMs::from_secs(3_930)),
+            "1:05:30",
+            "hours only when there are any"
+        );
     }
 
     #[test]

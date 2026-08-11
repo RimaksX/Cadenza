@@ -29,6 +29,8 @@ pub enum Command {
     },
     /// Turn listening history on or off for the active profile.
     History(bool),
+    /// Set the active profile's theme. `true` is dark.
+    Theme(bool),
     /// List the folders the active profile scans.
     Folders,
     /// Add a folder to the active profile's library.
@@ -74,6 +76,7 @@ USAGE:
     cadenza switch <name>            switch to a profile
     cadenza delete <name> --yes      delete a profile and all of its data
     cadenza history <on|off>         set history for the active profile
+    cadenza theme <dark|light>       set the theme for the active profile
 
     cadenza folders                  list the folders being scanned
     cadenza add-folder <path> [-r]   add a folder, -r to include subfolders
@@ -155,6 +158,12 @@ pub fn parse<I: IntoIterator<Item = String>>(args: I) -> Result<Command, String>
                 reset,
             }
         }
+
+        "theme" => match require_value(args.next(), "theme", "dark or light")?.as_str() {
+            "dark" => Command::Theme(true),
+            "light" => Command::Theme(false),
+            other => return Err(format!("theme takes dark or light, not {other:?}")),
+        },
 
         "history" => match require_value(args.next(), "history", "on or off")?.as_str() {
             "on" => Command::History(true),
