@@ -30,9 +30,14 @@ component TransportButton inherits Rectangle {
         x: (parent.width - self.width) / 2;
         y: (parent.height - self.height) / 2;
         border-radius: self.width / 2;
-        background: root.primary
-            ? (touch.has-hover && root.enabled ? Theme.ink-1 : Theme.ink-0)
-            : transparent;
+        // A disabled primary button loses its fill as well as its glyph. Left
+        // filled, it shouts "press me" in the loudest ink in the palette while
+        // the icon inside says it cannot be pressed.
+        background: !root.primary
+            ? transparent
+            : (!root.enabled
+                ? Theme.bg-2
+                : (touch.has-hover ? Theme.ink-1 : Theme.ink-0));
         animate background { duration: 120ms; }
     }
 

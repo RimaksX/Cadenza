@@ -1,6 +1,7 @@
 import { Theme } from "../theme/tokens.slint";
 import { Sidebar } from "Sidebar.slint";
 import { PlayerBar } from "PlayerBar.slint";
+import { TitleBar } from "TitleBar.slint";
 import { TrackRowData } from "TrackRow.slint";
 import { LibraryView } from "../views/LibraryView.slint";
 
@@ -29,7 +30,12 @@ export component AppShell inherits Rectangle {
     in property <bool> muted;
     in property <float> volume;
     in property <string> message;
+    in property <bool> maximized;
 
+    callback minimize();
+    callback toggle-maximize();
+    callback close-window();
+    callback drag-window(length, length);
     callback play(string);
     callback toggle-play();
     callback seek(float);
@@ -37,8 +43,33 @@ export component AppShell inherits Rectangle {
     callback toggle-mute();
 
     background: Theme.bg-0;
+    // The window has no frame of its own now, so it needs an edge of its own —
+    // otherwise it dissolves into a dark desktop.
+    border-width: 1px;
+    border-color: Theme.line-soft;
 
     VerticalLayout {
+        // The window's own frame is the first row of the shell rather than a
+        // wrapper around it: the title bar, the navigation and the player are
+        // three parts of one arrangement, which is what the fixed layout of
+        // PROJECT_MASTER 2.10 means.
+        TitleBar {
+            section: "LIBRARY";
+            maximized: root.maximized;
+            minimize => {
+                root.minimize();
+            }
+            toggle-maximize => {
+                root.toggle-maximize();
+            }
+            close-window => {
+                root.close-window();
+            }
+            drag(dx, dy) => {
+                root.drag-window(dx, dy);
+            }
+        }
+
         HorizontalLayout {
             Sidebar {
                 profile-name: root.profile-name;

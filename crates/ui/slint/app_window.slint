@@ -28,6 +28,10 @@ export { Theme }
 export component AppWindow inherits Window {
     title: "Cadenza";
     background: Theme.bg-0;
+    // The frame is ours. Slint's backend keeps the edges resizable and their
+    // cursors correct on an undecorated window; everything else the system
+    // frame used to do is in `TitleBar`.
+    no-frame: true;
     default-font-family: Theme.sans;
     default-font-size: Theme.text-body;
     preferred-width: 1180px;
@@ -53,8 +57,13 @@ export component AppWindow inherits Window {
     in property <bool> muted;
     in property <float> volume: 1.0;
     in property <string> message;
+    in property <bool> maximized;
 
     // Up: what the listener asked for.
+    callback minimize();
+    callback toggle-maximize();
+    callback close-window();
+    callback drag-window(length, length);
     callback play(string);
     callback toggle-play();
     callback seek(float);
@@ -62,6 +71,20 @@ export component AppWindow inherits Window {
     callback toggle-mute();
 
     AppShell {
+        maximized: root.maximized;
+        minimize => {
+            root.minimize();
+        }
+        toggle-maximize => {
+            root.toggle-maximize();
+        }
+        close-window => {
+            root.close-window();
+        }
+        drag-window(dx, dy) => {
+            root.drag-window(dx, dy);
+        }
+
         tracks: root.tracks;
         library-summary: root.library-summary;
         empty-hint: root.empty-hint;

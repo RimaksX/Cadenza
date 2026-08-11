@@ -23,8 +23,14 @@ export component TrackRow inherits Rectangle {
 
     callback activated();
 
+    // True while the pointer is anywhere over the row, including over the play
+    // button in the number column — a nested touch area takes the pointer from
+    // the one beneath it, and without this the button would vanish as the
+    // pointer reached it.
+    property <bool> hovered: touch.has-hover;
+
     height: Theme.row-height;
-    background: touch.has-hover ? Theme.bg-1 : transparent;
+    background: root.hovered || hover-play.has-hover ? Theme.bg-1 : transparent;
     animate background { duration: 120ms; }
 
     touch := TouchArea {
@@ -40,18 +46,40 @@ export component TrackRow inherits Rectangle {
         padding-bottom: Theme.row-padding;
         spacing: Theme.column-gap;
 
-        // The number. Quiet until this is the track playing, and then simply
-        // brighter — no glyph swap, so the column never changes width and the
-        // eye is not dragged to a symbol it has to decode.
-        Text {
+        // The number, until the pointer arrives — then a play button in its
+        // place. Nothing moves and nothing is added beside the row: the column
+        // is already there, and the only thing that changes is what it says.
+        //
+        // It is also how a listener learns the row is playable at all. A double
+        // click still works and remains the faster habit, but nothing on screen
+        // announces it.
+        Rectangle {
             width: Theme.number-column;
-            text: root.data.position;
-            font-family: Theme.mono;
-            font-size: Theme.text-number;
-            letter-spacing: Theme.number-spacing;
-            color: root.playing ? Theme.ink-0 : Theme.ink-mute;
-            vertical-alignment: center;
-            horizontal-alignment: right;
+
+            if !hover-play.has-hover && !root.hovered: Text {
+                text: root.data.position;
+                font-family: Theme.mono;
+                font-size: Theme.text-number;
+                letter-spacing: Theme.number-spacing;
+                color: root.playing ? Theme.ink-0 : Theme.ink-mute;
+                vertical-alignment: center;
+                horizontal-alignment: right;
+                width: parent.width;
+            }
+
+            if hover-play.has-hover || root.hovered: Image {
+                source: @image-url("../../../../resources/ui/icons/play.svg");
+                width: 13px;
+                height: self.width;
+                x: parent.width - self.width;
+                colorize: hover-play.has-hover ? Theme.ink-0 : Theme.ink-2;
+            }
+
+            hover-play := TouchArea {
+                clicked => {
+                    root.activated();
+                }
+            }
         }
 
         // `preferred-width: 0` on every stretching column, here and in the

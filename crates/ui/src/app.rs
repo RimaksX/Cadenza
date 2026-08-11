@@ -47,6 +47,8 @@ pub fn run(services: UiServices) -> Result<()> {
 /// One place, so that a callback the window offers and nobody answers is
 /// visible as an absence here rather than as silence at runtime.
 fn wire(window: &AppWindow, controller: &Rc<Controller>) {
+    wire_window_controls(window);
+
     window.on_play({
         let controller = Rc::clone(controller);
         move |id| controller.play(&id)
@@ -75,4 +77,66 @@ fn wire(window: &AppWindow, controller: &Rc<Controller>) {
     // No theme callback: the palette is read from the profile at startup and
     // changed from the settings screen, which does not exist yet. Until then
     // `cadenza theme <dark|light>` is the way.
+}
+
+/// The three buttons and the drag, which the system frame used to provide.
+///
+/// None of this reaches the application layer: moving a window is not a use
+/// case, it is the window.
+fn wire_window_controls(window: &AppWindow) {
+    window.on_minimize({
+        let handle = window.as_weak();
+        move || {
+            if let Some(window) = handle.upgrade() {
+                window.window().set_minimized(true);
+            }
+        }
+    });
+
+    window.on_toggle_maximize({
+        let handle = window.as_weak();
+        move || {
+            if let Some(window) = handle.upgrade() {
+                let maximized = !window.window().is_maximized();
+                window.window().set_maximized(maximized);
+                window.set_maximized(maximized);
+            }
+        }
+    });
+
+    window.on_close_window({
+        let handle = window.as_weak();
+        move || {
+            if let Some(window) = handle.upgrade() {
+                // Hiding the last window ends the event loop, which returns
+                // from `run` and drops the engine and the pool in order.
+                let _ = window.hide();
+            }
+        }
+    });
+
+    window.on_drag_window({
+        let handle = window.as_weak();
+        move |dx, dy| {
+            let Some(window) = handle.upgrade() else {
+                return;
+            };
+            // A maximised window that is dragged should come loose, the way
+            // every other window on the platform does.
+            if window.window().is_maximized() {
+                window.window().set_maximized(false);
+                window.set_maximized(false);
+                return;
+            }
+
+            // The deltas arrive in logical pixels because that is what the
+            // markup measures in; the position is physical.
+            let scale = window.window().scale_factor();
+            let position = window.window().position();
+            window.window().set_position(slint::PhysicalPosition::new(
+                position.x + (dx * scale) as i32,
+                position.y + (dy * scale) as i32,
+            ));
+        }
+    });
 }

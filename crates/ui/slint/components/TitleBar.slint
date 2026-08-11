@@ -1,0 +1,193 @@
+import { Theme } from "../theme/tokens.slint";
+
+// One of the three window controls.
+//
+// No icon files: these are two or three straight lines each, and a stroked
+// rectangle drawn from tokens costs nothing and scales with the theme. The
+// close button is the only one that colours on hover, because it is the only
+// one whose mistake cannot be undone.
+component WindowButton inherits Rectangle {
+    in property <bool> danger;
+    in property <bool> restore;
+    in property <string> kind;
+
+    callback pressed();
+
+    // A number, not `100%`: a child sized from its parent inside a layout whose
+    // height is derived from its children is a circular constraint, and Slint
+    // resolves it by giving the bar the whole window.
+    width: 46px;
+    height: 40px;
+    background: touch.has-hover
+        ? (root.danger ? #c42b1c : Theme.bg-3)
+        : transparent;
+    animate background { duration: 100ms; }
+
+    touch := TouchArea {
+        clicked => {
+            root.pressed();
+        }
+    }
+
+    // Minimise: one line.
+    if root.kind == "minimize": Rectangle {
+        width: 10px;
+        height: 1px;
+        background: Theme.ink-2;
+    }
+
+    // Maximise: a square. Restore: a square with another behind it.
+    if root.kind == "maximize" && !root.restore: Rectangle {
+        width: 10px;
+        height: 10px;
+        border-width: 1px;
+        border-color: Theme.ink-2;
+        background: transparent;
+    }
+    if root.kind == "maximize" && root.restore: Rectangle {
+        width: 12px;
+        height: 12px;
+        background: transparent;
+
+        Rectangle {
+            x: 2px;
+            y: 0px;
+            width: 9px;
+            height: 9px;
+            border-width: 1px;
+            border-color: Theme.ink-2;
+        }
+        Rectangle {
+            x: 0px;
+            y: 3px;
+            width: 9px;
+            height: 9px;
+            border-width: 1px;
+            border-color: Theme.ink-2;
+            background: Theme.bg-1;
+        }
+    }
+
+    // Close: two lines crossed. A path rather than a glyph, so it is exactly
+    // square and exactly centred whatever the font does, and rather than two
+    // rotated rectangles, which Slint does not rotate.
+    if root.kind == "close": Path {
+        width: 10px;
+        height: 10px;
+        viewbox-width: 10;
+        viewbox-height: 10;
+        commands: "M 0 0 L 10 10 M 10 0 L 0 10";
+        stroke: touch.has-hover ? #ffffff : Theme.ink-2;
+        stroke-width: 1px;
+    }
+}
+
+// The window's own title bar, drawn because the system's does not belong to
+// this palette (PROJECT_MASTER 2.10: not the standard look of a player).
+//
+// Everything the system frame did, this has to do again: drag to move, double
+// click to maximise, and the three buttons. Resizing is the exception — Slint's
+// backend keeps the edges live on an undecorated window, cursors included.
+export component TitleBar inherits Rectangle {
+    in property <string> section;
+    in property <bool> maximized;
+
+    callback minimize();
+    callback toggle-maximize();
+    callback close-window();
+    // Deltas in logical pixels since the press began.
+    callback drag(length, length);
+
+    height: 40px;
+    background: Theme.bg-1;
+
+    Rectangle {
+        y: parent.height - 1px;
+        height: 1px;
+        background: Theme.line-soft;
+    }
+
+    // The whole bar is the drag handle, under the buttons rather than over
+    // them: a click on close must close rather than move the window by a pixel.
+    drag-area := TouchArea {
+        moved => {
+            if (self.pressed) {
+                root.drag(self.mouse-x - self.pressed-x, self.mouse-y - self.pressed-y);
+            }
+        }
+        double-clicked => {
+            root.toggle-maximize();
+        }
+    }
+
+    HorizontalLayout {
+        // The name sits where the eye already is on this platform: left, beside
+        // nothing, with the controls opposite it.
+        HorizontalLayout {
+            padding-left: Theme.space-4;
+            alignment: start;
+            horizontal-stretch: 1;
+
+            VerticalLayout {
+                alignment: center;
+
+                HorizontalLayout {
+                    spacing: Theme.space-2;
+
+                    Text {
+                        text: "Cadenza";
+                        font-family: Theme.serif;
+                        font-italic: true;
+                        font-size: 14px;
+                        color: Theme.ink-1;
+                        vertical-alignment: center;
+                    }
+                    if root.section != "": Text {
+                        text: "·";
+                        font-family: Theme.mono;
+                        font-size: Theme.text-label;
+                        color: Theme.ink-disabled;
+                        vertical-alignment: center;
+                    }
+                    if root.section != "": Text {
+                        text: root.section;
+                        font-family: Theme.mono;
+                        font-size: Theme.text-label;
+                        letter-spacing: Theme.label-spacing;
+                        color: Theme.ink-mute;
+                        vertical-alignment: center;
+                    }
+                }
+            }
+        }
+
+        // Minimise, maximise, close — in that order and on the right, which is
+        // where this platform puts them. The reference is drawn as a Mac; a
+        // window that argues with its own operating system is worse than one
+        // that copies a mockup imperfectly.
+        HorizontalLayout {
+            alignment: end;
+
+            WindowButton {
+                kind: "minimize";
+                pressed => {
+                    root.minimize();
+                }
+            }
+            WindowButton {
+                kind: "maximize";
+                restore: root.maximized;
+                pressed => {
+                    root.toggle-maximize();
+                }
+            }
+            WindowButton {
+                kind: "close";
+                danger: true;
+                pressed => {
+                    root.close-window();
+                }
+            }
+        }
+    }
+}

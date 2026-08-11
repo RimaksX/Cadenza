@@ -283,6 +283,27 @@ was 28 high with 2 of padding around halves 22 high, which left two pixels for
 the layout to place — all of them below the highlight, which is why it sat high
 in its box.
 
+The window draws its own frame. `no-frame` on the Slint window and a `TitleBar`
+as the shell's first row: the name and the current section on the left, the
+three controls on the right where this platform puts them — the reference is
+drawn as a Mac, and a window that argues with its own operating system is worse
+than one that copies a mockup imperfectly. Dragging and double-click-to-maximise
+are ours to implement; resizing is not, because Slint's backend keeps the edges
+of an undecorated window live, cursors included.
+
+Two traps, both found by looking at the window:
+
+- `height: 100%` on a child inside a layout whose own height comes from its
+  children is a circular constraint, and Slint resolves it by giving that row
+  the whole window. The rest of the interface rendered as nothing at all.
+- A disabled primary button must lose its fill as well as its glyph. Left
+  filled, it shouts in the loudest ink in the palette while the icon inside says
+  it cannot be pressed.
+
+Hovering a row turns its number into a play button — one click instead of two,
+and the only thing on screen that says a row can be played at all. The double
+click still works and stays the faster habit.
+
 Deferred, each named rather than quietly skipped: the ~25 other views and
 components section 5 lists, which need screens that do not exist yet;
 `commands.rs` and `ui/src/commands/` (finding 30); `subscriptions.rs`, because
