@@ -13,7 +13,7 @@ use cadenza_core::domain::value_objects::{PlaybackPosition, Volume};
 use cadenza_core::{CoreError, Result};
 use slint::{ComponentHandle, ModelRc, VecModel, Weak};
 
-use crate::view_models::{library_vm, player_vm};
+use crate::view_models::{self, library_vm, player_vm};
 use crate::{AppWindow, Theme, UiServices};
 
 /// What to do when there is no profile to be a library for.
@@ -59,12 +59,14 @@ impl Controller {
         match self.profile.borrow().as_ref() {
             Some(profile) => {
                 window.set_profile_name(profile.name.as_str().into());
+                window.set_profile_initial(view_models::initial(profile.name.as_str()).into());
                 window
                     .global::<Theme>()
                     .set_dark(profile.theme == ThemeMode::Dark);
             }
             None => {
                 window.set_profile_name("nobody".into());
+                window.set_profile_initial(String::new().into());
                 window.global::<Theme>().set_dark(true);
             }
         }

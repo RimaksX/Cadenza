@@ -3,7 +3,7 @@
 use cadenza_core::application::view_state::PlayerView;
 use cadenza_core::domain::track::TrackSummary;
 
-use crate::view_models::clock;
+use crate::view_models::{clock, initial};
 
 /// What the player bar draws, as strings and numbers the markup can bind.
 #[derive(Debug, Clone, PartialEq)]
@@ -65,26 +65,18 @@ pub fn fields(view: &PlayerView) -> PlayerFields {
 ///
 /// A separator with nothing after it reads as a truncation, and an untagged
 /// file is common enough that it must not look like a bug.
+///
+/// Set in capitals, like every other mono caption in the interface. The case is
+/// part of the style rather than of the name, which is why it happens here and
+/// is not stored.
 fn subtitle(summary: &TrackSummary) -> String {
-    match (summary.artist.as_deref(), summary.album.as_deref()) {
+    let line = match (summary.artist.as_deref(), summary.album.as_deref()) {
         (Some(artist), Some(album)) => format!("{artist} · {album}"),
         (Some(artist), None) => artist.to_owned(),
         (None, Some(album)) => album.to_owned(),
         (None, None) => String::new(),
-    }
-}
-
-/// The letter that stands in for artwork.
-///
-/// The first character carrying meaning — a leading quote or ellipsis is a
-/// worse initial than the letter after it — upper-cased. Upper-casing one
-/// character can produce two (ß becomes SS), so the result is a string.
-fn initial(title: &str) -> String {
-    title
-        .chars()
-        .find(|character| character.is_alphanumeric())
-        .map(|character| character.to_uppercase().to_string())
-        .unwrap_or_default()
+    };
+    line.to_uppercase()
 }
 
 #[cfg(test)]
@@ -128,7 +120,7 @@ mod tests {
 
         let shown = fields(&view);
         assert_eq!(shown.title, "Mysterons");
-        assert_eq!(shown.subtitle, "Portishead", "no album, so no separator");
+        assert_eq!(shown.subtitle, "PORTISHEAD", "no album, so no separator");
         assert_eq!(shown.initial, "M");
         assert_eq!(shown.position, "01:15");
         assert_eq!(shown.duration, "05:00");
@@ -151,7 +143,7 @@ mod tests {
             track: Some(base.clone()),
             ..PlayerView::default()
         });
-        assert_eq!(both.subtitle, "David Bowie · \"Heroes\"");
+        assert_eq!(both.subtitle, "DAVID BOWIE · \"HEROES\"");
         assert_eq!(both.initial, "H", "the quote is not the initial");
 
         let no_album = fields(&PlayerView {
@@ -161,7 +153,7 @@ mod tests {
             }),
             ..PlayerView::default()
         });
-        assert_eq!(no_album.subtitle, "David Bowie");
+        assert_eq!(no_album.subtitle, "DAVID BOWIE");
 
         let neither = fields(&PlayerView {
             track: Some(TrackSummary {

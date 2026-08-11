@@ -15,6 +15,7 @@ export component AppShell inherits Rectangle {
     in property <string> library-summary;
     in property <string> empty-hint;
     in property <string> profile-name;
+    in property <string> profile-initial;
 
     in property <string> now-title;
     in property <string> now-subtitle;
@@ -42,6 +43,7 @@ export component AppShell inherits Rectangle {
         HorizontalLayout {
             Sidebar {
                 profile-name: root.profile-name;
+                profile-initial: root.profile-initial;
                 set-theme(dark) => {
                     root.set-theme(dark);
                 }

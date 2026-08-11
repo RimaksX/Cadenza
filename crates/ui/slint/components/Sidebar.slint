@@ -89,8 +89,11 @@ component ThemeOption inherits Rectangle {
 
     callback chosen();
 
-    width: 30px;
-    height: 24px;
+    // The well around these two is sized from exactly these numbers — see
+    // `Sidebar`. Leave a pixel unaccounted for and the layout distributes it,
+    // which is the highlight sliding off its icon.
+    width: 28px;
+    height: 22px;
     border-radius: 3px;
     background: root.selected ? Theme.bg-3 : transparent;
     animate background { duration: 120ms; }
@@ -113,8 +116,42 @@ component ThemeOption inherits Rectangle {
     }
 }
 
+// The two halves of the theme switch, in a well that is exactly as wide as they
+// are: 2 × 28 for the halves, 2 × 2 for the padding, 2 × 1 for the border.
+component ThemeSwitch inherits Rectangle {
+    callback set-theme(bool);
+
+    width: 64px;
+    height: 28px;
+    border-radius: 4px;
+    background: Theme.bg-1;
+    border-width: 1px;
+    border-color: Theme.line-soft;
+
+    HorizontalLayout {
+        padding: 2px;
+        spacing: 0px;
+
+        ThemeOption {
+            glyph: @image-url("../../../../resources/ui/icons/dark.svg");
+            selected: Theme.dark;
+            chosen => {
+                root.set-theme(true);
+            }
+        }
+        ThemeOption {
+            glyph: @image-url("../../../../resources/ui/icons/light.svg");
+            selected: !Theme.dark;
+            chosen => {
+                root.set-theme(false);
+            }
+        }
+    }
+}
+
 export component Sidebar inherits Rectangle {
     in property <string> profile-name;
+    in property <string> profile-initial;
 
     callback set-theme(bool);
 
@@ -186,53 +223,81 @@ export component Sidebar inherits Rectangle {
 
         Rectangle { }
 
-        // Who is listening, and the one control that belongs to them.
+        // The listener's own section, under a rule that runs the full width of
+        // the sidebar. Everything above it is where to go; this is who is
+        // going there, and it does not scroll or change with the screen.
         VerticalLayout {
-            padding-left: Theme.space-5;
-            padding-right: Theme.space-5;
-            spacing: Theme.space-2;
+            vertical-stretch: 0;
+            spacing: 0px;
 
-            Text {
-                text: "LISTENING AS";
-                font-family: Theme.mono;
-                font-size: Theme.text-label;
-                letter-spacing: Theme.label-spacing;
-                color: Theme.ink-mute;
-            }
-            Text {
-                text: root.profile-name;
-                font-family: Theme.serif;
-                font-size: Theme.text-title;
-                color: Theme.ink-1;
-                overflow: elide;
-            }
-
-            // The switch sits in its own well, so the selected half reads as
-            // pressed into the surface rather than floating on it.
             Rectangle {
-                width: 64px;
-                height: 28px;
-                border-radius: 4px;
-                background: Theme.bg-1;
-                border-width: 1px;
-                border-color: Theme.line-soft;
+                height: 1px;
+                background: Theme.line-soft;
+            }
+
+            VerticalLayout {
+                padding-left: Theme.space-5;
+                padding-right: Theme.space-5;
+                padding-top: Theme.space-4;
+                spacing: Theme.space-4;
 
                 HorizontalLayout {
-                    padding: 1px;
-                    spacing: 0px;
+                    spacing: Theme.space-3;
 
-                    ThemeOption {
-                        glyph: @image-url("../../../../resources/ui/icons/dark.svg");
-                        selected: Theme.dark;
-                        chosen => {
-                            root.set-theme(true);
+                    // The listener's initial in a disc. A face is the one thing
+                    // in this interface that is theirs, and a letter is what
+                    // there is until they can choose a picture.
+                    VerticalLayout {
+                        alignment: center;
+
+                        Rectangle {
+                            width: 28px;
+                            height: 28px;
+                            border-radius: 14px;
+                            background: @linear-gradient(135deg, Theme.bg-3, Theme.bg-1);
+                            border-width: 1px;
+                            border-color: Theme.line;
+
+                            Text {
+                                text: root.profile-initial;
+                                font-family: Theme.serif;
+                                font-italic: true;
+                                font-size: 14px;
+                                color: Theme.ink-1;
+                                horizontal-alignment: center;
+                                vertical-alignment: center;
+                            }
                         }
                     }
-                    ThemeOption {
-                        glyph: @image-url("../../../../resources/ui/icons/light.svg");
-                        selected: !Theme.dark;
-                        chosen => {
-                            root.set-theme(false);
+
+                    VerticalLayout {
+                        alignment: center;
+                        spacing: 2px;
+                        horizontal-stretch: 1;
+
+                        Text {
+                            text: root.profile-name;
+                            font-family: Theme.sans;
+                            font-size: Theme.text-meta;
+                            color: Theme.ink-1;
+                            overflow: elide;
+                        }
+                        Text {
+                            text: "ACTIVE PROFILE";
+                            font-family: Theme.mono;
+                            font-size: Theme.text-label;
+                            letter-spacing: Theme.label-spacing;
+                            color: Theme.ink-mute;
+                        }
+                    }
+                }
+
+                HorizontalLayout {
+                    alignment: start;
+
+                    ThemeSwitch {
+                        set-theme(dark) => {
+                            root.set-theme(dark);
                         }
                     }
                 }

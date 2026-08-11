@@ -16,13 +16,25 @@ component TransportButton inherits Rectangle {
 
     callback pressed();
 
+    // Equal heights, because a row lays children of differing height against
+    // its top edge — which is what put the small buttons above the play
+    // button's axis. The width still hugs what it draws, or the gaps between
+    // icons grow by the difference and the group reads as scattered.
     width: root.primary ? 40px : 28px;
-    height: self.width;
-    border-radius: self.width / 2;
-    background: root.primary
-        ? (touch.has-hover && root.enabled ? Theme.ink-1 : Theme.ink-0)
-        : transparent;
-    animate background { duration: 120ms; }
+    height: 40px;
+
+    // The circle is a child, centred in that square.
+    Rectangle {
+        width: root.primary ? 40px : 28px;
+        height: self.width;
+        x: (parent.width - self.width) / 2;
+        y: (parent.height - self.height) / 2;
+        border-radius: self.width / 2;
+        background: root.primary
+            ? (touch.has-hover && root.enabled ? Theme.ink-1 : Theme.ink-0)
+            : transparent;
+        animate background { duration: 120ms; }
+    }
 
     touch := TouchArea {
         enabled: root.enabled;
@@ -35,6 +47,8 @@ component TransportButton inherits Rectangle {
         source: root.glyph;
         width: root.primary ? 15px : (root.quiet ? 14px : 16px);
         height: self.width;
+        x: (parent.width - self.width) / 2;
+        y: (parent.height - self.height) / 2;
         image-fit: contain;
         colorize: !root.enabled
             ? Theme.line
@@ -192,7 +206,7 @@ export component PlayerBar inherits Rectangle {
 
             HorizontalLayout {
                 alignment: center;
-                spacing: Theme.space-5;
+                spacing: Theme.space-4;
 
                 // Shuffle and repeat need a queue to shuffle and a track change
                 // to repeat into, and both are M7.

@@ -13,6 +13,18 @@ pub mod player_vm;
 
 use cadenza_core::domain::value_objects::DurationMs;
 
+/// The letter that stands in for a picture — of a listener, or of a record.
+///
+/// The first character carrying meaning, because a leading quote or ellipsis is
+/// a worse initial than the letter after it, upper-cased. Upper-casing one
+/// character can produce two (ß becomes SS), so the result is a string.
+pub(crate) fn initial(text: &str) -> String {
+    text.chars()
+        .find(|character| character.is_alphanumeric())
+        .map(|character| character.to_uppercase().to_string())
+        .unwrap_or_default()
+}
+
 /// A duration as the interface writes it: `mm:ss`, with hours only when there
 /// are any.
 ///
@@ -34,7 +46,17 @@ pub(crate) fn clock(duration: DurationMs) -> String {
 mod tests {
     use cadenza_core::domain::value_objects::DurationMs;
 
-    use super::clock;
+    use super::{clock, initial};
+
+    #[test]
+    fn an_initial_skips_punctuation_and_survives_having_none() {
+        assert_eq!(initial("Mysterons"), "M");
+        assert_eq!(initial("  sasha"), "S");
+        assert_eq!(initial("\"Heroes\""), "H", "a quote is a worse initial");
+        assert_eq!(initial("...and Justice"), "A");
+        assert_eq!(initial("4′33″"), "4", "a number is something to show");
+        assert_eq!(initial("—"), "", "nothing to offer, so nothing shown");
+    }
 
     #[test]
     fn times_are_padded_so_a_column_of_them_is_straight() {
