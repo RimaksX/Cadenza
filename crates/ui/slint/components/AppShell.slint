@@ -35,7 +35,6 @@ export component AppShell inherits Rectangle {
     callback seek(float);
     callback set-volume(float);
     callback toggle-mute();
-    callback set-theme(bool);
 
     background: Theme.bg-0;
 
@@ -44,9 +43,6 @@ export component AppShell inherits Rectangle {
             Sidebar {
                 profile-name: root.profile-name;
                 profile-initial: root.profile-initial;
-                set-theme(dark) => {
-                    root.set-theme(dark);
-                }
             }
 
             LibraryView {

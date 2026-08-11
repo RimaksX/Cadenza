@@ -127,7 +127,6 @@ fn run() -> std::result::Result<(), String> {
         return cadenza_ui::run(cadenza_ui::UiServices {
             library: Arc::clone(&library),
             playback,
-            profiles: Arc::new(ProfileService::new(Arc::clone(&context))),
             profile: active,
         })
         .map_err(|err| err.to_string());

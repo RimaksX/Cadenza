@@ -83,77 +83,9 @@ component NavLabel inherits HorizontalLayout {
 // directly reachable. A single button that flips would have to say what it will
 // do, which is why the old one read "→ LIGHT" — a label explaining a control is
 // a control that needs explaining.
-component ThemeOption inherits Rectangle {
-    in property <image> glyph;
-    in property <bool> selected;
-
-    callback chosen();
-
-    // The well around these two is sized from exactly these numbers — see
-    // `Sidebar`. Leave a pixel unaccounted for and the layout distributes it,
-    // which is the highlight sliding off its icon.
-    width: 28px;
-    height: 22px;
-    border-radius: 3px;
-    background: root.selected ? Theme.bg-3 : transparent;
-    animate background { duration: 120ms; }
-
-    touch := TouchArea {
-        clicked => {
-            root.chosen();
-        }
-    }
-
-    Image {
-        source: root.glyph;
-        width: 13px;
-        height: self.width;
-        image-fit: contain;
-        colorize: root.selected
-            ? Theme.ink-0
-            : (touch.has-hover ? Theme.ink-1 : Theme.ink-mute);
-        animate colorize { duration: 120ms; }
-    }
-}
-
-// The two halves of the theme switch, in a well that is exactly as wide as they
-// are: 2 × 28 for the halves, 2 × 2 for the padding, 2 × 1 for the border.
-component ThemeSwitch inherits Rectangle {
-    callback set-theme(bool);
-
-    width: 64px;
-    height: 28px;
-    border-radius: 4px;
-    background: Theme.bg-1;
-    border-width: 1px;
-    border-color: Theme.line-soft;
-
-    HorizontalLayout {
-        padding: 2px;
-        spacing: 0px;
-
-        ThemeOption {
-            glyph: @image-url("../../../../resources/ui/icons/dark.svg");
-            selected: Theme.dark;
-            chosen => {
-                root.set-theme(true);
-            }
-        }
-        ThemeOption {
-            glyph: @image-url("../../../../resources/ui/icons/light.svg");
-            selected: !Theme.dark;
-            chosen => {
-                root.set-theme(false);
-            }
-        }
-    }
-}
-
 export component Sidebar inherits Rectangle {
     in property <string> profile-name;
     in property <string> profile-initial;
-
-    callback set-theme(bool);
 
     width: Theme.sidebar-width;
     background: Theme.bg-0;
@@ -225,7 +157,11 @@ export component Sidebar inherits Rectangle {
 
         // The listener's own section, under a rule that runs the full width of
         // the sidebar. Everything above it is where to go; this is who is
-        // going there, and it does not scroll or change with the screen.
+        // going there, and it neither scrolls nor changes with the screen.
+        //
+        // Only that. The theme control used to sit here and did not belong: a
+        // preference is not an identity, and it goes on the settings screen
+        // when there is one.
         VerticalLayout {
             vertical-stretch: 0;
             spacing: 0px;
@@ -239,7 +175,6 @@ export component Sidebar inherits Rectangle {
                 padding-left: Theme.space-5;
                 padding-right: Theme.space-5;
                 padding-top: Theme.space-4;
-                spacing: Theme.space-4;
 
                 HorizontalLayout {
                     spacing: Theme.space-3;
@@ -288,16 +223,6 @@ export component Sidebar inherits Rectangle {
                             font-size: Theme.text-label;
                             letter-spacing: Theme.label-spacing;
                             color: Theme.ink-mute;
-                        }
-                    }
-                }
-
-                HorizontalLayout {
-                    alignment: start;
-
-                    ThemeSwitch {
-                        set-theme(dark) => {
-                            root.set-theme(dark);
                         }
                     }
                 }

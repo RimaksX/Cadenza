@@ -159,37 +159,6 @@ impl Controller {
         self.run(|| self.services.playback.toggle_mute());
     }
 
-    /// Chooses a palette, and remembers the choice.
-    ///
-    /// The theme is a property of the listener, not of the window: it is stored
-    /// on the profile and comes back on the next run (PROJECT_MASTER 2.5).
-    ///
-    /// Takes which one rather than flipping: the switch shows both halves, and
-    /// clicking the half that is already selected must be a no-op rather than a
-    /// surprise.
-    pub fn set_theme(&self, dark: bool) {
-        let Some(current) = self.profile.borrow().clone() else {
-            return;
-        };
-
-        let next = if dark {
-            ThemeMode::Dark
-        } else {
-            ThemeMode::Light
-        };
-        if next == current.theme {
-            return;
-        }
-
-        match self.services.profiles.set_theme(current.id, next) {
-            Ok(updated) => {
-                *self.profile.borrow_mut() = Some(updated);
-                self.refresh_profile();
-            }
-            Err(err) => self.report(&err),
-        }
-    }
-
     /// Runs a command, reports what it says, and refreshes the transport.
     fn run(&self, command: impl FnOnce() -> Result<()>) {
         match command() {

@@ -19,7 +19,7 @@
 use std::sync::Arc;
 
 use cadenza_core::Result;
-use cadenza_core::application::services::{LibraryService, PlaybackService, ProfileService};
+use cadenza_core::application::services::{LibraryService, PlaybackService};
 use cadenza_core::domain::profile::Profile;
 
 mod app;
@@ -40,9 +40,12 @@ pub struct UiServices {
     pub library: Arc<LibraryService>,
     /// Transport control and the player's view state.
     pub playback: Arc<PlaybackService>,
-    /// Profile settings — the theme lives on the profile.
-    pub profiles: Arc<ProfileService>,
     /// Who is listening, if anyone is yet.
+    ///
+    /// The profile itself rather than the service that manages profiles: the
+    /// window reads a name and a theme and changes neither. Switching profiles
+    /// and editing them belong to the settings screen, and the service comes
+    /// back when that does.
     pub profile: Option<Profile>,
 }
 

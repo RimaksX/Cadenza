@@ -267,6 +267,22 @@ hue climbed in lightness so depth comes from a step rather than a shadow, a seri
 for names, mono capitals for anything read as a number, hairlines instead of
 boxes. Placeholder system faces until the real ones are bundled.
 
+The sidebar ends with the listener: a rule across its full width, an initial in
+a disc, the name, and a caption. It is the one static thing in a menu otherwise
+made of places to go.
+
+A theme switch briefly lived in that section and was taken out again — a
+preference is not an identity, and it belongs on the settings screen with the
+other preferences. Until that screen exists the palette is set with
+`cadenza theme <dark|light>` and read from the profile at startup, so both
+themes work as section 2.10 requires.
+
+Worth keeping from building it, because the same trap waits on the settings
+screen: a segmented control's halves must fill their well *exactly*. The well
+was 28 high with 2 of padding around halves 22 high, which left two pixels for
+the layout to place — all of them below the highlight, which is why it sat high
+in its box.
+
 Deferred, each named rather than quietly skipped: the ~25 other views and
 components section 5 lists, which need screens that do not exist yet;
 `commands.rs` and `ui/src/commands/` (finding 30); `subscriptions.rs`, because

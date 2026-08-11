@@ -60,7 +60,6 @@ export component AppWindow inherits Window {
     callback seek(float);
     callback set-volume(float);
     callback toggle-mute();
-    callback set-theme(bool);
 
     AppShell {
         tracks: root.tracks;
@@ -95,9 +94,6 @@ export component AppWindow inherits Window {
         }
         toggle-mute => {
             root.toggle-mute();
-        }
-        set-theme(dark) => {
-            root.set-theme(dark);
         }
     }
 

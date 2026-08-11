@@ -72,8 +72,7 @@ fn wire(window: &AppWindow, controller: &Rc<Controller>) {
         move || controller.toggle_mute()
     });
 
-    window.on_set_theme({
-        let controller = Rc::clone(controller);
-        move |dark| controller.set_theme(dark)
-    });
+    // No theme callback: the palette is read from the profile at startup and
+    // changed from the settings screen, which does not exist yet. Until then
+    // `cadenza theme <dark|light>` is the way.
 }
