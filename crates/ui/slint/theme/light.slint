@@ -14,10 +14,17 @@ export global LightPalette {
     out property <color> bg-2: #edeae8;
     out property <color> bg-3: #e0dddb;
 
-    out property <color> line: #d0cdca;
-    out property <color> line-soft: #e3e1df;
+    // The light side needs its separators darker than a mirror of the dark side
+    // would give: on a near-white surface a hairline at 1.5:1 is invisible, and
+    // the table loses its structure. These measure 1.9:1 and 1.4:1 like their
+    // dark counterparts.
+    out property <color> line: #bab7b5;
+    out property <color> line-soft: #d8d5d3;
 
-    out property <color> ink-mute: #837f7d;
+    // 4.6:1 against the raised surfaces, where it was 3.58 — see the note in
+    // `dark.slint`.
+    out property <color> ink-mute: #716d6b;
+    out property <color> ink-disabled: #9a9694;
     out property <color> ink-2: #585452;
     out property <color> ink-1: #2b2826;
     out property <color> ink-0: #0f0d0b;

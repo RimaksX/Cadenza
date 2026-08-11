@@ -52,3 +52,25 @@ three files rather than a sweep through every view (PROJECT_MASTER 14).
 
 The palette is set from Rust — the controller reads the profile's theme and
 writes `Theme.dark`. Markup may read that global and never assign to it.
+
+## Contrast
+
+Both palettes are measured rather than judged. Every ink that carries text
+clears 4.5:1 against the surfaces it appears on, which for the smallest type in
+the interface — the mono captions in `ink-mute` — is the difference between a
+caption and a smudge:
+
+| | dark | light |
+|---|---|---|
+| `ink-mute` on `bg-0` / `bg-1` | 4.82 / 4.64 | 4.92 / 4.63 |
+| `ink-disabled` | 2.82 | 2.82 |
+| `line` / `line-soft` | 1.91 / 1.40 | 1.92 / 1.40 |
+
+`ink-disabled` is deliberately below the minimum. A disabled control is exempt
+from it, and cannot look unavailable while it is as legible as the controls that
+work — which is what happened the first time `ink-mute` was raised and the
+disabled items came up with it.
+
+Separators are not text and have no minimum, but below about 1.3 a hairline
+stops being quiet and becomes absent. That is what the light theme's first
+values did to the track list.

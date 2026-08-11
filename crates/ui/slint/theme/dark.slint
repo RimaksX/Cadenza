@@ -15,11 +15,25 @@ export global DarkPalette {
     out property <color> bg-3: #201e1c;
 
     // Separators. `line` is visible, `line-soft` is felt rather than seen.
-    out property <color> line: #2b2826;
-    out property <color> line-soft: #1c1a18;
+    // Measured against bg-0: 1.9:1 and 1.4:1. Below about 1.3 a hairline stops
+    // being quiet and starts being absent.
+    out property <color> line: #413f3d;
+    out property <color> line-soft: #2d2a28;
 
     // Text, quietest to loudest.
-    out property <color> ink-mute: #605d5b;
+    //
+    // `ink-mute` carries every mono caption in the interface — column labels,
+    // times, the profile's line — which is the smallest type there is, so it
+    // clears 4.5:1 against the surfaces it sits on rather than merely looking
+    // quiet. It was two steps darker and measured 3.06, which is what "the text
+    // disappears into the background" means in numbers.
+    out property <color> ink-mute: #7f7c79;
+
+    // Not a quieter ink but a different statement: this one means "not
+    // available". It measures 2.8:1 on purpose — a disabled control is exempt
+    // from the contrast minimum, and has to look unavailable, which it cannot
+    // do while it is as legible as the controls that work.
+    out property <color> ink-disabled: #5a5856;
     out property <color> ink-2: #95918f;
     out property <color> ink-1: #d3d0ce;
     out property <color> ink-0: #f8f8f8;

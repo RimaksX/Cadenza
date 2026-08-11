@@ -51,7 +51,7 @@ component TransportButton inherits Rectangle {
         y: (parent.height - self.height) / 2;
         image-fit: contain;
         colorize: !root.enabled
-            ? Theme.line
+            ? Theme.ink-disabled
             : (root.primary
                 ? Theme.bg-0
                 : (root.active || touch.has-hover ? Theme.ink-0 : Theme.ink-2));
