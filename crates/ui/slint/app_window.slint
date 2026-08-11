@@ -8,7 +8,7 @@
 import "../../../resources/ui/fonts/Instrument_Serif/InstrumentSerif-Regular.ttf";
 import "../../../resources/ui/fonts/Instrument_Serif/InstrumentSerif-Italic.ttf";
 import "../../../resources/ui/fonts/Inter/Inter-VariableFont_opsz,wght.ttf";
-import "../../../resources/ui/fonts/JetBrains_Mono/static/JetBrainsMono-Regular.ttf";
+import "../../../resources/ui/fonts/JetBrains_Mono/JetBrainsMono-Regular.ttf";
 
 import { Theme } from "theme/tokens.slint";
 import { AppShell } from "components/AppShell.slint";
@@ -41,7 +41,8 @@ export component AppWindow inherits Window {
     in property <string> empty-hint;
     in property <string> profile-name;
     in property <string> now-title;
-    in property <string> now-artist;
+    in property <string> now-subtitle;
+    in property <string> now-initial;
     in property <string> now-position: "0:00";
     in property <string> now-duration: "0:00";
     in property <string> playing-id;
@@ -55,11 +56,10 @@ export component AppWindow inherits Window {
     // Up: what the listener asked for.
     callback play(string);
     callback toggle-play();
-    callback stop();
     callback seek(float);
     callback set-volume(float);
     callback toggle-mute();
-    callback toggle-theme();
+    callback set-theme(bool);
 
     AppShell {
         tracks: root.tracks;
@@ -67,7 +67,8 @@ export component AppWindow inherits Window {
         empty-hint: root.empty-hint;
         profile-name: root.profile-name;
         now-title: root.now-title;
-        now-artist: root.now-artist;
+        now-subtitle: root.now-subtitle;
+        now-initial: root.now-initial;
         now-position: root.now-position;
         now-duration: root.now-duration;
         playing-id: root.playing-id;
@@ -84,9 +85,6 @@ export component AppWindow inherits Window {
         toggle-play => {
             root.toggle-play();
         }
-        stop => {
-            root.stop();
-        }
         seek(fraction) => {
             root.seek(fraction);
         }
@@ -96,8 +94,8 @@ export component AppWindow inherits Window {
         toggle-mute => {
             root.toggle-mute();
         }
-        toggle-theme => {
-            root.toggle-theme();
+        set-theme(dark) => {
+            root.set-theme(dark);
         }
     }
 

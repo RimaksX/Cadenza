@@ -274,6 +274,19 @@ nothing else in this process changes the library while the window is open;
 `scaling.rs`, which needs a settings screen; a custom title bar, because the
 native frame costs nothing and looks like the platform.
 
+The player bar follows the reference's three-part arrangement: what is playing
+on the left at a fixed width, the transport and its progress line in the middle,
+the level on the right at the same fixed width — so the transport is centred on
+the window rather than on whatever is left over. The line stops short of both
+edges, which is what leaves room for a title on one side and a slider on the
+other. Play is the one inverted control on the bar: a filled circle in the
+loudest ink with the glyph cut out of it.
+
+There is no stop button. Pause holds the position and the file, which is what
+stopping a song means to a listener; the service keeps `stop` for the queue to
+use when it runs out in M7. Shuffle, repeat, previous and next are drawn and
+disabled: all four need a queue to act on.
+
 Running the binary showed a defect the tests could not: the column headers and
 the rows disagreed by a few pixels, because a Slint layout gives each cell its
 natural width first and shares only the remainder by stretch factor — so a

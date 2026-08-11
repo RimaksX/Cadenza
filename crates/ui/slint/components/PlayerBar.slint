@@ -1,21 +1,26 @@
 import { Theme } from "../theme/tokens.slint";
 
-// The icons are line drawings in `currentColor`; `colorize` repaints whatever
-// they render as, so one file serves both themes and every state. Sizes are set
-// here rather than in the file: the SVGs carry a viewBox and no dimensions on
-// purpose.
+// A transport control. The icons are line drawings in `currentColor`, and
+// `colorize` repaints whatever they render as, so one file serves both themes
+// and every state.
+//
+// `primary` inverts it: a filled circle in the loudest ink with the glyph cut
+// out of it. One button on the bar is the one you reach for without looking,
+// and it is the only thing here that is not a line on a surface.
 component TransportButton inherits Rectangle {
     in property <image> glyph;
     in property <bool> primary;
+    in property <bool> quiet;
+    in property <bool> active;
     in property <bool> enabled: true;
 
     callback pressed();
 
-    width: root.primary ? 40px : 32px;
+    width: root.primary ? 40px : 28px;
     height: self.width;
     border-radius: self.width / 2;
     background: root.primary
-        ? (touch.has-hover && root.enabled ? Theme.bg-3 : Theme.bg-2)
+        ? (touch.has-hover && root.enabled ? Theme.ink-1 : Theme.ink-0)
         : transparent;
     animate background { duration: 120ms; }
 
@@ -28,56 +33,73 @@ component TransportButton inherits Rectangle {
 
     Image {
         source: root.glyph;
-        width: root.primary ? 16px : 15px;
+        width: root.primary ? 15px : (root.quiet ? 14px : 16px);
         height: self.width;
         image-fit: contain;
-        colorize: root.enabled
-            ? (touch.has-hover || root.primary ? Theme.ink-0 : Theme.ink-2)
-            : Theme.line;
+        colorize: !root.enabled
+            ? Theme.line
+            : (root.primary
+                ? Theme.bg-0
+                : (root.active || touch.has-hover ? Theme.ink-0 : Theme.ink-2));
         animate colorize { duration: 120ms; }
+        // Shuffle and repeat sit a step back from the three that move the
+        // music: they change how it continues, not whether it is playing.
+        opacity: root.quiet && !root.active ? 0.7 : 1.0;
     }
 }
 
 // A line that reports a fraction and accepts a click on it.
 //
 // Not a slider: a slider has a handle to grab, and a handle is a thing to
-// design once the design document exists. A line can be clicked, which is what
-// seeking needs.
+// design once the design document exists. The knob here is a consequence of the
+// fill rather than a control of its own — it marks where playback is, and the
+// whole line is the target.
 component Scrubber inherits Rectangle {
     in property <float> progress;
     in property <bool> enabled: true;
+    in property <bool> knob: true;
+    in property <color> fill: Theme.ink-1;
 
     callback moved(float);
 
-    height: 4px;
+    height: 10px;
 
     touch := TouchArea {
         enabled: root.enabled;
-        height: 14px;
-        y: (parent.height - self.height) / 2;
         clicked => {
             root.moved(self.mouse-x / self.width);
         }
     }
 
     Rectangle {
-        height: touch.has-hover && root.enabled ? 4px : 2px;
+        height: 2px;
         y: (parent.height - self.height) / 2;
         background: Theme.line;
-        animate height { duration: 120ms; }
 
-        Rectangle {
+        played := Rectangle {
             x: 0;
             width: parent.width * max(0, min(1, root.progress));
             height: parent.height;
-            background: Theme.ink-1;
+            background: root.fill;
         }
+    }
+
+    if root.knob && root.enabled: Rectangle {
+        width: 10px;
+        height: self.width;
+        border-radius: self.width / 2;
+        x: played.width - self.width / 2;
+        y: (parent.height - self.height) / 2;
+        background: Theme.ink-0;
+        opacity: touch.has-hover ? 1.0 : 0.85;
+        animate opacity { duration: 120ms; }
     }
 }
 
 export component PlayerBar inherits Rectangle {
     in property <string> title;
-    in property <string> artist;
+    in property <string> subtitle;
+    in property <string> initial;
     in property <string> position;
     in property <string> duration;
     in property <float> progress;
@@ -88,7 +110,6 @@ export component PlayerBar inherits Rectangle {
     in property <string> message;
 
     callback toggle-play();
-    callback stop();
     callback seek(float);
     callback set-volume(float);
     callback toggle-mute();
@@ -102,189 +123,197 @@ export component PlayerBar inherits Rectangle {
         background: Theme.line-soft;
     }
 
-    VerticalLayout {
+    HorizontalLayout {
         padding-left: Theme.space-5;
         padding-right: Theme.space-5;
-        padding-top: Theme.space-3;
-        padding-bottom: Theme.space-3;
-        spacing: Theme.space-2;
+        spacing: Theme.space-6;
 
+        // What is playing. A fixed width, so the transport in the middle stays
+        // in the middle whatever the title is.
         HorizontalLayout {
-            spacing: Theme.space-5;
+            width: 260px;
+            spacing: Theme.space-3;
+            alignment: start;
 
-            // What is playing. The cover is a placeholder until artwork is
-            // wired through; the initial keeps the block from reading as an
-            // error.
-            HorizontalLayout {
-                width: 280px;
-                spacing: Theme.space-3;
+            VerticalLayout {
+                alignment: center;
 
                 Rectangle {
-                    width: 44px;
-                    height: 44px;
-                    y: (parent.height - self.height) / 2;
+                    width: 56px;
+                    height: 56px;
                     background: Theme.bg-2;
                     border-width: 1px;
                     border-color: Theme.line-soft;
 
                     Text {
-                        text: root.loaded ? "♪" : "";
+                        text: root.initial;
                         font-family: Theme.serif;
-                        font-size: 18px;
-                        color: Theme.ink-2;
+                        font-italic: true;
+                        font-size: 22px;
+                        color: Theme.ink-1;
                         horizontal-alignment: center;
                         vertical-alignment: center;
                     }
                 }
-
-                VerticalLayout {
-                    alignment: center;
-                    spacing: 2px;
-
-                    Text {
-                        text: root.loaded ? root.title : "Nothing playing";
-                        font-family: Theme.serif;
-                        font-size: Theme.text-title;
-                        color: root.loaded ? Theme.ink-0 : Theme.ink-mute;
-                        overflow: elide;
-                    }
-                    Text {
-                        text: root.artist;
-                        font-family: Theme.sans;
-                        font-size: Theme.text-small;
-                        color: Theme.ink-2;
-                        overflow: elide;
-                    }
-                }
-            }
-
-            // Transport, centred.
-            HorizontalLayout {
-                alignment: center;
-                spacing: Theme.space-2;
-                horizontal-stretch: 1;
-
-                VerticalLayout {
-                    alignment: center;
-
-                    HorizontalLayout {
-                        alignment: center;
-                        spacing: Theme.space-2;
-
-                        // Previous and next need a queue to move through, and
-                        // the queue is M7.
-                        TransportButton {
-                            glyph: @image-url("../../../../resources/ui/icons/previous.svg");
-                            enabled: false;
-                        }
-                        TransportButton {
-                            glyph: root.playing
-                                ? @image-url("../../../../resources/ui/icons/pause.svg")
-                                : @image-url("../../../../resources/ui/icons/play.svg");
-                            primary: true;
-                            enabled: root.loaded;
-                            pressed => {
-                                root.toggle-play();
-                            }
-                        }
-                        TransportButton {
-                            glyph: @image-url("../../../../resources/ui/icons/next.svg");
-                            enabled: false;
-                        }
-                        TransportButton {
-                            glyph: @image-url("../../../../resources/ui/icons/stop.svg");
-                            enabled: root.loaded;
-                            pressed => {
-                                root.stop();
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Level. The same mono capitals as everywhere else, so the numeric
-            // side of the interface stays one voice.
-            HorizontalLayout {
-                width: 280px;
-                alignment: end;
-                spacing: Theme.space-3;
-
-                mute := TouchArea {
-                    width: 40px;
-                    clicked => {
-                        root.toggle-mute();
-                    }
-
-                    Text {
-                        text: root.muted ? "MUTED" : "VOL";
-                        font-family: Theme.mono;
-                        font-size: Theme.text-label;
-                        letter-spacing: Theme.label-spacing;
-                        color: root.muted
-                            ? Theme.ink-1
-                            : (mute.has-hover ? Theme.ink-1 : Theme.ink-mute);
-                        vertical-alignment: center;
-                    }
-                }
-
-                VerticalLayout {
-                    width: 96px;
-                    alignment: center;
-
-                    Scrubber {
-                        progress: root.muted ? 0 : root.volume;
-                        moved(fraction) => {
-                            root.set-volume(fraction);
-                        }
-                    }
-                }
-            }
-        }
-
-        // Position, the line, and either the length or whatever went wrong.
-        HorizontalLayout {
-            spacing: Theme.space-3;
-
-            Text {
-                width: 48px;
-                text: root.position;
-                font-family: Theme.mono;
-                font-size: Theme.text-small;
-                color: Theme.ink-mute;
-                vertical-alignment: center;
-                horizontal-alignment: right;
             }
 
             VerticalLayout {
                 alignment: center;
+                spacing: 4px;
                 horizontal-stretch: 1;
 
-                Scrubber {
-                    progress: root.progress;
+                Text {
+                    text: root.loaded ? root.title : "Nothing playing";
+                    font-family: Theme.serif;
+                    font-size: Theme.text-title;
+                    color: root.loaded ? Theme.ink-0 : Theme.ink-mute;
+                    overflow: elide;
+                }
+                // Artist and album on one line, in the same mono capitals the
+                // column labels use: it is a caption, not a name.
+                if root.subtitle != "": Text {
+                    text: root.subtitle;
+                    font-family: Theme.mono;
+                    font-size: 10px;
+                    letter-spacing: Theme.label-spacing;
+                    color: Theme.ink-mute;
+                    overflow: elide;
+                }
+            }
+        }
+
+        // Transport, and the progress line under it. Both centred, and the line
+        // stops well short of the window edges: the bar is three things beside
+        // each other, not one line stretched across a screen.
+        VerticalLayout {
+            alignment: center;
+            spacing: Theme.space-3;
+            horizontal-stretch: 1;
+
+            HorizontalLayout {
+                alignment: center;
+                spacing: Theme.space-5;
+
+                // Shuffle and repeat need a queue to shuffle and a track change
+                // to repeat into, and both are M7.
+                TransportButton {
+                    glyph: @image-url("../../../../resources/ui/icons/shuffle.svg");
+                    quiet: true;
+                    enabled: false;
+                }
+                TransportButton {
+                    glyph: @image-url("../../../../resources/ui/icons/previous.svg");
+                    enabled: false;
+                }
+                TransportButton {
+                    glyph: root.playing
+                        ? @image-url("../../../../resources/ui/icons/pause.svg")
+                        : @image-url("../../../../resources/ui/icons/play.svg");
+                    primary: true;
                     enabled: root.loaded;
-                    moved(fraction) => {
-                        root.seek(fraction);
+                    pressed => {
+                        root.toggle-play();
+                    }
+                }
+                TransportButton {
+                    glyph: @image-url("../../../../resources/ui/icons/next.svg");
+                    enabled: false;
+                }
+                TransportButton {
+                    glyph: @image-url("../../../../resources/ui/icons/repeat.svg");
+                    quiet: true;
+                    enabled: false;
+                }
+            }
+
+            // Not centred: centring gives each child the width it asks for, and
+            // a line with no content of its own asks for none. The row stretches
+            // instead, and stays centred on the window because the blocks either
+            // side of it are the same width.
+            HorizontalLayout {
+                spacing: Theme.space-4;
+
+                Text {
+                    width: 44px;
+                    text: root.position;
+                    font-family: Theme.mono;
+                    font-size: 10px;
+                    letter-spacing: Theme.number-spacing;
+                    color: Theme.ink-mute;
+                    vertical-alignment: center;
+                    horizontal-alignment: right;
+                }
+
+                VerticalLayout {
+                    alignment: center;
+                    horizontal-stretch: 1;
+
+                    Scrubber {
+                        progress: root.progress;
+                        enabled: root.loaded;
+                        moved(fraction) => {
+                            root.seek(fraction);
+                        }
+                    }
+                }
+
+                Text {
+                    width: 44px;
+                    text: root.duration;
+                    font-family: Theme.mono;
+                    font-size: 10px;
+                    letter-spacing: Theme.number-spacing;
+                    color: Theme.ink-mute;
+                    vertical-alignment: center;
+                }
+            }
+        }
+
+        // Level. Fixed width to match the left block, so the middle is centred
+        // on the window rather than on what is left over.
+        HorizontalLayout {
+            width: 260px;
+            alignment: end;
+            spacing: Theme.space-3;
+
+            VerticalLayout {
+                alignment: center;
+
+                TransportButton {
+                    glyph: root.muted
+                        ? @image-url("../../../../resources/ui/icons/volume-muted.svg")
+                        : @image-url("../../../../resources/ui/icons/volume.svg");
+                    active: root.muted;
+                    pressed => {
+                        root.toggle-mute();
                     }
                 }
             }
 
-            Text {
-                width: 48px;
-                text: root.duration;
-                font-family: Theme.mono;
-                font-size: Theme.text-small;
-                color: Theme.ink-mute;
-                vertical-alignment: center;
+            VerticalLayout {
+                width: 120px;
+                alignment: center;
+
+                Scrubber {
+                    progress: root.muted ? 0 : root.volume;
+                    knob: false;
+                    fill: Theme.ink-2;
+                    moved(fraction) => {
+                        root.set-volume(fraction);
+                    }
+                }
             }
         }
+    }
 
-        if root.message != "": Text {
-            text: root.message;
-            font-family: Theme.mono;
-            font-size: Theme.text-small;
-            color: Theme.ink-2;
-            horizontal-alignment: center;
-            overflow: elide;
-        }
+    // Whatever went wrong, along the bottom edge where it interrupts nothing.
+    if root.message != "": Text {
+        y: parent.height - self.height - 6px;
+        text: root.message;
+        font-family: Theme.mono;
+        font-size: 10px;
+        color: Theme.ink-2;
+        horizontal-alignment: center;
+        overflow: elide;
     }
 }

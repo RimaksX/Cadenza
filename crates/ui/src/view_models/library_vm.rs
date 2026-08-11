@@ -4,6 +4,7 @@ use cadenza_core::domain::track::TrackSummary;
 use cadenza_core::domain::value_objects::DurationMs;
 
 use crate::TrackRowData;
+use crate::view_models::clock;
 
 /// Shown where a file carried no artist tag.
 const UNKNOWN_ARTIST: &str = "Unknown artist";
@@ -42,22 +43,6 @@ fn position(index: usize) -> String {
     format!("{:02}", index + 1)
 }
 
-/// A duration in a column of durations.
-///
-/// `mm:ss` with both parts padded, and hours only when there are any. The
-/// player bar uses the domain's own `m:ss` instead: one readout reads better
-/// unpadded, a column reads better aligned.
-fn clock(duration: DurationMs) -> String {
-    let total = duration.as_secs();
-    let (hours, minutes, seconds) = (total / 3_600, (total % 3_600) / 60, total % 60);
-
-    if hours > 0 {
-        format!("{hours}:{minutes:02}:{seconds:02}")
-    } else {
-        format!("{minutes:02}:{seconds:02}")
-    }
-}
-
 /// The line under the page title: how much there is, and how long it runs.
 pub fn summary_line(summaries: &[TrackSummary]) -> String {
     if summaries.is_empty() {
@@ -79,7 +64,7 @@ mod tests {
     use cadenza_core::domain::track::TrackSummary;
     use cadenza_core::domain::value_objects::DurationMs;
 
-    use super::{NO_ALBUM, UNKNOWN_ARTIST, clock, rows, summary_line};
+    use super::{NO_ALBUM, UNKNOWN_ARTIST, rows, summary_line};
 
     fn summary(title: &str, artist: Option<&str>, seconds: u64) -> TrackSummary {
         TrackSummary {
@@ -104,18 +89,6 @@ mod tests {
         assert_eq!(rows[0].duration, "05:05");
         assert_eq!(rows[1].artist, UNKNOWN_ARTIST, "a missing tag is not blank");
         assert_eq!(rows[1].album, NO_ALBUM);
-    }
-
-    #[test]
-    fn times_in_a_column_are_padded_so_the_column_is_straight() {
-        assert_eq!(clock(DurationMs::from_secs(9)), "00:09");
-        assert_eq!(clock(DurationMs::from_secs(65)), "01:05");
-        assert_eq!(clock(DurationMs::from_secs(600)), "10:00");
-        assert_eq!(
-            clock(DurationMs::from_secs(3_930)),
-            "1:05:30",
-            "hours only when there are any"
-        );
     }
 
     #[test]

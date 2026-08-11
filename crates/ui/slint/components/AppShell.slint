@@ -17,7 +17,8 @@ export component AppShell inherits Rectangle {
     in property <string> profile-name;
 
     in property <string> now-title;
-    in property <string> now-artist;
+    in property <string> now-subtitle;
+    in property <string> now-initial;
     in property <string> now-position;
     in property <string> now-duration;
     in property <string> playing-id;
@@ -30,11 +31,10 @@ export component AppShell inherits Rectangle {
 
     callback play(string);
     callback toggle-play();
-    callback stop();
     callback seek(float);
     callback set-volume(float);
     callback toggle-mute();
-    callback toggle-theme();
+    callback set-theme(bool);
 
     background: Theme.bg-0;
 
@@ -42,8 +42,8 @@ export component AppShell inherits Rectangle {
         HorizontalLayout {
             Sidebar {
                 profile-name: root.profile-name;
-                toggle-theme => {
-                    root.toggle-theme();
+                set-theme(dark) => {
+                    root.set-theme(dark);
                 }
             }
 
@@ -60,7 +60,8 @@ export component AppShell inherits Rectangle {
 
         PlayerBar {
             title: root.now-title;
-            artist: root.now-artist;
+            subtitle: root.now-subtitle;
+            initial: root.now-initial;
             position: root.now-position;
             duration: root.now-duration;
             progress: root.progress;
@@ -72,9 +73,6 @@ export component AppShell inherits Rectangle {
 
             toggle-play => {
                 root.toggle-play();
-            }
-            stop => {
-                root.stop();
             }
             seek(fraction) => {
                 root.seek(fraction);

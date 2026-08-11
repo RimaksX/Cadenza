@@ -77,10 +77,46 @@ component NavLabel inherits HorizontalLayout {
     }
 }
 
+// One half of the theme switch.
+//
+// A switch rather than a toggle: two states that are both visible, each
+// directly reachable. A single button that flips would have to say what it will
+// do, which is why the old one read "→ LIGHT" — a label explaining a control is
+// a control that needs explaining.
+component ThemeOption inherits Rectangle {
+    in property <image> glyph;
+    in property <bool> selected;
+
+    callback chosen();
+
+    width: 30px;
+    height: 24px;
+    border-radius: 3px;
+    background: root.selected ? Theme.bg-3 : transparent;
+    animate background { duration: 120ms; }
+
+    touch := TouchArea {
+        clicked => {
+            root.chosen();
+        }
+    }
+
+    Image {
+        source: root.glyph;
+        width: 13px;
+        height: self.width;
+        image-fit: contain;
+        colorize: root.selected
+            ? Theme.ink-0
+            : (touch.has-hover ? Theme.ink-1 : Theme.ink-mute);
+        animate colorize { duration: 120ms; }
+    }
+}
+
 export component Sidebar inherits Rectangle {
     in property <string> profile-name;
 
-    callback toggle-theme();
+    callback set-theme(bool);
 
     width: Theme.sidebar-width;
     background: Theme.bg-0;
@@ -171,19 +207,34 @@ export component Sidebar inherits Rectangle {
                 overflow: elide;
             }
 
-            theme-toggle := TouchArea {
-                height: 24px;
-                clicked => {
-                    root.toggle-theme();
-                }
+            // The switch sits in its own well, so the selected half reads as
+            // pressed into the surface rather than floating on it.
+            Rectangle {
+                width: 64px;
+                height: 28px;
+                border-radius: 4px;
+                background: Theme.bg-1;
+                border-width: 1px;
+                border-color: Theme.line-soft;
 
-                Text {
-                    text: Theme.dark ? "→ LIGHT" : "→ DARK";
-                    font-family: Theme.mono;
-                    font-size: Theme.text-label;
-                    letter-spacing: Theme.label-spacing;
-                    color: theme-toggle.has-hover ? Theme.ink-1 : Theme.ink-mute;
-                    vertical-alignment: center;
+                HorizontalLayout {
+                    padding: 1px;
+                    spacing: 0px;
+
+                    ThemeOption {
+                        glyph: @image-url("../../../../resources/ui/icons/dark.svg");
+                        selected: Theme.dark;
+                        chosen => {
+                            root.set-theme(true);
+                        }
+                    }
+                    ThemeOption {
+                        glyph: @image-url("../../../../resources/ui/icons/light.svg");
+                        selected: !Theme.dark;
+                        chosen => {
+                            root.set-theme(false);
+                        }
+                    }
                 }
             }
         }

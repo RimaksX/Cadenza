@@ -1,14 +1,19 @@
 //! Turning the player's state into what the bar shows.
 
 use cadenza_core::application::view_state::PlayerView;
+use cadenza_core::domain::track::TrackSummary;
+
+use crate::view_models::clock;
 
 /// What the player bar draws, as strings and numbers the markup can bind.
 #[derive(Debug, Clone, PartialEq)]
 pub struct PlayerFields {
     /// Title of the loaded track.
     pub title: String,
-    /// Artist of the loaded track.
-    pub artist: String,
+    /// Artist and album on one line, as a caption under the title.
+    pub subtitle: String,
+    /// The letter standing in for cover art.
+    pub initial: String,
     /// Elapsed time.
     pub position: String,
     /// Total time.
@@ -35,11 +40,12 @@ pub fn fields(view: &PlayerView) -> PlayerFields {
         title: track
             .map(|summary| summary.title.clone())
             .unwrap_or_default(),
-        artist: track
-            .and_then(|summary| summary.artist.clone())
+        subtitle: track.map(subtitle).unwrap_or_default(),
+        initial: track
+            .map(|summary| initial(&summary.title))
             .unwrap_or_default(),
-        position: format!("{}", view.position.elapsed()),
-        duration: format!("{}", view.duration),
+        position: clock(view.position.elapsed()),
+        duration: clock(view.duration),
         playing_id: track
             .map(|summary| summary.media_file_id.to_string())
             .unwrap_or_default(),
@@ -53,6 +59,32 @@ pub fn fields(view: &PlayerView) -> PlayerFields {
         muted: view.muted,
         volume: view.volume.as_f32(),
     }
+}
+
+/// Artist and album on one line, joined only when both are there.
+///
+/// A separator with nothing after it reads as a truncation, and an untagged
+/// file is common enough that it must not look like a bug.
+fn subtitle(summary: &TrackSummary) -> String {
+    match (summary.artist.as_deref(), summary.album.as_deref()) {
+        (Some(artist), Some(album)) => format!("{artist} · {album}"),
+        (Some(artist), None) => artist.to_owned(),
+        (None, Some(album)) => album.to_owned(),
+        (None, None) => String::new(),
+    }
+}
+
+/// The letter that stands in for artwork.
+///
+/// The first character carrying meaning — a leading quote or ellipsis is a
+/// worse initial than the letter after it — upper-cased. Upper-casing one
+/// character can produce two (ß becomes SS), so the result is a string.
+fn initial(title: &str) -> String {
+    title
+        .chars()
+        .find(|character| character.is_alphanumeric())
+        .map(|character| character.to_uppercase().to_string())
+        .unwrap_or_default()
 }
 
 #[cfg(test)]
@@ -70,8 +102,9 @@ mod tests {
         let shown = fields(&PlayerView::default());
 
         assert_eq!(shown.title, "");
-        assert_eq!(shown.artist, "");
-        assert_eq!(shown.position, "0:00");
+        assert_eq!(shown.subtitle, "");
+        assert_eq!(shown.initial, "");
+        assert_eq!(shown.position, "00:00");
         assert!(!shown.loaded);
         assert!(!shown.playing);
     }
@@ -95,11 +128,49 @@ mod tests {
 
         let shown = fields(&view);
         assert_eq!(shown.title, "Mysterons");
-        assert_eq!(shown.artist, "Portishead");
-        assert_eq!(shown.position, "1:15");
-        assert_eq!(shown.duration, "5:00");
+        assert_eq!(shown.subtitle, "Portishead", "no album, so no separator");
+        assert_eq!(shown.initial, "M");
+        assert_eq!(shown.position, "01:15");
+        assert_eq!(shown.duration, "05:00");
         assert_eq!(shown.playing_id, media_file_id.to_string());
         assert!((shown.progress - 0.25).abs() < f32::EPSILON);
         assert!(shown.playing && shown.loaded);
+    }
+
+    #[test]
+    fn artist_and_album_are_joined_only_when_both_are_there() {
+        let base = TrackSummary {
+            media_file_id: MediaFileId::new(),
+            title: "\"Heroes\"".to_owned(),
+            artist: Some("David Bowie".to_owned()),
+            album: Some("\"Heroes\"".to_owned()),
+            duration: DurationMs::from_secs(371),
+        };
+
+        let both = fields(&PlayerView {
+            track: Some(base.clone()),
+            ..PlayerView::default()
+        });
+        assert_eq!(both.subtitle, "David Bowie · \"Heroes\"");
+        assert_eq!(both.initial, "H", "the quote is not the initial");
+
+        let no_album = fields(&PlayerView {
+            track: Some(TrackSummary {
+                album: None,
+                ..base.clone()
+            }),
+            ..PlayerView::default()
+        });
+        assert_eq!(no_album.subtitle, "David Bowie");
+
+        let neither = fields(&PlayerView {
+            track: Some(TrackSummary {
+                artist: None,
+                album: None,
+                ..base
+            }),
+            ..PlayerView::default()
+        });
+        assert_eq!(neither.subtitle, "", "a dangling separator reads as a bug");
     }
 }

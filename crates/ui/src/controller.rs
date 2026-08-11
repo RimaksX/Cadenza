@@ -107,7 +107,8 @@ impl Controller {
         let shown = player_vm::fields(&self.services.playback.view());
 
         window.set_now_title(shown.title.as_str().into());
-        window.set_now_artist(shown.artist.as_str().into());
+        window.set_now_subtitle(shown.subtitle.as_str().into());
+        window.set_now_initial(shown.initial.as_str().into());
         window.set_now_position(shown.position.as_str().into());
         window.set_now_duration(shown.duration.as_str().into());
         window.set_playing_id(shown.playing_id.as_str().into());
@@ -129,11 +130,6 @@ impl Controller {
     /// Pauses or resumes.
     pub fn toggle_play(&self) {
         self.run(|| self.services.playback.toggle());
-    }
-
-    /// Stops and unloads.
-    pub fn stop(&self) {
-        self.run(|| self.services.playback.stop());
     }
 
     /// Jumps to a fraction of the track.
@@ -161,19 +157,27 @@ impl Controller {
         self.run(|| self.services.playback.toggle_mute());
     }
 
-    /// Switches between the dark and light palettes, and remembers which.
+    /// Chooses a palette, and remembers the choice.
     ///
     /// The theme is a property of the listener, not of the window: it is stored
     /// on the profile and comes back on the next run (PROJECT_MASTER 2.5).
-    pub fn toggle_theme(&self) {
+    ///
+    /// Takes which one rather than flipping: the switch shows both halves, and
+    /// clicking the half that is already selected must be a no-op rather than a
+    /// surprise.
+    pub fn set_theme(&self, dark: bool) {
         let Some(current) = self.profile.borrow().clone() else {
             return;
         };
 
-        let next = match current.theme {
-            ThemeMode::Dark => ThemeMode::Light,
-            ThemeMode::Light => ThemeMode::Dark,
+        let next = if dark {
+            ThemeMode::Dark
+        } else {
+            ThemeMode::Light
         };
+        if next == current.theme {
+            return;
+        }
 
         match self.services.profiles.set_theme(current.id, next) {
             Ok(updated) => {

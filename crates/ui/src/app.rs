@@ -57,11 +57,6 @@ fn wire(window: &AppWindow, controller: &Rc<Controller>) {
         move || controller.toggle_play()
     });
 
-    window.on_stop({
-        let controller = Rc::clone(controller);
-        move || controller.stop()
-    });
-
     window.on_seek({
         let controller = Rc::clone(controller);
         move |fraction| controller.seek(fraction)
@@ -77,8 +72,8 @@ fn wire(window: &AppWindow, controller: &Rc<Controller>) {
         move || controller.toggle_mute()
     });
 
-    window.on_toggle_theme({
+    window.on_set_theme({
         let controller = Rc::clone(controller);
-        move || controller.toggle_theme()
+        move |dark| controller.set_theme(dark)
     });
 }
