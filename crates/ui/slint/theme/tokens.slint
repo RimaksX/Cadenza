@@ -74,7 +74,11 @@ export global Theme {
     out property <length> column-gap: 20px;
     out property <length> number-column: 40px;
     out property <length> album-column: 180px;
-    out property <length> time-column: 60px;
+    // Wide enough for the control that replaces the length under the pointer,
+    // not just for the length: `12:34` needs 44px and "QUEUE" with its icon
+    // needs ninety. The duration stays right-aligned, so the extra width falls
+    // where nothing is drawn.
+    out property <length> time-column: 96px;
     out property <length> row-padding: 14px;
     // Tall enough for the title's own line box, not merely for its font size:
     // Instrument Serif asks for about 1.4 times the size, and a row that leaves

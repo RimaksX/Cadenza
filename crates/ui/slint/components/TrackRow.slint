@@ -74,11 +74,16 @@ export component TrackRow inherits Rectangle {
                 width: parent.width;
             }
 
+            // Centred by hand. A child of a plain rectangle sits at its top
+            // left unless it is told otherwise, and the number it replaces is a
+            // Text centring itself — so without this the two swap at different
+            // heights and the row twitches under the pointer.
             if root.hovered: Image {
                 source: @image-url("../../../../resources/ui/icons/play.svg");
                 width: 13px;
                 height: self.width;
                 x: parent.width - self.width;
+                y: (parent.height - self.height) / 2;
                 colorize: hover-play.has-hover ? Theme.ink-0 : Theme.ink-2;
             }
 
@@ -150,16 +155,49 @@ export component TrackRow inherits Rectangle {
                 horizontal-alignment: right;
             }
 
-            if root.hovered: Image {
-                source: @image-url("../../../../resources/ui/icons/queue.svg");
-                width: 14px;
-                height: self.width;
-                x: parent.width - self.width;
+            // A bare icon here said nothing: the play button opposite is a
+            // universal shape, and there is no universal shape for "play this
+            // after what is on". So this one says what it does, in the same
+            // mono capitals every label in the interface is set in, and takes
+            // the outline of a control because it is one.
+            if root.hovered: Rectangle {
+                width: parent.width;
+                height: 26px;
                 y: (parent.height - self.height) / 2;
-                colorize: hover-queue.has-hover ? Theme.ink-0 : Theme.ink-2;
+                border-radius: Theme.radius;
+                border-width: 1px;
+                border-color: hover-queue.has-hover ? Theme.line : Theme.line-soft;
+                background: hover-queue.has-hover ? Theme.bg-2 : transparent;
+                animate background, border-color { duration: 120ms; }
+
+                HorizontalLayout {
+                    alignment: center;
+                    spacing: 6px;
+
+                    VerticalLayout {
+                        alignment: center;
+
+                        Image {
+                            source: @image-url("../../../../resources/ui/icons/queue.svg");
+                            width: 12px;
+                            height: self.width;
+                            colorize: hover-queue.has-hover ? Theme.ink-0 : Theme.ink-2;
+                        }
+                    }
+
+                    Text {
+                        text: "QUEUE";
+                        font-family: Theme.mono;
+                        font-size: Theme.text-label;
+                        letter-spacing: Theme.label-spacing;
+                        color: hover-queue.has-hover ? Theme.ink-0 : Theme.ink-2;
+                        vertical-alignment: center;
+                    }
+                }
             }
 
             hover-queue := TouchArea {
+                mouse-cursor: pointer;
                 clicked => {
                     root.enqueued();
                 }
