@@ -5,7 +5,7 @@ import { TitleBar } from "TitleBar.slint";
 import { TrackRowData } from "TrackRow.slint";
 import { LibraryView } from "../views/LibraryView.slint";
 import { QueueView } from "../views/QueueView.slint";
-import { PlaylistsView, PlaylistRowData } from "../views/PlaylistsView.slint";
+import { PlaylistsView, PlaylistCardData } from "../views/PlaylistsView.slint";
 import { PlaylistDetailView } from "../views/PlaylistDetailView.slint";
 
 // The frame every screen lives in: navigation down the left, the player across
@@ -21,7 +21,8 @@ export component AppShell inherits Rectangle {
     in property <[TrackRowData]> queue-tracks;
     in property <string> queue-summary;
     in property <string> queue-hint;
-    in property <[PlaylistRowData]> playlists;
+    in property <[PlaylistCardData]> playlists;
+    in property <string> playlists-summary;
     in property <string> playlists-hint;
     in property <[TrackRowData]> playlist-tracks;
     in property <string> playlist-name;
@@ -138,6 +139,7 @@ export component AppShell inherits Rectangle {
 
             if root.section == "playlists": PlaylistsView {
                 playlists: root.playlists;
+                summary: root.playlists-summary;
                 empty-hint: root.playlists-hint;
                 open(id) => {
                     // Two things happen: the shell changes page, and the

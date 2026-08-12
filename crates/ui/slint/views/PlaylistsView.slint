@@ -1,78 +1,149 @@
-import { ListView } from "std-widgets.slint";
+import { ScrollView } from "std-widgets.slint";
 import { Theme } from "../theme/tokens.slint";
 
-// One playlist, as the view model hands it over. `summary` is already the
-// sentence to draw — how many tracks and how long — because counting and
-// pluralising are decisions, and decisions belong in Rust.
-export struct PlaylistRowData {
+// One playlist, as the view model hands it over. Every field is already the
+// string to draw: numbering, pluralising and formatting a duration are
+// decisions, and decisions belong in Rust.
+export struct PlaylistCardData {
     id: string,
     name: string,
-    summary: string,
+    position: string,
+    maker: string,
+    meta: string,
 }
 
-// One row of the index.
-component PlaylistRow inherits Rectangle {
-    in property <PlaylistRowData> data;
+// One playlist as a tile: a square, and its name and size beneath.
+//
+// The square is where a picture goes when a listener can choose one. Until then
+// it holds the name, set large — which is what the reference does for a record
+// with no sleeve, and is why the page will not change shape the day the first
+// cover arrives.
+export component PlaylistCard inherits Rectangle {
+    in property <PlaylistCardData> data;
 
     callback activated();
 
-    height: Theme.row-height;
-    background: touch.has-hover ? Theme.bg-1 : transparent;
-    animate background { duration: 120ms; }
-
     touch := TouchArea {
-        double-clicked => {
+        // One click. Opening a list is not a destructive act, and there is
+        // nothing else a click on a tile could mean.
+        mouse-cursor: pointer;
+        clicked => {
             root.activated();
         }
     }
 
-    HorizontalLayout {
-        padding-left: Theme.row-padding;
-        padding-right: Theme.row-end-inset;
-        spacing: Theme.column-gap;
+    VerticalLayout {
+        spacing: Theme.space-3;
 
+        // The square keeps its place in the layout; what rises under the
+        // pointer is what is drawn inside it. A layout sets its children's `y`
+        // itself, so the lift has to happen a level down.
+        Rectangle {
+            height: root.width;
+
+            Rectangle {
+                width: 100%;
+                height: 100%;
+                y: touch.has-hover ? -4px : 0;
+                background: @linear-gradient(150deg, Theme.bg-2 0%, Theme.bg-1 55%, Theme.bg-0 100%);
+                border-width: 1px;
+                border-color: touch.has-hover ? Theme.line : Theme.line-soft;
+                animate y, border-color { duration: 300ms; easing: ease-out; }
+
+                VerticalLayout {
+                padding: 20px;
+
+                HorizontalLayout {
+                    Text {
+                        text: "PLAYLIST";
+                        font-family: Theme.mono;
+                        font-size: 9px;
+                        letter-spacing: Theme.label-spacing;
+                        color: Theme.ink-mute;
+                        horizontal-stretch: 1;
+                    }
+                    Text {
+                        text: root.data.position;
+                        font-family: Theme.mono;
+                        font-size: 9px;
+                        letter-spacing: Theme.label-spacing;
+                        color: Theme.ink-mute;
+                    }
+                }
+
+                // The name, filling the middle. Italic serif: a playlist's name
+                // is a thing somebody called something, not a title of a work.
+                Text {
+                    text: root.data.name;
+                    font-family: Theme.serif;
+                    font-italic: true;
+                    font-size: 30px;
+                    color: Theme.ink-0;
+                    vertical-alignment: center;
+                    wrap: word-wrap;
+                    overflow: elide;
+                    vertical-stretch: 1;
+                }
+
+                Text {
+                    text: root.data.maker;
+                    font-family: Theme.mono;
+                    font-size: Theme.text-label;
+                    letter-spacing: Theme.label-spacing;
+                    color: Theme.ink-2;
+                }
+                }
+            }
+        }
+
+        // The caption. It does not move with the square: the tile lifts, the
+        // words stay where they were read.
         VerticalLayout {
-            alignment: center;
-            horizontal-stretch: 1;
+            spacing: 4px;
+            vertical-stretch: 0;
 
             Text {
                 text: root.data.name;
                 font-family: Theme.serif;
-                font-size: Theme.text-row-title;
+                font-size: 17px;
                 color: touch.has-hover ? Theme.ink-0 : Theme.ink-1;
                 overflow: elide;
                 animate color { duration: 120ms; }
             }
-        }
-
-        VerticalLayout {
-            alignment: center;
 
             Text {
-                text: root.data.summary;
+                text: root.data.meta;
                 font-family: Theme.mono;
-                font-size: Theme.text-number;
-                letter-spacing: Theme.number-spacing;
+                font-size: Theme.text-label;
+                letter-spacing: Theme.label-spacing;
                 color: Theme.ink-mute;
-                horizontal-alignment: right;
+                overflow: elide;
             }
         }
-    }
-
-    // The same hairline the track rows carry, and it stops where they stop.
-    Rectangle {
-        y: parent.height - 1px;
-        height: 1px;
-        background: Theme.line-soft;
     }
 }
 
 // The lists the listener keeps.
 export component PlaylistsView inherits Rectangle {
-    in property <[PlaylistRowData]> playlists;
+    in property <[PlaylistCardData]> playlists;
+    in property <string> summary;
     in property <string> empty-hint;
 
     callback open(string);
+
+    // A tile stops being a tile below this: the name inside it is set large,
+    // and a square too small to hold two words of it is a grey box.
+    property <length> min-tile: 220px;
+    property <length> gap-x: Theme.space-6;
+    property <length> gap-y: 40px;
+    // The square, plus the caption under it and the space between.
+    property <length> caption-height: 48px;
+
+    property <length> available: self.width - 2 * Theme.page-inset;
+    property <int> columns: max(1, min(5, floor((root.available + root.gap-x) / (root.min-tile + root.gap-x))));
+    property <length> tile-width: (root.available - (root.columns - 1) * root.gap-x) / root.columns;
+    property <length> card-height: root.tile-width + root.caption-height;
+    property <length> row-height: root.card-height + root.gap-y;
 
     background: Theme.bg-0;
 
@@ -99,17 +170,13 @@ export component PlaylistsView inherits Rectangle {
                 font-size: Theme.text-display;
                 color: Theme.ink-0;
             }
-        }
 
-        // The rule that ends the head. No column labels: there is one column.
-        VerticalLayout {
-            vertical-stretch: 0;
-            padding-left: Theme.page-inset;
-            padding-right: Theme.page-inset;
-
-            Rectangle {
-                height: 1px;
-                background: Theme.line;
+            Text {
+                text: root.summary;
+                font-family: Theme.mono;
+                font-size: Theme.text-number;
+                letter-spacing: Theme.number-spacing;
+                color: Theme.ink-2;
             }
         }
 
@@ -136,17 +203,21 @@ export component PlaylistsView inherits Rectangle {
             }
         }
 
-        if root.playlists.length > 0: HorizontalLayout {
+        // Placed rather than laid out: Slint's layouts are one row or one
+        // column, and a grid over a model's length is arithmetic on the index —
+        // which is what its own date picker does with a month of days.
+        if root.playlists.length > 0: ScrollView {
             vertical-stretch: 1;
-            padding-left: Theme.page-inset;
-            padding-right: Theme.page-inset;
+            viewport-height: ceil(root.playlists.length / root.columns) * root.row-height;
 
-            ListView {
-                for entry in root.playlists: PlaylistRow {
-                    data: entry;
-                    activated => {
-                        root.open(entry.id);
-                    }
+            for entry[index] in root.playlists: PlaylistCard {
+                data: entry;
+                width: root.tile-width;
+                height: root.card-height;
+                x: Theme.page-inset + mod(index, root.columns) * (root.tile-width + root.gap-x);
+                y: floor(index / root.columns) * root.row-height;
+                activated => {
+                    root.open(entry.id);
                 }
             }
         }

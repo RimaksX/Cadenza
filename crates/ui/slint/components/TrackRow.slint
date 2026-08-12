@@ -35,9 +35,14 @@ export component TrackRow inherits Rectangle {
     animate background { duration: 120ms; }
 
     touch := TouchArea {
-        // Double-click to play matches every file listing on the platform, and
-        // leaves a single click free for the selection M7 adds.
-        double-clicked => {
+        // One click plays. A double click is the file-manager habit, and this
+        // is not a file manager: a row here has one obvious thing to do and no
+        // way to announce that it takes two clicks to do it.
+        //
+        // What that spends is the single click a selection would have wanted.
+        // Selection can have the modifier keys, which are visible in a menu;
+        // playing cannot be taught to anybody at all.
+        clicked => {
             root.activated();
         }
     }

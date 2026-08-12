@@ -510,3 +510,42 @@ does what you do while listening; the command line does what you do to set up.
 
 The interface reaches everything a listener does *while playing*: play a
 playlist, queue a track, reorder nothing. The rest waits for M15.
+
+## 35. A double click is not discoverable — replaced by one
+
+Rows opened and played on a double click, which is the file-manager habit and
+was chosen in M6 to leave the single click free for a selection.
+
+**Chosen:** one click plays a track and one click opens a playlist. Nothing on
+screen can say "this takes two clicks", and a listener who tries once and gets
+nothing concludes the row is not clickable — which is what happened.
+
+What that spends is the single click a selection would have wanted. Selection
+can have the modifier keys and a menu, both of which are teachable; playing
+cannot be taught to anybody at all. Nothing here is destructive, so a click that
+starts a track costs a wrong track and a second click to fix it.
+
+## 36. Playlists are tiles, and the tile is where a cover goes — column pending
+
+The index was a list of names. It is a grid of square tiles now, following the
+albums grid of the reference: the square carries the name set large, its corner
+marks, and whose list it is; the caption under it repeats the name and says how
+much is in it.
+
+**Why the square exists before there is a picture:** the owner asked for covers
+a listener can upload. The tile is the shape that holds one, so the page will not
+change layout the day the first cover arrives — the square stops drawing a name
+and draws an image instead.
+
+**What that still needs**, none of which is built:
+
+- a column. `playlists` has no cover field in section 7.3; a migration adds
+  `cover_path TEXT`, holding a path inside the artwork cache rather than the
+  bytes, the way `FileArtworkCache` already keeps embedded art.
+- a way to choose a file, which means a native file dialog — the first one in
+  Cadenza. `LocalFileSystem` can copy it into the cache; nothing can currently
+  ask a listener which file.
+- a decision about what happens to a cover when the playlist is deleted.
+
+Recorded here rather than half-built: a column nothing writes is a column that
+has to be migrated twice.

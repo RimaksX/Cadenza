@@ -268,7 +268,12 @@ Playlists are kept, reordered, played, and outlive the run that made them.
 - `ui/` — the four transport buttons that were drawn and disabled since M6 now
   work; repeat is one button with three states. Queue, Playlists and one
   playlist are screens, reached from the sidebar. `components/TrackList.slint`
-  is the page all three listings are, told different words.
+  is the page the library, the queue and one playlist all are, told different
+  words. Playlists themselves are a grid of square tiles, following the albums
+  grid of the reference — the square is where an uploaded cover will go
+  (finding 36).
+- One click plays a track and opens a playlist. The double click M6 chose is
+  gone: nothing on screen can say a row needs two clicks (finding 35).
 - `app` — `cadenza playlists` and seven `cadenza playlist` verbs. Creating a
   playlist needs a name typed in, and this interface has no field to type one
   into yet (finding 34).

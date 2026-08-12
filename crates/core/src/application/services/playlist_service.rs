@@ -13,6 +13,7 @@ use crate::domain::playlist::{Playlist, PlaylistItem};
 use crate::domain::ports::event_bus::DomainEvent;
 use crate::domain::ports::repositories::{PlaylistRepositoryPort, TrackRepositoryPort};
 use crate::domain::track::TrackSummary;
+use crate::domain::value_objects::DurationMs;
 use crate::{CoreError, Result};
 
 /// Everything playlists talk to.
@@ -34,8 +35,14 @@ pub struct PlaylistService {
 pub struct PlaylistSummary {
     /// The playlist itself.
     pub playlist: Playlist,
-    /// How many entries it has.
+    /// How many of its entries the profile can still play.
+    ///
+    /// Entries whose file has left the library are not counted, so that this
+    /// agrees with the list the playlist's own page shows rather than with a
+    /// row count nobody can act on.
     pub track_count: usize,
+    /// How long those entries run.
+    pub duration: DurationMs,
 }
 
 impl PlaylistService {
@@ -44,19 +51,42 @@ impl PlaylistService {
         Self { context, ports }
     }
 
-    /// Every playlist the active profile owns, with its size.
+    /// Every playlist the active profile owns, with its size and its length.
+    ///
+    /// The library is read once for all of them: resolving each entry's
+    /// duration playlist by playlist would turn a page of six cards into six
+    /// listing queries.
     pub fn list(&self) -> Result<Vec<PlaylistSummary>> {
         let profile_id = self.context.require_active_profile()?;
+        let library = self.ports.tracks.summaries_for_profile(profile_id)?;
 
         self.ports
             .playlists
             .list_for_profile(profile_id)?
             .into_iter()
             .map(|playlist| {
-                let track_count = self.ports.playlists.items(playlist.id)?.len();
+                let playable = self
+                    .ports
+                    .playlists
+                    .items(playlist.id)?
+                    .into_iter()
+                    .filter_map(|item| {
+                        library
+                            .iter()
+                            .find(|summary| summary.media_file_id == item.media_file_id)
+                    });
+
+                let mut track_count = 0;
+                let mut duration = DurationMs::ZERO;
+                for summary in playable {
+                    track_count += 1;
+                    duration = duration.saturating_add(summary.duration);
+                }
+
                 Ok(PlaylistSummary {
                     playlist,
                     track_count,
+                    duration,
                 })
             })
             .collect()

@@ -192,7 +192,8 @@ impl Controller {
         };
 
         window.set_playlists_hint(NO_PLAYLISTS_HINT.into());
-        window.set_playlists(ModelRc::new(VecModel::from(playlist_vm::rows(&summaries))));
+        window.set_playlists_summary(playlist_vm::summary_line(&summaries).into());
+        window.set_playlists(ModelRc::new(VecModel::from(playlist_vm::cards(&summaries))));
     }
 
     /// Opens one playlist's page.

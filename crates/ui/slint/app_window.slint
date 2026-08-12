@@ -13,7 +13,7 @@ import "../../../resources/ui/fonts/JetBrains_Mono/JetBrainsMono-Regular.ttf";
 import { Theme } from "theme/tokens.slint";
 import { AppShell } from "components/AppShell.slint";
 import { TrackRowData } from "components/TrackRow.slint";
-import { PlaylistRowData } from "views/PlaylistsView.slint";
+import { PlaylistCardData } from "views/PlaylistsView.slint";
 
 // Re-exported so the controller can set the palette. A global's input is set
 // from the native side; markup may read it but never assign to it, which is
@@ -47,7 +47,8 @@ export component AppWindow inherits Window {
     in property <[TrackRowData]> queue-tracks;
     in property <string> queue-summary;
     in property <string> queue-hint;
-    in property <[PlaylistRowData]> playlists;
+    in property <[PlaylistCardData]> playlists;
+    in property <string> playlists-summary;
     in property <string> playlists-hint;
     in property <[TrackRowData]> playlist-tracks;
     in property <string> playlist-name;
@@ -114,6 +115,7 @@ export component AppWindow inherits Window {
         queue-summary: root.queue-summary;
         queue-hint: root.queue-hint;
         playlists: root.playlists;
+        playlists-summary: root.playlists-summary;
         playlists-hint: root.playlists-hint;
         playlist-tracks: root.playlist-tracks;
         playlist-name: root.playlist-name;
