@@ -138,6 +138,10 @@ export component PlaylistsView inherits Rectangle {
     property <length> gap-y: 40px;
     // The square, plus the caption under it and the space between.
     property <length> caption-height: 48px;
+    // Room above the first row for the lift on hover. A scroll view clips at
+    // its own edge, so without this the top row rises straight through it and
+    // loses its border to the crop.
+    property <length> headroom: 6px;
 
     property <length> available: self.width - 2 * Theme.page-inset;
     property <int> columns: max(1, min(5, floor((root.available + root.gap-x) / (root.min-tile + root.gap-x))));
@@ -208,14 +212,14 @@ export component PlaylistsView inherits Rectangle {
         // which is what its own date picker does with a month of days.
         if root.playlists.length > 0: ScrollView {
             vertical-stretch: 1;
-            viewport-height: ceil(root.playlists.length / root.columns) * root.row-height;
+            viewport-height: root.headroom + ceil(root.playlists.length / root.columns) * root.row-height;
 
             for entry[index] in root.playlists: PlaylistCard {
                 data: entry;
                 width: root.tile-width;
                 height: root.card-height;
                 x: Theme.page-inset + mod(index, root.columns) * (root.tile-width + root.gap-x);
-                y: floor(index / root.columns) * root.row-height;
+                y: root.headroom + floor(index / root.columns) * root.row-height;
                 activated => {
                     root.open(entry.id);
                 }
