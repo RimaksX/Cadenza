@@ -89,7 +89,6 @@ component WindowButton inherits Rectangle {
 // click to maximise, and the three buttons. Resizing is the exception — Slint's
 // backend keeps the edges live on an undecorated window, cursors included.
 export component TitleBar inherits Rectangle {
-    in property <string> section;
     in property <bool> maximized;
 
     callback minimize();
@@ -121,44 +120,13 @@ export component TitleBar inherits Rectangle {
     }
 
     HorizontalLayout {
-        // The name sits where the eye already is on this platform: left, beside
-        // nothing, with the controls opposite it.
-        HorizontalLayout {
-            padding-left: Theme.space-4;
-            alignment: start;
+        // Deliberately empty. The wordmark is already at the top of the sidebar
+        // and the section is already the heading of the page under it; a third
+        // copy in a 40px strip could only be set small enough to be squinted at.
+        // What is left is what the strip is for: somewhere to grab, and the
+        // controls.
+        Rectangle {
             horizontal-stretch: 1;
-
-            VerticalLayout {
-                alignment: center;
-
-                HorizontalLayout {
-                    spacing: Theme.space-2;
-
-                    Text {
-                        text: "Cadenza";
-                        font-family: Theme.serif;
-                        font-italic: true;
-                        font-size: 14px;
-                        color: Theme.ink-1;
-                        vertical-alignment: center;
-                    }
-                    if root.section != "": Text {
-                        text: "·";
-                        font-family: Theme.mono;
-                        font-size: Theme.text-label;
-                        color: Theme.ink-disabled;
-                        vertical-alignment: center;
-                    }
-                    if root.section != "": Text {
-                        text: root.section;
-                        font-family: Theme.mono;
-                        font-size: Theme.text-label;
-                        letter-spacing: Theme.label-spacing;
-                        color: Theme.ink-mute;
-                        vertical-alignment: center;
-                    }
-                }
-            }
         }
 
         // Minimise, maximise, close — in that order and on the right, which is

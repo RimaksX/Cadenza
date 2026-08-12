@@ -193,7 +193,7 @@ export component PlayerBar inherits Rectangle {
                 if root.subtitle != "": Text {
                     text: root.subtitle;
                     font-family: Theme.mono;
-                    font-size: 10px;
+                    font-size: Theme.text-label;
                     letter-spacing: Theme.label-spacing;
                     color: Theme.ink-mute;
                     overflow: elide;
@@ -253,10 +253,10 @@ export component PlayerBar inherits Rectangle {
                 spacing: Theme.space-4;
 
                 Text {
-                    width: 44px;
+                    width: 48px;
                     text: root.position;
                     font-family: Theme.mono;
-                    font-size: 10px;
+                    font-size: Theme.text-number;
                     letter-spacing: Theme.number-spacing;
                     color: Theme.ink-mute;
                     vertical-alignment: center;
@@ -277,10 +277,10 @@ export component PlayerBar inherits Rectangle {
                 }
 
                 Text {
-                    width: 44px;
+                    width: 48px;
                     text: root.duration;
                     font-family: Theme.mono;
-                    font-size: 10px;
+                    font-size: Theme.text-number;
                     letter-spacing: Theme.number-spacing;
                     color: Theme.ink-mute;
                     vertical-alignment: center;
@@ -330,7 +330,7 @@ export component PlayerBar inherits Rectangle {
         y: parent.height - self.height - 6px;
         text: root.message;
         font-family: Theme.mono;
-        font-size: 10px;
+        font-size: Theme.text-label;
         color: Theme.ink-2;
         horizontal-alignment: center;
         overflow: elide;

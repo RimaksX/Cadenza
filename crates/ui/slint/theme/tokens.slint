@@ -40,14 +40,18 @@ export global Theme {
     // Type scale. Display is for the one title on a page, row-title for a track
     // in a list, body for prose, meta for the quieter things beside it, number
     // for anything monospaced, label for mono capitals.
-    out property <length> text-display: 34px;
-    out property <length> text-title: 17px;
-    out property <length> text-row-title: 18px;
-    out property <length> text-body: 13.5px;
-    out property <length> text-meta: 12px;
-    out property <length> text-small: 12px;
-    out property <length> text-number: 11px;
-    out property <length> text-label: 9px;
+    //
+    // Every step is a little larger than it first was. These faces are light —
+    // Instrument Serif has thin strokes and JetBrains Mono at small sizes with
+    // wide tracking thins further — and a size that reads on a specimen sheet
+    // does not read in a column above data.
+    out property <length> text-display: 36px;
+    out property <length> text-title: 18px;
+    out property <length> text-row-title: 19px;
+    out property <length> text-body: 14px;
+    out property <length> text-meta: 13px;
+    out property <length> text-number: 12px;
+    out property <length> text-label: 10.5px;
 
     // Spacing, in one series, so nothing lands between two steps.
     out property <length> space-1: 4px;
@@ -72,7 +76,16 @@ export global Theme {
     out property <length> album-column: 180px;
     out property <length> time-column: 60px;
     out property <length> row-padding: 14px;
-    out property <length> row-height: 52px;
+    // Tall enough for the title's own line box, not merely for its font size:
+    // Instrument Serif asks for about 1.4 times the size, and a row that leaves
+    // less does not clip the title — it drops it entirely.
+    out property <length> row-height: 62px;
+
+    // The number column is right-aligned inside its own width, which leaves the
+    // digits standing away from the left edge of the list. The time column has
+    // nothing after it to do the same job, so it is given the gap directly —
+    // otherwise it ends flush against the edge and the row looks cut off.
+    out property <length> row-end-inset: 16px;
 
     // Mono capitals are set wide; a label at 9px is otherwise a smudge.
     out property <length> label-spacing: 2px;

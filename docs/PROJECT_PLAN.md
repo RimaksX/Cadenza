@@ -291,7 +291,11 @@ than one that copies a mockup imperfectly. Dragging and double-click-to-maximise
 are ours to implement; resizing is not, because Slint's backend keeps the edges
 of an undecorated window live, cursors included.
 
-Two traps, both found by looking at the window:
+It carries no title. The wordmark is already at the top of the sidebar and the
+section is already the heading of the page below it; a third copy in a 40px
+strip could only be set small enough to squint at.
+
+Three traps, all found by looking at the window:
 
 - `height: 100%` on a child inside a layout whose own height comes from its
   children is a circular constraint, and Slint resolves it by giving that row
@@ -299,6 +303,10 @@ Two traps, both found by looking at the window:
 - A disabled primary button must lose its fill as well as its glyph. Left
   filled, it shouts in the loudest ink in the palette while the icon inside says
   it cannot be pressed.
+- A row must be tall enough for its title's *line box*, not merely for its font
+  size. Instrument Serif asks for about 1.4 times the size; one step up in the
+  type scale left the title 2px short of its line, and Slint did not clip it —
+  it dropped the title from every row and left the rest of the columns in place.
 
 Hovering a row turns its number into a play button — one click instead of two,
 and the only thing on screen that says a row can be played at all. The double
