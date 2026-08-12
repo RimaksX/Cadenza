@@ -22,10 +22,13 @@ use cadenza_testkit::{TempDb, TestClock};
 
 /// A profile and three catalogued files to queue.
 struct Harness {
-    _db: TempDb,
     queues: SqliteQueueRepository,
     profile_id: ProfileId,
     files: Vec<MediaFileId>,
+    /// Declared last on purpose: fields are dropped in declaration order, and
+    /// the fixture cannot delete its directory while anything above it still
+    /// holds a connection to the database inside it.
+    _db: TempDb,
 }
 
 fn harness() -> Harness {

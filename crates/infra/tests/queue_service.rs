@@ -120,11 +120,14 @@ impl AudioEnginePort for FakeEngine {
 
 /// A profile with a four-track library, wired the way the application wires it.
 struct Harness {
-    db: TempDb,
     queue: QueueService,
     engine: Arc<FakeEngine>,
     profile_id: ProfileId,
     tracks: Vec<MediaFileId>,
+    /// Declared last on purpose: fields are dropped in declaration order, and
+    /// the fixture cannot delete its directory while anything above it still
+    /// holds a connection to the database inside it.
+    db: TempDb,
 }
 
 fn harness() -> Harness {
@@ -417,6 +420,98 @@ fn a_manually_queued_track_plays_before_the_continuation() {
     harness.engine.finish();
     harness.queue.poll().expect("polled");
     assert_eq!(harness.engine.heard(), vec!["one", "four"]);
+}
+
+#[test]
+fn an_entry_can_be_taken_out_of_the_queue_by_where_it_is_shown() {
+    let harness = harness();
+    harness
+        .queue
+        .play_from_library(harness.tracks[0])
+        .expect("played");
+
+    let waiting = harness.listed();
+    assert_eq!(waiting.len(), 3, "the rest of the library follows");
+
+    harness.queue.remove_at(1).expect("removed");
+
+    assert_eq!(
+        harness.listed(),
+        vec![waiting[0].clone(), waiting[2].clone()],
+        "the row that was pointed at is the row that went"
+    );
+    assert_eq!(
+        harness.engine.heard(),
+        vec!["one"],
+        "and nothing started or stopped"
+    );
+}
+
+#[test]
+fn removing_counts_the_manual_queue_first_because_that_is_how_it_is_drawn() {
+    let harness = harness();
+    harness
+        .queue
+        .play_from_library(harness.tracks[0])
+        .expect("played");
+    harness.queue.enqueue(harness.tracks[3]).expect("queued");
+
+    // The manual entry is drawn at the top, so position 0 is that one and not
+    // the first of the continuation.
+    harness.queue.remove_at(0).expect("removed");
+
+    assert_eq!(
+        harness.listed(),
+        vec!["three", "two", "four"],
+        "the manually queued copy went; the library's own copy is still last"
+    );
+    assert_eq!(harness.queue.view().pending, 3);
+}
+
+#[test]
+fn choosing_a_row_in_the_queue_jumps_to_it_and_keeps_the_rest() {
+    let harness = harness();
+    harness
+        .queue
+        .play_from_library(harness.tracks[0])
+        .expect("played");
+
+    let waiting = harness.listed();
+    assert_eq!(waiting.len(), 3);
+
+    // The second row of the queue: one track is stepped over on the way.
+    harness.queue.play_at(1).expect("jumped");
+
+    assert_eq!(
+        harness.engine.heard(),
+        vec!["one".to_owned(), waiting[1].clone()],
+        "it started the track that was pointed at"
+    );
+    assert_eq!(
+        harness.listed(),
+        vec![waiting[2].clone()],
+        "and what was after it is still after it"
+    );
+
+    let view = harness.queue.view();
+    assert!(
+        view.has_previous,
+        "the track that was skipped is what previous walks back through"
+    );
+}
+
+#[test]
+fn removing_a_position_that_is_not_there_says_so() {
+    let harness = harness();
+    harness
+        .queue
+        .play_from_library(harness.tracks[0])
+        .expect("played");
+
+    assert!(
+        harness.queue.remove_at(99).is_err(),
+        "a queue that quietly ignores a removal is one that looks broken"
+    );
 }
 
 #[test]

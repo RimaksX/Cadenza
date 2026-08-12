@@ -293,6 +293,28 @@ impl Controller {
         self.refresh_queue();
     }
 
+    /// Jumps to a waiting track, by its place in the queue's own listing.
+    ///
+    /// Not [`Self::play`]: that starts a track *and builds a queue behind it*
+    /// from the library, which is the last thing a click inside the queue
+    /// should do.
+    pub fn play_queued(&self, position: i32) {
+        let Ok(position) = usize::try_from(position) else {
+            return;
+        };
+        self.run(|| self.services.queue.play_at(position));
+        self.refresh_queue();
+    }
+
+    /// Takes a track out of the queue, by its place in the queue's own listing.
+    pub fn remove_from_queue(&self, position: i32) {
+        let Ok(position) = usize::try_from(position) else {
+            return;
+        };
+        self.run(|| self.services.queue.remove_at(position));
+        self.refresh_queue();
+    }
+
     /// Moves to the next track.
     pub fn next(&self) {
         self.run(|| self.services.queue.next());

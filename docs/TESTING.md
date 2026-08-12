@@ -34,3 +34,18 @@ cargo test --workspace
 ```
 
 CI runs exactly these on `windows-latest`.
+
+## The temporary database fixture
+
+`TempDb` names its directory after the process id, a start-time stamp and a
+counter. The stamp is not decoration: Windows reissues process ids, and a
+removal that failed on an earlier run leaves a database behind for the next
+process given that number — which then opens somebody else's data and fails on
+a unique constraint, a very long way from anything the test is about. That is
+what it did, in a suite that had accumulated some eighteen hundred leftover
+directories.
+
+Every fixture in a test harness struct is declared **last**. Fields drop in
+declaration order, and the database cannot delete its directory while a
+repository above it still holds a connection into it. Getting that order wrong
+is why the directories were left behind in the first place.

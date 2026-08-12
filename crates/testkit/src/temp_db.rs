@@ -2,13 +2,12 @@
 
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::time::{SystemTime, UNIX_EPOCH};
 use std::{env, fs, process};
 
 use cadenza_infra::db::{self, SqlitePool};
 
-/// Distinguishes databases created within one test binary. Combined with the
-/// process id it is unique across parallel test runs too, which matters because
-/// `cargo test` runs tests on many threads and may run two binaries at once.
+/// Distinguishes databases created within one test binary.
 static SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
 /// A migrated SQLite database in a temporary directory, deleted on drop.
@@ -31,8 +30,19 @@ impl TempDb {
     /// unwrap anyway.
     #[must_use]
     pub fn new() -> Self {
+        // The process id alone is not unique: Windows reissues them, and a
+        // removal that failed on the last run leaves a database behind for the
+        // next process to be given that number — which then opens somebody
+        // else's data and fails on a unique constraint, a very long way from
+        // anything the test is about. The start time makes the name unique
+        // whatever the operating system does with process ids, and the counter
+        // separates the tests running side by side within one binary.
+        let stamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_or(0, |since| since.as_nanos());
+
         let directory = env::temp_dir().join(format!(
-            "cadenza-test-{}-{}",
+            "cadenza-test-{}-{stamp:x}-{}",
             process::id(),
             SEQUENCE.fetch_add(1, Ordering::Relaxed)
         ));
@@ -83,9 +93,16 @@ impl Drop for TempDb {
         // open file, so dropping the pool has to happen before the removal.
         drop(self.pool.take());
 
-        // Best effort. A leftover directory in the system temp folder is a far
-        // smaller problem than a panic during unwinding, which aborts the
-        // process and hides whichever assertion actually failed.
-        let _ = fs::remove_dir_all(&self.directory);
+        // Best effort, twice. Windows can hold a just-closed file open for a
+        // moment, and one failed removal used to mean a directory left in the
+        // system temp folder for good — thousands of them, over a project.
+        //
+        // Still only best effort: a panic during unwinding aborts the process
+        // and hides whichever assertion actually failed, which is far worse
+        // than litter.
+        if fs::remove_dir_all(&self.directory).is_err() {
+            std::thread::sleep(std::time::Duration::from_millis(20));
+            let _ = fs::remove_dir_all(&self.directory);
+        }
     }
 }

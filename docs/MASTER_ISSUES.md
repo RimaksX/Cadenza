@@ -549,3 +549,24 @@ and draws an image instead.
 
 Recorded here rather than half-built: a column nothing writes is a column that
 has to be migrated twice.
+
+## 37. The queue's rows acted on the library — fixed
+
+Every row in the queue offered to add itself to the queue, and clicking one
+called `play_from_library`, which rebuilds the queue out of the library and
+throws away what was waiting. Both are the same mistake: the shared listing
+component knew what a row was, but not which list it was in.
+
+**Chosen:** `TrackList` carries a `queued` flag, and the queue sets it. A queued
+row removes instead of adding, with the trash icon and REMOVE where QUEUE would
+be, and a click jumps to that entry keeping the rest of the queue
+(`QueueService::play_at`).
+
+Both name the entry **by its position in the listing**, not by its track. The
+same track may legitimately be waiting twice — the manual queue exists so that
+it can — and an identifier cannot tell the two copies apart. The service counts
+positions the same way the listing was drawn, skipping entries whose file has
+left the library, so the row that answers is the row that was pointed at.
+
+What jumping forward does with what it skipped: those entries become history,
+because that is what "previous" walks back through.

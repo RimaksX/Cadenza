@@ -64,6 +64,16 @@ fn wire(window: &AppWindow, controller: &Rc<Controller>) {
         move |id| controller.enqueue(&id)
     });
 
+    window.on_play_queued({
+        let controller = Rc::clone(controller);
+        move |position| controller.play_queued(position)
+    });
+
+    window.on_remove_from_queue({
+        let controller = Rc::clone(controller);
+        move |position| controller.remove_from_queue(position)
+    });
+
     window.on_open_playlist({
         let controller = Rc::clone(controller);
         move |id| controller.open_playlist(&id)

@@ -82,6 +82,8 @@ export component AppWindow inherits Window {
     callback drag-window(length, length);
     callback play(string);
     callback enqueue(string);
+    callback play-queued(int);
+    callback remove-from-queue(int);
     callback open-playlist(string);
     callback play-from-playlist(string);
     callback toggle-play();
@@ -146,6 +148,12 @@ export component AppWindow inherits Window {
         }
         enqueue(id) => {
             root.enqueue(id);
+        }
+        play-queued(index) => {
+            root.play-queued(index);
+        }
+        remove-from-queue(index) => {
+            root.remove-from-queue(index);
         }
         open-playlist(id) => {
             root.open-playlist(id);

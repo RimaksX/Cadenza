@@ -29,12 +29,15 @@ use lofty::tag::{Accessor, Tag, TagExt, TagType};
 
 /// A profile, a music folder and a wired library service.
 struct Harness {
-    _db: TempDb,
     music: PathBuf,
     library: LibraryService,
     media_files: Arc<SqliteMediaFileRepository>,
     profiles: ProfileService,
     profile_id: ProfileId,
+    /// Declared last on purpose: fields are dropped in declaration order, and
+    /// the fixture cannot delete its directory while anything above it still
+    /// holds a connection to the database inside it.
+    _db: TempDb,
 }
 
 fn harness(tag: &str) -> Harness {

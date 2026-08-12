@@ -20,9 +20,13 @@ export component TrackRow inherits Rectangle {
     // Not `row`: a Rectangle already has one, for grid placement.
     in property <TrackRowData> data;
     in property <bool> playing;
+    /// True where the row is already in the queue, and the useful thing to do
+    /// with it is take it out again.
+    in property <bool> queued;
 
     callback activated();
     callback enqueued();
+    callback removed();
 
     // True while the pointer is anywhere over the row, including over the two
     // buttons in it — a nested touch area takes the pointer from the one
@@ -160,6 +164,11 @@ export component TrackRow inherits Rectangle {
             // after what is on". So this one says what it does, in the same
             // mono capitals every label in the interface is set in, and takes
             // the outline of a control because it is one.
+            //
+            // In the queue it says the opposite, because there the row is
+            // already waiting and adding it again is the one thing nobody
+            // wants. One control, one place, and the list it is in decides
+            // which way it points.
             if root.hovered: Rectangle {
                 width: parent.width;
                 height: 26px;
@@ -178,7 +187,9 @@ export component TrackRow inherits Rectangle {
                         alignment: center;
 
                         Image {
-                            source: @image-url("../../../../resources/ui/icons/queue.svg");
+                            source: root.queued
+                                ? @image-url("../../../../resources/ui/icons/trash.svg")
+                                : @image-url("../../../../resources/ui/icons/queue.svg");
                             width: 12px;
                             height: self.width;
                             colorize: hover-queue.has-hover ? Theme.ink-0 : Theme.ink-2;
@@ -186,7 +197,7 @@ export component TrackRow inherits Rectangle {
                     }
 
                     Text {
-                        text: "QUEUE";
+                        text: root.queued ? "REMOVE" : "QUEUE";
                         font-family: Theme.mono;
                         font-size: Theme.text-label;
                         letter-spacing: Theme.label-spacing;
@@ -199,7 +210,11 @@ export component TrackRow inherits Rectangle {
             hover-queue := TouchArea {
                 mouse-cursor: pointer;
                 clicked => {
-                    root.enqueued();
+                    if (root.queued) {
+                        root.removed();
+                    } else {
+                        root.enqueued();
+                    }
                 }
             }
         }

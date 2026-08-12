@@ -60,6 +60,8 @@ export component AppShell inherits Rectangle {
     callback drag-window(length, length);
     callback play(string);
     callback enqueue(string);
+    callback play-queued(int);
+    callback remove-from-queue(int);
     callback open-playlist(string);
     callback play-from-playlist(string);
     callback toggle-play();
@@ -129,11 +131,11 @@ export component AppShell inherits Rectangle {
                 summary: root.queue-summary;
                 playing-id: root.playing-id;
                 empty-hint: root.queue-hint;
-                play(id) => {
-                    root.play(id);
+                play-at(index) => {
+                    root.play-queued(index);
                 }
-                enqueue(id) => {
-                    root.enqueue(id);
+                remove(index) => {
+                    root.remove-from-queue(index);
                 }
             }
 

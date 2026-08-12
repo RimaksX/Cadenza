@@ -161,6 +161,70 @@ impl QueueService {
         Ok(())
     }
 
+    /// Jumps to an entry by where it appears in [`Self::upcoming`], keeping the
+    /// rest of the queue.
+    ///
+    /// Everything skipped over becomes history rather than staying in front:
+    /// the listener passed those tracks, and "previous" is what walks back
+    /// through them.
+    pub fn play_at(&self, position: usize) -> Result<()> {
+        let profile_id = self.context.require_active_profile()?;
+        let library = self.ports.tracks.summaries_for_profile(profile_id)?;
+
+        let Some((lane, index)) = self.with_queue(|queue| locate(queue, position, &library)) else {
+            return Err(CoreError::not_found("queue entry", position));
+        };
+
+        self.write_queue(|queue| {
+            if let Some(leaving) = queue.current.take() {
+                queue.history.push(leaving);
+            }
+
+            // A target in the continuation means the whole manual queue was
+            // stepped over on the way to it.
+            if lane == Lane::Upcoming {
+                queue.history.extend(queue.manual.drain(..));
+            }
+
+            let lane = match lane {
+                Lane::Manual => &mut queue.manual,
+                Lane::Upcoming => &mut queue.upcoming,
+            };
+            let mut passed: Vec<QueueEntry> = lane.drain(..=index).collect();
+            let target = passed.pop().expect("the range ends at the target");
+            queue.history.extend(passed);
+            queue.current = Some(target);
+        });
+
+        self.play_current()
+    }
+
+    /// Takes one entry out of the queue by where it appears in [`Self::upcoming`].
+    ///
+    /// By position rather than by track, because the same track may legitimately
+    /// be waiting twice and the listener pointed at one of them. The position is
+    /// counted over the same filtered list the interface drew, so the row that
+    /// disappears is the row that was clicked.
+    pub fn remove_at(&self, position: usize) -> Result<()> {
+        let profile_id = self.context.require_active_profile()?;
+        let library = self.ports.tracks.summaries_for_profile(profile_id)?;
+
+        let Some((lane, index)) = self.with_queue(|queue| locate(queue, position, &library)) else {
+            return Err(CoreError::not_found("queue entry", position));
+        };
+
+        self.write_queue(|queue| {
+            match lane {
+                Lane::Manual => queue.manual.remove(index),
+                Lane::Upcoming => queue.upcoming.remove(index),
+            };
+        });
+
+        self.persist();
+        self.announce();
+        Ok(())
+    }
+
     /// Moves to the next track, or stops when the queue runs out.
     pub fn next(&self) -> Result<()> {
         match self.write_queue(Queue::advance) {
@@ -381,6 +445,45 @@ impl QueueService {
     fn write_queue<T>(&self, change: impl FnOnce(&mut Queue) -> T) -> T {
         change(&mut self.queue.write().unwrap_or_else(|err| err.into_inner()))
     }
+}
+
+/// Which of the two waiting lanes an entry is in.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Lane {
+    Manual,
+    Upcoming,
+}
+
+/// Finds what the interface's row at `position` actually is.
+///
+/// The listing skips entries whose file has left the library, so a row's place
+/// on screen is not its place in a lane. Both walks — removing and jumping —
+/// have to count the same way the drawing did, or they act on the wrong track.
+fn locate(queue: &Queue, position: usize, library: &[TrackSummary]) -> Option<(Lane, usize)> {
+    let playable = |entry: &QueueEntry| {
+        library
+            .iter()
+            .any(|summary| summary.media_file_id == entry.media_file_id)
+    };
+
+    let mut seen = 0;
+    // The manual queue is walked first because it is drawn first, and it is
+    // drawn first because it plays first.
+    for (lane, entries) in [
+        (Lane::Manual, &queue.manual),
+        (Lane::Upcoming, &queue.upcoming),
+    ] {
+        for (index, entry) in entries.iter().enumerate() {
+            if !playable(entry) {
+                continue;
+            }
+            if seen == position {
+                return Some((lane, index));
+            }
+            seen += 1;
+        }
+    }
+    None
 }
 
 /// The rest of a list after `from`, wrapping round to what precedes it.

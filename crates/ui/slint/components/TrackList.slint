@@ -30,9 +30,17 @@ export component TrackList inherits Rectangle {
     /// Set to make the eyebrow a way back. Empty means this page is a
     /// destination rather than somewhere you arrived from.
     in property <string> back-label;
+    /// True for the queue itself: its rows are already waiting, so the control
+    /// in them takes a track out rather than putting it in again.
+    in property <bool> queued;
 
     callback play(string);
     callback enqueue(string);
+    /// The row's place in this list, which is how the queue names an entry —
+    /// the same track may legitimately be waiting twice, and an identifier
+    /// cannot tell the two copies apart.
+    callback play-at(int);
+    callback remove(int);
     callback back();
 
     background: Theme.bg-0;
@@ -182,14 +190,25 @@ export component TrackList inherits Rectangle {
             padding-right: Theme.page-inset;
 
             ListView {
-                for entry in root.tracks: TrackRow {
+                for entry[index] in root.tracks: TrackRow {
                     data: entry;
                     playing: entry.id == root.playing-id;
+                    queued: root.queued;
+                    // A queued row is named by its place, an ordinary row by
+                    // what it plays. The list knows which it is; the row does
+                    // not have to.
                     activated => {
-                        root.play(entry.id);
+                        if (root.queued) {
+                            root.play-at(index);
+                        } else {
+                            root.play(entry.id);
+                        }
                     }
                     enqueued => {
                         root.enqueue(entry.id);
+                    }
+                    removed => {
+                        root.remove(index);
                     }
                 }
             }

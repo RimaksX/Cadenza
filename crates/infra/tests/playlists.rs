@@ -24,10 +24,13 @@ use cadenza_testkit::{TempDb, TestClock};
 
 /// A profile with a four-track library and a playlist service over it.
 struct Harness {
-    db: TempDb,
     playlists: PlaylistService,
     profile_id: ProfileId,
     tracks: Vec<MediaFileId>,
+    /// Declared last on purpose: fields are dropped in declaration order, and
+    /// the fixture cannot delete its directory while anything above it still
+    /// holds a connection to the database inside it.
+    db: TempDb,
 }
 
 fn harness() -> Harness {
