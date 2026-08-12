@@ -67,26 +67,65 @@ component TransportButton inherits Rectangle {
     }
 }
 
-// A line that reports a fraction and accepts a click on it.
+// A line that reports a fraction, and can be dragged by it.
 //
-// Not a slider: a slider has a handle to grab, and a handle is a thing to
-// design once the design document exists. The knob here is a consequence of the
-// fill rather than a control of its own — it marks where playback is, and the
-// whole line is the target.
+// The line itself is 2px; the target around it is 14px, because a 2px line is
+// a thing you aim at rather than a thing you use. The knob appears on hover
+// and is what the hand goes for — but the whole target drags, whether the
+// press landed on the knob or not.
+//
+// `live` decides when the fraction is reported. Volume is an atomic store and
+// can follow the finger; a seek is a flush handshake with the audio callback
+// that can block for 200ms, so the position is reported once, on release,
+// and the line shows where the finger is in the meantime.
 component Scrubber inherits Rectangle {
     in property <float> progress;
     in property <bool> enabled: true;
-    in property <bool> knob: true;
+    in property <bool> live;
     in property <color> fill: Theme.ink-1;
 
     callback moved(float);
 
-    height: 10px;
+    // Where the finger is while it is down. Nothing outside this component
+    // sees it — it exists so the fill can lead the value it will eventually
+    // report.
+    private property <float> held;
+    private property <float> shown: touch.pressed
+        ? root.held
+        : max(0, min(1, root.progress));
+
+    height: 14px;
 
     touch := TouchArea {
         enabled: root.enabled;
-        clicked => {
-            root.moved(self.mouse-x / self.width);
+        mouse-cursor: pointer;
+
+        pointer-event(event) => {
+            // Move events carry no button, and `moved` already handles them.
+            if (event.button != PointerEventButton.left) {
+                return;
+            }
+            if (event.kind == PointerEventKind.down) {
+                root.grab();
+            } else if (event.kind == PointerEventKind.up) {
+                // A plain click never fires `moved`, so this is also what
+                // makes a click work: press set `held`, release reports it.
+                root.moved(root.held);
+            }
+        }
+
+        // The pointer is grabbed on press, so this keeps arriving after the
+        // finger has left the line — dragging past either end pins the
+        // fraction to that end rather than losing the drag.
+        moved => {
+            root.grab();
+        }
+    }
+
+    function grab() {
+        root.held = max(0, min(1, touch.mouse-x / touch.width));
+        if (root.live) {
+            root.moved(root.held);
         }
     }
 
@@ -97,21 +136,23 @@ component Scrubber inherits Rectangle {
 
         played := Rectangle {
             x: 0;
-            width: parent.width * max(0, min(1, root.progress));
+            width: parent.width * root.shown;
             height: parent.height;
             background: root.fill;
         }
     }
 
-    if root.knob && root.enabled: Rectangle {
-        width: 10px;
+    // Hidden rather than absent, so it can fade. It is drawn last, over the
+    // line, and it is not a target of its own: the touch area under it is.
+    Rectangle {
+        width: touch.pressed ? 12px : 10px;
         height: self.width;
         border-radius: self.width / 2;
         x: played.width - self.width / 2;
         y: (parent.height - self.height) / 2;
         background: Theme.ink-0;
-        opacity: touch.has-hover ? 1.0 : 0.85;
-        animate opacity { duration: 120ms; }
+        opacity: root.enabled && (touch.has-hover || touch.pressed) ? 1.0 : 0.0;
+        animate opacity, width { duration: 120ms; }
     }
 }
 
@@ -270,6 +311,7 @@ export component PlayerBar inherits Rectangle {
                     Scrubber {
                         progress: root.progress;
                         enabled: root.loaded;
+                        // Not live: see the note on `Scrubber`.
                         moved(fraction) => {
                             root.seek(fraction);
                         }
@@ -315,7 +357,7 @@ export component PlayerBar inherits Rectangle {
 
                 Scrubber {
                     progress: root.muted ? 0 : root.volume;
-                    knob: false;
+                    live: true;
                     fill: Theme.ink-2;
                     moved(fraction) => {
                         root.set-volume(fraction);
