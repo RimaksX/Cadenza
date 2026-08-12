@@ -168,11 +168,20 @@ export component PlayerBar inherits Rectangle {
     in property <bool> muted;
     in property <float> volume;
     in property <string> message;
+    in property <bool> shuffle;
+    in property <bool> repeating;
+    in property <bool> repeat-one;
+    in property <bool> has-next;
+    in property <bool> has-previous;
 
     callback toggle-play();
     callback seek(float);
     callback set-volume(float);
     callback toggle-mute();
+    callback next();
+    callback previous();
+    callback toggle-shuffle();
+    callback cycle-repeat();
 
     height: Theme.player-height;
     background: Theme.bg-1;
@@ -254,16 +263,26 @@ export component PlayerBar inherits Rectangle {
                 alignment: center;
                 spacing: Theme.space-4;
 
-                // Shuffle and repeat need a queue to shuffle and a track change
-                // to repeat into, and both are M7.
+                // Shuffle and repeat are modes rather than moves: they say what
+                // happens later, so they answer whether or not anything is
+                // playing now.
                 TransportButton {
                     glyph: @image-url("../../../../resources/ui/icons/shuffle.svg");
                     quiet: true;
-                    enabled: false;
+                    active: root.shuffle;
+                    pressed => {
+                        root.toggle-shuffle();
+                    }
                 }
+                // Enabled whenever a track is loaded, not only when something
+                // played before it: near the start of the first track, previous
+                // means "start it again".
                 TransportButton {
                     glyph: @image-url("../../../../resources/ui/icons/previous.svg");
-                    enabled: false;
+                    enabled: root.loaded;
+                    pressed => {
+                        root.previous();
+                    }
                 }
                 TransportButton {
                     glyph: root.playing
@@ -277,12 +296,22 @@ export component PlayerBar inherits Rectangle {
                 }
                 TransportButton {
                     glyph: @image-url("../../../../resources/ui/icons/next.svg");
-                    enabled: false;
+                    enabled: root.has-next;
+                    pressed => {
+                        root.next();
+                    }
                 }
+                // One button, three states: the glyph says which repeat mode is
+                // on, and the lit colour says that one of them is.
                 TransportButton {
-                    glyph: @image-url("../../../../resources/ui/icons/repeat.svg");
+                    glyph: root.repeat-one
+                        ? @image-url("../../../../resources/ui/icons/repeat-one.svg")
+                        : @image-url("../../../../resources/ui/icons/repeat.svg");
                     quiet: true;
-                    enabled: false;
+                    active: root.repeating;
+                    pressed => {
+                        root.cycle-repeat();
+                    }
                 }
             }
 

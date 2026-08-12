@@ -19,7 +19,7 @@
 use std::sync::Arc;
 
 use cadenza_core::Result;
-use cadenza_core::application::services::{LibraryService, PlaybackService};
+use cadenza_core::application::services::{LibraryService, PlaybackService, QueueService};
 use cadenza_core::domain::profile::Profile;
 
 mod app;
@@ -40,6 +40,10 @@ pub struct UiServices {
     pub library: Arc<LibraryService>,
     /// Transport control and the player's view state.
     pub playback: Arc<PlaybackService>,
+    /// What plays next. Starting a track goes through this rather than through
+    /// [`Self::playback`]: choosing a row is choosing a starting point, and the
+    /// queue is what makes the rest of the transport mean anything.
+    pub queue: Arc<QueueService>,
     /// Who is listening, if anyone is yet.
     ///
     /// The profile itself rather than the service that manages profiles: the

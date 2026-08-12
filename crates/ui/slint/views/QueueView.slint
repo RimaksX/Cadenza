@@ -1,0 +1,11 @@
+import { TrackList } from "../components/TrackList.slint";
+
+// What is waiting, in the order it will play.
+//
+// The manual queue first and the continuation behind it, which is the order the
+// queue itself keeps — the view does not sort, it lists.
+export component QueueView inherits TrackList {
+    eyebrow: "UP NEXT";
+    heading: "What follows";
+    empty-title: "Nothing waiting";
+}

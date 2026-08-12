@@ -33,7 +33,12 @@ pub fn run(services: UiServices) -> Result<()> {
     let ticker = Timer::default();
     ticker.start(TimerMode::Repeated, TICK, {
         let controller = Rc::clone(&controller);
-        move || controller.refresh_player()
+        move || {
+            // Advance first, so that a track which ran out between two ticks is
+            // replaced before the bar is drawn holding it.
+            controller.poll_queue();
+            controller.refresh_player();
+        }
     });
 
     window.run().map_err(|err| CoreError::Invalid {
@@ -72,6 +77,26 @@ fn wire(window: &AppWindow, controller: &Rc<Controller>) {
     window.on_toggle_mute({
         let controller = Rc::clone(controller);
         move || controller.toggle_mute()
+    });
+
+    window.on_next({
+        let controller = Rc::clone(controller);
+        move || controller.next()
+    });
+
+    window.on_previous({
+        let controller = Rc::clone(controller);
+        move || controller.previous()
+    });
+
+    window.on_toggle_shuffle({
+        let controller = Rc::clone(controller);
+        move || controller.toggle_shuffle()
+    });
+
+    window.on_cycle_repeat({
+        let controller = Rc::clone(controller);
+        move || controller.cycle_repeat()
     });
 
     // No theme callback: the palette is read from the profile at startup and

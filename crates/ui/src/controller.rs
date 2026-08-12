@@ -8,6 +8,7 @@ use std::cell::RefCell;
 
 use cadenza_core::domain::ids::MediaFileId;
 use cadenza_core::domain::profile::Profile;
+use cadenza_core::domain::queue::RepeatMode;
 use cadenza_core::domain::value_objects::theme_mode::ThemeMode;
 use cadenza_core::domain::value_objects::{PlaybackPosition, Volume};
 use cadenza_core::{CoreError, Result};
@@ -23,6 +24,9 @@ const NO_PROFILE_HINT: &str =
 /// What to do when there is a profile but nothing in it.
 const NO_TRACKS_HINT: &str =
     "add a folder and scan it:\ncadenza add-folder <path> -r\ncadenza scan";
+
+/// What to do when nothing is waiting to play.
+const NO_QUEUE_HINT: &str = "play something from the library\nand the rest follows it";
 
 /// Holds the services and pushes state into the window.
 pub struct Controller {
@@ -47,6 +51,7 @@ impl Controller {
     pub fn refresh_all(&self) {
         self.refresh_profile();
         self.refresh_library();
+        self.refresh_queue();
         self.refresh_player();
     }
 
@@ -119,14 +124,86 @@ impl Controller {
         window.set_loaded(shown.loaded);
         window.set_muted(shown.muted);
         window.set_volume(shown.volume);
+
+        let queue = self.services.queue.view();
+        window.set_shuffle(queue.shuffle);
+        window.set_repeating(queue.repeats());
+        window.set_repeat_one(queue.repeat == RepeatMode::One);
+        window.set_has_next(queue.has_next);
+        window.set_has_previous(queue.has_previous);
     }
 
-    /// Starts the track a row identifies.
+    /// Re-reads what is waiting to play.
+    ///
+    /// Not on the tick: it reads the whole library to resolve titles, and the
+    /// queue only changes when something is asked of it.
+    pub fn refresh_queue(&self) {
+        let Some(window) = self.window.upgrade() else {
+            return;
+        };
+
+        let waiting = match self.services.queue.upcoming() {
+            Ok(waiting) => waiting,
+            // The same first-run state the library shows; the empty view says
+            // what to do about it.
+            Err(CoreError::NoActiveProfile) => Vec::new(),
+            Err(err) => {
+                self.report(&err);
+                return;
+            }
+        };
+
+        window.set_queue_hint(NO_QUEUE_HINT.into());
+        window.set_queue_summary(library_vm::summary_line(&waiting).into());
+        window.set_queue_tracks(ModelRc::new(VecModel::from(library_vm::rows(&waiting))));
+    }
+
+    /// Advances when the current track has run out.
+    ///
+    /// Called from the tick alongside [`Self::refresh_player`], because nothing
+    /// else can: the audio callback is forbidden from calling into the
+    /// application layer (PROJECT_MASTER 8.2).
+    pub fn poll_queue(&self) {
+        match self.services.queue.poll() {
+            // Only when a track actually changed, so the tick does not turn a
+            // listing query into a background load.
+            Ok(true) => self.refresh_queue(),
+            Ok(false) => {}
+            Err(err) => self.report(&err),
+        }
+    }
+
+    /// Starts the track a row identifies, with the rest of the library behind it.
     pub fn play(&self, id: &str) {
         self.run(|| {
             let media_file_id = MediaFileId::parse(id)?;
-            self.services.playback.play_track(media_file_id)
+            self.services.queue.play_from_library(media_file_id)
         });
+        self.refresh_queue();
+    }
+
+    /// Moves to the next track.
+    pub fn next(&self) {
+        self.run(|| self.services.queue.next());
+        self.refresh_queue();
+    }
+
+    /// Restarts the track, or moves back to the previous one.
+    pub fn previous(&self) {
+        self.run(|| self.services.queue.previous());
+        self.refresh_queue();
+    }
+
+    /// Turns shuffle on or off.
+    pub fn toggle_shuffle(&self) {
+        self.run(|| self.services.queue.toggle_shuffle());
+        self.refresh_queue();
+    }
+
+    /// Steps through the repeat modes.
+    pub fn cycle_repeat(&self) {
+        self.run(|| self.services.queue.cycle_repeat());
+        self.refresh_queue();
     }
 
     /// Pauses or resumes.

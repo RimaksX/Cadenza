@@ -16,7 +16,7 @@ use std::sync::Arc;
 use std::{env, io};
 
 use cadenza_core::application::services::{
-    LibraryPorts, LibraryService, PlaybackPorts, PlaybackService,
+    LibraryPorts, LibraryService, PlaybackPorts, PlaybackService, QueuePorts, QueueService,
 };
 use cadenza_core::application::{AppContext, ProfileService};
 use cadenza_core::domain::playback::PlaybackState;
@@ -32,7 +32,7 @@ use cadenza_infra::db;
 use cadenza_infra::db::repositories::{
     SqliteAlbumRepository, SqliteArtistRepository, SqliteGenreRepository,
     SqliteImportReviewRepository, SqliteMediaFileRepository, SqliteProfileRepository,
-    SqliteSettingsRepository, SqliteTrackRepository,
+    SqliteQueueRepository, SqliteSettingsRepository, SqliteTrackRepository,
 };
 use cadenza_infra::events::InProcessEventBus;
 use cadenza_infra::library::{LocalFileSystem, NotifyFileWatcher};
@@ -120,6 +120,17 @@ fn run() -> std::result::Result<(), String> {
             PlaybackPorts {
                 engine: Arc::new(CpalAudioEngine::new().map_err(|err| err.to_string())?),
                 media_files: Arc::new(SqliteMediaFileRepository::new(pool.clone())),
+                tracks: Arc::new(SqliteTrackRepository::new(pool.clone())),
+            },
+        ));
+
+        // Built after the profile has been restored, because building it is
+        // what restores that profile's queue.
+        let queue = Arc::new(QueueService::new(
+            Arc::clone(&context),
+            Arc::clone(&playback),
+            QueuePorts {
+                queue: Arc::new(SqliteQueueRepository::new(pool.clone())),
                 tracks: Arc::new(SqliteTrackRepository::new(pool)),
             },
         ));
@@ -127,6 +138,7 @@ fn run() -> std::result::Result<(), String> {
         return cadenza_ui::run(cadenza_ui::UiServices {
             library: Arc::clone(&library),
             playback,
+            queue,
             profile: active,
         })
         .map_err(|err| err.to_string());

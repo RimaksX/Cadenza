@@ -1,0 +1,161 @@
+import { ListView } from "std-widgets.slint";
+import { Theme } from "../theme/tokens.slint";
+import { TrackRow, TrackRowData } from "TrackRow.slint";
+
+// One column label. Mono capitals, set wide, and the same width rules as the
+// row beneath it — the header and the rows are one grid described twice, so
+// they are described in the same order and with the same numbers.
+component ColumnLabel inherits Text {
+    font-family: Theme.mono;
+    font-size: Theme.text-label;
+    letter-spacing: Theme.label-spacing;
+    color: Theme.ink-mute;
+    overflow: elide;
+    vertical-alignment: bottom;
+}
+
+// A page that is a list of tracks: a head, a set of column labels, and the rows.
+//
+// The library and the queue are the same page with different words in it, and
+// this is that page. What differs between them is what they are told, not how
+// they are built — one grid, described once, so the two cannot drift apart.
+export component TrackList inherits Rectangle {
+    in property <[TrackRowData]> tracks;
+    in property <string> eyebrow;
+    in property <string> heading;
+    in property <string> summary;
+    in property <string> playing-id;
+    in property <string> empty-title;
+    in property <string> empty-hint;
+
+    callback play(string);
+
+    background: Theme.bg-0;
+
+    VerticalLayout {
+        // The page head. One title, set large, with the count beneath it in the
+        // same mono capitals the column labels use — the eye learns one rule.
+        VerticalLayout {
+            // Takes the height it needs and no more. Without this the layout
+            // shares the spare height between the head and the list, and the
+            // page opens with the library halfway down the window.
+            vertical-stretch: 0;
+            padding-left: Theme.page-inset;
+            padding-right: Theme.page-inset;
+            padding-top: Theme.space-6;
+            padding-bottom: Theme.space-5;
+            spacing: Theme.space-2;
+
+            Text {
+                text: root.eyebrow;
+                font-family: Theme.mono;
+                font-size: Theme.text-label;
+                letter-spacing: Theme.label-spacing;
+                color: Theme.ink-mute;
+            }
+
+            Text {
+                text: root.heading;
+                font-family: Theme.serif;
+                font-size: Theme.text-display;
+                color: Theme.ink-0;
+            }
+
+            Text {
+                text: root.summary;
+                font-family: Theme.mono;
+                font-size: Theme.text-number;
+                letter-spacing: Theme.number-spacing;
+                color: Theme.ink-2;
+            }
+        }
+
+        // Column labels on the row's grid, and the rule that ends the head.
+        VerticalLayout {
+            vertical-stretch: 0;
+            padding-left: Theme.page-inset;
+            padding-right: Theme.page-inset;
+
+            HorizontalLayout {
+                padding-bottom: Theme.row-padding;
+                padding-right: Theme.row-end-inset;
+                spacing: Theme.column-gap;
+
+                ColumnLabel {
+                    width: Theme.number-column;
+                    text: "№";
+                    horizontal-alignment: right;
+                }
+                ColumnLabel {
+                    text: "TITLE";
+                    horizontal-stretch: 1;
+                    preferred-width: 0px;
+                }
+                ColumnLabel {
+                    text: "ARTIST";
+                    horizontal-stretch: 1;
+                    preferred-width: 0px;
+                }
+                ColumnLabel {
+                    width: Theme.album-column;
+                    text: "ALBUM";
+                }
+                ColumnLabel {
+                    width: Theme.time-column;
+                    text: "TIME";
+                    horizontal-alignment: right;
+                }
+            }
+
+            // Stronger than the hairlines between rows: this one ends a section,
+            // they only separate items inside it.
+            Rectangle {
+                height: 1px;
+                background: Theme.line;
+            }
+        }
+
+        // An empty list is a state with an answer, not a blank page.
+        if root.tracks.length == 0: Rectangle {
+            VerticalLayout {
+                alignment: center;
+                spacing: Theme.space-3;
+
+                Text {
+                    text: root.empty-title;
+                    font-family: Theme.serif;
+                    font-size: Theme.text-display;
+                    color: Theme.ink-2;
+                    horizontal-alignment: center;
+                }
+                Text {
+                    text: root.empty-hint;
+                    font-family: Theme.mono;
+                    font-size: Theme.text-number;
+                    color: Theme.ink-mute;
+                    horizontal-alignment: center;
+                    wrap: word-wrap;
+                }
+            }
+        }
+
+        // The list carries the page inset, so hover and the row's own hairline
+        // both stop where the content stops rather than running to the window
+        // edge.
+        if root.tracks.length > 0: HorizontalLayout {
+            vertical-stretch: 1;
+            padding-left: Theme.page-inset;
+            padding-right: Theme.page-inset;
+
+            ListView {
+                for entry in root.tracks: TrackRow {
+                    data: entry;
+                    playing: entry.id == root.playing-id;
+                    activated => {
+                        root.play(entry.id);
+                    }
+                }
+            }
+        }
+    }
+}

@@ -21,7 +21,7 @@ use crate::domain::policies::playback_policy::{PreviousAction, previous_action};
 use crate::domain::policies::shuffle_policy;
 use crate::domain::ports::event_bus::DomainEvent;
 use crate::domain::ports::repositories::{QueueRepositoryPort, TrackRepositoryPort};
-use crate::domain::queue::{Queue, QueueEntry, QueueOrigin};
+use crate::domain::queue::{Queue, QueueEntry, QueueOrigin, RepeatMode};
 use crate::domain::track::TrackSummary;
 use crate::domain::value_objects::PlaybackPosition;
 use crate::{CoreError, Result};
@@ -201,16 +201,18 @@ impl QueueService {
     /// the application layer — the realtime contract of PROJECT_MASTER 8.2
     /// forbids it — so somebody has to ask, and asking four times a second costs
     /// two atomic loads.
-    pub fn poll(&self) -> Result<()> {
+    /// Returns whether anything changed, so a caller can redraw only then.
+    pub fn poll(&self) -> Result<bool> {
         let view = self.playback.view();
 
         // Stopped with a track still loaded is the one state that only
         // end-of-track produces: pausing reports paused, and stopping unloads.
         if view.state.has_track() || view.track.is_none() {
-            return Ok(());
+            return Ok(false);
         }
 
-        self.next()
+        self.next()?;
+        Ok(true)
     }
 
     /// What the transport buttons need to draw themselves.
@@ -223,7 +225,11 @@ impl QueueService {
             shuffle: queue.shuffle,
             pending: queue.pending_len(),
             has_previous: !queue.history.is_empty(),
-            has_next: queue.peek_next().is_some(),
+            // Repeat always has somewhere to go: the last track of a repeating
+            // list is followed by the first, and a greyed-out next button on it
+            // would say otherwise.
+            has_next: queue.peek_next().is_some()
+                || (queue.repeat != RepeatMode::Off && queue.current.is_some()),
         })
     }
 

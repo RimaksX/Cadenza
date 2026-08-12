@@ -93,6 +93,11 @@ component NavLabel inherits HorizontalLayout {
 export component Sidebar inherits Rectangle {
     in property <string> profile-name;
     in property <string> profile-initial;
+    /// Which screen is showing. A name rather than an index: an index would
+    /// renumber every time a destination is added.
+    in property <string> section;
+
+    callback select(string);
 
     width: Theme.sidebar-width;
     background: Theme.bg-0;
@@ -142,11 +147,14 @@ export component Sidebar inherits Rectangle {
             NavItem {
                 label: "Library";
                 glyph: @image-url("../../../../resources/ui/icons/library.svg");
-                selected: true;
+                selected: root.section == "library";
+                chosen => {
+                    root.select("library");
+                }
             }
-            // Everything below waits for the milestone that gives it a screen.
-            // Shown rather than hidden so the shape of the application is
-            // legible, and disabled rather than clickable so it cannot lie.
+            // Playlists and radio wait for the milestone that gives them a
+            // screen. Shown rather than hidden so the shape of the application
+            // is legible, and disabled rather than clickable so it cannot lie.
             NavItem {
                 label: "Playlists";
                 glyph: @image-url("../../../../resources/ui/icons/playlist.svg");
@@ -155,7 +163,10 @@ export component Sidebar inherits Rectangle {
             NavItem {
                 label: "Queue";
                 glyph: @image-url("../../../../resources/ui/icons/queue.svg");
-                enabled: false;
+                selected: root.section == "queue";
+                chosen => {
+                    root.select("queue");
+                }
             }
             NavItem {
                 label: "Radio";

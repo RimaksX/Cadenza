@@ -4,6 +4,7 @@ import { PlayerBar } from "PlayerBar.slint";
 import { TitleBar } from "TitleBar.slint";
 import { TrackRowData } from "TrackRow.slint";
 import { LibraryView } from "../views/LibraryView.slint";
+import { QueueView } from "../views/QueueView.slint";
 
 // The frame every screen lives in: navigation down the left, the player across
 // the bottom, one content area between them.
@@ -15,6 +16,13 @@ export component AppShell inherits Rectangle {
     in property <[TrackRowData]> tracks;
     in property <string> library-summary;
     in property <string> empty-hint;
+    in property <[TrackRowData]> queue-tracks;
+    in property <string> queue-summary;
+    in property <string> queue-hint;
+
+    /// The screen showing. Held here rather than passed in, because navigation
+    /// changes nothing outside the window.
+    property <string> section: "library";
     in property <string> profile-name;
     in property <string> profile-initial;
 
@@ -31,6 +39,11 @@ export component AppShell inherits Rectangle {
     in property <float> volume;
     in property <string> message;
     in property <bool> maximized;
+    in property <bool> shuffle;
+    in property <bool> repeating;
+    in property <bool> repeat-one;
+    in property <bool> has-next;
+    in property <bool> has-previous;
 
     callback minimize();
     callback toggle-maximize();
@@ -41,6 +54,10 @@ export component AppShell inherits Rectangle {
     callback seek(float);
     callback set-volume(float);
     callback toggle-mute();
+    callback next();
+    callback previous();
+    callback toggle-shuffle();
+    callback cycle-repeat();
 
     background: Theme.bg-0;
     // The window has no frame of its own now, so it needs an edge of its own —
@@ -73,13 +90,30 @@ export component AppShell inherits Rectangle {
             Sidebar {
                 profile-name: root.profile-name;
                 profile-initial: root.profile-initial;
+                section: root.section;
+                select(name) => {
+                    root.section = name;
+                }
             }
 
-            LibraryView {
+            // Which screen is showing is the interface's own state: nothing
+            // outside the window changes when the listener looks at the queue,
+            // so nothing outside the window needs to be told.
+            if root.section == "library": LibraryView {
                 tracks: root.tracks;
                 summary: root.library-summary;
                 playing-id: root.playing-id;
                 empty-hint: root.empty-hint;
+                play(id) => {
+                    root.play(id);
+                }
+            }
+
+            if root.section == "queue": QueueView {
+                tracks: root.queue-tracks;
+                summary: root.queue-summary;
+                playing-id: root.playing-id;
+                empty-hint: root.queue-hint;
                 play(id) => {
                     root.play(id);
                 }
@@ -98,6 +132,11 @@ export component AppShell inherits Rectangle {
             muted: root.muted;
             volume: root.volume;
             message: root.message;
+            shuffle: root.shuffle;
+            repeating: root.repeating;
+            repeat-one: root.repeat-one;
+            has-next: root.has-next;
+            has-previous: root.has-previous;
 
             toggle-play => {
                 root.toggle-play();
@@ -110,6 +149,18 @@ export component AppShell inherits Rectangle {
             }
             toggle-mute => {
                 root.toggle-mute();
+            }
+            next => {
+                root.next();
+            }
+            previous => {
+                root.previous();
+            }
+            toggle-shuffle => {
+                root.toggle-shuffle();
+            }
+            cycle-repeat => {
+                root.cycle-repeat();
             }
         }
     }

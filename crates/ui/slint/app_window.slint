@@ -43,6 +43,9 @@ export component AppWindow inherits Window {
     in property <[TrackRowData]> tracks;
     in property <string> library-summary;
     in property <string> empty-hint;
+    in property <[TrackRowData]> queue-tracks;
+    in property <string> queue-summary;
+    in property <string> queue-hint;
     in property <string> profile-name;
     in property <string> profile-initial;
     in property <string> now-title;
@@ -58,6 +61,11 @@ export component AppWindow inherits Window {
     in property <float> volume: 1.0;
     in property <string> message;
     in property <bool> maximized;
+    in property <bool> shuffle;
+    in property <bool> repeating;
+    in property <bool> repeat-one;
+    in property <bool> has-next;
+    in property <bool> has-previous;
 
     // Up: what the listener asked for.
     callback minimize();
@@ -69,6 +77,10 @@ export component AppWindow inherits Window {
     callback seek(float);
     callback set-volume(float);
     callback toggle-mute();
+    callback next();
+    callback previous();
+    callback toggle-shuffle();
+    callback cycle-repeat();
 
     AppShell {
         maximized: root.maximized;
@@ -88,6 +100,9 @@ export component AppWindow inherits Window {
         tracks: root.tracks;
         library-summary: root.library-summary;
         empty-hint: root.empty-hint;
+        queue-tracks: root.queue-tracks;
+        queue-summary: root.queue-summary;
+        queue-hint: root.queue-hint;
         profile-name: root.profile-name;
         profile-initial: root.profile-initial;
         now-title: root.now-title;
@@ -102,6 +117,11 @@ export component AppWindow inherits Window {
         muted: root.muted;
         volume: root.volume;
         message: root.message;
+        shuffle: root.shuffle;
+        repeating: root.repeating;
+        repeat-one: root.repeat-one;
+        has-next: root.has-next;
+        has-previous: root.has-previous;
 
         play(id) => {
             root.play(id);
@@ -117,6 +137,18 @@ export component AppWindow inherits Window {
         }
         toggle-mute => {
             root.toggle-mute();
+        }
+        next => {
+            root.next();
+        }
+        previous => {
+            root.previous();
+        }
+        toggle-shuffle => {
+            root.toggle-shuffle();
+        }
+        cycle-repeat => {
+            root.cycle-repeat();
         }
     }
 
