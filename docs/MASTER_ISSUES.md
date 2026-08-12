@@ -473,3 +473,40 @@ still hears the first half.
 The domain does the restarting from `history` rather than from the library
 (`Queue::advance`), so the rule holds for a playlist or a radio batch too, where
 there is no library to fall back on.
+
+## 33. Smart playlists have a column but no language — deferred
+
+`playlists.is_smart` and `playlists.rule_json` exist in section 7.3, and M7's
+task list says "playlist CRUD" without distinguishing curated from smart. No
+section of the master file defines what a rule looks like: not its operators,
+not its fields, not how it combines with the library filters of 2.1.
+
+**Chosen:** M7 implements curated playlists only. `is_smart` is written as 0 and
+`rule_json` as null, and the schema's `CHECK (is_smart = 0 OR rule_json IS NOT
+NULL)` keeps a half-defined smart playlist from existing at all.
+
+Inventing a rule language now would mean designing it against no requirement and
+migrating it later when one arrives. The natural home is M12, where smart
+shuffle already has to express "tracks like these" — the same selection problem,
+and the two should share one vocabulary rather than grow two.
+
+`Playlist::is_manually_ordered` already gates reordering on it, so the day a
+smart playlist can exist, the code that must not reorder it already refuses.
+
+## 34. Making a playlist needs a name typed in — CLI for now
+
+Playlists are created, renamed and deleted from the command line
+(`cadenza playlist new <name>`), not from the window. The interface plays them,
+reorders nothing and creates nothing.
+
+**Why:** every one of those actions needs a text field, and this interface has
+none — no input control, no dialog, no context menu. Adding the first one is a
+design decision about how Cadenza asks for a word, and it belongs with the rest
+of the interface design rather than smuggled in as a side effect of playlists.
+
+This is the same split the library already lives with: folders are added and
+scanned from the command line (M4) and browsed in the window (M6). The window
+does what you do while listening; the command line does what you do to set up.
+
+The interface reaches everything a listener does *while playing*: play a
+playlist, queue a track, reorder nothing. The rest waits for M15.

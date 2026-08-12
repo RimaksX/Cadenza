@@ -10,6 +10,7 @@
 
 pub mod library_vm;
 pub mod player_vm;
+pub mod playlist_vm;
 
 use cadenza_core::domain::value_objects::DurationMs;
 

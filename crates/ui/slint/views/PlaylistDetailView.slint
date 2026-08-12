@@ -1,0 +1,12 @@
+import { TrackList } from "../components/TrackList.slint";
+
+// One playlist's tracks, in the playlist's own order.
+//
+// The heading is the playlist's name, so this view has one thing to say and is
+// told it: `heading`, `tracks` and `summary` come through from `TrackList`.
+// What it fixes is the way back, because this is the only page reached from
+// another one.
+export component PlaylistDetailView inherits TrackList {
+    back-label: "PLAYLISTS";
+    empty-title: "This list is empty";
+}

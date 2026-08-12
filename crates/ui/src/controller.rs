@@ -6,7 +6,7 @@
 
 use std::cell::RefCell;
 
-use cadenza_core::domain::ids::MediaFileId;
+use cadenza_core::domain::ids::{MediaFileId, PlaylistId};
 use cadenza_core::domain::profile::Profile;
 use cadenza_core::domain::queue::RepeatMode;
 use cadenza_core::domain::value_objects::theme_mode::ThemeMode;
@@ -14,7 +14,7 @@ use cadenza_core::domain::value_objects::{PlaybackPosition, Volume};
 use cadenza_core::{CoreError, Result};
 use slint::{ComponentHandle, ModelRc, VecModel, Weak};
 
-use crate::view_models::{self, library_vm, player_vm};
+use crate::view_models::{self, library_vm, player_vm, playlist_vm};
 use crate::{AppWindow, Theme, UiServices};
 
 /// What to do when there is no profile to be a library for.
@@ -28,12 +28,28 @@ const NO_TRACKS_HINT: &str =
 /// What to do when nothing is waiting to play.
 const NO_QUEUE_HINT: &str = "play something from the library\nand the rest follows it";
 
+/// What to do when there are no playlists.
+///
+/// Making one is a command-line job for now, the way adding a folder is: it
+/// needs a name typed into a field this interface does not have yet.
+const NO_PLAYLISTS_HINT: &str =
+    "make one:\ncadenza playlist new <name>\ncadenza playlist add <name> <track number>";
+
+/// What to do when a playlist has nothing in it.
+const EMPTY_PLAYLIST_HINT: &str = "add to it:\ncadenza playlist add <name> <track number>";
+
 /// Holds the services and pushes state into the window.
 pub struct Controller {
     services: UiServices,
     window: Weak<AppWindow>,
     /// The active profile, kept because the theme belongs to it.
     profile: RefCell<Option<Profile>>,
+    /// The playlist whose page is open, if one is.
+    ///
+    /// Held because playing a track from a playlist has to say which playlist:
+    /// the queue's entries carry it, and that is what makes the rest of the
+    /// list follow rather than the rest of the library.
+    open_playlist: RefCell<Option<PlaylistId>>,
 }
 
 impl Controller {
@@ -44,6 +60,7 @@ impl Controller {
             services,
             window,
             profile,
+            open_playlist: RefCell::new(None),
         }
     }
 
@@ -52,6 +69,7 @@ impl Controller {
         self.refresh_profile();
         self.refresh_library();
         self.refresh_queue();
+        self.refresh_playlists();
         self.refresh_player();
     }
 
@@ -158,6 +176,86 @@ impl Controller {
         window.set_queue_tracks(ModelRc::new(VecModel::from(library_vm::rows(&waiting))));
     }
 
+    /// Re-reads the index of playlists.
+    pub fn refresh_playlists(&self) {
+        let Some(window) = self.window.upgrade() else {
+            return;
+        };
+
+        let summaries = match self.services.playlists.list() {
+            Ok(summaries) => summaries,
+            Err(CoreError::NoActiveProfile) => Vec::new(),
+            Err(err) => {
+                self.report(&err);
+                return;
+            }
+        };
+
+        window.set_playlists_hint(NO_PLAYLISTS_HINT.into());
+        window.set_playlists(ModelRc::new(VecModel::from(playlist_vm::rows(&summaries))));
+    }
+
+    /// Opens one playlist's page.
+    pub fn open_playlist(&self, id: &str) {
+        let playlist_id = match PlaylistId::parse(id) {
+            Ok(playlist_id) => playlist_id,
+            Err(err) => {
+                self.report(&err);
+                return;
+            }
+        };
+
+        *self.open_playlist.borrow_mut() = Some(playlist_id);
+        self.refresh_open_playlist();
+    }
+
+    /// Re-reads whatever playlist page is open.
+    fn refresh_open_playlist(&self) {
+        let (Some(window), Some(playlist_id)) =
+            (self.window.upgrade(), *self.open_playlist.borrow())
+        else {
+            return;
+        };
+
+        let playlist = match self.services.playlists.get(playlist_id) {
+            Ok(playlist) => playlist,
+            Err(err) => {
+                self.report(&err);
+                return;
+            }
+        };
+
+        let tracks = match self.services.playlists.tracks_of(playlist_id) {
+            Ok(tracks) => tracks,
+            Err(err) => {
+                self.report(&err);
+                return;
+            }
+        };
+
+        window.set_playlist_name(playlist.name.as_str().into());
+        window.set_playlist_hint(EMPTY_PLAYLIST_HINT.into());
+        window.set_playlist_summary(library_vm::summary_line(&tracks).into());
+        window.set_playlist_tracks(ModelRc::new(VecModel::from(library_vm::rows(&tracks))));
+    }
+
+    /// Starts a track from the open playlist, with the rest of the list behind
+    /// it.
+    pub fn play_from_playlist(&self, id: &str) {
+        let Some(playlist_id) = *self.open_playlist.borrow() else {
+            return;
+        };
+
+        self.run(|| {
+            let media_file_id = MediaFileId::parse(id)?;
+            let tracks = self.services.playlists.tracks_of(playlist_id)?;
+            self.services
+                .queue
+                .play_playlist(playlist_id, &tracks, media_file_id)
+        });
+        self.refresh_queue();
+    }
+
     /// Advances when the current track has run out.
     ///
     /// Called from the tick alongside [`Self::refresh_player`], because nothing
@@ -178,6 +276,18 @@ impl Controller {
         self.run(|| {
             let media_file_id = MediaFileId::parse(id)?;
             self.services.queue.play_from_library(media_file_id)
+        });
+        self.refresh_queue();
+    }
+
+    /// Puts a track at the end of the manual queue.
+    ///
+    /// Nothing starts playing: the point of the manual queue is that it plays
+    /// after what is on now (PROJECT_MASTER 2.3).
+    pub fn enqueue(&self, id: &str) {
+        self.run(|| {
+            let media_file_id = MediaFileId::parse(id)?;
+            self.services.queue.enqueue(media_file_id)
         });
         self.refresh_queue();
     }

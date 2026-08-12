@@ -12,6 +12,7 @@
 
 pub mod catalog_repo;
 pub mod media_file_repo;
+pub mod playlist_repo;
 pub mod profile_repo;
 pub mod queue_repo;
 pub mod review_repo;
@@ -20,6 +21,7 @@ pub mod track_repo;
 
 pub use catalog_repo::{SqliteAlbumRepository, SqliteArtistRepository, SqliteGenreRepository};
 pub use media_file_repo::SqliteMediaFileRepository;
+pub use playlist_repo::SqlitePlaylistRepository;
 pub use profile_repo::SqliteProfileRepository;
 pub use queue_repo::SqliteQueueRepository;
 pub use review_repo::SqliteImportReviewRepository;

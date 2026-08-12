@@ -16,7 +16,8 @@ use std::sync::Arc;
 use std::{env, io};
 
 use cadenza_core::application::services::{
-    LibraryPorts, LibraryService, PlaybackPorts, PlaybackService, QueuePorts, QueueService,
+    LibraryPorts, LibraryService, PlaybackPorts, PlaybackService, PlaylistPorts, PlaylistService,
+    QueuePorts, QueueService,
 };
 use cadenza_core::application::{AppContext, ProfileService};
 use cadenza_core::domain::playback::PlaybackState;
@@ -31,15 +32,16 @@ use cadenza_infra::audio::{CpalAudioEngine, SymphoniaDecoder};
 use cadenza_infra::db;
 use cadenza_infra::db::repositories::{
     SqliteAlbumRepository, SqliteArtistRepository, SqliteGenreRepository,
-    SqliteImportReviewRepository, SqliteMediaFileRepository, SqliteProfileRepository,
-    SqliteQueueRepository, SqliteSettingsRepository, SqliteTrackRepository,
+    SqliteImportReviewRepository, SqliteMediaFileRepository, SqlitePlaylistRepository,
+    SqliteProfileRepository, SqliteQueueRepository, SqliteSettingsRepository,
+    SqliteTrackRepository,
 };
 use cadenza_infra::events::InProcessEventBus;
 use cadenza_infra::library::{LocalFileSystem, NotifyFileWatcher};
 use cadenza_infra::metadata::{FileArtworkCache, LoftyMetadataReader};
 use cadenza_infra::system::{AppPaths, SystemClock};
 
-use cli::Command;
+use cli::{Command, PlaylistCommand};
 
 fn main() -> ExitCode {
     match run() {
@@ -104,6 +106,14 @@ fn run() -> std::result::Result<(), String> {
         },
     ));
 
+    let playlists = Arc::new(PlaylistService::new(
+        Arc::clone(&context),
+        PlaylistPorts {
+            playlists: Arc::new(SqlitePlaylistRepository::new(pool.clone())),
+            tracks: Arc::new(SqliteTrackRepository::new(pool.clone())),
+        },
+    ));
+
     // Before anything else: the pointer left by the previous run decides who the
     // application is running as.
     let active = profiles.restore_active().map_err(|err| err.to_string())?;
@@ -139,12 +149,13 @@ fn run() -> std::result::Result<(), String> {
             library: Arc::clone(&library),
             playback,
             queue,
+            playlists,
             profile: active,
         })
         .map_err(|err| err.to_string());
     }
 
-    dispatch(&command, &profiles, &library, active).map_err(|err| err.to_string())
+    dispatch(&command, &profiles, &library, &playlists, active).map_err(|err| err.to_string())
 }
 
 /// Watches the library folders until the listener stops it.
@@ -294,12 +305,33 @@ fn dispatch(
     command: &Command,
     profiles: &ProfileService,
     library: &LibraryService,
+    playlists: &PlaylistService,
     active: Option<Profile>,
 ) -> Result<()> {
     match command {
         Command::Help | Command::Paths | Command::Watch | Command::Play(_) | Command::Ui => {
             unreachable!("handled before dispatch, because they need no profile or must block")
         }
+
+        Command::Playlists => {
+            let all = playlists.list()?;
+            if all.is_empty() {
+                println!("no playlists yet — run: cadenza playlist new <name>");
+            }
+            for summary in all {
+                let noun = if summary.track_count == 1 {
+                    "track"
+                } else {
+                    "tracks"
+                };
+                println!(
+                    "  {} ({} {noun})",
+                    summary.playlist.name, summary.track_count
+                );
+            }
+        }
+
+        Command::Playlist(action) => playlist(action, library, playlists)?,
 
         Command::Status => report_status(profiles, active.as_ref())?,
 
@@ -465,6 +497,90 @@ fn dispatch(
     }
 
     Ok(())
+}
+
+/// Everything under `cadenza playlist`.
+fn playlist(
+    action: &PlaylistCommand,
+    library: &LibraryService,
+    playlists: &PlaylistService,
+) -> Result<()> {
+    match action {
+        PlaylistCommand::New(name) => {
+            let created = playlists.create(name)?;
+            println!("created playlist {}", created.name);
+            println!("run: cadenza playlist add {} <track number>", created.name);
+        }
+
+        PlaylistCommand::Show(name) => {
+            let found = find_playlist(playlists, name)?;
+            let tracks = playlists.tracks_of(found.id)?;
+            if tracks.is_empty() {
+                println!("{} is empty", found.name);
+            }
+            for (position, track) in tracks.iter().enumerate() {
+                println!("  {} {}", position + 1, track.title);
+            }
+        }
+
+        PlaylistCommand::Rename { from, to } => {
+            let found = find_playlist(playlists, from)?;
+            let renamed = playlists.rename(found.id, to)?;
+            println!("{from} is now {}", renamed.name);
+        }
+
+        PlaylistCommand::Delete { name, confirmed } => {
+            let found = find_playlist(playlists, name)?;
+            if !confirmed {
+                println!(
+                    "deleting {} removes the list, not the tracks in it.\n\
+                     run: cadenza playlist delete {name} --yes",
+                    found.name
+                );
+                return Ok(());
+            }
+            playlists.delete(found.id)?;
+            println!("deleted playlist {}", found.name);
+        }
+
+        PlaylistCommand::Add { name, track } => {
+            let found = find_playlist(playlists, name)?;
+            let tracks = library.tracks()?;
+            let chosen = tracks
+                .get(track.wrapping_sub(1))
+                .ok_or_else(|| CoreError::not_found("track number", track))?;
+
+            playlists.add_track(found.id, chosen.media_file_id)?;
+            println!("added {} to {}", chosen.title, found.name);
+        }
+
+        PlaylistCommand::Remove { name, entry } => {
+            let found = find_playlist(playlists, name)?;
+            playlists.remove_at(found.id, entry.wrapping_sub(1))?;
+            println!("removed entry {entry} from {}", found.name);
+        }
+
+        PlaylistCommand::Move { name, from, to } => {
+            let found = find_playlist(playlists, name)?;
+            playlists.move_entry(found.id, from.wrapping_sub(1), to.wrapping_sub(1))?;
+            println!("moved entry {from} to {to} in {}", found.name);
+        }
+    }
+
+    Ok(())
+}
+
+/// Looks a playlist up the way a person refers to one.
+fn find_playlist(
+    playlists: &PlaylistService,
+    name: &str,
+) -> Result<cadenza_core::domain::playlist::Playlist> {
+    playlists
+        .list()?
+        .into_iter()
+        .map(|summary| summary.playlist)
+        .find(|playlist| playlist.name.eq_ignore_ascii_case(name.trim()))
+        .ok_or_else(|| CoreError::not_found("playlist", name))
 }
 
 /// Looks a profile up the way a person refers to one.

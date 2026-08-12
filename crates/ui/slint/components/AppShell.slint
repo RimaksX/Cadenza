@@ -5,6 +5,8 @@ import { TitleBar } from "TitleBar.slint";
 import { TrackRowData } from "TrackRow.slint";
 import { LibraryView } from "../views/LibraryView.slint";
 import { QueueView } from "../views/QueueView.slint";
+import { PlaylistsView, PlaylistRowData } from "../views/PlaylistsView.slint";
+import { PlaylistDetailView } from "../views/PlaylistDetailView.slint";
 
 // The frame every screen lives in: navigation down the left, the player across
 // the bottom, one content area between them.
@@ -19,6 +21,12 @@ export component AppShell inherits Rectangle {
     in property <[TrackRowData]> queue-tracks;
     in property <string> queue-summary;
     in property <string> queue-hint;
+    in property <[PlaylistRowData]> playlists;
+    in property <string> playlists-hint;
+    in property <[TrackRowData]> playlist-tracks;
+    in property <string> playlist-name;
+    in property <string> playlist-summary;
+    in property <string> playlist-hint;
 
     /// The screen showing. Held here rather than passed in, because navigation
     /// changes nothing outside the window.
@@ -50,6 +58,9 @@ export component AppShell inherits Rectangle {
     callback close-window();
     callback drag-window(length, length);
     callback play(string);
+    callback enqueue(string);
+    callback open-playlist(string);
+    callback play-from-playlist(string);
     callback toggle-play();
     callback seek(float);
     callback set-volume(float);
@@ -107,6 +118,9 @@ export component AppShell inherits Rectangle {
                 play(id) => {
                     root.play(id);
                 }
+                enqueue(id) => {
+                    root.enqueue(id);
+                }
             }
 
             if root.section == "queue": QueueView {
@@ -116,6 +130,38 @@ export component AppShell inherits Rectangle {
                 empty-hint: root.queue-hint;
                 play(id) => {
                     root.play(id);
+                }
+                enqueue(id) => {
+                    root.enqueue(id);
+                }
+            }
+
+            if root.section == "playlists": PlaylistsView {
+                playlists: root.playlists;
+                empty-hint: root.playlists-hint;
+                open(id) => {
+                    // Two things happen: the shell changes page, and the
+                    // application loads what the page shows. Neither can do the
+                    // other's half.
+                    root.section = "playlist";
+                    root.open-playlist(id);
+                }
+            }
+
+            if root.section == "playlist": PlaylistDetailView {
+                tracks: root.playlist-tracks;
+                heading: root.playlist-name;
+                summary: root.playlist-summary;
+                playing-id: root.playing-id;
+                empty-hint: root.playlist-hint;
+                play(id) => {
+                    root.play-from-playlist(id);
+                }
+                enqueue(id) => {
+                    root.enqueue(id);
+                }
+                back => {
+                    root.section = "playlists";
                 }
             }
         }
@@ -165,3 +211,4 @@ export component AppShell inherits Rectangle {
         }
     }
 }
+

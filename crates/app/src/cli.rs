@@ -53,6 +53,10 @@ pub enum Command {
         /// Set by `--reset`: forget the correction and use the file's own tags.
         reset: bool,
     },
+    /// List the active profile's playlists.
+    Playlists,
+    /// Do something to one playlist.
+    Playlist(PlaylistCommand),
     /// List files waiting for an import decision.
     Reviews,
     /// Watch the folders and import changes as they happen.
@@ -63,6 +67,55 @@ pub enum Command {
     Paths,
     /// Print the usage text.
     Help,
+}
+
+/// What to do to one playlist.
+///
+/// Playlists are named and their entries numbered, for the same reason tracks
+/// are: nobody is going to type a UUID at a command line.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PlaylistCommand {
+    /// List what is in a playlist.
+    Show(String),
+    /// Create an empty playlist.
+    New(String),
+    /// Rename one.
+    Rename {
+        /// The playlist as it is called now.
+        from: String,
+        /// What to call it.
+        to: String,
+    },
+    /// Delete one. The tracks stay in the library.
+    Delete {
+        /// Which playlist.
+        name: String,
+        /// Set by `--yes`. Without it the command refuses.
+        confirmed: bool,
+    },
+    /// Append a track from the library listing.
+    Add {
+        /// Which playlist.
+        name: String,
+        /// Position in the `tracks` listing, counting from one.
+        track: usize,
+    },
+    /// Remove an entry by its position in the playlist.
+    Remove {
+        /// Which playlist.
+        name: String,
+        /// Position in the playlist, counting from one.
+        entry: usize,
+    },
+    /// Move an entry to another position.
+    Move {
+        /// Which playlist.
+        name: String,
+        /// Where the entry is, counting from one.
+        from: usize,
+        /// Where it should go, counting from one.
+        to: usize,
+    },
 }
 
 /// What to print when asked, and when the arguments make no sense.
@@ -86,6 +139,15 @@ USAGE:
     cadenza genre <n> <genre>...     set the genres of track n, this profile only
     cadenza genre <n> --reset        restore the genres the file itself carries
     cadenza reviews                  list files waiting for a decision
+
+    cadenza playlists                list the playlists
+    cadenza playlist show <name>     list what is in one
+    cadenza playlist new <name>      create an empty playlist
+    cadenza playlist rename <a> <b>  rename it
+    cadenza playlist delete <n> --yes  delete it, keeping its tracks
+    cadenza playlist add <name> <n>  append track n from: cadenza tracks
+    cadenza playlist remove <n> <e>  remove entry e from playlist n
+    cadenza playlist move <n> <a> <b>  move entry a to position b
 
     cadenza play <file>              play a file: p pause, s <sec> seek,
                                      v <0-100> volume, q quit
@@ -125,6 +187,8 @@ pub fn parse<I: IntoIterator<Item = String>>(args: I) -> Result<Command, String>
         "scan" => Command::Scan,
         "tracks" => Command::Tracks,
         "reviews" => Command::Reviews,
+        "playlists" => Command::Playlists,
+        "playlist" => Command::Playlist(parse_playlist(&mut args)?),
         "watch" => Command::Watch,
         "play" => Command::Play(require_value(args.next(), "play", "a file to play")?),
 
@@ -177,6 +241,68 @@ pub fn parse<I: IntoIterator<Item = String>>(args: I) -> Result<Command, String>
     Ok(command)
 }
 
+/// Reads what follows `playlist`.
+///
+/// Every action names one, so the verb comes first and the name after it —
+/// `playlist show <name>` rather than `playlist <name>`, which would make a
+/// playlist called "add" unreachable.
+fn parse_playlist<I: Iterator<Item = String>>(args: &mut I) -> Result<PlaylistCommand, String> {
+    let verb = require_value(
+        args.next(),
+        "playlist",
+        "show, new, rename, delete, add, remove or move",
+    )?;
+
+    let command = match verb.as_str() {
+        "show" => PlaylistCommand::Show(require_value(args.next(), "playlist show", "a name")?),
+        "new" => PlaylistCommand::New(require_value(args.next(), "playlist new", "a name")?),
+
+        "rename" => PlaylistCommand::Rename {
+            from: require_value(args.next(), "playlist rename", "the playlist to rename")?,
+            to: require_value(args.next(), "playlist rename", "the new name")?,
+        },
+
+        "delete" => PlaylistCommand::Delete {
+            name: require_value(args.next(), "playlist delete", "a name")?,
+            confirmed: args.next().as_deref() == Some("--yes"),
+        },
+
+        "add" => PlaylistCommand::Add {
+            name: require_value(args.next(), "playlist add", "a playlist name")?,
+            track: require_number(
+                args.next(),
+                "playlist add",
+                "a track number from: cadenza tracks",
+            )?,
+        },
+
+        "remove" => PlaylistCommand::Remove {
+            name: require_value(args.next(), "playlist remove", "a playlist name")?,
+            entry: require_number(args.next(), "playlist remove", "an entry number")?,
+        },
+
+        "move" => PlaylistCommand::Move {
+            name: require_value(args.next(), "playlist move", "a playlist name")?,
+            from: require_number(args.next(), "playlist move", "the entry to move")?,
+            to: require_number(args.next(), "playlist move", "where to move it")?,
+        },
+
+        other => return Err(format!("unknown playlist command {other:?}")),
+    };
+
+    Ok(command)
+}
+
+fn require_number(value: Option<String>, verb: &str, expected: &str) -> Result<usize, String> {
+    let text = require_value(value, verb, expected)?;
+    match text.parse::<usize>() {
+        // Counting from one everywhere it is typed, so zero is a mistake rather
+        // than the first entry.
+        Ok(number) if number > 0 => Ok(number),
+        _ => Err(format!("{verb} needs {expected}, not {text:?}")),
+    }
+}
+
 fn require_value(value: Option<String>, verb: &str, expected: &str) -> Result<String, String> {
     match value {
         Some(value) if !value.trim().is_empty() => Ok(value),
@@ -186,10 +312,59 @@ fn require_value(value: Option<String>, verb: &str, expected: &str) -> Result<St
 
 #[cfg(test)]
 mod tests {
-    use super::{Command, parse};
+    use super::{Command, PlaylistCommand, parse};
 
     fn parse_args(args: &[&str]) -> Result<Command, String> {
         parse(args.iter().map(|arg| (*arg).to_owned()))
+    }
+
+    #[test]
+    fn playlist_actions_name_the_playlist_and_number_the_rest() {
+        assert_eq!(parse_args(&["playlists"]), Ok(Command::Playlists));
+
+        assert_eq!(
+            parse_args(&["playlist", "new", "Late night"]),
+            Ok(Command::Playlist(PlaylistCommand::New(
+                "Late night".to_owned()
+            )))
+        );
+        assert_eq!(
+            parse_args(&["playlist", "add", "Late night", "3"]),
+            Ok(Command::Playlist(PlaylistCommand::Add {
+                name: "Late night".to_owned(),
+                track: 3,
+            }))
+        );
+        assert_eq!(
+            parse_args(&["playlist", "move", "Late night", "1", "4"]),
+            Ok(Command::Playlist(PlaylistCommand::Move {
+                name: "Late night".to_owned(),
+                from: 1,
+                to: 4,
+            }))
+        );
+    }
+
+    #[test]
+    fn a_playlist_delete_needs_saying_twice() {
+        assert_eq!(
+            parse_args(&["playlist", "delete", "Late night"]),
+            Ok(Command::Playlist(PlaylistCommand::Delete {
+                name: "Late night".to_owned(),
+                confirmed: false,
+            })),
+            "without --yes the command reports what it would do and stops"
+        );
+    }
+
+    #[test]
+    fn positions_are_counted_from_one_so_zero_is_a_mistake() {
+        assert!(parse_args(&["playlist", "add", "Late night", "0"]).is_err());
+        assert!(parse_args(&["playlist", "add", "Late night", "three"]).is_err());
+        assert!(
+            parse_args(&["playlist", "add", "Late night"]).is_err(),
+            "and a missing number is not the first track"
+        );
     }
 
     #[test]

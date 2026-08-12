@@ -27,8 +27,13 @@ export component TrackList inherits Rectangle {
     in property <string> playing-id;
     in property <string> empty-title;
     in property <string> empty-hint;
+    /// Set to make the eyebrow a way back. Empty means this page is a
+    /// destination rather than somewhere you arrived from.
+    in property <string> back-label;
 
     callback play(string);
+    callback enqueue(string);
+    callback back();
 
     background: Theme.bg-0;
 
@@ -46,12 +51,41 @@ export component TrackList inherits Rectangle {
             padding-bottom: Theme.space-5;
             spacing: Theme.space-2;
 
-            Text {
+            // The eyebrow, or the way back where there is one. The same line in
+            // the same place: a page reached from somewhere says where from,
+            // and a page that is a destination says what it is.
+            if root.back-label == "": Text {
                 text: root.eyebrow;
                 font-family: Theme.mono;
                 font-size: Theme.text-label;
                 letter-spacing: Theme.label-spacing;
                 color: Theme.ink-mute;
+            }
+
+            if root.back-label != "": HorizontalLayout {
+                alignment: start;
+
+                Rectangle {
+                    // Hugs the text, so only the words are clickable.
+                    width: label.width;
+                    height: label.height;
+
+                    back-touch := TouchArea {
+                        mouse-cursor: pointer;
+                        clicked => {
+                            root.back();
+                        }
+                    }
+
+                    label := Text {
+                        text: "← " + root.back-label;
+                        font-family: Theme.mono;
+                        font-size: Theme.text-label;
+                        letter-spacing: Theme.label-spacing;
+                        color: back-touch.has-hover ? Theme.ink-0 : Theme.ink-mute;
+                        animate color { duration: 120ms; }
+                    }
+                }
             }
 
             Text {
@@ -153,6 +187,9 @@ export component TrackList inherits Rectangle {
                     playing: entry.id == root.playing-id;
                     activated => {
                         root.play(entry.id);
+                    }
+                    enqueued => {
+                        root.enqueue(entry.id);
                     }
                 }
             }

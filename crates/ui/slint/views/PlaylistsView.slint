@@ -1,0 +1,154 @@
+import { ListView } from "std-widgets.slint";
+import { Theme } from "../theme/tokens.slint";
+
+// One playlist, as the view model hands it over. `summary` is already the
+// sentence to draw — how many tracks and how long — because counting and
+// pluralising are decisions, and decisions belong in Rust.
+export struct PlaylistRowData {
+    id: string,
+    name: string,
+    summary: string,
+}
+
+// One row of the index.
+component PlaylistRow inherits Rectangle {
+    in property <PlaylistRowData> data;
+
+    callback activated();
+
+    height: Theme.row-height;
+    background: touch.has-hover ? Theme.bg-1 : transparent;
+    animate background { duration: 120ms; }
+
+    touch := TouchArea {
+        double-clicked => {
+            root.activated();
+        }
+    }
+
+    HorizontalLayout {
+        padding-left: Theme.row-padding;
+        padding-right: Theme.row-end-inset;
+        spacing: Theme.column-gap;
+
+        VerticalLayout {
+            alignment: center;
+            horizontal-stretch: 1;
+
+            Text {
+                text: root.data.name;
+                font-family: Theme.serif;
+                font-size: Theme.text-row-title;
+                color: touch.has-hover ? Theme.ink-0 : Theme.ink-1;
+                overflow: elide;
+                animate color { duration: 120ms; }
+            }
+        }
+
+        VerticalLayout {
+            alignment: center;
+
+            Text {
+                text: root.data.summary;
+                font-family: Theme.mono;
+                font-size: Theme.text-number;
+                letter-spacing: Theme.number-spacing;
+                color: Theme.ink-mute;
+                horizontal-alignment: right;
+            }
+        }
+    }
+
+    // The same hairline the track rows carry, and it stops where they stop.
+    Rectangle {
+        y: parent.height - 1px;
+        height: 1px;
+        background: Theme.line-soft;
+    }
+}
+
+// The lists the listener keeps.
+export component PlaylistsView inherits Rectangle {
+    in property <[PlaylistRowData]> playlists;
+    in property <string> empty-hint;
+
+    callback open(string);
+
+    background: Theme.bg-0;
+
+    VerticalLayout {
+        VerticalLayout {
+            vertical-stretch: 0;
+            padding-left: Theme.page-inset;
+            padding-right: Theme.page-inset;
+            padding-top: Theme.space-6;
+            padding-bottom: Theme.space-5;
+            spacing: Theme.space-2;
+
+            Text {
+                text: "YOUR LISTS";
+                font-family: Theme.mono;
+                font-size: Theme.text-label;
+                letter-spacing: Theme.label-spacing;
+                color: Theme.ink-mute;
+            }
+
+            Text {
+                text: "Playlists";
+                font-family: Theme.serif;
+                font-size: Theme.text-display;
+                color: Theme.ink-0;
+            }
+        }
+
+        // The rule that ends the head. No column labels: there is one column.
+        VerticalLayout {
+            vertical-stretch: 0;
+            padding-left: Theme.page-inset;
+            padding-right: Theme.page-inset;
+
+            Rectangle {
+                height: 1px;
+                background: Theme.line;
+            }
+        }
+
+        if root.playlists.length == 0: Rectangle {
+            VerticalLayout {
+                alignment: center;
+                spacing: Theme.space-3;
+
+                Text {
+                    text: "No lists yet";
+                    font-family: Theme.serif;
+                    font-size: Theme.text-display;
+                    color: Theme.ink-2;
+                    horizontal-alignment: center;
+                }
+                Text {
+                    text: root.empty-hint;
+                    font-family: Theme.mono;
+                    font-size: Theme.text-number;
+                    color: Theme.ink-mute;
+                    horizontal-alignment: center;
+                    wrap: word-wrap;
+                }
+            }
+        }
+
+        if root.playlists.length > 0: HorizontalLayout {
+            vertical-stretch: 1;
+            padding-left: Theme.page-inset;
+            padding-right: Theme.page-inset;
+
+            ListView {
+                for entry in root.playlists: PlaylistRow {
+                    data: entry;
+                    activated => {
+                        root.open(entry.id);
+                    }
+                }
+            }
+        }
+    }
+}

@@ -22,15 +22,16 @@ export component TrackRow inherits Rectangle {
     in property <bool> playing;
 
     callback activated();
+    callback enqueued();
 
-    // True while the pointer is anywhere over the row, including over the play
-    // button in the number column — a nested touch area takes the pointer from
-    // the one beneath it, and without this the button would vanish as the
-    // pointer reached it.
-    property <bool> hovered: touch.has-hover;
+    // True while the pointer is anywhere over the row, including over the two
+    // buttons in it — a nested touch area takes the pointer from the one
+    // beneath it, and without this they would vanish as the pointer reached
+    // them.
+    property <bool> hovered: touch.has-hover || hover-play.has-hover || hover-queue.has-hover;
 
     height: Theme.row-height;
-    background: root.hovered || hover-play.has-hover ? Theme.bg-1 : transparent;
+    background: root.hovered ? Theme.bg-1 : transparent;
     animate background { duration: 120ms; }
 
     touch := TouchArea {
@@ -57,7 +58,7 @@ export component TrackRow inherits Rectangle {
         Rectangle {
             width: Theme.number-column;
 
-            if !hover-play.has-hover && !root.hovered: Text {
+            if !root.hovered: Text {
                 text: root.data.position;
                 font-family: Theme.mono;
                 font-size: Theme.text-number;
@@ -68,7 +69,7 @@ export component TrackRow inherits Rectangle {
                 width: parent.width;
             }
 
-            if hover-play.has-hover || root.hovered: Image {
+            if root.hovered: Image {
                 source: @image-url("../../../../resources/ui/icons/play.svg");
                 width: 13px;
                 height: self.width;
@@ -126,15 +127,38 @@ export component TrackRow inherits Rectangle {
             overflow: elide;
         }
 
-        Text {
+        // The length, until the pointer arrives — then the way to put this
+        // track next. The same trade the number column makes at the other end
+        // of the row: a column that is already there says something else while
+        // it is useful, and nothing moves.
+        Rectangle {
             width: Theme.time-column;
-            text: root.data.duration;
-            font-family: Theme.mono;
-            font-size: Theme.text-number;
-            letter-spacing: Theme.number-spacing;
-            color: Theme.ink-mute;
-            vertical-alignment: center;
-            horizontal-alignment: right;
+
+            if !root.hovered: Text {
+                width: parent.width;
+                text: root.data.duration;
+                font-family: Theme.mono;
+                font-size: Theme.text-number;
+                letter-spacing: Theme.number-spacing;
+                color: Theme.ink-mute;
+                vertical-alignment: center;
+                horizontal-alignment: right;
+            }
+
+            if root.hovered: Image {
+                source: @image-url("../../../../resources/ui/icons/queue.svg");
+                width: 14px;
+                height: self.width;
+                x: parent.width - self.width;
+                y: (parent.height - self.height) / 2;
+                colorize: hover-queue.has-hover ? Theme.ink-0 : Theme.ink-2;
+            }
+
+            hover-queue := TouchArea {
+                clicked => {
+                    root.enqueued();
+                }
+            }
         }
     }
 

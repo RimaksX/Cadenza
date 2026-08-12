@@ -16,7 +16,7 @@ use uuid::Uuid;
 
 use crate::application::context::AppContext;
 use crate::application::view_state::QueueView;
-use crate::domain::ids::MediaFileId;
+use crate::domain::ids::{MediaFileId, PlaylistId};
 use crate::domain::policies::playback_policy::{PreviousAction, previous_action};
 use crate::domain::policies::shuffle_policy;
 use crate::domain::ports::event_bus::DomainEvent;
@@ -103,6 +103,44 @@ impl QueueService {
         self.play_current()
     }
 
+    /// Starts a playlist, with the rest of it behind the chosen track.
+    ///
+    /// The entries carry the playlist as their origin, which is what makes the
+    /// transition between them gapless rather than crossfaded
+    /// (PROJECT_MASTER 2.4) — and what a restored queue needs to still know it
+    /// is playing a playlist rather than a library.
+    pub fn play_playlist(
+        &self,
+        playlist_id: PlaylistId,
+        tracks: &[TrackSummary],
+        from: MediaFileId,
+    ) -> Result<()> {
+        let profile_id = self.context.require_active_profile()?;
+
+        if !tracks.iter().any(|track| track.media_file_id == from) {
+            return Err(CoreError::not_found("track", from));
+        }
+
+        let origin = QueueOrigin::Playlist(playlist_id);
+        let mut continuation = rotate(tracks, from, origin);
+        if self.with_queue(|queue| queue.shuffle) {
+            shuffle_policy::shuffle(&mut continuation, seed());
+        }
+
+        self.write_queue(|queue| {
+            queue.profile_id = profile_id;
+            queue.start(
+                QueueEntry {
+                    media_file_id: from,
+                    origin,
+                },
+                continuation,
+            );
+        });
+
+        self.play_current()
+    }
+
     /// Puts a track at the end of the manual queue.
     pub fn enqueue(&self, media_file_id: MediaFileId) -> Result<()> {
         let profile_id = self.context.require_active_profile()?;
@@ -117,6 +155,9 @@ impl QueueService {
                 origin: QueueOrigin::Library,
             });
         });
+
+        self.persist();
+        self.announce();
         Ok(())
     }
 
@@ -166,27 +207,30 @@ impl QueueService {
         let shuffle = !self.with_queue(|queue| queue.shuffle);
         let current = self.with_queue(|queue| queue.current);
 
-        let ordered = if shuffle {
-            None
-        } else {
-            // Library order is a question only the library can answer.
+        // Only library playback has an order to restore here. A playlist's order
+        // is the playlist's, and this service has no playlist to ask — so
+        // turning shuffle off part way through one keeps the tracks it has and
+        // records the flag, and the order comes back the next time the playlist
+        // is started.
+        let restores_order =
+            !shuffle && current.is_some_and(|entry| matches!(entry.origin, QueueOrigin::Library));
+
+        let ordered = if restores_order {
             let profile_id = self.context.require_active_profile()?;
             Some(self.ports.tracks.summaries_for_profile(profile_id)?)
+        } else {
+            None
         };
 
         self.write_queue(|queue| {
             queue.shuffle = shuffle;
 
-            match (&ordered, current) {
-                (None, _) => {
-                    let mut pool: Vec<QueueEntry> = queue.upcoming.iter().copied().collect();
-                    shuffle_policy::shuffle(&mut pool, seed());
-                    queue.upcoming = pool.into();
-                }
-                (Some(library), Some(entry)) => {
-                    queue.upcoming = continuation_of(library, entry.media_file_id).into();
-                }
-                (Some(_), None) => {}
+            if shuffle {
+                let mut pool: Vec<QueueEntry> = queue.upcoming.iter().copied().collect();
+                shuffle_policy::shuffle(&mut pool, seed());
+                queue.upcoming = pool.into();
+            } else if let (Some(library), Some(entry)) = (&ordered, current) {
+                queue.upcoming = rotate(library, entry.media_file_id, QueueOrigin::Library).into();
             }
         });
 
@@ -303,7 +347,7 @@ impl QueueService {
         from: MediaFileId,
         shuffle: bool,
     ) -> Vec<QueueEntry> {
-        let mut entries = continuation_of(library, from);
+        let mut entries = rotate(library, from, QueueOrigin::Library);
         if shuffle {
             shuffle_policy::shuffle(&mut entries, seed());
         }
@@ -339,26 +383,29 @@ impl QueueService {
     }
 }
 
-/// The rest of the library after `from`, wrapping round to what precedes it.
+/// The rest of a list after `from`, wrapping round to what precedes it.
 ///
-/// Wrapping rather than stopping at the bottom of the list: starting halfway
-/// down a library and never hearing its first half is not what "play from here"
-/// means. Every track still appears exactly once, so a round ends where it
-/// began and repeat all has a whole library to begin again with.
-fn continuation_of(library: &[TrackSummary], from: MediaFileId) -> Vec<QueueEntry> {
-    let Some(start) = library
+/// Wrapping rather than stopping at the bottom: starting halfway down a library
+/// and never hearing its first half is not what "play from here" means. Every
+/// track still appears exactly once, so a round ends where it began and repeat
+/// all has a whole list to begin again with.
+///
+/// The same for a playlist as for a library — only the origin differs, and the
+/// origin is what decides how one track hands over to the next.
+fn rotate(list: &[TrackSummary], from: MediaFileId, origin: QueueOrigin) -> Vec<QueueEntry> {
+    let Some(start) = list
         .iter()
         .position(|summary| summary.media_file_id == from)
     else {
         return Vec::new();
     };
 
-    library[start + 1..]
+    list[start + 1..]
         .iter()
-        .chain(&library[..start])
+        .chain(&list[..start])
         .map(|summary| QueueEntry {
             media_file_id: summary.media_file_id,
-            origin: QueueOrigin::Library,
+            origin,
         })
         .collect()
 }

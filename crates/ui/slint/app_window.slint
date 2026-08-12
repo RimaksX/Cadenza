@@ -13,6 +13,7 @@ import "../../../resources/ui/fonts/JetBrains_Mono/JetBrainsMono-Regular.ttf";
 import { Theme } from "theme/tokens.slint";
 import { AppShell } from "components/AppShell.slint";
 import { TrackRowData } from "components/TrackRow.slint";
+import { PlaylistRowData } from "views/PlaylistsView.slint";
 
 // Re-exported so the controller can set the palette. A global's input is set
 // from the native side; markup may read it but never assign to it, which is
@@ -46,6 +47,12 @@ export component AppWindow inherits Window {
     in property <[TrackRowData]> queue-tracks;
     in property <string> queue-summary;
     in property <string> queue-hint;
+    in property <[PlaylistRowData]> playlists;
+    in property <string> playlists-hint;
+    in property <[TrackRowData]> playlist-tracks;
+    in property <string> playlist-name;
+    in property <string> playlist-summary;
+    in property <string> playlist-hint;
     in property <string> profile-name;
     in property <string> profile-initial;
     in property <string> now-title;
@@ -73,6 +80,9 @@ export component AppWindow inherits Window {
     callback close-window();
     callback drag-window(length, length);
     callback play(string);
+    callback enqueue(string);
+    callback open-playlist(string);
+    callback play-from-playlist(string);
     callback toggle-play();
     callback seek(float);
     callback set-volume(float);
@@ -103,6 +113,12 @@ export component AppWindow inherits Window {
         queue-tracks: root.queue-tracks;
         queue-summary: root.queue-summary;
         queue-hint: root.queue-hint;
+        playlists: root.playlists;
+        playlists-hint: root.playlists-hint;
+        playlist-tracks: root.playlist-tracks;
+        playlist-name: root.playlist-name;
+        playlist-summary: root.playlist-summary;
+        playlist-hint: root.playlist-hint;
         profile-name: root.profile-name;
         profile-initial: root.profile-initial;
         now-title: root.now-title;
@@ -125,6 +141,15 @@ export component AppWindow inherits Window {
 
         play(id) => {
             root.play(id);
+        }
+        enqueue(id) => {
+            root.enqueue(id);
+        }
+        open-playlist(id) => {
+            root.open-playlist(id);
+        }
+        play-from-playlist(id) => {
+            root.play-from-playlist(id);
         }
         toggle-play => {
             root.toggle-play();

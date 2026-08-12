@@ -12,7 +12,7 @@ section `11_План_реализации`. This file tracks progress only.
 | M4 | Библиотека и сканирование | done |
 | M5 | Базовый audio engine | done |
 | M6 | UI shell | done |
-| M7 | Плейлисты, очередь, repeat/shuffle | not started |
+| M7 | Плейлисты, очередь, repeat/shuffle | done |
 | M8 | Crossfade и gapless | not started |
 | M9 | Эквалайзер | not started |
 | M10 | Визуализация | not started |
@@ -237,6 +237,59 @@ and CI has none. Everything below it is — the ring, the resampler, the channel
 map, the callback and the decode thread all run without one. What no test can
 claim is that the result sounds right, and that is checked by running
 `cadenza play`.
+
+## M7 — what was actually built
+
+Something to play next. The queue advances on its own when a track ends, goes
+back, repeats in three modes, shuffles, and is still there after a restart.
+Playlists are kept, reordered, played, and outlive the run that made them.
+311 tests.
+
+- `core/domain/queue.rs` — the order rules, and only them: manual entries
+  outrank the continuation, repeat one holds the track, repeat all restarts the
+  round from what has already played. The last of those works for a playlist or
+  a radio batch as well as a library, because it rewinds through history rather
+  than through any particular source.
+- `core/domain/policies/shuffle_policy.rs` — a seeded permutation. Every track
+  plays once before any plays twice, which is 9.2's first hard rule satisfied by
+  construction; the scoring of 9.4 is M12's.
+- `core/application/services/queue_service.rs` — what the order is made of, and
+  the only caller of `PlaybackService::play_track`. Choosing a row queues the
+  whole library, wrapping round to the tracks above it (finding 32).
+- `core/application/services/playlist_service.rs` — create, rename, delete, add,
+  remove, move, read. Entries are renumbered and rewritten in one transaction,
+  which is what migration 6's deliberately non-unique index is for.
+- `infra/db/migrations/m0014_queue.rs` — `queue_state` and `queue_entries`, the
+  table section 7 never defines for a queue the requirements say must survive a
+  restart (finding 31). One table for all four lanes; the lane is a column.
+- `infra/db/repositories/{queue,playlist}_repo.rs`, and 23 integration tests
+  across `queue.rs`, `queue_service.rs` and `playlists.rs` — real repositories,
+  real schema, a fake device.
+- `ui/` — the four transport buttons that were drawn and disabled since M6 now
+  work; repeat is one button with three states. Queue, Playlists and one
+  playlist are screens, reached from the sidebar. `components/TrackList.slint`
+  is the page all three listings are, told different words.
+- `app` — `cadenza playlists` and seven `cadenza playlist` verbs. Creating a
+  playlist needs a name typed in, and this interface has no field to type one
+  into yet (finding 34).
+
+Two things the interface does that the plan did not name, because the milestone
+is incomplete without them. A row swaps its length for a queue button on hover,
+the way it already swaps its number for a play button — without it the manual
+queue is implemented, tested and unreachable. And the volume and position lines
+became draggable, with the position reported only on release: a seek is a flush
+handshake with the audio callback that can block for 200 ms, so reporting it
+continuously would freeze the window for the length of the drag.
+
+Smart playlists are not built. `is_smart` and `rule_json` exist in the schema
+and no section of the master file says what a rule is; inventing one now would
+mean designing it against no requirement. Finding 33 puts it in M12, where smart
+shuffle has to express the same idea.
+
+What rendering cannot check is still what it could not check in M6: a click, a
+hover, a drag. The screens were rendered and read; the services behind every
+control have tests; the playlist commands were run by hand against a real
+database. The pointer itself remains the owner's to try.
 
 ## M6 — what was actually built
 
