@@ -11,7 +11,9 @@
 pub mod library_service;
 pub mod playback_service;
 pub mod profile_service;
+pub mod queue_service;
 
 pub use library_service::{LibraryPorts, LibraryService, ScanReport};
 pub use playback_service::{PlaybackPorts, PlaybackService};
 pub use profile_service::ProfileService;
+pub use queue_service::{QueuePorts, QueueService};

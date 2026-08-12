@@ -19,6 +19,31 @@ pub const ARTIST_COOLDOWN: usize = 3;
 /// PROJECT_MASTER 9.4 says "top 10-20"; this is where in that range it sits.
 pub const CANDIDATE_POOL_SIZE: usize = 15;
 
+/// Reorders a pool into a random permutation.
+///
+/// This is the whole of M7's basic shuffle. A permutation satisfies the first
+/// hard rule of 9.2 by construction — every track plays once before any plays
+/// twice — and says nothing about which order is *good*, which is what the
+/// scoring of 9.4 adds in M12.
+///
+/// The seed is a parameter because the domain has no entropy of its own, and
+/// because a shuffle that cannot be reproduced cannot be tested.
+pub fn shuffle<T>(pool: &mut [T], seed: u64) {
+    // xorshift64: a few instructions, no dependency, and far better than a
+    // library-order "shuffle" that only ever rotates. The modulo below is
+    // biased by about one part in 2^58 for a pool of any size a listener will
+    // ever have, which is not a musical problem.
+    let mut state = seed | 1; // zero is xorshift's fixed point.
+
+    for index in (1..pool.len()).rev() {
+        state ^= state << 13;
+        state ^= state >> 7;
+        state ^= state << 17;
+        let pick = (state % (index as u64 + 1)) as usize;
+        pool.swap(index, pick);
+    }
+}
+
 /// True when the artist appeared too recently to play again.
 ///
 /// Tracks with no known artist never block each other: an unanalysed library
@@ -54,9 +79,57 @@ pub fn is_eligible(
 
 #[cfg(test)]
 mod tests {
-    use super::{ARTIST_COOLDOWN, artist_on_cooldown, is_eligible};
+    use super::{ARTIST_COOLDOWN, artist_on_cooldown, is_eligible, shuffle};
     use crate::domain::ids::ArtistId;
     use crate::domain::media_file::FileState;
+
+    #[test]
+    fn shuffling_keeps_every_track_exactly_once() {
+        let mut pool: Vec<u32> = (0..64).collect();
+        shuffle(&mut pool, 0x5eed_1234_9abc_def0);
+
+        let mut sorted = pool.clone();
+        sorted.sort_unstable();
+        assert_eq!(
+            sorted,
+            (0..64).collect::<Vec<_>>(),
+            "nothing lost or doubled"
+        );
+        assert_ne!(
+            pool,
+            (0..64).collect::<Vec<_>>(),
+            "and it did not stay in order"
+        );
+    }
+
+    #[test]
+    fn the_same_seed_gives_the_same_order() {
+        let mut once: Vec<u32> = (0..32).collect();
+        let mut again = once.clone();
+        shuffle(&mut once, 7);
+        shuffle(&mut again, 7);
+        assert_eq!(once, again);
+    }
+
+    #[test]
+    fn a_zero_seed_still_shuffles() {
+        // xorshift never leaves zero, so a seed of zero would return the pool
+        // untouched — and a listener whose first shuffle does nothing has been
+        // told the button is broken.
+        let mut pool: Vec<u32> = (0..32).collect();
+        shuffle(&mut pool, 0);
+        assert_ne!(pool, (0..32).collect::<Vec<_>>());
+    }
+
+    #[test]
+    fn short_pools_are_left_alone_rather_than_panicking() {
+        let mut empty: [u32; 0] = [];
+        shuffle(&mut empty, 1);
+
+        let mut single = [42];
+        shuffle(&mut single, 1);
+        assert_eq!(single, [42]);
+    }
 
     #[test]
     fn an_artist_just_played_is_on_cooldown() {

@@ -434,3 +434,42 @@ implementation work, so it waited for the go-ahead.
 Nothing else in the master file was touched — `implementation_order` and every
 other section stand as written, and the deviations recorded here stay recorded
 here rather than being edited into the source of truth.
+
+## 31. The queue has to survive a restart and has no table — resolved
+
+Section 2.3 lists "восстановление последней очереди" among the playback
+features and 2.5 gives every profile "собственную очередь", but section 7
+defines no table for either. `QueueRepositoryPort` was declared in M1 with a
+note saying the storage shape was M7's to settle. This is M7.
+
+**Chosen:** `queue_state` (one row per profile: repeat mode, shuffle, when it
+was written) and `queue_entries` (one row per queued track), in migration 14.
+
+One table for all four lanes rather than four tables, with a `lane` column
+holding `current`, `manual`, `upcoming` or `history`: they store the same thing
+in a different role, and the role is one column. `current` is a lane with at
+most one row rather than a column on `queue_state`, so that a lane change is a
+lane change and not a move between tables.
+
+Saving replaces every row for the profile inside one transaction. A queue is a
+few dozen rows, it changes as a whole every time a track starts, and a diff that
+gets one lane wrong is a queue that silently plays the wrong thing.
+
+`queue_entries.media_file_id` cascades from `media_files`: a queued track whose
+file has left the catalogue has nothing left to play.
+
+## 32. "Repeat All начинает заново" does not say what the list is — resolved
+
+Section 2.3 says repeat all restarts the list after its end, without saying
+whether "the list" is the queue or the library — and choosing a row halfway
+down a library makes the two differ.
+
+**Chosen:** choosing a row queues the whole library, wrapping. The continuation
+is everything after the row followed by everything before it, so a round covers
+every track exactly once and ends where it began. Repeat all then means what the
+section says — the same round again — and a listener who starts halfway down
+still hears the first half.
+
+The domain does the restarting from `history` rather than from the library
+(`Queue::advance`), so the rule holds for a playlist or a radio batch too, where
+there is no library to fall back on.

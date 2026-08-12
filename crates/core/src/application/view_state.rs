@@ -10,6 +10,7 @@
 //! of which are the interface.
 
 use crate::domain::playback::PlaybackState;
+use crate::domain::queue::RepeatMode;
 use crate::domain::track::TrackSummary;
 use crate::domain::value_objects::{DurationMs, PlaybackPosition, Volume};
 
@@ -56,6 +57,32 @@ impl PlayerView {
     /// How much of the track is left.
     pub fn remaining(&self) -> DurationMs {
         self.duration.saturating_sub(self.position.elapsed())
+    }
+}
+
+/// What the transport buttons around the play button need.
+///
+/// Counts and flags rather than rows: this is read on every tick, and the
+/// listing the queue panel draws is asked for separately when it is on screen.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct QueueView {
+    /// What happens at the end of the track.
+    pub repeat: RepeatMode,
+    /// Whether the continuation is shuffled.
+    pub shuffle: bool,
+    /// How many tracks are waiting, excluding the current one.
+    pub pending: usize,
+    /// Whether anything played before the current track.
+    pub has_previous: bool,
+    /// Whether anything follows it.
+    pub has_next: bool,
+}
+
+impl QueueView {
+    /// True when repeat is on in either mode — what the button's lit state
+    /// shows, with the mode itself distinguishing the two.
+    pub const fn repeats(&self) -> bool {
+        !matches!(self.repeat, RepeatMode::Off)
     }
 }
 

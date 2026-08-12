@@ -26,6 +26,7 @@ mod m0010_settings;
 mod m0011_analysis;
 mod m0012_review;
 mod m0013_profile_genres;
+mod m0014_queue;
 
 /// One numbered schema change.
 pub struct Migration {
@@ -103,6 +104,11 @@ pub const MIGRATIONS: &[Migration] = &[
         version: 13,
         name: "profile_genres",
         sql: m0013_profile_genres::SQL,
+    },
+    Migration {
+        version: 14,
+        name: "queue",
+        sql: m0014_queue::SQL,
     },
 ];
 

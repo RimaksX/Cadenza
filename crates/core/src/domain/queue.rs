@@ -143,6 +143,75 @@ impl Queue {
         }
         self.manual.front().or_else(|| self.upcoming.front())
     }
+
+    /// Moves to the next entry and returns it, or `None` when there is nowhere
+    /// left to go.
+    ///
+    /// This is the whole advancement rule of PROJECT_MASTER 2.3 in one place:
+    /// repeat one holds, the manual queue outranks the continuation, and repeat
+    /// all refills from what has already played rather than stopping.
+    pub fn advance(&mut self) -> Option<QueueEntry> {
+        if self.repeat.holds_current_track() && self.current.is_some() {
+            return self.current;
+        }
+
+        if self.manual.is_empty() && self.upcoming.is_empty() && self.repeat == RepeatMode::All {
+            // Everything that has played goes back in front, in the order it
+            // played. The track that is ending is not among them yet — it is
+            // pushed below, and so leads the round after this one.
+            self.upcoming = self.history.drain(..).collect();
+
+            // A single track is still a list. With nothing else to rewind to,
+            // repeat all means play it again.
+            if self.upcoming.is_empty() {
+                return self.current;
+            }
+        }
+
+        let next = self
+            .manual
+            .pop_front()
+            .or_else(|| self.upcoming.pop_front());
+
+        // A track that ran out is history whether or not anything follows it.
+        if let Some(finished) = self.current.take() {
+            self.history.push(finished);
+        }
+        self.current = next;
+        next
+    }
+
+    /// Moves back to the previously played entry and returns it.
+    ///
+    /// The track being left goes to the front of the continuation rather than
+    /// into the manual queue: it is not something the listener asked for by
+    /// name, and the manual queue is.
+    pub fn go_back(&mut self) -> Option<QueueEntry> {
+        let previous = self.history.pop()?;
+        if let Some(leaving) = self.current.take() {
+            self.upcoming.push_front(leaving);
+        }
+        self.current = Some(previous);
+        Some(previous)
+    }
+
+    /// Puts an entry at the end of the manual queue, to play before the
+    /// continuation resumes.
+    pub fn enqueue(&mut self, entry: QueueEntry) {
+        self.manual.push_back(entry);
+    }
+
+    /// Replaces the continuation and starts on `entry`.
+    ///
+    /// The manual queue survives: it is the listener's own list, and choosing
+    /// something else to play is not a reason to discard it.
+    pub fn start(&mut self, entry: QueueEntry, continuation: Vec<QueueEntry>) {
+        if let Some(leaving) = self.current.take() {
+            self.history.push(leaving);
+        }
+        self.upcoming = continuation.into();
+        self.current = Some(entry);
+    }
 }
 
 #[cfg(test)]
@@ -192,6 +261,77 @@ mod tests {
             Some(&current),
             "repeat one must not consume the manual queue"
         );
+    }
+
+    #[test]
+    fn advancing_consumes_the_manual_queue_first_and_remembers_what_played() {
+        let mut queue = Queue::new(ProfileId::new());
+        let first = entry(QueueOrigin::Library);
+        let manual = entry(QueueOrigin::Library);
+        let automatic = entry(QueueOrigin::Library);
+
+        queue.start(first, vec![automatic]);
+        queue.enqueue(manual);
+
+        assert_eq!(queue.advance(), Some(manual));
+        assert_eq!(queue.history, vec![first]);
+        assert_eq!(queue.advance(), Some(automatic));
+        assert_eq!(queue.advance(), None, "repeat off stops at the end");
+        assert_eq!(queue.current, None);
+    }
+
+    #[test]
+    fn repeat_all_starts_the_list_again_in_the_order_it_played() {
+        let mut queue = Queue::new(ProfileId::new());
+        let (a, b, c) = (
+            entry(QueueOrigin::Library),
+            entry(QueueOrigin::Library),
+            entry(QueueOrigin::Library),
+        );
+        queue.repeat = RepeatMode::All;
+        queue.start(a, vec![b, c]);
+
+        assert_eq!(queue.advance(), Some(b));
+        assert_eq!(queue.advance(), Some(c));
+        assert_eq!(queue.advance(), Some(a), "round two");
+        assert_eq!(queue.advance(), Some(b));
+        assert_eq!(queue.advance(), Some(c));
+    }
+
+    #[test]
+    fn repeat_all_with_one_track_plays_it_again() {
+        let mut queue = Queue::new(ProfileId::new());
+        let only = entry(QueueOrigin::Library);
+        queue.repeat = RepeatMode::All;
+        queue.start(only, Vec::new());
+
+        assert_eq!(queue.advance(), Some(only));
+        assert!(queue.history.is_empty(), "it never left");
+    }
+
+    #[test]
+    fn repeat_one_holds_the_track_without_touching_the_queue() {
+        let mut queue = Queue::new(ProfileId::new());
+        let current = entry(QueueOrigin::Library);
+        let waiting = entry(QueueOrigin::Library);
+        queue.start(current, vec![waiting]);
+        queue.repeat = RepeatMode::One;
+
+        assert_eq!(queue.advance(), Some(current));
+        assert_eq!(queue.upcoming.front(), Some(&waiting));
+    }
+
+    #[test]
+    fn going_back_replays_the_previous_track_and_keeps_the_current_one_next() {
+        let mut queue = Queue::new(ProfileId::new());
+        let (a, b) = (entry(QueueOrigin::Library), entry(QueueOrigin::Library));
+        queue.start(a, vec![b]);
+        assert_eq!(queue.advance(), Some(b));
+
+        assert_eq!(queue.go_back(), Some(a));
+        assert_eq!(queue.current, Some(a));
+        assert_eq!(queue.upcoming.front(), Some(&b));
+        assert_eq!(queue.go_back(), None, "nothing played before it");
     }
 
     #[test]
