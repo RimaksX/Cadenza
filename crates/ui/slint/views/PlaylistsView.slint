@@ -184,7 +184,12 @@ export component PlaylistsView inherits Rectangle {
             }
         }
 
+        // See the note in `TrackList`: without a child that takes the surplus,
+        // a column layout spreads it across every child and the page head comes
+        // apart.
         if root.playlists.length == 0: Rectangle {
+            vertical-stretch: 1;
+
             VerticalLayout {
                 alignment: center;
                 spacing: Theme.space-3;

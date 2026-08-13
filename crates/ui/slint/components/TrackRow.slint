@@ -169,14 +169,29 @@ export component TrackRow inherits Rectangle {
             // already waiting and adding it again is the one thing nobody
             // wants. One control, one place, and the list it is in decides
             // which way it points.
-            if root.hovered: Rectangle {
+            if root.hovered: pill := Rectangle {
+                // Red only under the pointer, and only where the button takes
+                // something away. At rest it is the same quiet outline as its
+                // opposite: a row that shouts before it is touched is a row
+                // that shouts all the time.
+                property <color> accent: root.queued && hover-queue.has-hover
+                    ? Theme.danger
+                    : (hover-queue.has-hover ? Theme.ink-0 : Theme.ink-2);
+
                 width: parent.width;
                 height: 26px;
                 y: (parent.height - self.height) / 2;
                 border-radius: Theme.radius;
                 border-width: 1px;
-                border-color: hover-queue.has-hover ? Theme.line : Theme.line-soft;
-                background: hover-queue.has-hover ? Theme.bg-2 : transparent;
+                border-color: hover-queue.has-hover
+                    ? (root.queued ? Theme.danger.with-alpha(0.5) : Theme.line)
+                    : Theme.line-soft;
+                // A tint rather than a fill: enough to say the word is meant,
+                // not enough to make a small button the loudest thing on a page
+                // of hairlines.
+                background: !hover-queue.has-hover
+                    ? transparent
+                    : (root.queued ? Theme.danger.with-alpha(0.12) : Theme.bg-2);
                 animate background, border-color { duration: 120ms; }
 
                 HorizontalLayout {
@@ -192,7 +207,8 @@ export component TrackRow inherits Rectangle {
                                 : @image-url("../../../../resources/ui/icons/queue.svg");
                             width: 12px;
                             height: self.width;
-                            colorize: hover-queue.has-hover ? Theme.ink-0 : Theme.ink-2;
+                            colorize: pill.accent;
+                            animate colorize { duration: 120ms; }
                         }
                     }
 
@@ -201,8 +217,9 @@ export component TrackRow inherits Rectangle {
                         font-family: Theme.mono;
                         font-size: Theme.text-label;
                         letter-spacing: Theme.label-spacing;
-                        color: hover-queue.has-hover ? Theme.ink-0 : Theme.ink-2;
+                        color: pill.accent;
                         vertical-alignment: center;
+                        animate color { duration: 120ms; }
                     }
                 }
             }

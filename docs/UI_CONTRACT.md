@@ -65,6 +65,14 @@ caption and a smudge:
 | `ink-mute` on `bg-0` / `bg-1` | 4.82 / 4.64 | 4.92 / 4.63 |
 | `ink-disabled` | 2.82 | 2.82 |
 | `line` / `line-soft` | 1.91 / 1.40 | 1.92 / 1.40 |
+| `danger` on `bg-2` | 5.27 | 5.46 |
+
+`danger` is the only colour in either palette. It marks the one control that
+takes something away — REMOVE, on a row in the queue — and only while the
+pointer is on it. Warm rather than a signal red, so it belongs to this hue
+instead of arriving from a system dialog; the light side is deeper than a
+mirror of the dark one would give, because a light red on a near-white surface
+reads as pink rather than as a warning.
 
 `ink-disabled` is deliberately below the minimum. A disabled control is exempt
 from it, and cannot look unavailable while it is as legible as the controls that

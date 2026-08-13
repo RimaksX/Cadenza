@@ -158,7 +158,15 @@ export component TrackList inherits Rectangle {
         }
 
         // An empty list is a state with an answer, not a blank page.
+        //
+        // `vertical-stretch: 1` is not decoration. A column layout whose every
+        // child asks for nothing shares the spare height between all of them —
+        // so without this the page head grew, its three lines drifted apart,
+        // and the column labels sank into the middle of the window. One child
+        // that will take the surplus keeps every other child at its own height.
         if root.tracks.length == 0: Rectangle {
+            vertical-stretch: 1;
+
             VerticalLayout {
                 alignment: center;
                 spacing: Theme.space-3;

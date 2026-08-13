@@ -37,4 +37,10 @@ export global DarkPalette {
     out property <color> ink-2: #95918f;
     out property <color> ink-1: #d3d0ce;
     out property <color> ink-0: #f8f8f8;
+
+    // The one colour in the palette. It marks the single control that takes
+    // something away, and it is a warm red rather than a signal red so that it
+    // belongs to this hue rather than arriving from a system dialog. Measured
+    // 5.3:1 against `bg-2`, the surface it appears on.
+    out property <color> danger: #eb5757;
 }
