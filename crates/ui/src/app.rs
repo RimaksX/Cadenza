@@ -119,6 +119,16 @@ fn wire(window: &AppWindow, controller: &Rc<Controller>) {
         move |id| controller.remove_from_library(&id)
     });
 
+    window.on_clear_queue({
+        let controller = Rc::clone(controller);
+        move || controller.clear_queue()
+    });
+
+    window.on_search({
+        let controller = Rc::clone(controller);
+        move |query| controller.search(&query)
+    });
+
     window.on_play_from_playlist({
         let controller = Rc::clone(controller);
         move |id| controller.play_from_playlist(&id)

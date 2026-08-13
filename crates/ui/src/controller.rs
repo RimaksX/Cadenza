@@ -31,6 +31,9 @@ const NO_QUEUE_HINT: &str = "play something from the library\nand the rest follo
 /// What to do when there are no playlists.
 const NO_PLAYLISTS_HINT: &str = "press + NEW PLAYLIST to start one";
 
+/// What to do when a search matches nothing.
+const NO_MATCH_HINT: &str = "no track here answers to that";
+
 /// What to do when a playlist has nothing in it.
 const EMPTY_PLAYLIST_HINT: &str = "add tracks from the library\nwith the ··· at the end of a row";
 
@@ -40,6 +43,8 @@ pub struct Controller {
     window: Weak<AppWindow>,
     /// The active profile, kept because the theme belongs to it.
     profile: RefCell<Option<Profile>>,
+    /// What the library is being filtered by, if anything.
+    query: RefCell<String>,
     /// The playlist whose page is open, if one is.
     ///
     /// Held because playing a track from a playlist has to say which playlist:
@@ -56,6 +61,7 @@ impl Controller {
             services,
             window,
             profile,
+            query: RefCell::new(String::new()),
             open_playlist: RefCell::new(None),
         }
     }
@@ -114,9 +120,31 @@ impl Controller {
             }
         };
 
-        window.set_library_summary(library_vm::summary_line(&summaries).into());
-        window.set_empty_hint(NO_TRACKS_HINT.into());
-        window.set_tracks(ModelRc::new(VecModel::from(library_vm::rows(&summaries))));
+        let query = self.query.borrow().clone();
+        let shown = library_vm::matching(&summaries, &query);
+
+        window.set_library_summary(library_vm::found_line(&shown, &query, summaries.len()).into());
+        window.set_empty_hint(if query.is_empty() {
+            NO_TRACKS_HINT.into()
+        } else {
+            NO_MATCH_HINT.into()
+        });
+        window.set_tracks(ModelRc::new(VecModel::from(library_vm::rows(&shown))));
+    }
+
+    /// Filters the library by what has been typed into its search field.
+    ///
+    /// In Rust rather than in the markup: what counts as a match is a decision,
+    /// and decisions made here can be tested without a window.
+    pub fn search(&self, query: &str) {
+        *self.query.borrow_mut() = query.to_owned();
+        self.refresh_library();
+    }
+
+    /// Empties the queue and stops.
+    pub fn clear_queue(&self) {
+        self.run(|| self.services.queue.clear());
+        self.refresh_queue();
     }
 
     /// Re-reads the transport. Called on every command and on the tick.
@@ -206,6 +234,9 @@ impl Controller {
         };
 
         *self.open_playlist.borrow_mut() = Some(playlist_id);
+        if let Some(window) = self.window.upgrade() {
+            window.set_open_playlist_id(id.into());
+        }
         self.refresh_open_playlist();
     }
 

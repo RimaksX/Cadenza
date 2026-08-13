@@ -55,6 +55,7 @@ export component AppWindow inherits Window {
     in property <string> playlist-name;
     in property <string> playlist-summary;
     in property <string> playlist-hint;
+    in property <string> open-playlist-id;
     in property <[MenuItemData]> playlist-options;
     in property <string> profile-name;
     in property <string> profile-initial;
@@ -95,6 +96,8 @@ export component AppWindow inherits Window {
     callback create-playlist-with(string, string);
     callback remove-from-playlist(int);
     callback remove-from-library(string);
+    callback clear-queue();
+    callback search(string);
     callback play-from-playlist(string);
     callback toggle-play();
     callback seek(float);
@@ -133,6 +136,7 @@ export component AppWindow inherits Window {
         playlist-name: root.playlist-name;
         playlist-summary: root.playlist-summary;
         playlist-hint: root.playlist-hint;
+        open-playlist-id: root.open-playlist-id;
         playlist-options: root.playlist-options;
         profile-name: root.profile-name;
         profile-initial: root.profile-initial;
@@ -192,6 +196,12 @@ export component AppWindow inherits Window {
         }
         remove-from-library(id) => {
             root.remove-from-library(id);
+        }
+        clear-queue => {
+            root.clear-queue();
+        }
+        search(text) => {
+            root.search(text);
         }
         play-from-playlist(id) => {
             root.play-from-playlist(id);

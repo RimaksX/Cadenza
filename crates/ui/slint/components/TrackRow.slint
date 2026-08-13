@@ -40,6 +40,10 @@ export component TrackRow inherits Rectangle {
     property <bool> hovered: touch.has-hover || hover-play.has-hover || hover-queue.has-hover
         || dots.has-hover;
 
+    /// The queue has exactly one thing to do with a row, and a labelled button
+    /// doing it. A menu there would offer to put a queued track in the queue.
+    property <bool> has-menu: !root.queued;
+
     height: Theme.row-height;
     background: root.hovered ? Theme.bg-1 : transparent;
     animate background { duration: 120ms; }
@@ -58,7 +62,9 @@ export component TrackRow inherits Rectangle {
         // The right button opens the same menu the dots do, for the people who
         // reach for it. It is never the only way to anything.
         pointer-event(event) => {
-            if (event.button == PointerEventButton.right && event.kind == PointerEventKind.down) {
+            if (root.has-menu
+                && event.button == PointerEventButton.right
+                && event.kind == PointerEventKind.down) {
                 menu.show();
             }
         }
@@ -253,7 +259,8 @@ export component TrackRow inherits Rectangle {
         // the two columns beside it already say something at rest and this one
         // has nothing to say until it is needed.
         Rectangle {
-            width: 32px;
+            width: root.has-menu ? 32px : 0px;
+            clip: true;
 
             Rectangle {
                 width: 32px;
@@ -278,7 +285,7 @@ export component TrackRow inherits Rectangle {
             }
 
             dots := TouchArea {
-                enabled: root.hovered;
+                enabled: root.hovered && root.has-menu;
                 mouse-cursor: pointer;
                 clicked => {
                     menu.show();
@@ -293,9 +300,11 @@ export component TrackRow inherits Rectangle {
                 // Each list is its own typed property: a conditional between
                 // two literals leaves the compiler holding two anonymous
                 // structs and nowhere to say what they are.
+                //
+                // A playlist's page offers no "add to playlist": the track is
+                // in one, and the only sensible verbs there are the two ways
+                // out of it.
                 property <[MenuItemData]> in-list: [
-                    { action: "add-to-playlist", label: "Add to playlist…" },
-                    { action: "" },
                     { action: "remove-from-playlist", label: "Remove from this list", destructive: true },
                     { action: "remove-from-library", label: "Remove from library", destructive: true },
                 ];

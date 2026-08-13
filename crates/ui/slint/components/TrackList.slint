@@ -1,6 +1,8 @@
 import { ListView } from "std-widgets.slint";
 import { Theme } from "../theme/tokens.slint";
 import { TrackRow, TrackRowData } from "TrackRow.slint";
+import { TextButton } from "Dialog.slint";
+import { Field } from "Field.slint";
 
 // One column label. Mono capitals, set wide, and the same width rules as the
 // row beneath it — the header and the rows are one grid described twice, so
@@ -35,6 +37,14 @@ export component TrackList inherits Rectangle {
     in property <bool> queued;
     /// True on a playlist's page: its rows can be taken out of it.
     in property <bool> in-playlist;
+    /// The head's own action, if the page has one: "PLAY", "CLEAR QUEUE".
+    /// Empty means the page offers nothing at that level.
+    in property <string> action-label;
+    in property <bool> action-destructive;
+    /// Whether the head carries a search field. Only the library does: it is
+    /// the only list long enough to lose something in.
+    in property <bool> searchable;
+    in-out property <string> query <=> search.text;
 
     callback play(string);
     callback enqueue(string);
@@ -46,6 +56,8 @@ export component TrackList inherits Rectangle {
     /// A row's place, what it plays, and what was asked of it.
     callback act(int, string, string);
     callback back();
+    callback act-on-page();
+    callback searched(string);
 
     background: Theme.bg-0;
 
@@ -100,11 +112,61 @@ export component TrackList inherits Rectangle {
                 }
             }
 
-            Text {
-                text: root.heading;
-                font-family: Theme.serif;
-                font-size: Theme.text-display;
-                color: Theme.ink-0;
+            // The heading, and whatever this page offers at the level of the
+            // page itself — one action or one field, on the same line, in the
+            // same place on every screen.
+            HorizontalLayout {
+                alignment: space-between;
+                spacing: Theme.space-5;
+
+                Text {
+                    text: root.heading;
+                    font-family: Theme.serif;
+                    font-size: Theme.text-display;
+                    color: Theme.ink-0;
+                    vertical-alignment: bottom;
+                }
+
+                VerticalLayout {
+                    alignment: center;
+
+                    // Built whether or not this page searches, because the
+                    // alias above names it: an element inside a condition is
+                    // out of scope everywhere else.
+                    Rectangle {
+                        width: root.searchable ? 260px : 0px;
+                        height: 40px;
+                        clip: true;
+
+                        Image {
+                            source: @image-url("../../../../resources/ui/icons/search.svg");
+                            width: 14px;
+                            height: self.width;
+                            x: 0;
+                            y: round((parent.height - self.height) / 1px / 2) * 1px - 4px;
+                            colorize: root.query == "" ? Theme.ink-mute : Theme.ink-1;
+                            animate colorize { duration: 120ms; }
+                        }
+
+                        search := Field {
+                            x: 26px;
+                            width: parent.width - 26px;
+                            placeholder: "Search the library";
+                            edited => {
+                                root.searched(self.text);
+                            }
+                        }
+                    }
+
+                    if root.action-label != "": TextButton {
+                        label: root.action-label;
+                        primary: !root.action-destructive;
+                        destructive: root.action-destructive;
+                        pressed => {
+                            root.act-on-page();
+                        }
+                    }
+                }
             }
 
             Text {
@@ -153,9 +215,11 @@ export component TrackList inherits Rectangle {
                 }
                 // The row's menu column, named by nothing: a heading over a
                 // control that only exists under the pointer would be a
-                // heading over an empty column most of the time.
+                // heading over an empty column most of the time. It collapses
+                // with the menu itself, so the queue's header still sits over
+                // the queue's rows.
                 ColumnLabel {
-                    width: 32px;
+                    width: root.queued ? 0px : 32px;
                     text: "";
                 }
             }

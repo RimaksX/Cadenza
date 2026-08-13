@@ -30,6 +30,8 @@ export component AppShell inherits Rectangle {
     in property <string> playlist-name;
     in property <string> playlist-summary;
     in property <string> playlist-hint;
+    /// Which playlist's page is open, so its head can start it.
+    in property <string> open-playlist-id;
     /// The playlists as a menu of destinations, for "add to playlist".
     in property <[MenuItemData]> playlist-options;
 
@@ -84,6 +86,8 @@ export component AppShell inherits Rectangle {
     callback create-playlist-with(string, string);
     callback remove-from-playlist(int);
     callback remove-from-library(string);
+    callback clear-queue();
+    callback search(string);
     callback play-from-playlist(string);
     callback toggle-play();
     callback seek(float);
@@ -135,6 +139,7 @@ export component AppShell inherits Rectangle {
             // outside the window changes when the listener looks at the queue,
             // so nothing outside the window needs to be told.
             if root.section == "library": LibraryView {
+                searchable: true;
                 tracks: root.tracks;
                 summary: root.library-summary;
                 playing-id: root.playing-id;
@@ -148,9 +153,14 @@ export component AppShell inherits Rectangle {
                 act(index, id, action) => {
                     root.row-acted(index, id, action);
                 }
+                searched(text) => {
+                    root.search(text);
+                }
             }
 
             if root.section == "queue": QueueView {
+                action-label: root.queue-tracks.length > 0 ? "CLEAR QUEUE" : "";
+                action-destructive: true;
                 tracks: root.queue-tracks;
                 summary: root.queue-summary;
                 playing-id: root.playing-id;
@@ -163,6 +173,9 @@ export component AppShell inherits Rectangle {
                 }
                 act(index, id, action) => {
                     root.row-acted(index, id, action);
+                }
+                act-on-page => {
+                    root.clear-queue();
                 }
             }
 
@@ -190,6 +203,7 @@ export component AppShell inherits Rectangle {
 
             if root.section == "playlist": PlaylistDetailView {
                 in-playlist: true;
+                action-label: root.playlist-tracks.length > 0 ? "PLAY" : "";
                 tracks: root.playlist-tracks;
                 heading: root.playlist-name;
                 summary: root.playlist-summary;
@@ -203,6 +217,9 @@ export component AppShell inherits Rectangle {
                 }
                 act(index, id, action) => {
                     root.row-acted(index, id, action);
+                }
+                act-on-page => {
+                    root.play-playlist(root.open-playlist-id);
                 }
                 back => {
                     root.section = "playlists";

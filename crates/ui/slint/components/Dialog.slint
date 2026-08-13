@@ -2,15 +2,18 @@ import { Theme } from "../theme/tokens.slint";
 import { Field } from "Field.slint";
 import { MenuItemData } from "RowMenu.slint";
 
-// A word set in mono capitals that can be pressed.
+// A word set in mono capitals, inside the same outline the rows use.
 //
-// The only button shape in the interface besides the transport's circle and the
-// row's outlined pill: a label, and a hairline under it when the pointer is on
-// it. Nothing is boxed until it has to be.
+// One button shape for everything that is not the transport: a hairline
+// rectangle with a label in it, brightening under the pointer. The row's QUEUE
+// control was already this shape; making the dialogs and the page actions the
+// same means the interface has two kinds of button — a circle for the thing
+// that makes sound, and this for everything else — instead of four.
 export component TextButton inherits Rectangle {
     in property <string> label;
     in property <bool> primary;
     in property <bool> destructive;
+    in property <image> glyph;
 
     callback pressed();
 
@@ -18,8 +21,17 @@ export component TextButton inherits Rectangle {
         ? Theme.danger
         : (root.primary ? Theme.ink-0 : Theme.ink-2);
 
-    width: label.width + 2 * Theme.space-3;
-    height: 32px;
+    width: content.preferred-width + 2 * Theme.space-4;
+    height: 34px;
+    border-radius: Theme.radius;
+    border-width: 1px;
+    border-color: touch.has-hover
+        ? (root.destructive ? Theme.danger.with-alpha(0.5) : Theme.line)
+        : Theme.line-soft;
+    background: !touch.has-hover
+        ? transparent
+        : (root.destructive ? Theme.danger.with-alpha(0.12) : Theme.bg-2);
+    animate background, border-color { duration: 120ms; }
 
     touch := TouchArea {
         mouse-cursor: pointer;
@@ -28,28 +40,36 @@ export component TextButton inherits Rectangle {
         }
     }
 
-    // Whole pixels: see the note in `RowMenu`. Half a pixel of vertical offset
-    // is what makes a line of type look as though its letters are at different
-    // heights.
-    label := Text {
-        x: Theme.space-3;
-        y: round((parent.height - self.height) / 1px / 2) * 1px;
-        text: root.label;
-        font-family: Theme.mono;
-        font-size: Theme.text-label;
-        letter-spacing: Theme.label-spacing;
-        color: touch.has-hover ? root.tone : root.tone.with-alpha(0.75);
-        animate color { duration: 120ms; }
-    }
+    content := HorizontalLayout {
+        alignment: center;
+        spacing: 8px;
+        padding-left: Theme.space-4;
+        padding-right: Theme.space-4;
 
-    Rectangle {
-        x: Theme.space-3;
-        y: parent.height - 8px;
-        width: label.width;
-        height: 1px;
-        background: root.tone;
-        opacity: touch.has-hover ? 1.0 : 0.0;
-        animate opacity { duration: 120ms; }
+        if root.glyph.width > 0: VerticalLayout {
+            alignment: center;
+
+            Image {
+                source: root.glyph;
+                width: 13px;
+                height: self.width;
+                colorize: touch.has-hover ? root.tone : root.tone.with-alpha(0.8);
+                animate colorize { duration: 120ms; }
+            }
+        }
+
+        VerticalLayout {
+            alignment: center;
+
+            Text {
+                text: root.label;
+                font-family: Theme.mono;
+                font-size: Theme.text-label;
+                letter-spacing: Theme.label-spacing;
+                color: touch.has-hover ? root.tone : root.tone.with-alpha(0.8);
+                animate color { duration: 120ms; }
+            }
+        }
     }
 }
 
@@ -261,8 +281,8 @@ export component PickDialog inherits Rectangle {
                 }
 
                 Rectangle {
-                    y: 2px;
-                    height: parent.height - 4px;
+                    y: 4px;
+                    height: parent.height - 8px;
                     border-radius: Theme.radius;
                     background: option-touch.has-hover ? Theme.bg-3 : transparent;
                     animate background { duration: 90ms; }
@@ -301,8 +321,14 @@ export component PickDialog inherits Rectangle {
                     }
                 }
 
-                if index < root.options.length - 1: Rectangle {
-                    y: parent.height - 1px;
+                // On the row's top edge rather than its bottom, and on every
+                // row but the first. The highlight is inset by four, so a rule
+                // at the bottom of a row sits one pixel under one highlight and
+                // seven above the next — which is what "it is squashed against
+                // the top one and floating above the bottom one" was. On the
+                // boundary it is four from each.
+                if index > 0: Rectangle {
+                    y: 0;
                     x: Theme.space-3;
                     width: parent.width - 2 * Theme.space-3;
                     height: 1px;

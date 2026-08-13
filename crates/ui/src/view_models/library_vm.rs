@@ -43,6 +43,55 @@ fn position(index: usize) -> String {
     format!("{:02}", index + 1)
 }
 
+/// The tracks a search finds.
+///
+/// Case-insensitive, and across title, artist and album together rather than
+/// one field at a time: somebody typing "portishead" is looking for the artist,
+/// and somebody typing "dummy" for the record, and neither of them wants to
+/// pick which box to type it into first. An empty query matches everything.
+pub fn matching(summaries: &[TrackSummary], query: &str) -> Vec<TrackSummary> {
+    let needle = query.trim().to_lowercase();
+    if needle.is_empty() {
+        return summaries.to_vec();
+    }
+
+    summaries
+        .iter()
+        .filter(|summary| {
+            let haystack = format!(
+                "{} {} {}",
+                summary.title,
+                summary.artist.as_deref().unwrap_or_default(),
+                summary.album.as_deref().unwrap_or_default()
+            )
+            .to_lowercase();
+
+            // Every word has to appear somewhere: "portishead mys" finds one
+            // track rather than nothing, which is how people actually narrow a
+            // list down.
+            needle
+                .split_whitespace()
+                .all(|word| haystack.contains(word))
+        })
+        .cloned()
+        .collect()
+}
+
+/// The line under the page title while a search is running.
+pub fn found_line(shown: &[TrackSummary], query: &str, total: usize) -> String {
+    if query.trim().is_empty() {
+        return summary_line(shown);
+    }
+    if shown.is_empty() {
+        return format!("nothing of {total} matches");
+    }
+
+    let total_time = shown.iter().fold(DurationMs::ZERO, |sum, summary| {
+        sum.saturating_add(summary.duration)
+    });
+    format!("{} of {total} · {total_time}", shown.len())
+}
+
 /// The line under the page title: how much there is, and how long it runs.
 pub fn summary_line(summaries: &[TrackSummary]) -> String {
     if summaries.is_empty() {
@@ -64,7 +113,59 @@ mod tests {
     use cadenza_core::domain::track::TrackSummary;
     use cadenza_core::domain::value_objects::DurationMs;
 
-    use super::{NO_ALBUM, UNKNOWN_ARTIST, rows, summary_line};
+    use super::{NO_ALBUM, UNKNOWN_ARTIST, found_line, matching, rows, summary_line};
+
+    #[test]
+    fn a_search_looks_at_the_title_the_artist_and_the_album_together() {
+        let library = [
+            summary("Mysterons", Some("Portishead"), 305),
+            summary("Teardrop", Some("Massive Attack"), 330),
+        ];
+
+        assert_eq!(matching(&library, "portis").len(), 1);
+        assert_eq!(matching(&library, "TEAR").len(), 1, "case does not matter");
+        assert_eq!(
+            matching(&library, "").len(),
+            2,
+            "an empty query is not a filter"
+        );
+        assert_eq!(matching(&library, "   ").len(), 2);
+    }
+
+    #[test]
+    fn every_word_of_a_search_has_to_land_somewhere() {
+        let library = [
+            summary("Mysterons", Some("Portishead"), 305),
+            summary("Teardrop", Some("Massive Attack"), 330),
+        ];
+
+        assert_eq!(
+            matching(&library, "portishead mys").len(),
+            1,
+            "words narrow rather than widen"
+        );
+        assert!(matching(&library, "portishead teardrop").is_empty());
+    }
+
+    #[test]
+    fn the_page_line_says_how_much_of_the_library_answered() {
+        let library = [
+            summary("Mysterons", Some("Portishead"), 300),
+            summary("Teardrop", Some("Massive Attack"), 330),
+        ];
+        let found = matching(&library, "portis");
+
+        assert_eq!(found_line(&found, "portis", library.len()), "1 of 2 · 5:00");
+        assert_eq!(
+            found_line(&[], "zzz", library.len()),
+            "nothing of 2 matches"
+        );
+        assert_eq!(
+            found_line(&library, "", library.len()),
+            summary_line(&library),
+            "with no search it is the ordinary count"
+        );
+    }
 
     fn summary(title: &str, artist: Option<&str>, seconds: u64) -> TrackSummary {
         TrackSummary {

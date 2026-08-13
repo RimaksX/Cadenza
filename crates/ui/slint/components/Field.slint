@@ -11,6 +11,8 @@ export component Field inherits Rectangle {
     in-out property <string> text <=> input.text;
 
     callback accepted();
+    /// Every keystroke. What a search field needs; a name field ignores it.
+    callback edited(string);
 
     height: 40px;
     forward-focus: input;
@@ -60,6 +62,9 @@ export component Field inherits Rectangle {
                 single-line: true;
                 accepted => {
                     root.accepted();
+                }
+                edited => {
+                    root.edited(self.text);
                 }
             }
         }
