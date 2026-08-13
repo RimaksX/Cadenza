@@ -15,9 +15,7 @@ component MenuRow inherits Rectangle {
 
     callback chosen();
 
-    height: 32px;
-    background: touch.has-hover ? Theme.bg-2 : transparent;
-    animate background { duration: 90ms; }
+    height: 34px;
 
     touch := TouchArea {
         mouse-cursor: pointer;
@@ -26,8 +24,21 @@ component MenuRow inherits Rectangle {
         }
     }
 
+    // The highlight is inset and rounded rather than a full-width band. A band
+    // runs into the menu's own border and reads as the menu having moved; a
+    // shape inside it reads as one item in a list of them.
+    Rectangle {
+        x: 6px;
+        y: 2px;
+        width: parent.width - 12px;
+        height: parent.height - 4px;
+        border-radius: Theme.radius;
+        background: touch.has-hover ? Theme.bg-3 : transparent;
+        animate background { duration: 90ms; }
+    }
+
     Text {
-        x: Theme.space-3;
+        x: 16px;
         y: (parent.height - self.height) / 2;
         text: root.data.label;
         font-family: Theme.sans;
@@ -64,12 +75,14 @@ export component RowMenu inherits PopupWindow {
             padding-bottom: Theme.space-2;
 
             for item in root.items: Rectangle {
-                height: item.action == "" ? 9px : 32px;
+                height: item.action == "" ? 9px : 34px;
 
-                // A separator is an item with nothing to do: one hairline, the
-                // width of the menu, and no hover of its own.
+                // A separator is an item with nothing to do: one hairline, and
+                // it stops where the highlights stop rather than at the border.
                 if item.action == "": Rectangle {
+                    x: 6px;
                     y: 4px;
+                    width: parent.width - 12px;
                     height: 1px;
                     background: Theme.line-soft;
                 }

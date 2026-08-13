@@ -128,24 +128,16 @@ export component PlaylistCard inherits Rectangle {
                     opacity: touch.has-hover || dots.has-hover ? 1.0 : 0.0;
                     animate background, opacity { duration: 120ms; }
 
-                    // Drawn rather than typed. A glyph is whatever size the
-                    // face makes it, and this one has to read at a glance from
-                    // across a grid.
-                    HorizontalLayout {
-                        alignment: center;
-                        spacing: 4px;
-
-                        for dot in [0, 1, 2]: VerticalLayout {
-                            alignment: center;
-
-                            Rectangle {
-                                width: 4px;
-                                height: 4px;
-                                border-radius: 2px;
-                                background: dots.has-hover ? Theme.ink-0 : Theme.ink-1;
-                                animate background { duration: 120ms; }
-                            }
-                        }
+                    // Horizontal on a tile, where there is width to spare and
+                    // the mark sits in a corner of its own.
+                    Image {
+                        source: @image-url("../../../../resources/ui/icons/dots.svg");
+                        width: 18px;
+                        height: self.width;
+                        x: (parent.width - self.width) / 2;
+                        y: (parent.height - self.height) / 2;
+                        colorize: dots.has-hover ? Theme.ink-0 : Theme.ink-1;
+                        animate colorize { duration: 120ms; }
                     }
 
                     dots := TouchArea {

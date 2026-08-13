@@ -33,6 +33,8 @@ export component TrackList inherits Rectangle {
     /// True for the queue itself: its rows are already waiting, so the control
     /// in them takes a track out rather than putting it in again.
     in property <bool> queued;
+    /// True on a playlist's page: its rows can be taken out of it.
+    in property <bool> in-playlist;
 
     callback play(string);
     callback enqueue(string);
@@ -41,6 +43,8 @@ export component TrackList inherits Rectangle {
     /// cannot tell the two copies apart.
     callback play-at(int);
     callback remove(int);
+    /// A row's place, what it plays, and what was asked of it.
+    callback act(int, string, string);
     callback back();
 
     background: Theme.bg-0;
@@ -147,6 +151,13 @@ export component TrackList inherits Rectangle {
                     text: "TIME";
                     horizontal-alignment: right;
                 }
+                // The row's menu column, named by nothing: a heading over a
+                // control that only exists under the pointer would be a
+                // heading over an empty column most of the time.
+                ColumnLabel {
+                    width: 32px;
+                    text: "";
+                }
             }
 
             // Stronger than the hairlines between rows: this one ends a section,
@@ -202,6 +213,7 @@ export component TrackList inherits Rectangle {
                     data: entry;
                     playing: entry.id == root.playing-id;
                     queued: root.queued;
+                    in-playlist: root.in-playlist;
                     // A queued row is named by its place, an ordinary row by
                     // what it plays. The list knows which it is; the row does
                     // not have to.
@@ -217,6 +229,9 @@ export component TrackList inherits Rectangle {
                     }
                     removed => {
                         root.remove(index);
+                    }
+                    acted(action) => {
+                        root.act(index, entry.id, action);
                     }
                 }
             }

@@ -3,7 +3,7 @@
 use cadenza_core::application::services::PlaylistSummary;
 use cadenza_core::domain::value_objects::DurationMs;
 
-use crate::PlaylistCardData;
+use crate::{MenuItemData, PlaylistCardData};
 
 /// Formats the index of playlists.
 pub fn cards(summaries: &[PlaylistSummary]) -> Vec<PlaylistCardData> {
@@ -22,6 +22,21 @@ pub fn cards(summaries: &[PlaylistSummary]) -> Vec<PlaylistCardData> {
             // artist; what it has is whose list it is.
             maker: "MADE BY YOU".into(),
             meta: meta(summary).into(),
+        })
+        .collect()
+}
+
+/// The playlists as a list of destinations to pick from.
+///
+/// The same struct the menus use, because it is the same thing: a label and
+/// what the interface hands back when it is chosen.
+pub fn options(summaries: &[PlaylistSummary]) -> Vec<MenuItemData> {
+    summaries
+        .iter()
+        .map(|summary| MenuItemData {
+            action: summary.playlist.id.to_string().into(),
+            label: summary.playlist.name.as_str().into(),
+            destructive: false,
         })
         .collect()
 }

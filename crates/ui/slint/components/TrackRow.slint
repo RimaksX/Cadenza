@@ -1,4 +1,5 @@
 import { Theme } from "../theme/tokens.slint";
+import { RowMenu, MenuItemData } from "RowMenu.slint";
 
 // One row of a listing, as the view model hands it over.
 //
@@ -23,16 +24,21 @@ export component TrackRow inherits Rectangle {
     /// True where the row is already in the queue, and the useful thing to do
     /// with it is take it out again.
     in property <bool> queued;
+    /// True on a playlist's own page, where "take it out of this list" is an
+    /// action that exists.
+    in property <bool> in-playlist;
 
     callback activated();
     callback enqueued();
     callback removed();
+    callback acted(string);
 
     // True while the pointer is anywhere over the row, including over the two
     // buttons in it — a nested touch area takes the pointer from the one
     // beneath it, and without this they would vanish as the pointer reached
     // them.
-    property <bool> hovered: touch.has-hover || hover-play.has-hover || hover-queue.has-hover;
+    property <bool> hovered: touch.has-hover || hover-play.has-hover || hover-queue.has-hover
+        || dots.has-hover;
 
     height: Theme.row-height;
     background: root.hovered ? Theme.bg-1 : transparent;
@@ -48,6 +54,13 @@ export component TrackRow inherits Rectangle {
         // playing cannot be taught to anybody at all.
         clicked => {
             root.activated();
+        }
+        // The right button opens the same menu the dots do, for the people who
+        // reach for it. It is never the only way to anything.
+        pointer-event(event) => {
+            if (event.button == PointerEventButton.right && event.kind == PointerEventKind.down) {
+                menu.show();
+            }
         }
     }
 
@@ -232,6 +245,69 @@ export component TrackRow inherits Rectangle {
                     } else {
                         root.enqueued();
                     }
+                }
+            }
+        }
+
+        // Everything else the row can do. Its own column at the end, because
+        // the two columns beside it already say something at rest and this one
+        // has nothing to say until it is needed.
+        Rectangle {
+            width: 32px;
+
+            Rectangle {
+                width: 32px;
+                height: 32px;
+                y: (parent.height - self.height) / 2;
+                border-radius: Theme.radius;
+                background: dots.has-hover ? Theme.bg-3 : transparent;
+                opacity: root.hovered ? 1.0 : 0.0;
+                animate background, opacity { duration: 120ms; }
+
+                // Vertical in a row: the row is already a horizontal thing,
+                // and a mark stacked upright asks for less of its width.
+                Image {
+                    source: @image-url("../../../../resources/ui/icons/dots-vertical.svg");
+                    width: 18px;
+                    height: self.width;
+                    x: (parent.width - self.width) / 2;
+                    y: (parent.height - self.height) / 2;
+                    colorize: dots.has-hover ? Theme.ink-0 : Theme.ink-2;
+                    animate colorize { duration: 120ms; }
+                }
+            }
+
+            dots := TouchArea {
+                enabled: root.hovered;
+                mouse-cursor: pointer;
+                clicked => {
+                    menu.show();
+                }
+            }
+
+            // Opens to the left and below: this is the last column of the row,
+            // and the rows below it are what the menu has to cover.
+            menu := RowMenu {
+                x: 32px - self.width;
+                y: 32px;
+                // Each list is its own typed property: a conditional between
+                // two literals leaves the compiler holding two anonymous
+                // structs and nowhere to say what they are.
+                property <[MenuItemData]> in-list: [
+                    { action: "add-to-playlist", label: "Add to playlist…" },
+                    { action: "" },
+                    { action: "remove-from-playlist", label: "Remove from this list", destructive: true },
+                    { action: "remove-from-library", label: "Remove from library", destructive: true },
+                ];
+                property <[MenuItemData]> anywhere: [
+                    { action: "add-to-playlist", label: "Add to playlist…" },
+                    { action: "" },
+                    { action: "remove-from-library", label: "Remove from library", destructive: true },
+                ];
+
+                items: root.in-playlist ? self.in-list : self.anywhere;
+                chosen(action) => {
+                    root.acted(action);
                 }
             }
         }

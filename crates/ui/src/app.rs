@@ -99,6 +99,26 @@ fn wire(window: &AppWindow, controller: &Rc<Controller>) {
         move |id| controller.delete_playlist(&id)
     });
 
+    window.on_add_to_playlist({
+        let controller = Rc::clone(controller);
+        move |track, playlist| controller.add_to_playlist(&track, &playlist)
+    });
+
+    window.on_create_playlist_with({
+        let controller = Rc::clone(controller);
+        move |track, name| controller.create_playlist_with(&track, &name)
+    });
+
+    window.on_remove_from_playlist({
+        let controller = Rc::clone(controller);
+        move |position| controller.remove_from_playlist(position)
+    });
+
+    window.on_remove_from_library({
+        let controller = Rc::clone(controller);
+        move |id| controller.remove_from_library(&id)
+    });
+
     window.on_play_from_playlist({
         let controller = Rc::clone(controller);
         move |id| controller.play_from_playlist(&id)

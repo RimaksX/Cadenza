@@ -14,6 +14,7 @@ import { Theme } from "theme/tokens.slint";
 import { AppShell } from "components/AppShell.slint";
 import { TrackRowData } from "components/TrackRow.slint";
 import { PlaylistCardData } from "views/PlaylistsView.slint";
+import { MenuItemData } from "components/RowMenu.slint";
 
 // Re-exported so the controller can set the palette. A global's input is set
 // from the native side; markup may read it but never assign to it, which is
@@ -54,6 +55,7 @@ export component AppWindow inherits Window {
     in property <string> playlist-name;
     in property <string> playlist-summary;
     in property <string> playlist-hint;
+    in property <[MenuItemData]> playlist-options;
     in property <string> profile-name;
     in property <string> profile-initial;
     in property <string> now-title;
@@ -89,6 +91,10 @@ export component AppWindow inherits Window {
     callback create-playlist(string);
     callback rename-playlist(string, string);
     callback delete-playlist(string);
+    callback add-to-playlist(string, string);
+    callback create-playlist-with(string, string);
+    callback remove-from-playlist(int);
+    callback remove-from-library(string);
     callback play-from-playlist(string);
     callback toggle-play();
     callback seek(float);
@@ -127,6 +133,7 @@ export component AppWindow inherits Window {
         playlist-name: root.playlist-name;
         playlist-summary: root.playlist-summary;
         playlist-hint: root.playlist-hint;
+        playlist-options: root.playlist-options;
         profile-name: root.profile-name;
         profile-initial: root.profile-initial;
         now-title: root.now-title;
@@ -173,6 +180,18 @@ export component AppWindow inherits Window {
         }
         delete-playlist(id) => {
             root.delete-playlist(id);
+        }
+        add-to-playlist(track, playlist) => {
+            root.add-to-playlist(track, playlist);
+        }
+        create-playlist-with(track, name) => {
+            root.create-playlist-with(track, name);
+        }
+        remove-from-playlist(index) => {
+            root.remove-from-playlist(index);
+        }
+        remove-from-library(id) => {
+            root.remove-from-library(id);
         }
         play-from-playlist(id) => {
             root.play-from-playlist(id);

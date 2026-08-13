@@ -1,5 +1,6 @@
 import { Theme } from "../theme/tokens.slint";
 import { Field } from "Field.slint";
+import { MenuItemData } from "RowMenu.slint";
 
 // A word set in mono capitals that can be pressed.
 //
@@ -160,6 +161,123 @@ export component Dialog inherits Rectangle {
                     destructive: root.destructive;
                     pressed => {
                         root.confirmed(field.text);
+                    }
+                }
+            }
+        }
+    }
+}
+
+// A question whose answers are a list rather than a word.
+//
+// Used for "which playlist?", where a text field would be asking somebody to
+// type the name of something the application already knows. The last row makes
+// a new one, so an empty library of lists is not a dead end.
+export component PickDialog inherits Rectangle {
+    in property <string> title;
+    in property <string> message;
+    in property <[MenuItemData]> options;
+    in property <string> create-label;
+
+    callback picked(string);
+    callback create();
+    callback cancelled();
+
+    background: Theme.bg-0.with-alpha(0.72);
+
+    TouchArea {
+        clicked => {
+            root.cancelled();
+        }
+    }
+
+    FocusScope {
+        key-pressed(event) => {
+            if (event.text == Key.Escape) {
+                root.cancelled();
+                return accept;
+            }
+            return reject;
+        }
+    }
+
+    Rectangle {
+        width: 440px;
+        height: min(520px, layout.preferred-height);
+        x: (parent.width - self.width) / 2;
+        y: (parent.height - self.height) / 2;
+        background: Theme.bg-1;
+        border-width: 1px;
+        border-color: Theme.line;
+        border-radius: Theme.radius;
+
+        TouchArea { }
+
+        layout := VerticalLayout {
+            padding: Theme.space-6;
+            spacing: Theme.space-4;
+
+            Text {
+                text: root.title;
+                font-family: Theme.serif;
+                font-size: 24px;
+                color: Theme.ink-0;
+                wrap: word-wrap;
+            }
+
+            if root.message != "": Text {
+                text: root.message;
+                font-family: Theme.sans;
+                font-size: Theme.text-meta;
+                color: Theme.ink-2;
+                wrap: word-wrap;
+            }
+
+            // The options, each a row that answers the question by being
+            // pressed. No confirm button: choosing is the answer.
+            for option in root.options: Rectangle {
+                height: 40px;
+
+                option-touch := TouchArea {
+                    mouse-cursor: pointer;
+                    clicked => {
+                        root.picked(option.action);
+                    }
+                }
+
+                Rectangle {
+                    border-radius: Theme.radius;
+                    background: option-touch.has-hover ? Theme.bg-3 : transparent;
+                    animate background { duration: 90ms; }
+                }
+
+                Text {
+                    x: Theme.space-3;
+                    y: (parent.height - self.height) / 2;
+                    text: option.label;
+                    font-family: Theme.serif;
+                    font-size: 17px;
+                    color: option-touch.has-hover ? Theme.ink-0 : Theme.ink-1;
+                    animate color { duration: 90ms; }
+                }
+            }
+
+            HorizontalLayout {
+                alignment: space-between;
+                padding-top: Theme.space-2;
+
+                TextButton {
+                    label: root.create-label;
+                    primary: true;
+                    pressed => {
+                        root.create();
+                    }
+                }
+
+                TextButton {
+                    label: "CANCEL";
+                    pressed => {
+                        root.cancelled();
                     }
                 }
             }

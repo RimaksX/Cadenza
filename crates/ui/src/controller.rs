@@ -190,6 +190,9 @@ impl Controller {
         window.set_playlists_hint(NO_PLAYLISTS_HINT.into());
         window.set_playlists_summary(playlist_vm::summary_line(&summaries).into());
         window.set_playlists(ModelRc::new(VecModel::from(playlist_vm::cards(&summaries))));
+        window.set_playlist_options(ModelRc::new(VecModel::from(playlist_vm::options(
+            &summaries,
+        ))));
     }
 
     /// Opens one playlist's page.
@@ -255,6 +258,63 @@ impl Controller {
             *self.open_playlist.borrow_mut() = None;
         }
         self.refresh_playlists();
+    }
+
+    /// Puts a track at the end of a playlist.
+    pub fn add_to_playlist(&self, track: &str, playlist: &str) {
+        self.run(|| {
+            let playlist_id = PlaylistId::parse(playlist)?;
+            let media_file_id = MediaFileId::parse(track)?;
+            self.services
+                .playlists
+                .add_track(playlist_id, media_file_id)
+        });
+        self.refresh_playlists();
+        self.refresh_open_playlist();
+    }
+
+    /// Makes a playlist and puts a track in it, which is one act rather than
+    /// two: nobody names a list and then wonders why it is empty.
+    pub fn create_playlist_with(&self, track: &str, name: &str) {
+        self.run(|| {
+            let media_file_id = MediaFileId::parse(track)?;
+            let playlist = self.services.playlists.create(name)?;
+            self.services
+                .playlists
+                .add_track(playlist.id, media_file_id)
+        });
+        self.refresh_playlists();
+    }
+
+    /// Takes the entry at a position out of the open playlist.
+    pub fn remove_from_playlist(&self, position: i32) {
+        let (Some(playlist_id), Ok(position)) =
+            (*self.open_playlist.borrow(), usize::try_from(position))
+        else {
+            return;
+        };
+
+        self.run(|| self.services.playlists.remove_at(playlist_id, position));
+        self.refresh_playlists();
+        self.refresh_open_playlist();
+    }
+
+    /// Takes a track out of this profile's library.
+    ///
+    /// A tombstone rather than a delete: the file stays on disk and every other
+    /// profile keeps its own copy of the row (PROJECT_MASTER 2.1).
+    pub fn remove_from_library(&self, track: &str) {
+        self.run(|| {
+            let media_file_id = MediaFileId::parse(track)?;
+            self.services.library.remove_track(media_file_id)
+        });
+
+        // It may have been in lists and in the queue, and both of those show
+        // titles they can no longer resolve.
+        self.refresh_library();
+        self.refresh_playlists();
+        self.refresh_open_playlist();
+        self.refresh_queue();
     }
 
     /// Re-reads whatever playlist page is open.

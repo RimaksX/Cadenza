@@ -7,7 +7,8 @@ import { LibraryView } from "../views/LibraryView.slint";
 import { QueueView } from "../views/QueueView.slint";
 import { PlaylistsView, PlaylistCardData } from "../views/PlaylistsView.slint";
 import { PlaylistDetailView } from "../views/PlaylistDetailView.slint";
-import { Dialog } from "Dialog.slint";
+import { Dialog, PickDialog } from "Dialog.slint";
+import { MenuItemData } from "RowMenu.slint";
 
 // The frame every screen lives in: navigation down the left, the player across
 // the bottom, one content area between them.
@@ -29,6 +30,8 @@ export component AppShell inherits Rectangle {
     in property <string> playlist-name;
     in property <string> playlist-summary;
     in property <string> playlist-hint;
+    /// The playlists as a menu of destinations, for "add to playlist".
+    in property <[MenuItemData]> playlist-options;
 
     /// The screen showing. Held here rather than passed in, because navigation
     /// changes nothing outside the window.
@@ -77,6 +80,10 @@ export component AppShell inherits Rectangle {
     callback create-playlist(string);
     callback rename-playlist(string, string);
     callback delete-playlist(string);
+    callback add-to-playlist(string, string);
+    callback create-playlist-with(string, string);
+    callback remove-from-playlist(int);
+    callback remove-from-library(string);
     callback play-from-playlist(string);
     callback toggle-play();
     callback seek(float);
@@ -138,6 +145,9 @@ export component AppShell inherits Rectangle {
                 enqueue(id) => {
                     root.enqueue(id);
                 }
+                act(index, id, action) => {
+                    root.row-acted(index, id, action);
+                }
             }
 
             if root.section == "queue": QueueView {
@@ -150,6 +160,9 @@ export component AppShell inherits Rectangle {
                 }
                 remove(index) => {
                     root.remove-from-queue(index);
+                }
+                act(index, id, action) => {
+                    root.row-acted(index, id, action);
                 }
             }
 
@@ -176,6 +189,7 @@ export component AppShell inherits Rectangle {
             }
 
             if root.section == "playlist": PlaylistDetailView {
+                in-playlist: true;
                 tracks: root.playlist-tracks;
                 heading: root.playlist-name;
                 summary: root.playlist-summary;
@@ -186,6 +200,9 @@ export component AppShell inherits Rectangle {
                 }
                 enqueue(id) => {
                     root.enqueue(id);
+                }
+                act(index, id, action) => {
+                    root.row-acted(index, id, action);
                 }
                 back => {
                     root.section = "playlists";
@@ -241,33 +258,72 @@ export component AppShell inherits Rectangle {
     // Over everything, and outside the column layout so that it covers the
     // player bar too: a question that can be answered while the music is
     // being scrubbed is a question about a state that may no longer hold.
-    if root.dialog != "": Dialog {
+    if root.dialog != "" && root.dialog != "pick-playlist": Dialog {
         width: 100%;
         height: 100%;
 
-        title: root.dialog == "new-playlist"
+        title: root.dialog == "new-playlist" || root.dialog == "new-playlist-with"
             ? "New playlist"
-            : (root.dialog == "rename-playlist" ? "Rename playlist" : "Delete playlist");
+            : (root.dialog == "rename-playlist"
+                ? "Rename playlist"
+                : (root.dialog == "remove-track" ? "Remove from library" : "Delete playlist"));
         message: root.dialog == "delete-playlist"
             ? "\"" + root.dialog-value + "\" goes; the tracks in it stay in your library."
-            : "";
+            : (root.dialog == "remove-track"
+                ? "The track leaves this profile's library. The file stays on disk, and other profiles keep theirs."
+                : "");
         placeholder: "Late night";
-        asks-for-text: root.dialog != "delete-playlist";
+        asks-for-text: root.dialog == "new-playlist"
+            || root.dialog == "new-playlist-with"
+            || root.dialog == "rename-playlist";
         initial: root.dialog == "rename-playlist" ? root.dialog-value : "";
-        confirm-label: root.dialog == "new-playlist"
+        confirm-label: root.dialog == "new-playlist" || root.dialog == "new-playlist-with"
             ? "CREATE"
-            : (root.dialog == "rename-playlist" ? "RENAME" : "DELETE");
-        destructive: root.dialog == "delete-playlist";
+            : (root.dialog == "rename-playlist"
+                ? "RENAME"
+                : (root.dialog == "remove-track" ? "REMOVE" : "DELETE"));
+        destructive: root.dialog == "delete-playlist" || root.dialog == "remove-track";
 
         confirmed(value) => {
             if (root.dialog == "new-playlist") {
                 root.create-playlist(value);
+            } else if (root.dialog == "new-playlist-with") {
+                root.create-playlist-with(root.dialog-target, value);
             } else if (root.dialog == "rename-playlist") {
                 root.rename-playlist(root.dialog-target, value);
+            } else if (root.dialog == "remove-track") {
+                root.remove-from-library(root.dialog-target);
             } else {
                 root.delete-playlist(root.dialog-target);
             }
             root.dialog = "";
+        }
+        cancelled => {
+            root.dialog = "";
+        }
+    }
+
+    // "Which playlist?" is a question with a list of answers rather than a word
+    // to type: the application already knows the names, and asking somebody to
+    // spell one is asking them to do its work.
+    if root.dialog == "pick-playlist": PickDialog {
+        width: 100%;
+        height: 100%;
+        title: "Add to playlist";
+        message: root.playlist-options.length == 0
+            ? "There are no lists yet. Making one puts this track in it."
+            : "";
+        options: root.playlist-options;
+        create-label: "+ NEW PLAYLIST";
+
+        picked(playlist) => {
+            root.add-to-playlist(root.dialog-target, playlist);
+            root.dialog = "";
+        }
+        // The track waits in `dialog-target` while the name is asked for, so
+        // that making a list and putting something in it is one act.
+        create => {
+            root.dialog = "new-playlist-with";
         }
         cancelled => {
             root.dialog = "";
@@ -280,6 +336,18 @@ export component AppShell inherits Rectangle {
         root.dialog-target = target;
         root.dialog-value = value;
         root.dialog = kind;
+    }
+
+    /// What a row asked for. The shell decides whether that is a question or a
+    /// command; the row only knows what was pressed.
+    function row-acted(index: int, id: string, action: string) {
+        if (action == "add-to-playlist") {
+            root.ask("pick-playlist", id, "");
+        } else if (action == "remove-from-playlist") {
+            root.remove-from-playlist(index);
+        } else if (action == "remove-from-library") {
+            root.ask("remove-track", id, "");
+        }
     }
 }
 
