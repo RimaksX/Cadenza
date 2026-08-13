@@ -85,6 +85,7 @@ export component AppWindow inherits Window {
     callback play-queued(int);
     callback remove-from-queue(int);
     callback open-playlist(string);
+    callback play-playlist(string);
     callback create-playlist(string);
     callback rename-playlist(string, string);
     callback delete-playlist(string);
@@ -160,6 +161,9 @@ export component AppWindow inherits Window {
         }
         open-playlist(id) => {
             root.open-playlist(id);
+        }
+        play-playlist(id) => {
+            root.play-playlist(id);
         }
         create-playlist(name) => {
             root.create-playlist(name);

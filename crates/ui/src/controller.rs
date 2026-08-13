@@ -212,6 +212,22 @@ impl Controller {
         self.refresh_playlists();
     }
 
+    /// Starts a playlist at its first track, without opening its page.
+    pub fn play_playlist(&self, id: &str) {
+        self.run(|| {
+            let playlist_id = PlaylistId::parse(id)?;
+            let tracks = self.services.playlists.tracks_of(playlist_id)?;
+            let first = tracks
+                .first()
+                .ok_or_else(|| CoreError::invalid("playlist", "has nothing to play"))?;
+
+            self.services
+                .queue
+                .play_playlist(playlist_id, &tracks, first.media_file_id)
+        });
+        self.refresh_queue();
+    }
+
     /// Renames one.
     pub fn rename_playlist(&self, id: &str, name: &str) {
         self.run(|| {

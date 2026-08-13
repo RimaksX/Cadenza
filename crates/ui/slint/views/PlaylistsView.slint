@@ -24,6 +24,7 @@ export component PlaylistCard inherits Rectangle {
     in property <PlaylistCardData> data;
 
     callback activated();
+    callback played();
     callback acted(string);
 
     touch := TouchArea {
@@ -32,6 +33,13 @@ export component PlaylistCard inherits Rectangle {
         mouse-cursor: pointer;
         clicked => {
             root.activated();
+        }
+        // The right button opens the same menu the dots do. Nobody has to know
+        // that it works, which is exactly why it is not the only way in.
+        pointer-event(event) => {
+            if (event.button == PointerEventButton.right && event.kind == PointerEventKind.down) {
+                menu.show();
+            }
         }
     }
 
@@ -65,12 +73,17 @@ export component PlaylistCard inherits Rectangle {
                         color: Theme.ink-mute;
                         horizontal-stretch: 1;
                     }
+                    // The number steps aside for the menu rather than sharing
+                    // the corner with it: the same trade the track rows make,
+                    // where a mark becomes the control that acts on it.
                     Text {
                         text: root.data.position;
                         font-family: Theme.mono;
                         font-size: 9px;
                         letter-spacing: Theme.label-spacing;
                         color: Theme.ink-mute;
+                        opacity: touch.has-hover || dots.has-hover ? 0.0 : 1.0;
+                        animate opacity { duration: 120ms; }
                     }
                 }
 
@@ -97,32 +110,42 @@ export component PlaylistCard inherits Rectangle {
                 }
                 }
 
-                // The list's own actions, in the corner of its cover and only
-                // while the pointer is on the tile. Three dots because there is
-                // no shape for "rename", and a shape nobody can read is worse
-                // than a mark that says "there is more here".
+                // The list's own actions, in the corner its number occupies at
+                // rest. Three dots because there is no shape for "rename", and
+                // a shape nobody can read is worse than a mark that says
+                // "there is more here".
+                //
                 // Always built, faded rather than absent: its own touch area is
                 // named in the condition that would have created it, and an
                 // element cannot decide whether to exist by asking itself.
                 Rectangle {
-                    x: parent.width - self.width - 8px;
-                    y: 8px;
-                    width: 28px;
-                    height: 28px;
+                    x: parent.width - self.width - 12px;
+                    y: 12px;
+                    width: 32px;
+                    height: 32px;
                     border-radius: Theme.radius;
                     background: dots.has-hover ? Theme.bg-3 : transparent;
                     opacity: touch.has-hover || dots.has-hover ? 1.0 : 0.0;
                     animate background, opacity { duration: 120ms; }
 
-                    Text {
-                        text: "···";
-                        font-family: Theme.sans;
-                        font-size: 18px;
-                        color: dots.has-hover ? Theme.ink-0 : Theme.ink-2;
-                        horizontal-alignment: center;
-                        vertical-alignment: center;
-                        width: 100%;
-                        height: 100%;
+                    // Drawn rather than typed. A glyph is whatever size the
+                    // face makes it, and this one has to read at a glance from
+                    // across a grid.
+                    HorizontalLayout {
+                        alignment: center;
+                        spacing: 4px;
+
+                        for dot in [0, 1, 2]: VerticalLayout {
+                            alignment: center;
+
+                            Rectangle {
+                                width: 4px;
+                                height: 4px;
+                                border-radius: 2px;
+                                background: dots.has-hover ? Theme.ink-0 : Theme.ink-1;
+                                animate background { duration: 120ms; }
+                            }
+                        }
                     }
 
                     dots := TouchArea {
@@ -140,14 +163,45 @@ export component PlaylistCard inherits Rectangle {
                     // right edge of a tile that may itself be at the right edge
                     // of the window.
                     menu := RowMenu {
-                        x: 28px - self.width;
-                        y: 28px;
+                        x: 32px - self.width;
+                        y: 32px;
                         items: [
                             { action: "rename", label: "Rename…" },
                             { action: "delete", label: "Delete playlist", destructive: true },
                         ];
                         chosen(action) => {
                             root.acted(action);
+                        }
+                    }
+                }
+
+                // Play the list without opening it. The filled circle is the
+                // same one the player bar uses for the button you reach for
+                // without looking, and it means the same thing here.
+                Rectangle {
+                    x: parent.width - self.width - 16px;
+                    y: parent.height - self.height - 16px;
+                    width: 44px;
+                    height: 44px;
+                    border-radius: self.width / 2;
+                    background: start.has-hover ? Theme.ink-1 : Theme.ink-0;
+                    opacity: touch.has-hover || start.has-hover ? 1.0 : 0.0;
+                    animate background, opacity { duration: 120ms; }
+
+                    Image {
+                        source: @image-url("../../../../resources/ui/icons/play.svg");
+                        width: 16px;
+                        height: self.width;
+                        x: (parent.width - self.width) / 2 + 1px;
+                        y: (parent.height - self.height) / 2;
+                        colorize: Theme.bg-0;
+                    }
+
+                    start := TouchArea {
+                        enabled: touch.has-hover || self.has-hover;
+                        mouse-cursor: pointer;
+                        clicked => {
+                            root.played();
                         }
                     }
                 }
@@ -188,6 +242,7 @@ export component PlaylistsView inherits Rectangle {
     in property <string> empty-hint;
 
     callback open(string);
+    callback play(string);
     callback create();
     /// A playlist, its name and what to do to it. The name travels with the
     /// identifier because the dialog that follows has to show it, and finding
@@ -309,6 +364,9 @@ export component PlaylistsView inherits Rectangle {
                 y: root.headroom + floor(index / root.columns) * root.row-height;
                 activated => {
                     root.open(entry.id);
+                }
+                played => {
+                    root.play(entry.id);
                 }
                 acted(action) => {
                     root.act(entry.id, entry.name, action);

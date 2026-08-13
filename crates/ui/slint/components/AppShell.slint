@@ -73,6 +73,7 @@ export component AppShell inherits Rectangle {
     callback play-queued(int);
     callback remove-from-queue(int);
     callback open-playlist(string);
+    callback play-playlist(string);
     callback create-playlist(string);
     callback rename-playlist(string, string);
     callback delete-playlist(string);
@@ -162,6 +163,9 @@ export component AppShell inherits Rectangle {
                     // other's half.
                     root.section = "playlist";
                     root.open-playlist(id);
+                }
+                play(id) => {
+                    root.play-playlist(id);
                 }
                 create => {
                     root.ask("new-playlist", "", "");

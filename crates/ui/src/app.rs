@@ -79,6 +79,11 @@ fn wire(window: &AppWindow, controller: &Rc<Controller>) {
         move |id| controller.open_playlist(&id)
     });
 
+    window.on_play_playlist({
+        let controller = Rc::clone(controller);
+        move |id| controller.play_playlist(&id)
+    });
+
     window.on_create_playlist({
         let controller = Rc::clone(controller);
         move |name| controller.create_playlist(&name)
