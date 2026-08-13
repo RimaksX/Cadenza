@@ -7,6 +7,7 @@ import { LibraryView } from "../views/LibraryView.slint";
 import { QueueView } from "../views/QueueView.slint";
 import { PlaylistsView, PlaylistCardData } from "../views/PlaylistsView.slint";
 import { PlaylistDetailView } from "../views/PlaylistDetailView.slint";
+import { Dialog } from "Dialog.slint";
 
 // The frame every screen lives in: navigation down the left, the player across
 // the bottom, one content area between them.
@@ -32,6 +33,15 @@ export component AppShell inherits Rectangle {
     /// The screen showing. Held here rather than passed in, because navigation
     /// changes nothing outside the window.
     property <string> section: "library";
+
+    /// Which question is open, if any: "" while none is. The shell owns this
+    /// because a modal covers the whole window, and because what it asks about
+    /// is a decision the interface makes before the application hears anything.
+    property <string> dialog;
+    /// What the answer will be applied to.
+    property <string> dialog-target;
+    /// What the field starts with, and what the question names.
+    property <string> dialog-value;
     in property <string> profile-name;
     in property <string> profile-initial;
 
@@ -63,6 +73,9 @@ export component AppShell inherits Rectangle {
     callback play-queued(int);
     callback remove-from-queue(int);
     callback open-playlist(string);
+    callback create-playlist(string);
+    callback rename-playlist(string, string);
+    callback delete-playlist(string);
     callback play-from-playlist(string);
     callback toggle-play();
     callback seek(float);
@@ -150,6 +163,12 @@ export component AppShell inherits Rectangle {
                     root.section = "playlist";
                     root.open-playlist(id);
                 }
+                create => {
+                    root.ask("new-playlist", "", "");
+                }
+                act(id, name, action) => {
+                    root.ask(action == "rename" ? "rename-playlist" : "delete-playlist", id, name);
+                }
             }
 
             if root.section == "playlist": PlaylistDetailView {
@@ -213,6 +232,50 @@ export component AppShell inherits Rectangle {
                 root.cycle-repeat();
             }
         }
+    }
+
+    // Over everything, and outside the column layout so that it covers the
+    // player bar too: a question that can be answered while the music is
+    // being scrubbed is a question about a state that may no longer hold.
+    if root.dialog != "": Dialog {
+        width: 100%;
+        height: 100%;
+
+        title: root.dialog == "new-playlist"
+            ? "New playlist"
+            : (root.dialog == "rename-playlist" ? "Rename playlist" : "Delete playlist");
+        message: root.dialog == "delete-playlist"
+            ? "\"" + root.dialog-value + "\" goes; the tracks in it stay in your library."
+            : "";
+        placeholder: "Late night";
+        asks-for-text: root.dialog != "delete-playlist";
+        initial: root.dialog == "rename-playlist" ? root.dialog-value : "";
+        confirm-label: root.dialog == "new-playlist"
+            ? "CREATE"
+            : (root.dialog == "rename-playlist" ? "RENAME" : "DELETE");
+        destructive: root.dialog == "delete-playlist";
+
+        confirmed(value) => {
+            if (root.dialog == "new-playlist") {
+                root.create-playlist(value);
+            } else if (root.dialog == "rename-playlist") {
+                root.rename-playlist(root.dialog-target, value);
+            } else {
+                root.delete-playlist(root.dialog-target);
+            }
+            root.dialog = "";
+        }
+        cancelled => {
+            root.dialog = "";
+        }
+    }
+
+    /// Opens a question. One place, so that every one of them is opened the
+    /// same way and closed the same way.
+    function ask(kind: string, target: string, value: string) {
+        root.dialog-target = target;
+        root.dialog-value = value;
+        root.dialog = kind;
     }
 }
 

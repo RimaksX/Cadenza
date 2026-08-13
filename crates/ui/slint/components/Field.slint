@@ -1,0 +1,74 @@
+import { Theme } from "../theme/tokens.slint";
+
+// A line to type on.
+//
+// Not a box: nothing else in this interface is boxed, and a text field drawn as
+// a well would be the loudest object on any page it appeared on. A hairline
+// under the text is enough to say "this is where the words go" — the same
+// hairline that separates rows, brightened while the field has focus.
+export component Field inherits Rectangle {
+    in property <string> placeholder;
+    in-out property <string> text <=> input.text;
+
+    callback accepted();
+
+    height: 40px;
+    forward-focus: input;
+
+    // Clicking anywhere on the field, including the empty part after the text,
+    // puts the cursor in it — a two-character name should not have to be aimed
+    // at.
+    touch := TouchArea {
+        // Qualified: this component has a `text` property of its own, and a
+        // bare `text` here resolves to that string rather than to the cursor.
+        mouse-cursor: MouseCursor.text;
+        clicked => {
+            input.focus();
+        }
+    }
+
+    VerticalLayout {
+        alignment: center;
+        padding-bottom: 8px;
+
+        // The placeholder is a second Text under the input rather than a
+        // property of it: the built-in input has none, and a caption drawn in
+        // the field's own colour would be indistinguishable from typed words.
+        Rectangle {
+            height: input.preferred-height;
+
+            // Sits exactly where the first typed character will, which is the
+            // whole point of it: a hint centred over a left-aligned field is a
+            // label, and a label that vanishes when you type is a puzzle.
+            if input.text == "": Text {
+                width: 100%;
+                text: root.placeholder;
+                font-family: Theme.sans;
+                font-size: Theme.text-body;
+                color: Theme.ink-disabled;
+                horizontal-alignment: left;
+                vertical-alignment: center;
+            }
+
+            input := TextInput {
+                width: 100%;
+                font-family: Theme.sans;
+                font-size: Theme.text-body;
+                color: Theme.ink-0;
+                selection-background-color: Theme.ink-mute;
+                selection-foreground-color: Theme.bg-0;
+                single-line: true;
+                accepted => {
+                    root.accepted();
+                }
+            }
+        }
+    }
+
+    Rectangle {
+        y: parent.height - self.height;
+        height: 1px;
+        background: input.has-focus ? Theme.ink-1 : (touch.has-hover ? Theme.line : Theme.line-soft);
+        animate background { duration: 120ms; }
+    }
+}

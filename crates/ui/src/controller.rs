@@ -29,14 +29,10 @@ const NO_TRACKS_HINT: &str =
 const NO_QUEUE_HINT: &str = "play something from the library\nand the rest follows it";
 
 /// What to do when there are no playlists.
-///
-/// Making one is a command-line job for now, the way adding a folder is: it
-/// needs a name typed into a field this interface does not have yet.
-const NO_PLAYLISTS_HINT: &str =
-    "make one:\ncadenza playlist new <name>\ncadenza playlist add <name> <track number>";
+const NO_PLAYLISTS_HINT: &str = "press + NEW PLAYLIST to start one";
 
 /// What to do when a playlist has nothing in it.
-const EMPTY_PLAYLIST_HINT: &str = "add to it:\ncadenza playlist add <name> <track number>";
+const EMPTY_PLAYLIST_HINT: &str = "add tracks from the library\nwith the ··· at the end of a row";
 
 /// Holds the services and pushes state into the window.
 pub struct Controller {
@@ -208,6 +204,41 @@ impl Controller {
 
         *self.open_playlist.borrow_mut() = Some(playlist_id);
         self.refresh_open_playlist();
+    }
+
+    /// Makes a playlist and shows it in the index.
+    pub fn create_playlist(&self, name: &str) {
+        self.run(|| self.services.playlists.create(name).map(|_| ()));
+        self.refresh_playlists();
+    }
+
+    /// Renames one.
+    pub fn rename_playlist(&self, id: &str, name: &str) {
+        self.run(|| {
+            let playlist_id = PlaylistId::parse(id)?;
+            self.services
+                .playlists
+                .rename(playlist_id, name)
+                .map(|_| ())
+        });
+        self.refresh_playlists();
+        self.refresh_open_playlist();
+    }
+
+    /// Deletes one. Its tracks stay in the library.
+    pub fn delete_playlist(&self, id: &str) {
+        self.run(|| {
+            let playlist_id = PlaylistId::parse(id)?;
+            self.services.playlists.delete(playlist_id)
+        });
+
+        // The page for a deleted playlist has nothing to show, so the index is
+        // where the listener goes back to — and the markup has already taken
+        // them there, because the tile they used is on it.
+        if *self.open_playlist.borrow() == PlaylistId::parse(id).ok() {
+            *self.open_playlist.borrow_mut() = None;
+        }
+        self.refresh_playlists();
     }
 
     /// Re-reads whatever playlist page is open.

@@ -1,0 +1,89 @@
+import { Theme } from "../theme/tokens.slint";
+
+// What a menu can offer. A list of these rather than a component per item: the
+// items differ by what they say and whether they take something away, and
+// everything else about them is the same.
+export struct MenuItemData {
+    // What the interface calls back with. Empty means a separator.
+    action: string,
+    label: string,
+    destructive: bool,
+}
+
+component MenuRow inherits Rectangle {
+    in property <MenuItemData> data;
+
+    callback chosen();
+
+    height: 32px;
+    background: touch.has-hover ? Theme.bg-2 : transparent;
+    animate background { duration: 90ms; }
+
+    touch := TouchArea {
+        mouse-cursor: pointer;
+        clicked => {
+            root.chosen();
+        }
+    }
+
+    Text {
+        x: Theme.space-3;
+        y: (parent.height - self.height) / 2;
+        text: root.data.label;
+        font-family: Theme.sans;
+        font-size: Theme.text-meta;
+        color: root.data.destructive
+            ? Theme.danger
+            : (touch.has-hover ? Theme.ink-0 : Theme.ink-1);
+        animate color { duration: 90ms; }
+    }
+}
+
+// The menu itself.
+//
+// A popup rather than a panel drawn in place: it has to be able to cover the
+// rows below the one it belongs to, and a row list that grows a menu inside
+// itself pushes everything under it down the page.
+export component RowMenu inherits PopupWindow {
+    in property <[MenuItemData]> items;
+
+    callback chosen(string);
+
+    close-policy: PopupClosePolicy.close-on-click-outside;
+    width: 220px;
+    height: layout.preferred-height;
+
+    Rectangle {
+        background: Theme.bg-1;
+        border-width: 1px;
+        border-color: Theme.line;
+        border-radius: Theme.radius;
+
+        layout := VerticalLayout {
+            padding-top: Theme.space-2;
+            padding-bottom: Theme.space-2;
+
+            for item in root.items: Rectangle {
+                height: item.action == "" ? 9px : 32px;
+
+                // A separator is an item with nothing to do: one hairline, the
+                // width of the menu, and no hover of its own.
+                if item.action == "": Rectangle {
+                    y: 4px;
+                    height: 1px;
+                    background: Theme.line-soft;
+                }
+
+                if item.action != "": MenuRow {
+                    width: 100%;
+                    height: 100%;
+                    data: item;
+                    chosen => {
+                        root.chosen(item.action);
+                        root.close();
+                    }
+                }
+            }
+        }
+    }
+}

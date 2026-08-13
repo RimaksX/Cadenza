@@ -1,0 +1,168 @@
+import { Theme } from "../theme/tokens.slint";
+import { Field } from "Field.slint";
+
+// A word set in mono capitals that can be pressed.
+//
+// The only button shape in the interface besides the transport's circle and the
+// row's outlined pill: a label, and a hairline under it when the pointer is on
+// it. Nothing is boxed until it has to be.
+export component TextButton inherits Rectangle {
+    in property <string> label;
+    in property <bool> primary;
+    in property <bool> destructive;
+
+    callback pressed();
+
+    property <color> tone: root.destructive
+        ? Theme.danger
+        : (root.primary ? Theme.ink-0 : Theme.ink-2);
+
+    width: label.width + 2 * Theme.space-3;
+    height: 32px;
+
+    touch := TouchArea {
+        mouse-cursor: pointer;
+        clicked => {
+            root.pressed();
+        }
+    }
+
+    label := Text {
+        x: Theme.space-3;
+        y: (parent.height - self.height) / 2;
+        text: root.label;
+        font-family: Theme.mono;
+        font-size: Theme.text-label;
+        letter-spacing: Theme.label-spacing;
+        color: touch.has-hover ? root.tone : root.tone.with-alpha(0.75);
+        animate color { duration: 120ms; }
+    }
+
+    Rectangle {
+        x: Theme.space-3;
+        y: parent.height - 8px;
+        width: label.width;
+        height: 1px;
+        background: root.tone;
+        opacity: touch.has-hover ? 1.0 : 0.0;
+        animate opacity { duration: 120ms; }
+    }
+}
+
+// One question, asked over the whole window.
+//
+// Modal on purpose: every one of these is a decision the next thing depends on
+// — what the list is called, whether the track really goes. A panel that can be
+// left open while something else is clicked is a panel that has to be told what
+// to do when the something else invalidates it.
+export component Dialog inherits Rectangle {
+    in property <string> title;
+    in property <string> message;
+    in property <string> placeholder;
+    /// Empty means the dialog asks nothing and only confirms.
+    in property <bool> asks-for-text;
+    in property <string> confirm-label: "SAVE";
+    in property <bool> destructive;
+    /// What the field starts with. A binding rather than a value pushed in: the
+    /// dialog is built fresh every time it opens, and typing replaces it.
+    in property <string> initial;
+
+    callback confirmed(string);
+    callback cancelled();
+
+    // Fills the window and eats every click that is not on the card, which is
+    // what makes it modal without a second window.
+    background: Theme.bg-0.with-alpha(0.72);
+
+    backdrop := TouchArea {
+        clicked => {
+            root.cancelled();
+        }
+    }
+
+    // Escape closes it. A modal that can only be dismissed by aiming at a
+    // particular word is a modal that traps people who reached for the key
+    // every other application answers.
+    keys := FocusScope {
+        key-pressed(event) => {
+            if (event.text == Key.Escape) {
+                root.cancelled();
+                return accept;
+            }
+            return reject;
+        }
+    }
+
+    card := Rectangle {
+        width: 440px;
+        height: layout.preferred-height;
+        x: (parent.width - self.width) / 2;
+        y: (parent.height - self.height) / 2;
+        background: Theme.bg-1;
+        border-width: 1px;
+        border-color: Theme.line;
+        border-radius: Theme.radius;
+
+        // Clicks on the card are not clicks on the backdrop.
+        TouchArea { }
+
+        layout := VerticalLayout {
+            padding: Theme.space-6;
+            spacing: Theme.space-4;
+
+            Text {
+                text: root.title;
+                font-family: Theme.serif;
+                font-size: 24px;
+                color: Theme.ink-0;
+                wrap: word-wrap;
+            }
+
+            if root.message != "": Text {
+                text: root.message;
+                font-family: Theme.sans;
+                font-size: Theme.text-meta;
+                color: Theme.ink-2;
+                wrap: word-wrap;
+            }
+
+            // Always built, and collapsed when the dialog only confirms: an
+            // element inside an `if` is out of scope everywhere else, and both
+            // the alias above and the confirm button below need to reach it.
+            Rectangle {
+                height: root.asks-for-text ? 40px : 0px;
+                clip: true;
+
+                field := Field {
+                    width: 100%;
+                    placeholder: root.placeholder;
+                    text: root.initial;
+                    accepted => {
+                        root.confirmed(self.text);
+                    }
+                }
+            }
+
+            HorizontalLayout {
+                alignment: end;
+                spacing: Theme.space-2;
+
+                TextButton {
+                    label: "CANCEL";
+                    pressed => {
+                        root.cancelled();
+                    }
+                }
+
+                TextButton {
+                    label: root.confirm-label;
+                    primary: true;
+                    destructive: root.destructive;
+                    pressed => {
+                        root.confirmed(field.text);
+                    }
+                }
+            }
+        }
+    }
+}

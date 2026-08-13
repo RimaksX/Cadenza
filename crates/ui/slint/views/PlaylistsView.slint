@@ -1,5 +1,7 @@
 import { ScrollView } from "std-widgets.slint";
 import { Theme } from "../theme/tokens.slint";
+import { TextButton } from "../components/Dialog.slint";
+import { RowMenu, MenuItemData } from "../components/RowMenu.slint";
 
 // One playlist, as the view model hands it over. Every field is already the
 // string to draw: numbering, pluralising and formatting a duration are
@@ -22,6 +24,7 @@ export component PlaylistCard inherits Rectangle {
     in property <PlaylistCardData> data;
 
     callback activated();
+    callback acted(string);
 
     touch := TouchArea {
         // One click. Opening a list is not a destructive act, and there is
@@ -93,6 +96,61 @@ export component PlaylistCard inherits Rectangle {
                     color: Theme.ink-2;
                 }
                 }
+
+                // The list's own actions, in the corner of its cover and only
+                // while the pointer is on the tile. Three dots because there is
+                // no shape for "rename", and a shape nobody can read is worse
+                // than a mark that says "there is more here".
+                // Always built, faded rather than absent: its own touch area is
+                // named in the condition that would have created it, and an
+                // element cannot decide whether to exist by asking itself.
+                Rectangle {
+                    x: parent.width - self.width - 8px;
+                    y: 8px;
+                    width: 28px;
+                    height: 28px;
+                    border-radius: Theme.radius;
+                    background: dots.has-hover ? Theme.bg-3 : transparent;
+                    opacity: touch.has-hover || dots.has-hover ? 1.0 : 0.0;
+                    animate background, opacity { duration: 120ms; }
+
+                    Text {
+                        text: "···";
+                        font-family: Theme.sans;
+                        font-size: 18px;
+                        color: dots.has-hover ? Theme.ink-0 : Theme.ink-2;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                        width: 100%;
+                        height: 100%;
+                    }
+
+                    dots := TouchArea {
+                        // Invisible until the tile is under the pointer, and
+                        // unclickable until then: a button nobody can see is
+                        // not a button, whatever it does when pressed.
+                        enabled: touch.has-hover || self.has-hover;
+                        mouse-cursor: pointer;
+                        clicked => {
+                            menu.show();
+                        }
+                    }
+
+                    // Opens to the left of the dots, because they sit at the
+                    // right edge of a tile that may itself be at the right edge
+                    // of the window.
+                    menu := RowMenu {
+                        x: 28px - self.width;
+                        y: 28px;
+                        items: [
+                            { action: "rename", label: "Rename…" },
+                            { action: "delete", label: "Delete playlist", destructive: true },
+                        ];
+                        chosen(action) => {
+                            root.acted(action);
+                        }
+                    }
+                }
             }
         }
 
@@ -130,6 +188,11 @@ export component PlaylistsView inherits Rectangle {
     in property <string> empty-hint;
 
     callback open(string);
+    callback create();
+    /// A playlist, its name and what to do to it. The name travels with the
+    /// identifier because the dialog that follows has to show it, and finding
+    /// a row by identifier in a model is work the model already did.
+    callback act(string, string, string);
 
     // A tile stops being a tile below this: the name inside it is set large,
     // and a square too small to hold two words of it is a grey box.
@@ -168,11 +231,30 @@ export component PlaylistsView inherits Rectangle {
                 color: Theme.ink-mute;
             }
 
-            Text {
-                text: "Playlists";
-                font-family: Theme.serif;
-                font-size: Theme.text-display;
-                color: Theme.ink-0;
+            // The title, and the one action the page itself offers. Beside the
+            // heading rather than in a toolbar: there is no toolbar, and a page
+            // with one verb does not need a strip to keep it in.
+            HorizontalLayout {
+                alignment: space-between;
+
+                Text {
+                    text: "Playlists";
+                    font-family: Theme.serif;
+                    font-size: Theme.text-display;
+                    color: Theme.ink-0;
+                }
+
+                VerticalLayout {
+                    alignment: center;
+
+                    TextButton {
+                        label: "+ NEW PLAYLIST";
+                        primary: true;
+                        pressed => {
+                            root.create();
+                        }
+                    }
+                }
             }
 
             Text {
@@ -227,6 +309,9 @@ export component PlaylistsView inherits Rectangle {
                 y: root.headroom + floor(index / root.columns) * root.row-height;
                 activated => {
                     root.open(entry.id);
+                }
+                acted(action) => {
+                    root.act(entry.id, entry.name, action);
                 }
             }
         }
