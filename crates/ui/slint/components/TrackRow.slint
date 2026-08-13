@@ -100,7 +100,7 @@ export component TrackRow inherits Rectangle {
                 width: 13px;
                 height: self.width;
                 x: parent.width - self.width;
-                y: (parent.height - self.height) / 2;
+                y: round((parent.height - self.height) / 1px / 2) * 1px;
                 colorize: hover-play.has-hover ? Theme.ink-0 : Theme.ink-2;
             }
 

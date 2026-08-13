@@ -28,9 +28,12 @@ export component TextButton inherits Rectangle {
         }
     }
 
+    // Whole pixels: see the note in `RowMenu`. Half a pixel of vertical offset
+    // is what makes a line of type look as though its letters are at different
+    // heights.
     label := Text {
         x: Theme.space-3;
-        y: (parent.height - self.height) / 2;
+        y: round((parent.height - self.height) / 1px / 2) * 1px;
         text: root.label;
         font-family: Theme.mono;
         font-size: Theme.text-label;
@@ -97,8 +100,12 @@ export component Dialog inherits Rectangle {
     card := Rectangle {
         width: 440px;
         height: layout.preferred-height;
-        x: (parent.width - self.width) / 2;
-        y: (parent.height - self.height) / 2;
+        // Whole pixels. A card centred on a window of odd height lands on
+        // half a pixel, every glyph inside it is then snapped to the pixel
+        // grid on its own, and the line comes out with its letters at
+        // different heights. That is the whole of "the type is jumping".
+        x: round((parent.width - self.width) / 1px / 2) * 1px;
+        y: round((parent.height - self.height) / 1px / 2) * 1px;
         background: Theme.bg-1;
         border-width: 1px;
         border-color: Theme.line;
@@ -204,8 +211,12 @@ export component PickDialog inherits Rectangle {
     Rectangle {
         width: 440px;
         height: min(520px, layout.preferred-height);
-        x: (parent.width - self.width) / 2;
-        y: (parent.height - self.height) / 2;
+        // Whole pixels. A card centred on a window of odd height lands on
+        // half a pixel, every glyph inside it is then snapped to the pixel
+        // grid on its own, and the line comes out with its letters at
+        // different heights. That is the whole of "the type is jumping".
+        x: round((parent.width - self.width) / 1px / 2) * 1px;
+        y: round((parent.height - self.height) / 1px / 2) * 1px;
         background: Theme.bg-1;
         border-width: 1px;
         border-color: Theme.line;
@@ -235,8 +246,12 @@ export component PickDialog inherits Rectangle {
 
             // The options, each a row that answers the question by being
             // pressed. No confirm button: choosing is the answer.
-            for option in root.options: Rectangle {
-                height: 40px;
+            //
+            // Divided by hairlines like every other list in Cadenza, and the
+            // last one carries none — a rule under the final row would be the
+            // bottom of a table that is not there.
+            for option[index] in root.options: Rectangle {
+                height: 52px;
 
                 option-touch := TouchArea {
                     mouse-cursor: pointer;
@@ -246,19 +261,52 @@ export component PickDialog inherits Rectangle {
                 }
 
                 Rectangle {
+                    y: 2px;
+                    height: parent.height - 4px;
                     border-radius: Theme.radius;
                     background: option-touch.has-hover ? Theme.bg-3 : transparent;
                     animate background { duration: 90ms; }
                 }
 
-                Text {
+                HorizontalLayout {
+                    padding-left: Theme.space-3;
+                    padding-right: Theme.space-3;
+                    spacing: Theme.space-4;
+
+                    VerticalLayout {
+                        alignment: center;
+                        horizontal-stretch: 1;
+
+                        Text {
+                            text: option.label;
+                            font-family: Theme.serif;
+                            font-size: 19px;
+                            color: option-touch.has-hover ? Theme.ink-0 : Theme.ink-1;
+                            overflow: elide;
+                            animate color { duration: 90ms; }
+                        }
+                    }
+
+                    VerticalLayout {
+                        alignment: center;
+
+                        Text {
+                            text: option.meta;
+                            font-family: Theme.mono;
+                            font-size: Theme.text-label;
+                            letter-spacing: Theme.label-spacing;
+                            color: Theme.ink-mute;
+                            horizontal-alignment: right;
+                        }
+                    }
+                }
+
+                if index < root.options.length - 1: Rectangle {
+                    y: parent.height - 1px;
                     x: Theme.space-3;
-                    y: (parent.height - self.height) / 2;
-                    text: option.label;
-                    font-family: Theme.serif;
-                    font-size: 17px;
-                    color: option-touch.has-hover ? Theme.ink-0 : Theme.ink-1;
-                    animate color { duration: 90ms; }
+                    width: parent.width - 2 * Theme.space-3;
+                    height: 1px;
+                    background: Theme.line-soft;
                 }
             }
 

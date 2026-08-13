@@ -255,7 +255,10 @@ export component PlaylistsView inherits Rectangle {
 
     property <length> available: self.width - 2 * Theme.page-inset;
     property <int> columns: max(1, min(5, floor((root.available + root.gap-x) / (root.min-tile + root.gap-x))));
-    property <length> tile-width: (root.available - (root.columns - 1) * root.gap-x) / root.columns;
+    // Rounded to a whole pixel. A tile on a fractional x puts every word in it
+    // on a fractional x too, and text snapped to the pixel grid from half a
+    // pixel out is text whose letters sit at slightly different heights.
+    property <length> tile-width: round((root.available - (root.columns - 1) * root.gap-x) / root.columns / 1px) * 1px;
     property <length> card-height: root.tile-width + root.caption-height;
     property <length> row-height: root.card-height + root.gap-y;
 

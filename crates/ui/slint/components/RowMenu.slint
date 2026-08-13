@@ -7,6 +7,9 @@ export struct MenuItemData {
     // What the interface calls back with. Empty means a separator.
     action: string,
     label: string,
+    // A quieter second line, set beside the label where anything shows it.
+    // Menus ignore it; the picker uses it to say how big a list is.
+    meta: string,
     destructive: bool,
 }
 
@@ -37,9 +40,13 @@ component MenuRow inherits Rectangle {
         animate background { duration: 90ms; }
     }
 
+    // Rounded to a whole pixel. A line of text placed at half a pixel is
+    // rasterised glyph by glyph against the pixel grid, and the letters come
+    // out sitting at visibly different heights — which is what "the type is
+    // jumping" turns out to be.
     Text {
         x: 16px;
-        y: (parent.height - self.height) / 2;
+        y: round((parent.height - self.height) / 1px / 2) * 1px;
         text: root.data.label;
         font-family: Theme.sans;
         font-size: Theme.text-meta;

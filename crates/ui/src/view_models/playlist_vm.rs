@@ -36,6 +36,7 @@ pub fn options(summaries: &[PlaylistSummary]) -> Vec<MenuItemData> {
         .map(|summary| MenuItemData {
             action: summary.playlist.id.to_string().into(),
             label: summary.playlist.name.as_str().into(),
+            meta: meta(summary).into(),
             destructive: false,
         })
         .collect()
