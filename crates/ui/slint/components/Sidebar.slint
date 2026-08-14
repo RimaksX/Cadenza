@@ -51,6 +51,7 @@ component NavItem inherits Rectangle {
             text: root.label;
             font-family: Theme.sans;
             font-size: Theme.text-body;
+            height: 22px;
             color: root.tone;
             animate color { duration: 120ms; }
             vertical-alignment: center;
@@ -70,6 +71,7 @@ component NavLabel inherits HorizontalLayout {
         text: root.text;
         font-family: Theme.mono;
         font-size: Theme.text-label;
+        height: 18px;
         letter-spacing: Theme.label-spacing;
         color: Theme.ink-mute;
         vertical-alignment: center;
@@ -121,16 +123,24 @@ export component Sidebar inherits Rectangle {
             padding-right: Theme.space-5;
             spacing: 2px;
 
+            // Title rather than display, though it is the application's own
+            // name: display belongs to whatever the listener is looking at, and
+            // two things at the same size on one screen compete instead of
+            // ranking.
             Text {
                 text: "Cadenza";
                 font-family: Theme.serif;
-                font-size: 28px;
+                font-size: Theme.text-title;
+                height: 30px;
+                vertical-alignment: center;
                 color: Theme.ink-0;
             }
             Text {
                 text: "LOCAL PLAYER";
                 font-family: Theme.mono;
                 font-size: Theme.text-label;
+                height: 18px;
+                vertical-alignment: center;
                 letter-spacing: Theme.label-spacing;
                 color: Theme.ink-mute;
             }
@@ -225,6 +235,7 @@ export component Sidebar inherits Rectangle {
                                 font-family: Theme.serif;
                                 font-italic: true;
                                 font-size: 14px;
+                                height: 22px;
                                 color: Theme.ink-1;
                                 horizontal-alignment: center;
                                 vertical-alignment: center;
@@ -240,7 +251,9 @@ export component Sidebar inherits Rectangle {
                         Text {
                             text: root.profile-name;
                             font-family: Theme.sans;
-                            font-size: Theme.text-meta;
+                            font-size: Theme.text-body;
+                            height: 22px;
+                            vertical-alignment: center;
                             color: Theme.ink-1;
                             overflow: elide;
                         }
@@ -248,6 +261,8 @@ export component Sidebar inherits Rectangle {
                             text: "ACTIVE PROFILE";
                             font-family: Theme.mono;
                             font-size: Theme.text-label;
+                            height: 18px;
+                            vertical-alignment: center;
                             letter-spacing: Theme.label-spacing;
                             color: Theme.ink-mute;
                         }

@@ -218,7 +218,8 @@ export component PlayerBar inherits Rectangle {
                         text: root.initial;
                         font-family: Theme.serif;
                         font-italic: true;
-                        font-size: 22px;
+                        font-size: Theme.text-title;
+                        height: 30px;
                         color: Theme.ink-1;
                         horizontal-alignment: center;
                         vertical-alignment: center;
@@ -333,7 +334,8 @@ export component PlayerBar inherits Rectangle {
                     width: 48px;
                     text: root.position;
                     font-family: Theme.mono;
-                    font-size: Theme.text-number;
+                    font-size: Theme.text-label;
+                    height: 18px;
                     letter-spacing: Theme.number-spacing;
                     color: Theme.ink-mute;
                     vertical-alignment: center;
@@ -358,7 +360,8 @@ export component PlayerBar inherits Rectangle {
                     width: 48px;
                     text: root.duration;
                     font-family: Theme.mono;
-                    font-size: Theme.text-number;
+                    font-size: Theme.text-label;
+                    height: 18px;
                     letter-spacing: Theme.number-spacing;
                     color: Theme.ink-mute;
                     vertical-alignment: center;
@@ -409,6 +412,8 @@ export component PlayerBar inherits Rectangle {
         text: root.message;
         font-family: Theme.mono;
         font-size: Theme.text-label;
+        height: 18px;
+        vertical-alignment: center;
         color: Theme.ink-2;
         horizontal-alignment: center;
         overflow: elide;

@@ -68,7 +68,9 @@ export component PlaylistCard inherits Rectangle {
                     Text {
                         text: "PLAYLIST";
                         font-family: Theme.mono;
-                        font-size: 9px;
+                        font-size: Theme.text-label;
+                        height: 18px;
+                        vertical-alignment: center;
                         letter-spacing: Theme.label-spacing;
                         color: Theme.ink-mute;
                         horizontal-stretch: 1;
@@ -79,7 +81,9 @@ export component PlaylistCard inherits Rectangle {
                     Text {
                         text: root.data.position;
                         font-family: Theme.mono;
-                        font-size: 9px;
+                        font-size: Theme.text-label;
+                        height: 18px;
+                        vertical-alignment: center;
                         letter-spacing: Theme.label-spacing;
                         color: Theme.ink-mute;
                         opacity: touch.has-hover || dots.has-hover ? 0.0 : 1.0;
@@ -93,7 +97,7 @@ export component PlaylistCard inherits Rectangle {
                     text: root.data.name;
                     font-family: Theme.serif;
                     font-italic: true;
-                    font-size: 30px;
+                    font-size: Theme.text-display;
                     color: Theme.ink-0;
                     vertical-alignment: center;
                     wrap: word-wrap;
@@ -105,6 +109,8 @@ export component PlaylistCard inherits Rectangle {
                     text: root.data.maker;
                     font-family: Theme.mono;
                     font-size: Theme.text-label;
+                    height: 18px;
+                    vertical-alignment: center;
                     letter-spacing: Theme.label-spacing;
                     color: Theme.ink-2;
                 }
@@ -209,7 +215,9 @@ export component PlaylistCard inherits Rectangle {
             Text {
                 text: root.data.name;
                 font-family: Theme.serif;
-                font-size: 17px;
+                font-size: Theme.text-title;
+                height: 30px;
+                vertical-alignment: center;
                 color: touch.has-hover ? Theme.ink-0 : Theme.ink-1;
                 overflow: elide;
                 animate color { duration: 120ms; }
@@ -219,6 +227,8 @@ export component PlaylistCard inherits Rectangle {
                 text: root.data.meta;
                 font-family: Theme.mono;
                 font-size: Theme.text-label;
+                height: 18px;
+                vertical-alignment: center;
                 letter-spacing: Theme.label-spacing;
                 color: Theme.ink-mute;
                 overflow: elide;
@@ -277,6 +287,8 @@ export component PlaylistsView inherits Rectangle {
                 text: "YOUR LISTS";
                 font-family: Theme.mono;
                 font-size: Theme.text-label;
+                height: 18px;
+                vertical-alignment: center;
                 letter-spacing: Theme.label-spacing;
                 color: Theme.ink-mute;
             }
@@ -291,6 +303,8 @@ export component PlaylistsView inherits Rectangle {
                     text: "Playlists";
                     font-family: Theme.serif;
                     font-size: Theme.text-display;
+                    height: 54px;
+                    vertical-alignment: center;
                     color: Theme.ink-0;
                 }
 
@@ -310,7 +324,9 @@ export component PlaylistsView inherits Rectangle {
             Text {
                 text: root.summary;
                 font-family: Theme.mono;
-                font-size: Theme.text-number;
+                font-size: Theme.text-label;
+                height: 18px;
+                vertical-alignment: center;
                 letter-spacing: Theme.number-spacing;
                 color: Theme.ink-2;
             }
@@ -330,13 +346,15 @@ export component PlaylistsView inherits Rectangle {
                     text: "No lists yet";
                     font-family: Theme.serif;
                     font-size: Theme.text-display;
+                    height: 54px;
+                    vertical-alignment: center;
                     color: Theme.ink-2;
                     horizontal-alignment: center;
                 }
                 Text {
                     text: root.empty-hint;
                     font-family: Theme.mono;
-                    font-size: Theme.text-number;
+                    font-size: Theme.text-label;
                     color: Theme.ink-mute;
                     horizontal-alignment: center;
                     wrap: word-wrap;

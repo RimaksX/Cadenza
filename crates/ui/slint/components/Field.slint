@@ -53,11 +53,17 @@ export component Field inherits Rectangle {
             // Sits exactly where the first typed character will, which is the
             // whole point of it: a hint centred over a left-aligned field is a
             // label, and a label that vanishes when you type is a puzzle.
+            // In the mono face, like every other hint and label here. Set in
+            // the interface's own sans it read as neutral system furniture —
+            // the one place in the window where the type did not sound like
+            // the rest of it.
             if input.text == "": Text {
                 width: 100%;
+                height: 100%;
                 text: root.placeholder;
-                font-family: Theme.sans;
-                font-size: Theme.text-body;
+                font-family: Theme.mono;
+                font-size: Theme.text-label;
+                letter-spacing: Theme.number-spacing;
                 color: Theme.ink-disabled;
                 horizontal-alignment: left;
                 vertical-alignment: center;

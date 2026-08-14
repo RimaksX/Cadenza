@@ -10,6 +10,7 @@ import { Field } from "Field.slint";
 component ColumnLabel inherits Text {
     font-family: Theme.mono;
     font-size: Theme.text-label;
+    height: 18px;
     letter-spacing: Theme.label-spacing;
     color: Theme.ink-mute;
     overflow: elide;
@@ -82,6 +83,8 @@ export component TrackList inherits Rectangle {
                 text: root.eyebrow;
                 font-family: Theme.mono;
                 font-size: Theme.text-label;
+                height: 18px;
+                vertical-alignment: center;
                 letter-spacing: Theme.label-spacing;
                 color: Theme.ink-mute;
             }
@@ -105,6 +108,8 @@ export component TrackList inherits Rectangle {
                         text: "← " + root.back-label;
                         font-family: Theme.mono;
                         font-size: Theme.text-label;
+                        height: 18px;
+                        vertical-alignment: center;
                         letter-spacing: Theme.label-spacing;
                         color: back-touch.has-hover ? Theme.ink-0 : Theme.ink-mute;
                         animate color { duration: 120ms; }
@@ -123,6 +128,7 @@ export component TrackList inherits Rectangle {
                     text: root.heading;
                     font-family: Theme.serif;
                     font-size: Theme.text-display;
+                    height: 54px;
                     color: Theme.ink-0;
                     vertical-alignment: bottom;
                 }
@@ -198,7 +204,9 @@ export component TrackList inherits Rectangle {
             Text {
                 text: root.summary;
                 font-family: Theme.mono;
-                font-size: Theme.text-number;
+                font-size: Theme.text-label;
+                height: 18px;
+                vertical-alignment: center;
                 letter-spacing: Theme.number-spacing;
                 color: Theme.ink-2;
             }
@@ -276,13 +284,15 @@ export component TrackList inherits Rectangle {
                     text: root.empty-title;
                     font-family: Theme.serif;
                     font-size: Theme.text-display;
+                    height: 54px;
+                    vertical-alignment: center;
                     color: Theme.ink-2;
                     horizontal-alignment: center;
                 }
                 Text {
                     text: root.empty-hint;
                     font-family: Theme.mono;
-                    font-size: Theme.text-number;
+                    font-size: Theme.text-label;
                     color: Theme.ink-mute;
                     horizontal-alignment: center;
                     wrap: word-wrap;

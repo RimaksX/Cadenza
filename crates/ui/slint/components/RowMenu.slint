@@ -49,7 +49,9 @@ component MenuRow inherits Rectangle {
         y: round((parent.height - self.height) / 1px / 2) * 1px;
         text: root.data.label;
         font-family: Theme.sans;
-        font-size: Theme.text-meta;
+        font-size: Theme.text-body;
+        height: 22px;
+        vertical-alignment: center;
         color: root.data.destructive
             ? Theme.danger
             : (touch.has-hover ? Theme.ink-0 : Theme.ink-1);

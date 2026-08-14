@@ -48,21 +48,22 @@ export global Theme {
     out property <string> sans: "Inter";
     out property <string> mono: "JetBrains Mono";
 
-    // Type scale. Display is for the one title on a page, row-title for a track
-    // in a list, body for prose, meta for the quieter things beside it, number
-    // for anything monospaced, label for mono capitals.
+    // Type scale — four sizes, and nothing between them.
     //
-    // Every step is a little larger than it first was. These faces are light —
-    // Instrument Serif has thin strokes and JetBrains Mono at small sizes with
-    // wide tracking thins further — and a size that reads on a specimen sheet
-    // does not read in a column above data.
+    // Display names a page or an object: the heading of a screen, a playlist on
+    // its tile, the wordmark. Title names a thing inside one: a track in a row,
+    // a list in a picker, the question a dialog asks. Body is for prose and for
+    // anything read as a sentence. Label is the mono voice — every caption,
+    // every column head, every quantity.
+    //
+    // Four rather than seven because a size that exists gets used, and a
+    // seventh size is a seventh thing for the eye to sort. Emphasis comes from
+    // the face and the ink instead: serif for names, mono for numbers, and four
+    // steps of grey.
     out property <length> text-display: 36px;
-    out property <length> text-title: 18px;
-    out property <length> text-row-title: 19px;
+    out property <length> text-title: 20px;
     out property <length> text-body: 14px;
-    out property <length> text-meta: 13px;
-    out property <length> text-number: 12px;
-    out property <length> text-label: 10.5px;
+    out property <length> text-label: 12px;
 
     // Spacing, in one series, so nothing lands between two steps.
     out property <length> space-1: 4px;

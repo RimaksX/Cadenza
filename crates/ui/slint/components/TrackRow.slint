@@ -89,7 +89,8 @@ export component TrackRow inherits Rectangle {
             if !root.hovered: Text {
                 text: root.data.position;
                 font-family: Theme.mono;
-                font-size: Theme.text-number;
+                font-size: Theme.text-label;
+                height: 18px;
                 letter-spacing: Theme.number-spacing;
                 color: root.playing ? Theme.ink-0 : Theme.ink-mute;
                 vertical-alignment: center;
@@ -125,7 +126,8 @@ export component TrackRow inherits Rectangle {
         Text {
             text: root.data.title;
             font-family: Theme.serif;
-            font-size: Theme.text-row-title;
+            font-size: Theme.text-title;
+            height: 30px;
             color: Theme.ink-0;
             vertical-alignment: center;
             horizontal-alignment: left;
@@ -137,7 +139,8 @@ export component TrackRow inherits Rectangle {
         Text {
             text: root.data.artist;
             font-family: Theme.sans;
-            font-size: Theme.text-meta;
+            font-size: Theme.text-body;
+            height: 22px;
             color: Theme.ink-2;
             vertical-alignment: center;
             horizontal-alignment: left;
@@ -153,7 +156,8 @@ export component TrackRow inherits Rectangle {
             text: root.data.album;
             font-family: Theme.serif;
             font-italic: true;
-            font-size: Theme.text-meta;
+            font-size: Theme.text-body;
+            height: 22px;
             color: Theme.ink-mute;
             vertical-alignment: center;
             horizontal-alignment: left;
@@ -171,7 +175,8 @@ export component TrackRow inherits Rectangle {
                 width: parent.width;
                 text: root.data.duration;
                 font-family: Theme.mono;
-                font-size: Theme.text-number;
+                font-size: Theme.text-label;
+                height: 18px;
                 letter-spacing: Theme.number-spacing;
                 color: Theme.ink-mute;
                 vertical-alignment: center;
@@ -208,9 +213,11 @@ export component TrackRow inherits Rectangle {
                 // A tint rather than a fill: enough to say the word is meant,
                 // not enough to make a small button the loudest thing on a page
                 // of hairlines.
-                background: !hover-queue.has-hover
-                    ? transparent
-                    : (root.queued ? Theme.danger.with-alpha(0.12) : Theme.bg-2);
+                background: hover-queue.pressed
+                    ? (root.queued ? Theme.danger.with-alpha(0.22) : Theme.bg-3)
+                    : (hover-queue.has-hover
+                        ? (root.queued ? Theme.danger.with-alpha(0.12) : Theme.bg-2)
+                        : transparent);
                 animate background, border-color { duration: 120ms; }
 
                 HorizontalLayout {
@@ -235,6 +242,7 @@ export component TrackRow inherits Rectangle {
                         text: root.queued ? "REMOVE" : "QUEUE";
                         font-family: Theme.mono;
                         font-size: Theme.text-label;
+                        height: 18px;
                         letter-spacing: Theme.label-spacing;
                         color: pill.accent;
                         vertical-alignment: center;
