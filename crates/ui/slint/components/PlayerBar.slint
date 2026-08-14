@@ -330,16 +330,20 @@ export component PlayerBar inherits Rectangle {
             HorizontalLayout {
                 spacing: Theme.space-4;
 
-                Text {
+                VerticalLayout {
+                    alignment: center;
                     width: 48px;
-                    text: root.position;
-                    font-family: Theme.mono;
-                    font-size: Theme.text-label;
-                    height: 18px;
-                    letter-spacing: Theme.number-spacing;
-                    color: Theme.ink-mute;
-                    vertical-alignment: center;
-                    horizontal-alignment: right;
+
+                    Text {
+                        text: root.position;
+                        font-family: Theme.mono;
+                        font-size: Theme.text-label;
+                        height: 18px;
+                        letter-spacing: Theme.number-spacing;
+                        color: Theme.ink-mute;
+                        vertical-alignment: center;
+                        horizontal-alignment: right;
+                    }
                 }
 
                 VerticalLayout {
@@ -356,15 +360,19 @@ export component PlayerBar inherits Rectangle {
                     }
                 }
 
-                Text {
+                VerticalLayout {
+                    alignment: center;
                     width: 48px;
-                    text: root.duration;
-                    font-family: Theme.mono;
-                    font-size: Theme.text-label;
-                    height: 18px;
-                    letter-spacing: Theme.number-spacing;
-                    color: Theme.ink-mute;
-                    vertical-alignment: center;
+
+                    Text {
+                        text: root.duration;
+                        font-family: Theme.mono;
+                        font-size: Theme.text-label;
+                        height: 18px;
+                        letter-spacing: Theme.number-spacing;
+                        color: Theme.ink-mute;
+                        vertical-alignment: center;
+                    }
                 }
             }
         }

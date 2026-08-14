@@ -74,14 +74,18 @@ component NavLabel inherits HorizontalLayout {
     padding-bottom: Theme.space-2;
     spacing: Theme.space-2;
 
-    Text {
-        text: root.text;
-        font-family: Theme.mono;
-        font-size: Theme.text-label;
-        height: 18px;
-        letter-spacing: Theme.label-spacing;
-        color: Theme.ink-mute;
-        vertical-alignment: center;
+    VerticalLayout {
+        alignment: center;
+
+        Text {
+            text: root.text;
+            font-family: Theme.mono;
+            font-size: Theme.text-label;
+            height: 18px;
+            letter-spacing: Theme.label-spacing;
+            color: Theme.ink-mute;
+            vertical-alignment: center;
+        }
     }
 
     // The rule runs from the label to the edge, which is how the eye finds the

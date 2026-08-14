@@ -307,13 +307,17 @@ export component PlaylistsView inherits Rectangle {
             HorizontalLayout {
                 alignment: space-between;
 
-                Text {
-                    text: "Playlists";
-                    font-family: Theme.serif;
-                    font-size: Theme.text-display;
-                    height: 54px;
-                    vertical-alignment: center;
-                    color: Theme.ink-0;
+                VerticalLayout {
+                    alignment: center;
+
+                    Text {
+                        text: "Playlists";
+                        font-family: Theme.serif;
+                        font-size: Theme.text-display;
+                        height: 54px;
+                        vertical-alignment: center;
+                        color: Theme.ink-0;
+                    }
                 }
 
                 VerticalLayout {
