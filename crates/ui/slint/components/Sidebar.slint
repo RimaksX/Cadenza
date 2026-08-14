@@ -47,14 +47,21 @@ component NavItem inherits Rectangle {
             }
         }
 
-        Text {
-            text: root.label;
-            font-family: Theme.sans;
-            font-size: Theme.text-body;
-            height: 22px;
-            color: root.tone;
-            animate color { duration: 120ms; }
-            vertical-alignment: center;
+        // Wrapped like the icon beside it. A layout child with a height of its
+        // own cannot stretch, so it sits at the top of the row — which is why
+        // the labels rode above their icons.
+        VerticalLayout {
+            alignment: center;
+
+            Text {
+                text: root.label;
+                font-family: Theme.sans;
+                font-size: Theme.text-body;
+                height: 22px;
+                color: root.tone;
+                animate color { duration: 120ms; }
+                vertical-alignment: center;
+            }
         }
     }
 }

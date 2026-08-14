@@ -238,7 +238,7 @@ export component PlayerBar inherits Rectangle {
                 horizontal-stretch: 1;
 
                 Text {
-                    height: 26px;
+                    height: 30px;
                     text: root.loaded ? root.title : "Nothing playing";
                     font-family: Theme.serif;
                     font-size: Theme.text-title;
@@ -248,7 +248,7 @@ export component PlayerBar inherits Rectangle {
                 // Artist and album on one line, in the same mono capitals the
                 // column labels use: it is a caption, not a name.
                 if root.subtitle != "": Text {
-                    height: 14px;
+                    height: 18px;
                     text: root.subtitle;
                     font-family: Theme.mono;
                     font-size: Theme.text-label;
