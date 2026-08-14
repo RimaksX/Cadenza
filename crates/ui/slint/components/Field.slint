@@ -71,6 +71,11 @@ export component Field inherits Rectangle {
 
             input := TextInput {
                 width: 100%;
+                // The same even box the placeholder gets. Left to its own
+                // metrics the typed line sits at a fraction of a pixel and
+                // the letters climb and fall as they are rasterised.
+                height: 100%;
+                vertical-alignment: center;
                 font-family: Theme.sans;
                 font-size: Theme.text-body;
                 color: Theme.ink-0;

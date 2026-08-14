@@ -124,13 +124,17 @@ export component TrackList inherits Rectangle {
                 alignment: space-between;
                 spacing: Theme.space-5;
 
-                Text {
-                    text: root.heading;
-                    font-family: Theme.serif;
-                    font-size: Theme.text-display;
-                    height: 54px;
-                    color: Theme.ink-0;
-                    vertical-alignment: bottom;
+                VerticalLayout {
+                    alignment: center;
+
+                    Text {
+                        text: root.heading;
+                        font-family: Theme.serif;
+                        font-size: Theme.text-display;
+                        height: 54px;
+                        color: Theme.ink-0;
+                        vertical-alignment: bottom;
+                    }
                 }
 
                 // Bottom-aligned, so the field sits on the heading's own line

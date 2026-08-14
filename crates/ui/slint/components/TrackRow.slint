@@ -123,45 +123,57 @@ export component TrackRow inherits Rectangle {
         // and shares only the remainder by stretch factor, so a column is as
         // wide as the longest thing in it — and a header that says ARTIST no
         // longer sits above the artists.
-        Text {
-            text: root.data.title;
-            font-family: Theme.serif;
-            font-size: Theme.text-title;
-            height: 30px;
-            color: Theme.ink-0;
-            vertical-alignment: center;
-            horizontal-alignment: left;
-            overflow: elide;
+        VerticalLayout {
+            alignment: center;
             horizontal-stretch: 1;
             preferred-width: 0px;
+
+            Text {
+                text: root.data.title;
+                font-family: Theme.serif;
+                font-size: Theme.text-title;
+                height: 30px;
+                color: Theme.ink-0;
+                vertical-alignment: center;
+                horizontal-alignment: left;
+                overflow: elide;
+            }
         }
 
-        Text {
-            text: root.data.artist;
-            font-family: Theme.sans;
-            font-size: Theme.text-body;
-            height: 22px;
-            color: Theme.ink-2;
-            vertical-alignment: center;
-            horizontal-alignment: left;
-            overflow: elide;
+        VerticalLayout {
+            alignment: center;
             horizontal-stretch: 1;
             preferred-width: 0px;
+
+            Text {
+                text: root.data.artist;
+                font-family: Theme.sans;
+                font-size: Theme.text-body;
+                height: 22px;
+                color: Theme.ink-2;
+                vertical-alignment: center;
+                horizontal-alignment: left;
+                overflow: elide;
+            }
         }
 
         // The album is set in italic serif rather than in the interface face:
         // it is the name of a work, like the title, and reads as one.
-        Text {
+        VerticalLayout {
+            alignment: center;
             width: Theme.album-column;
-            text: root.data.album;
-            font-family: Theme.serif;
-            font-italic: true;
-            font-size: Theme.text-body;
-            height: 22px;
-            color: Theme.ink-mute;
-            vertical-alignment: center;
-            horizontal-alignment: left;
-            overflow: elide;
+
+            Text {
+                text: root.data.album;
+                font-family: Theme.serif;
+                font-italic: true;
+                font-size: Theme.text-body;
+                height: 22px;
+                color: Theme.ink-mute;
+                vertical-alignment: center;
+                horizontal-alignment: left;
+                overflow: elide;
+            }
         }
 
         // The length, until the pointer arrives — then the way to put this
@@ -238,15 +250,19 @@ export component TrackRow inherits Rectangle {
                         }
                     }
 
-                    Text {
-                        text: root.queued ? "REMOVE" : "QUEUE";
-                        font-family: Theme.mono;
-                        font-size: Theme.text-label;
-                        height: 18px;
-                        letter-spacing: Theme.label-spacing;
-                        color: pill.accent;
-                        vertical-alignment: center;
-                        animate color { duration: 120ms; }
+                    VerticalLayout {
+                        alignment: center;
+
+                        Text {
+                            text: root.queued ? "REMOVE" : "QUEUE";
+                            font-family: Theme.mono;
+                            font-size: Theme.text-label;
+                            height: 18px;
+                            letter-spacing: Theme.label-spacing;
+                            color: pill.accent;
+                            vertical-alignment: center;
+                            animate color { duration: 120ms; }
+                        }
                     }
                 }
             }

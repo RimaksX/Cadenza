@@ -65,29 +65,37 @@ export component PlaylistCard inherits Rectangle {
                 padding: 20px;
 
                 HorizontalLayout {
-                    Text {
-                        text: "PLAYLIST";
-                        font-family: Theme.mono;
-                        font-size: Theme.text-label;
-                        height: 18px;
-                        vertical-alignment: center;
-                        letter-spacing: Theme.label-spacing;
-                        color: Theme.ink-mute;
+                    VerticalLayout {
+                        alignment: center;
                         horizontal-stretch: 1;
+
+                        Text {
+                            text: "PLAYLIST";
+                            font-family: Theme.mono;
+                            font-size: Theme.text-label;
+                            height: 18px;
+                            vertical-alignment: center;
+                            letter-spacing: Theme.label-spacing;
+                            color: Theme.ink-mute;
+                        }
                     }
                     // The number steps aside for the menu rather than sharing
                     // the corner with it: the same trade the track rows make,
                     // where a mark becomes the control that acts on it.
-                    Text {
-                        text: root.data.position;
-                        font-family: Theme.mono;
-                        font-size: Theme.text-label;
-                        height: 18px;
-                        vertical-alignment: center;
-                        letter-spacing: Theme.label-spacing;
-                        color: Theme.ink-mute;
-                        opacity: touch.has-hover || dots.has-hover ? 0.0 : 1.0;
-                        animate opacity { duration: 120ms; }
+                    VerticalLayout {
+                        alignment: center;
+
+                        Text {
+                            text: root.data.position;
+                            font-family: Theme.mono;
+                            font-size: Theme.text-label;
+                            height: 18px;
+                            vertical-alignment: center;
+                            letter-spacing: Theme.label-spacing;
+                            color: Theme.ink-mute;
+                            opacity: touch.has-hover || dots.has-hover ? 0.0 : 1.0;
+                            animate opacity { duration: 120ms; }
+                        }
                     }
                 }
 

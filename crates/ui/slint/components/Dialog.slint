@@ -298,11 +298,11 @@ export component PickDialog inherits Rectangle {
                     }
                 }
 
+                // The whole row lights, the way a track row does. An inset
+                // highlight has to be spaced against the rule between rows,
+                // and there is no spacing that looks even from both sides.
                 Rectangle {
-                    y: 4px;
-                    height: parent.height - 8px;
-                    border-radius: Theme.radius;
-                    background: option-touch.has-hover ? Theme.bg-3 : transparent;
+                    background: option-touch.has-hover ? Theme.bg-2 : transparent;
                     animate background { duration: 90ms; }
                 }
 
@@ -343,16 +343,11 @@ export component PickDialog inherits Rectangle {
                     }
                 }
 
-                // On the row's top edge rather than its bottom, and on every
-                // row but the first. The highlight is inset by four, so a rule
-                // at the bottom of a row sits one pixel under one highlight and
-                // seven above the next — which is what "it is squashed against
-                // the top one and floating above the bottom one" was. On the
-                // boundary it is four from each.
-                if index > 0: Rectangle {
-                    y: 0;
-                    x: Theme.space-3;
-                    width: parent.width - 2 * Theme.space-3;
+                // A hairline under every row but the last, exactly as the
+                // track lists draw one: the highlight now fills the row, so
+                // the rule sits on its edge and has no gap to be uneven in.
+                if index < root.options.length - 1: Rectangle {
+                    y: parent.height - 1px;
                     height: 1px;
                     background: Theme.line-soft;
                 }
