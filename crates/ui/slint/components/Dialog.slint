@@ -21,7 +21,10 @@ export component TextButton inherits Rectangle {
         ? Theme.danger
         : (root.primary ? Theme.ink-0 : Theme.ink-2);
 
-    width: content.preferred-width + 2 * Theme.space-4;
+    // Whole pixels: a button whose width is fractional is placed by its layout
+    // at a fractional x, and every letter of its label is then rasterised from
+    // half a pixel out.
+    width: round((content.preferred-width + 2 * Theme.space-4) / 1px) * 1px;
     height: 34px;
     border-radius: Theme.radius;
     border-width: 1px;
@@ -51,7 +54,7 @@ export component TextButton inherits Rectangle {
 
             Image {
                 source: root.glyph;
-                width: 13px;
+                width: 14px;
                 height: self.width;
                 colorize: touch.has-hover ? root.tone : root.tone.with-alpha(0.8);
                 animate colorize { duration: 120ms; }

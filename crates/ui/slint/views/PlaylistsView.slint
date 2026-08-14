@@ -134,8 +134,8 @@ export component PlaylistCard inherits Rectangle {
                         source: @image-url("../../../../resources/ui/icons/dots.svg");
                         width: 18px;
                         height: self.width;
-                        x: (parent.width - self.width) / 2;
-                        y: (parent.height - self.height) / 2;
+                        x: round((parent.width - self.width) / 1px / 2) * 1px;
+                        y: round((parent.height - self.height) / 1px / 2) * 1px;
                         colorize: dots.has-hover ? Theme.ink-0 : Theme.ink-1;
                         animate colorize { duration: 120ms; }
                     }
@@ -185,7 +185,7 @@ export component PlaylistCard inherits Rectangle {
                         width: 16px;
                         height: self.width;
                         x: (parent.width - self.width) / 2 + 1px;
-                        y: (parent.height - self.height) / 2;
+                        y: round((parent.height - self.height) / 1px / 2) * 1px;
                         colorize: Theme.bg-0;
                     }
 

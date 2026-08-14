@@ -103,7 +103,7 @@ export component TrackRow inherits Rectangle {
             // heights and the row twitches under the pointer.
             if root.hovered: Image {
                 source: @image-url("../../../../resources/ui/icons/play.svg");
-                width: 13px;
+                width: 14px;
                 height: self.width;
                 x: parent.width - self.width;
                 y: round((parent.height - self.height) / 1px / 2) * 1px;
@@ -199,7 +199,7 @@ export component TrackRow inherits Rectangle {
 
                 width: parent.width;
                 height: 26px;
-                y: (parent.height - self.height) / 2;
+                y: round((parent.height - self.height) / 1px / 2) * 1px;
                 border-radius: Theme.radius;
                 border-width: 1px;
                 border-color: hover-queue.has-hover
@@ -265,7 +265,7 @@ export component TrackRow inherits Rectangle {
             Rectangle {
                 width: 32px;
                 height: 32px;
-                y: (parent.height - self.height) / 2;
+                y: round((parent.height - self.height) / 1px / 2) * 1px;
                 border-radius: Theme.radius;
                 background: dots.has-hover ? Theme.bg-3 : transparent;
                 opacity: root.hovered ? 1.0 : 0.0;
@@ -277,8 +277,8 @@ export component TrackRow inherits Rectangle {
                     source: @image-url("../../../../resources/ui/icons/dots-vertical.svg");
                     width: 18px;
                     height: self.width;
-                    x: (parent.width - self.width) / 2;
-                    y: (parent.height - self.height) / 2;
+                    x: round((parent.width - self.width) / 1px / 2) * 1px;
+                    y: round((parent.height - self.height) / 1px / 2) * 1px;
                     colorize: dots.has-hover ? Theme.ink-0 : Theme.ink-2;
                     animate colorize { duration: 120ms; }
                 }

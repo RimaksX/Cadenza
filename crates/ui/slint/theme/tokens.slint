@@ -7,6 +7,16 @@ import { LightPalette } from "light.slint";
 // makes the design arrive in M15 as an edit to these files rather than a sweep
 // through every view (PROJECT_MASTER 14).
 
+// One rule holds this file together beyond the values themselves: **every
+// length here is even**. Half of what the interface does is centring one thing
+// inside another, and a centred child of an odd-sized parent lands on half a
+// pixel — where its border blurs and, if it is text, its letters are rasterised
+// to different heights. Even sizes make the arithmetic come out whole without
+// anybody having to remember to round it.
+//
+// The type scale is the exception and is deliberate: those sizes were measured
+// against these faces rather than chosen for their parity, and a glyph's line
+// box is fractional whatever number is asked for.
 export global Theme {
     // Set from Rust out of the active profile's `theme` column.
     in property <bool> dark: true;

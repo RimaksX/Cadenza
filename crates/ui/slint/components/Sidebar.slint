@@ -39,7 +39,7 @@ component NavItem inherits Rectangle {
 
             Image {
                 source: root.glyph;
-                width: 15px;
+                width: 16px;
                 height: self.width;
                 image-fit: contain;
                 colorize: root.tone;
@@ -78,7 +78,7 @@ component NavLabel inherits HorizontalLayout {
     // The rule runs from the label to the edge, which is how the eye finds the
     // group boundary without a heavier separator.
     Rectangle {
-        y: (parent.height - 1px) / 2;
+        y: round((parent.height - 1px) / 1px / 2) * 1px;
         height: 1px;
         background: Theme.line-soft;
     }

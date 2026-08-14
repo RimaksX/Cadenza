@@ -27,8 +27,8 @@ component TransportButton inherits Rectangle {
     Rectangle {
         width: root.primary ? 40px : 28px;
         height: self.width;
-        x: (parent.width - self.width) / 2;
-        y: (parent.height - self.height) / 2;
+        x: round((parent.width - self.width) / 1px / 2) * 1px;
+        y: round((parent.height - self.height) / 1px / 2) * 1px;
         border-radius: self.width / 2;
         // A disabled primary button loses its fill as well as its glyph. Left
         // filled, it shouts "press me" in the loudest ink in the palette while
@@ -50,10 +50,10 @@ component TransportButton inherits Rectangle {
 
     Image {
         source: root.glyph;
-        width: root.primary ? 15px : (root.quiet ? 14px : 16px);
+        width: root.primary ? 16px : (root.quiet ? 14px : 16px);
         height: self.width;
-        x: (parent.width - self.width) / 2;
-        y: (parent.height - self.height) / 2;
+        x: round((parent.width - self.width) / 1px / 2) * 1px;
+        y: round((parent.height - self.height) / 1px / 2) * 1px;
         image-fit: contain;
         colorize: !root.enabled
             ? Theme.ink-disabled
@@ -131,7 +131,7 @@ component Scrubber inherits Rectangle {
 
     Rectangle {
         height: 2px;
-        y: (parent.height - self.height) / 2;
+        y: round((parent.height - self.height) / 1px / 2) * 1px;
         background: Theme.line;
 
         played := Rectangle {
@@ -149,7 +149,7 @@ component Scrubber inherits Rectangle {
         height: self.width;
         border-radius: self.width / 2;
         x: played.width - self.width / 2;
-        y: (parent.height - self.height) / 2;
+        y: round((parent.height - self.height) / 1px / 2) * 1px;
         background: Theme.ink-0;
         opacity: root.enabled && (touch.has-hover || touch.pressed) ? 1.0 : 0.0;
         animate opacity, width { duration: 120ms; }
@@ -226,12 +226,18 @@ export component PlayerBar inherits Rectangle {
                 }
             }
 
+            // Both lines carry an explicit, even height. The block is two
+            // lines or one depending on what is playing; left to their natural
+            // heights the pair sums to something odd, the layout centres it on
+            // half a pixel, and the title comes out visibly softer than the
+            // same face everywhere else in the window.
             VerticalLayout {
                 alignment: center;
                 spacing: 4px;
                 horizontal-stretch: 1;
 
                 Text {
+                    height: 26px;
                     text: root.loaded ? root.title : "Nothing playing";
                     font-family: Theme.serif;
                     font-size: Theme.text-title;
@@ -241,6 +247,7 @@ export component PlayerBar inherits Rectangle {
                 // Artist and album on one line, in the same mono capitals the
                 // column labels use: it is a caption, not a name.
                 if root.subtitle != "": Text {
+                    height: 14px;
                     text: root.subtitle;
                     font-family: Theme.mono;
                     font-size: Theme.text-label;
