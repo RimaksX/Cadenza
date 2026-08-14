@@ -282,12 +282,13 @@ export component PickDialog inherits Rectangle {
                 wrap: word-wrap;
             }
 
-            // The options, each a row that answers the question by being
-            // pressed. No confirm button: choosing is the answer.
-            //
-            // Divided by hairlines like every other list in Cadenza, and the
-            // last one carries none — a rule under the final row would be the
-            // bottom of a table that is not there.
+            // The options are their own column with no spacing between them.
+            // The dialog's own layout puts sixteen pixels between everything it
+            // holds, and applied to a list that turns rows into cards floating
+            // apart from each other.
+            VerticalLayout {
+                spacing: 0px;
+
             for option[index] in root.options: Rectangle {
                 height: 52px;
 
@@ -343,14 +344,15 @@ export component PickDialog inherits Rectangle {
                     }
                 }
 
-                // A hairline under every row but the last, exactly as the
-                // track lists draw one: the highlight now fills the row, so
-                // the rule sits on its edge and has no gap to be uneven in.
-                if index < root.options.length - 1: Rectangle {
+                // A hairline under every row, exactly as a track list draws
+                // one: the highlight fills the row, so the rule sits on its
+                // edge and has no gap to be uneven in.
+                Rectangle {
                     y: parent.height - 1px;
                     height: 1px;
                     background: Theme.line-soft;
                 }
+            }
             }
 
             HorizontalLayout {

@@ -48,7 +48,11 @@ export component Field inherits Rectangle {
         // which is what makes one letter of a word sit lower than its
         // neighbours.
         Rectangle {
-            height: round(input.preferred-height / 1px) * 1px;
+            // Rounded up to an even number, not merely to a whole one. The
+            // field around it is even, so an odd box leaves an odd remainder
+            // and the layout centres it on half a pixel — which is the
+            // staircase, one letter at a time.
+            height: ceil(input.preferred-height / 2px) * 2px;
 
             // Sits exactly where the first typed character will, which is the
             // whole point of it: a hint centred over a left-aligned field is a
