@@ -13,7 +13,7 @@ use cadenza_core::application::services::{
     PlaybackPorts, PlaybackService, QueuePorts, QueueService,
 };
 use cadenza_core::application::{AppContext, ProfileService};
-use cadenza_core::domain::eq::EqMode;
+use cadenza_core::domain::eq::EqSetting;
 use cadenza_core::domain::ids::{MediaFileId, PlaylistId, ProfileId};
 use cadenza_core::domain::media_file::{AudioFormat, AudioProperties, FileState, MediaFile};
 use cadenza_core::domain::playback::{PlaybackState, TransitionProfile};
@@ -24,9 +24,7 @@ use cadenza_core::domain::ports::repositories::{
 use cadenza_core::domain::queue::RepeatMode;
 use cadenza_core::domain::settings::{CROSSFADE_ENABLED_KEY, CrossfadeDuration, SettingValue};
 use cadenza_core::domain::track::Track;
-use cadenza_core::domain::value_objects::{
-    DurationMs, GainDb, PlaybackPosition, Timestamp, Volume,
-};
+use cadenza_core::domain::value_objects::{DurationMs, PlaybackPosition, Timestamp, Volume};
 use cadenza_infra::db::repositories::{
     SqliteMediaFileRepository, SqliteProfileRepository, SqliteQueueRepository,
     SqliteSettingsRepository, SqliteTrackRepository,
@@ -148,7 +146,7 @@ impl AudioEnginePort for FakeEngine {
     fn set_crossfade(&self, _duration: CrossfadeDuration) -> Result<()> {
         Ok(())
     }
-    fn set_eq(&self, _mode: EqMode, _gains: &[GainDb]) -> Result<()> {
+    fn set_eq(&self, _setting: &EqSetting) -> Result<()> {
         Ok(())
     }
     fn position(&self) -> PlaybackPosition {

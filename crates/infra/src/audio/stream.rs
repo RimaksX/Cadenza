@@ -136,13 +136,19 @@ pub(crate) struct Shared {
     pub(crate) crossfade_ms: AtomicU64,
     /// Which set of controls the equaliser is using, as an [`EqMode`] index.
     eq_mode: AtomicU8,
-    /// Each band's gain in decibels, as the bits of an `f32`.
+    /// Where each band sits, in hertz.
     ///
-    /// A fixed array rather than a lock: the callback reads these, and a lock
-    /// on the realtime path is the one thing section 8.2 has no exception for.
+    /// Fixed arrays rather than a lock: the callback reads these, and a lock on
+    /// the realtime path is the one thing section 8.2 has no exception for.
     /// Simple mode uses the first three.
+    eq_frequencies: [AtomicU32; MAX_BANDS],
+    /// How wide each band is, as the bits of an `f32`.
+    eq_qs: [AtomicU32; MAX_BANDS],
+    /// Each band's gain in decibels, as the bits of an `f32`.
     eq_gains: [AtomicU32; MAX_BANDS],
-    /// Bumped whenever the gains change, so the callback knows to look.
+    /// How many bands are in use.
+    eq_bands: AtomicU8,
+    /// Bumped whenever any of it changes, so the callback knows to look.
     pub(crate) eq_seq: AtomicU64,
     /// Length of the loaded track in milliseconds.
     pub(crate) duration_ms: AtomicU64,
@@ -187,7 +193,10 @@ impl Shared {
             advances: AtomicU64::new(0),
             crossfade_ms: AtomicU64::new(DEFAULT_CROSSFADE.as_millis()),
             eq_mode: AtomicU8::new(0),
+            eq_frequencies: [const { AtomicU32::new(1_000) }; MAX_BANDS],
+            eq_qs: [const { AtomicU32::new(0x3F80_0000) }; MAX_BANDS],
             eq_gains: [const { AtomicU32::new(0) }; MAX_BANDS],
+            eq_bands: AtomicU8::new(0),
             eq_seq: AtomicU64::new(0),
             duration_ms: AtomicU64::new(0),
             ended: AtomicBool::new(false),
@@ -206,7 +215,7 @@ impl Shared {
     /// The gains go out first and the sequence number last, released: the
     /// callback tests the sequence, so by the time it sees a new one every
     /// value behind it is already in place.
-    pub(crate) fn set_eq(&self, mode: EqMode, gains: &[f32]) {
+    pub(crate) fn set_eq(&self, mode: EqMode, bands: &[(u32, f32, f32)]) {
         self.eq_mode.store(
             match mode {
                 EqMode::Simple => 0,
@@ -214,14 +223,31 @@ impl Shared {
             },
             Ordering::Relaxed,
         );
-        for (slot, gain) in self
-            .eq_gains
-            .iter()
-            .zip(gains.iter().chain(std::iter::repeat(&0.0)))
-        {
-            slot.store(gain.to_bits(), Ordering::Relaxed);
+
+        for band in 0..MAX_BANDS {
+            let (frequency_hz, q, gain_db) = bands.get(band).copied().unwrap_or((1_000, 1.0, 0.0));
+            self.eq_frequencies[band].store(frequency_hz, Ordering::Relaxed);
+            self.eq_qs[band].store(q.to_bits(), Ordering::Relaxed);
+            self.eq_gains[band].store(gain_db.to_bits(), Ordering::Relaxed);
         }
+
+        self.eq_bands
+            .store(bands.len().min(MAX_BANDS) as u8, Ordering::Relaxed);
         self.eq_seq.fetch_add(1, Ordering::Release);
+    }
+
+    /// How many bands are published.
+    pub(crate) fn eq_band_count(&self) -> usize {
+        usize::from(self.eq_bands.load(Ordering::Relaxed))
+    }
+
+    /// One band, as it was published: where it sits, how wide, how loud.
+    pub(crate) fn eq_band(&self, band: usize) -> (f32, f32, f32) {
+        (
+            self.eq_frequencies[band].load(Ordering::Relaxed) as f32,
+            f32::from_bits(self.eq_qs[band].load(Ordering::Relaxed)),
+            f32::from_bits(self.eq_gains[band].load(Ordering::Relaxed)),
+        )
     }
 
     /// Which set of controls is published.
@@ -231,11 +257,6 @@ impl Shared {
         } else {
             EqMode::Advanced
         }
-    }
-
-    /// One band's published gain, in decibels.
-    pub(crate) fn eq_gain(&self, band: usize) -> f32 {
-        f32::from_bits(self.eq_gains[band].load(Ordering::Relaxed))
     }
 
     /// Sets the output level.

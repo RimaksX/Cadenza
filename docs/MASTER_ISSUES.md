@@ -625,3 +625,41 @@ named for it would hold a comment.
 long the fade runs given what is left of the outgoing track, and the two gains
 at each point along it. That is worth reading and testing apart from the
 decoding it is applied to; nothing else about transitions is.
+
+## 41. The advanced equaliser is parametric, not a ten-band graphic
+
+Section 8.5 specifies the advanced mode as ten fixed bands at 31, 62, 125,
+250, 500, 1k, 2k, 4k, 8k and 16k Hz, with a gain each. `eq_policy` enforced
+exactly that, down to rejecting a preset whose centre frequency had moved.
+
+The owner asked for the shape NothingX uses instead, having listened to it:
+eight bands, each with its **own frequency, Q and gain**. That is a different
+feature rather than a different drawing of the same one, so it was put to them
+as a change to the master with the alternatives beside it, and they chose it.
+
+**Chosen:** `EqMode::Advanced` becomes an eight-band parametric equaliser.
+Every band is a bell — which is what parametric means — and the shelves stay
+where they were always more useful, on the simple mode's bass and treble.
+
+What that costs and what it does not:
+
+- **No data migration.** `eq_presets.advanced_bands_json` has never been
+  written: the table has had no adapter since it was created in M2. Only the
+  shape of what goes into it changes, and there is nothing in it to change.
+- `validate_advanced_bands` stops checking centre frequencies against a fixed
+  list — there is no list any more — and starts checking that each band's
+  frequency, Q and gain are inside the ranges a filter can be built from. That
+  check matters more now, not less: these numbers reach the realtime filter,
+  and a Q of zero there is a divide by zero in the coefficients.
+- Bands are **not** required to ascend. A parametric equaliser is a set of
+  bells, not a row of sliders; the screen sorts them to draw the curve, and
+  refusing to save an out-of-order set would be a rule with no purpose behind
+  it.
+- The nine built-in presets of 2.8 are unaffected in name and become more
+  precise in content: a curve that had to be approximated across ten fixed
+  points can now say where it wants its bell.
+
+What is lost, stated plainly: a graphic equaliser is legible at a glance and a
+parametric one is not. Nobody has to meet it — the presets are one click on the
+same screen — but the listener who opens the advanced mode now needs to know
+what Q means.

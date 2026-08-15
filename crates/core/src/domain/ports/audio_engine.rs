@@ -3,10 +3,10 @@
 use std::path::Path;
 
 use crate::Result;
-use crate::domain::eq::EqMode;
+use crate::domain::eq::EqSetting;
 use crate::domain::playback::{PlaybackState, TransitionProfile};
 use crate::domain::settings::CrossfadeDuration;
-use crate::domain::value_objects::{GainDb, PlaybackPosition, Volume};
+use crate::domain::value_objects::{PlaybackPosition, Volume};
 
 /// The audio output and its graph.
 ///
@@ -61,12 +61,11 @@ pub trait AudioEnginePort: Send + Sync {
 
     /// Applies an equaliser setting.
     ///
-    /// `gains` is in the order the mode lays its bands out: bass, mid and
-    /// treble for the simple one, and the ten centre frequencies in ascending
-    /// order for the graphic one. The engine walks its filters towards these
-    /// rather than snapping to them, which is what keeps a moving control
-    /// silent (PROJECT_MASTER 2.8).
-    fn set_eq(&self, mode: EqMode, gains: &[GainDb]) -> Result<()>;
+    /// The whole setting rather than one control, because a band is three
+    /// numbers that only mean anything together. The engine walks its filters
+    /// towards these rather than snapping to them, which is what keeps a moving
+    /// control silent (PROJECT_MASTER 2.8).
+    fn set_eq(&self, setting: &EqSetting) -> Result<()>;
 
     /// The current position, as last reported by the engine.
     fn position(&self) -> PlaybackPosition;

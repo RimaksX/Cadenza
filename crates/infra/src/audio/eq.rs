@@ -2,49 +2,36 @@
 //!
 //! It lives on the realtime thread on purpose. PROJECT_MASTER 8.2 lists DSP
 //! among the things the callback may do, and it is the only place where moving
-//! a slider is heard at once: applied on the decode side, a change would reach
+//! a control is heard at once: applied on the decode side, a change would reach
 //! the speakers as much as two seconds later, which is the prebuffer.
 //!
-//! What crosses from the control side is not coefficients but **gains in
-//! decibels**, published atomically. The chain walks its own gains towards them
-//! and rebuilds its coefficients once per block, which is what makes a slider
-//! silent to drag: a step in the coefficients is a step in the waveform, and a
-//! step in the waveform is a click (PROJECT_MASTER 2.8, 8.5).
+//! What crosses from the control side is not coefficients but the three numbers
+//! a band is made of — where it sits, how wide it is, how far it lifts —
+//! published atomically. The chain walks its own copy towards them and rebuilds
+//! its coefficients once per block. That is what makes a control silent to
+//! drag: a step in the coefficients is a step in the waveform, and a step in
+//! the waveform is a click (PROJECT_MASTER 2.8, 8.5).
 
 use std::sync::atomic::Ordering;
 
 use cadenza_core::domain::eq::EqMode;
 use cadenza_core::domain::policies::eq_policy::{
-    ADVANCED_BAND_FREQUENCIES, GAIN_RAMP, SIMPLE_BASS_HZ, SIMPLE_MID_HZ, SIMPLE_TREBLE_HZ,
+    ADVANCED_BAND_COUNT, GAIN_RAMP, MAX_BAND_HZ, MAX_BAND_Q, MIN_BAND_HZ, MIN_BAND_Q,
 };
 use cadenza_core::domain::value_objects::gain::{MAX_GAIN_DB, MIN_GAIN_DB};
 
 use super::biquad::{Coefficients, Section};
 use super::stream::Shared;
 
-/// The most bands any mode uses: the ten of the graphic equaliser.
-pub(crate) const MAX_BANDS: usize = ADVANCED_BAND_FREQUENCIES.len();
+/// The most bands any mode uses: the eight of the parametric equaliser.
+pub(crate) const MAX_BANDS: usize = ADVANCED_BAND_COUNT;
 
-/// How wide each bell of the ten-band layout is.
+/// How far a frequency may travel in one ramp, in octaves.
 ///
-/// The bands are an octave apart, and `sqrt(2)` is the Q whose bell is one
-/// octave wide between its half-power points — so the ten of them cover the
-/// spectrum once each rather than piling up on their neighbours.
-const OCTAVE_Q: f32 = std::f32::consts::SQRT_2;
-
-/// How wide the simple mode's one bell is.
-///
-/// Much broader than a band of the graphic equaliser, because it is not a band:
-/// "mid" is everything between the bass and the treble, and a narrow bell there
-/// would be a tone control that only moved one note.
-const MID_Q: f32 = 0.7;
-
-/// What one band of the chain is.
-#[derive(Debug, Clone, Copy)]
-struct Band {
-    frequency_hz: f32,
-    shape: Shape,
-}
+/// Ten covers the whole audible range, so dragging a band from one end of the
+/// spectrum to the other takes exactly as long as any other control's full
+/// travel — and a small nudge is over almost at once.
+const OCTAVES_PER_RAMP: f32 = 10.0;
 
 /// The three shapes of PROJECT_MASTER 8.5.
 #[derive(Debug, Clone, Copy)]
@@ -52,56 +39,48 @@ enum Shape {
     /// Everything below the corner, together.
     LowShelf,
     /// A bell of the given width.
-    Peaking(f32),
+    Peaking,
     /// Everything above the corner, together.
     HighShelf,
 }
 
-impl Band {
-    fn coefficients(self, rate: u32, gain_db: f32) -> Coefficients {
-        match self.shape {
-            Shape::LowShelf => Coefficients::low_shelf(rate, self.frequency_hz, gain_db),
-            Shape::Peaking(q) => Coefficients::peaking(rate, self.frequency_hz, gain_db, q),
-            Shape::HighShelf => Coefficients::high_shelf(rate, self.frequency_hz, gain_db),
+/// What a band is at any instant: where, how wide, how loud.
+#[derive(Debug, Clone, Copy)]
+struct Setting {
+    frequency_hz: f32,
+    q: f32,
+    gain_db: f32,
+}
+
+impl Setting {
+    /// A band that does nothing, parked in the middle of the spectrum.
+    const NEUTRAL: Self = Self {
+        frequency_hz: 1_000.0,
+        q: 1.0,
+        gain_db: 0.0,
+    };
+
+    fn coefficients(self, rate: u32, shape: Shape) -> Coefficients {
+        match shape {
+            Shape::LowShelf => Coefficients::low_shelf(rate, self.frequency_hz, self.gain_db),
+            Shape::Peaking => Coefficients::peaking(rate, self.frequency_hz, self.gain_db, self.q),
+            Shape::HighShelf => Coefficients::high_shelf(rate, self.frequency_hz, self.gain_db),
         }
     }
 }
 
-/// The bands a mode is made of.
+/// What shape the band at `index` takes.
 ///
-/// Both layouts put a shelf at each end and bells in between: a bell at the
-/// bottom band leaves the octave below it untouched, which is audible as a
-/// bass control that does nothing to the lowest notes.
-fn layout(mode: EqMode) -> ([Band; MAX_BANDS], usize) {
-    let mut bands = [Band {
-        frequency_hz: 0.0,
-        shape: Shape::Peaking(OCTAVE_Q),
-    }; MAX_BANDS];
-
-    match mode {
-        EqMode::Simple => {
-            bands[0] = Band {
-                frequency_hz: SIMPLE_BASS_HZ as f32,
-                shape: Shape::LowShelf,
-            };
-            bands[1] = Band {
-                frequency_hz: SIMPLE_MID_HZ as f32,
-                shape: Shape::Peaking(MID_Q),
-            };
-            bands[2] = Band {
-                frequency_hz: SIMPLE_TREBLE_HZ as f32,
-                shape: Shape::HighShelf,
-            };
-            (bands, 3)
-        }
-        EqMode::Advanced => {
-            for (band, &frequency_hz) in bands.iter_mut().zip(ADVANCED_BAND_FREQUENCIES.iter()) {
-                band.frequency_hz = frequency_hz as f32;
-            }
-            bands[0].shape = Shape::LowShelf;
-            bands[MAX_BANDS - 1].shape = Shape::HighShelf;
-            (bands, MAX_BANDS)
-        }
+/// The simple mode's outer two are shelves: a bell at 100 Hz would leave the
+/// octave below it untouched, which is heard as a bass control that does
+/// nothing to the lowest notes. Every parametric band is a bell, because that
+/// is what parametric means — the listener places it themselves, and a shelf
+/// they cannot move off the end of the spectrum would be one control short.
+fn shape_of(mode: EqMode, index: usize) -> Shape {
+    match (mode, index) {
+        (EqMode::Simple, 0) => Shape::LowShelf,
+        (EqMode::Simple, 2) => Shape::HighShelf,
+        _ => Shape::Peaking,
     }
 }
 
@@ -116,12 +95,12 @@ pub(crate) struct EqChain {
     /// One section per band for every channel. Allocated once, at the top of
     /// the stream, and never resized.
     state: Vec<Section>,
-    bands: [Band; MAX_BANDS],
+    mode: EqMode,
     active: usize,
-    /// Where each band's gain is now, in decibels.
-    current: [f32; MAX_BANDS],
+    /// Where each band is now.
+    current: [Setting; MAX_BANDS],
     /// Where it is going.
-    target: [f32; MAX_BANDS],
+    target: [Setting; MAX_BANDS],
     coefficients: [Coefficients; MAX_BANDS],
     /// The published change this chain has taken up.
     seen: u64,
@@ -134,16 +113,15 @@ impl EqChain {
     /// Builds a flat chain for one output format.
     pub(crate) fn new(rate: u32, channels: u16) -> Self {
         let channels = usize::from(channels.max(1));
-        let (bands, active) = layout(EqMode::Simple);
 
         Self {
             rate,
             channels,
             state: vec![Section::default(); MAX_BANDS * channels],
-            bands,
-            active,
-            current: [0.0; MAX_BANDS],
-            target: [0.0; MAX_BANDS],
+            mode: EqMode::Simple,
+            active: 0,
+            current: [Setting::NEUTRAL; MAX_BANDS],
+            target: [Setting::NEUTRAL; MAX_BANDS],
             coefficients: [Coefficients::IDENTITY; MAX_BANDS],
             seen: 0,
             idle: true,
@@ -190,64 +168,102 @@ impl EqChain {
     /// Takes up a change published by the control side.
     fn retarget(&mut self, shared: &Shared, published: u64) {
         let mode = shared.eq_mode();
-        let (bands, active) = layout(mode);
+        let active = shared.eq_band_count().min(MAX_BANDS);
 
-        // A change of mode is a change of what the bands *are*, so the gains
-        // held for the old layout mean nothing under the new one. They start
-        // from where they were rather than from zero, which is the same
-        // compromise a ramp always is: the alternative is a dip to flat and
-        // back, and that is louder than the change itself.
-        if active != self.active {
+        // A change of mode is a change of what the bands *are*, so what the
+        // filters are holding belongs to a chain that no longer exists.
+        if active != self.active
+            || !matches!(
+                (mode, self.mode),
+                (EqMode::Simple, EqMode::Simple) | (EqMode::Advanced, EqMode::Advanced)
+            )
+        {
             for section in &mut self.state {
                 section.reset();
             }
+            self.current = self.target;
         }
 
-        self.bands = bands;
+        self.mode = mode;
         self.active = active;
         self.seen = published;
         self.idle = false;
 
         for band in 0..MAX_BANDS {
             self.target[band] = if band < active {
-                shared.eq_gain(band).clamp(MIN_GAIN_DB, MAX_GAIN_DB)
+                let (frequency_hz, q, gain_db) = shared.eq_band(band);
+                Setting {
+                    frequency_hz: frequency_hz.clamp(MIN_BAND_HZ as f32, MAX_BAND_HZ as f32),
+                    q: if q.is_finite() {
+                        q.clamp(MIN_BAND_Q, MAX_BAND_Q)
+                    } else {
+                        1.0
+                    },
+                    gain_db: gain_db.clamp(MIN_GAIN_DB, MAX_GAIN_DB),
+                }
             } else {
-                0.0
+                Setting::NEUTRAL
             };
         }
     }
 
-    /// Walks every gain one block closer to where it is going, and rebuilds the
+    /// Walks every band one block closer to where it is going, and rebuilds the
     /// coefficients of the ones that moved.
+    ///
+    /// All three numbers travel, not only the gain: a parametric band is
+    /// dragged across the spectrum as well as up and down, and a frequency that
+    /// jumped would step the waveform exactly as a gain that jumped does. The
+    /// frequency moves in octaves rather than hertz, because that is how it is
+    /// heard and how the screen draws it.
     fn advance(&mut self, frames: usize) {
-        // The whole range in exactly one ramp, so a slider dragged from end to
-        // end takes as long to arrive as one nudged by a decibel takes to
-        // settle in proportion.
         let seconds = GAIN_RAMP.as_millis() as f32 / 1_000.0;
-        let step = (MAX_GAIN_DB - MIN_GAIN_DB) * frames as f32 / (seconds * self.rate as f32);
+        let fraction = frames as f32 / (seconds * self.rate as f32);
+
+        let gain_step = (MAX_GAIN_DB - MIN_GAIN_DB) * fraction;
+        let q_step = (MAX_BAND_Q - MIN_BAND_Q) * fraction;
+        let octave_step = OCTAVES_PER_RAMP * fraction;
 
         for band in 0..self.active {
-            let distance = self.target[band] - self.current[band];
-            if distance == 0.0 {
+            let (current, target) = (self.current[band], self.target[band]);
+
+            let gain_db =
+                current.gain_db + (target.gain_db - current.gain_db).clamp(-gain_step, gain_step);
+            let q = current.q + (target.q - current.q).clamp(-q_step, q_step);
+
+            let octaves = (target.frequency_hz / current.frequency_hz).log2();
+            let frequency_hz =
+                current.frequency_hz * 2.0_f32.powf(octaves.clamp(-octave_step, octave_step));
+
+            if gain_db == current.gain_db && q == current.q && frequency_hz == current.frequency_hz
+            {
                 continue;
             }
-            self.current[band] += distance.clamp(-step, step);
-            self.coefficients[band] = self.bands[band].coefficients(self.rate, self.current[band]);
+
+            self.current[band] = Setting {
+                frequency_hz,
+                q,
+                gain_db,
+            };
+            self.coefficients[band] =
+                self.current[band].coefficients(self.rate, shape_of(self.mode, band));
         }
     }
 
     /// True when nothing is boosted, cut, or on its way to being either.
     fn settled(&self) -> bool {
-        self.current[..self.active].iter().all(|db| *db == 0.0)
-            && self.target[..self.active].iter().all(|db| *db == 0.0)
+        (0..self.active)
+            .all(|band| self.current[band].gain_db == 0.0 && self.target[band].gain_db == 0.0)
     }
 }
 
 #[cfg(test)]
 mod tests {
     use cadenza_core::domain::eq::EqMode;
+    use cadenza_core::domain::policies::eq_policy::{
+        SIMPLE_BASS_HZ, SIMPLE_MID_HZ, SIMPLE_TREBLE_HZ,
+    };
 
-    use super::{EqChain, MAX_BANDS};
+    use super::EqChain;
     use crate::audio::stream::Shared;
 
     const RATE: u32 = 44_100;
@@ -256,6 +272,15 @@ mod tests {
     /// these tests are frames.
     fn chain() -> (Shared, EqChain) {
         (Shared::new(RATE, 1), EqChain::new(RATE, 1))
+    }
+
+    /// The three tone controls, as the engine flattens them.
+    fn tone_controls(bass: f32, mid: f32, treble: f32) -> Vec<(u32, f32, f32)> {
+        vec![
+            (SIMPLE_BASS_HZ, 0.7, bass),
+            (SIMPLE_MID_HZ, 0.7, mid),
+            (SIMPLE_TREBLE_HZ, 0.7, treble),
+        ]
     }
 
     /// Pushes a steady tone through and reports its level in decibels, after
@@ -305,7 +330,7 @@ mod tests {
     #[test]
     fn the_bass_control_lifts_the_bass_and_leaves_the_treble_alone() {
         let (shared, mut eq) = chain();
-        shared.set_eq(EqMode::Simple, &[8.0, 0.0, 0.0]);
+        shared.set_eq(EqMode::Simple, &tone_controls(8.0, 0.0, 0.0));
 
         let low = tone_through(&shared, &mut eq, 50.0);
         assert!(
@@ -319,12 +344,12 @@ mod tests {
     }
 
     #[test]
-    fn a_band_of_the_graphic_equaliser_moves_its_own_octave() {
+    fn a_parametric_band_moves_the_frequency_it_was_placed_at() {
         let (shared, mut eq) = chain();
-        let mut gains = [0.0; MAX_BANDS];
-        // 1 kHz is the sixth of the ten.
-        gains[5] = 9.0;
-        shared.set_eq(EqMode::Advanced, &gains);
+        // One bell at 1 kHz, the rest flat where they were put.
+        let mut bands = vec![(60, 1.0, 0.0); 8];
+        bands[3] = (1_000, 1.4, 9.0);
+        shared.set_eq(EqMode::Advanced, &bands);
 
         let at_band = tone_through(&shared, &mut eq, 1_000.0);
         assert!(
@@ -341,9 +366,38 @@ mod tests {
     }
 
     #[test]
+    fn a_band_answers_where_it_is_put_rather_than_where_it_started() {
+        let (shared, mut eq) = chain();
+        let mut bands = vec![(60, 1.0, 0.0); 8];
+
+        // The same band, moved from 200 Hz to 4 kHz: a parametric equaliser is
+        // one whose bands are dragged, and the filter has to follow.
+        bands[0] = (200, 1.4, 9.0);
+        shared.set_eq(EqMode::Advanced, &bands);
+        assert!(tone_through(&shared, &mut eq, 200.0) > 7.0);
+
+        bands[0] = (4_000, 1.4, 9.0);
+        shared.set_eq(EqMode::Advanced, &bands);
+
+        let at_the_old_place = tone_through(&shared, &mut eq, 200.0);
+        assert!(
+            at_the_old_place.abs() < 1.5,
+            "200 Hz is still lifted by {at_the_old_place} dB after the band left it"
+        );
+
+        let mut eq = EqChain::new(RATE, 1);
+        shared.set_eq(EqMode::Advanced, &bands);
+        let at_the_new_place = tone_through(&shared, &mut eq, 4_000.0);
+        assert!(
+            (at_the_new_place - 9.0).abs() < 1.5,
+            "4 kHz came out at {at_the_new_place} dB rather than 9"
+        );
+    }
+
+    #[test]
     fn a_gain_change_arrives_gradually_rather_than_at_once() {
         let (shared, mut eq) = chain();
-        shared.set_eq(EqMode::Simple, &[12.0, 0.0, 0.0]);
+        shared.set_eq(EqMode::Simple, &tone_controls(12.0, 0.0, 0.0));
 
         // One block of a hundred frames, which is a fraction of the fifty
         // millisecond ramp: the gain cannot have arrived yet.
@@ -351,23 +405,25 @@ mod tests {
         eq.process(&shared, &mut buffer);
 
         assert!(
-            eq.current[0] > 0.0 && eq.current[0] < 12.0,
+            eq.current[0].gain_db > 0.0 && eq.current[0].gain_db < 12.0,
             "the gain jumped straight to {} dB",
-            eq.current[0]
+            eq.current[0].gain_db
         );
     }
 
     #[test]
-    fn a_dragged_control_never_steps_the_waveform() {
+    fn a_dragged_band_never_steps_the_waveform() {
         let (shared, mut eq) = chain();
         let step = std::f32::consts::TAU * 60.0 / RATE as f32;
         let mut sample = 0_u32;
         let mut heard: Vec<f32> = Vec::new();
 
-        // Twelve decibels of bass, arriving a decibel at a time the way a hand
-        // on a slider delivers it.
-        for decibels in 0..=12 {
-            shared.set_eq(EqMode::Simple, &[decibels as f32, 0.0, 0.0]);
+        // A hand on the curve: the gain climbing a decibel at a time while the
+        // band itself is dragged across two octaves.
+        for tick in 0..=12 {
+            let mut bands = vec![(1_000, 1.0, 0.0); 8];
+            bands[0] = (60 + tick * 20, 1.4, tick as f32);
+            shared.set_eq(EqMode::Advanced, &bands);
 
             let mut buffer: Vec<f32> = (0..2_000)
                 .map(|_| {
@@ -397,10 +453,10 @@ mod tests {
     #[test]
     fn returning_to_flat_puts_the_signal_back_as_it_was() {
         let (shared, mut eq) = chain();
-        shared.set_eq(EqMode::Simple, &[10.0, 0.0, 0.0]);
+        shared.set_eq(EqMode::Simple, &tone_controls(10.0, 0.0, 0.0));
         tone_through(&shared, &mut eq, 60.0);
 
-        shared.set_eq(EqMode::Simple, &[0.0, 0.0, 0.0]);
+        shared.set_eq(EqMode::Simple, &tone_controls(0.0, 0.0, 0.0));
         let back = tone_through(&shared, &mut eq, 60.0);
 
         assert!(back.abs() < 0.2, "flat left the tone {back} dB off");

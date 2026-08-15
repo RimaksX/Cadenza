@@ -7,17 +7,25 @@ use std::sync::{Arc, Mutex, PoisonError};
 use std::thread::{self, JoinHandle};
 use std::time::Duration;
 
-use cadenza_core::domain::eq::EqMode;
+use cadenza_core::domain::eq::{EqMode, EqSetting};
 use cadenza_core::domain::playback::{PlaybackState, TransitionProfile};
+use cadenza_core::domain::policies::eq_policy::{SIMPLE_BASS_HZ, SIMPLE_MID_HZ, SIMPLE_TREBLE_HZ};
 use cadenza_core::domain::ports::audio_engine::AudioEnginePort;
 use cadenza_core::domain::settings::CrossfadeDuration;
-use cadenza_core::domain::value_objects::{DurationMs, GainDb, PlaybackPosition, Volume};
+use cadenza_core::domain::value_objects::{DurationMs, PlaybackPosition, Volume};
 use cadenza_core::{CoreError, Result};
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use cpal::{SampleFormat, StreamConfig};
 
 use super::eq::EqChain;
 use super::stream::{Command, Shared, decode_loop, fill_output};
+
+/// How wide the simple mode's mid bell is, and the shelves' nominal width.
+///
+/// Broad, because "mid" is not a band: it is everything between the bass and
+/// the treble, and a narrow bell there would be a tone control that only moved
+/// one note. The shelves ignore it and take their slope from the cookbook.
+const SIMPLE_MID_Q: f32 = 0.7;
 
 /// How long the caller waits for the output device to open.
 const START_TIMEOUT: Duration = Duration::from_secs(5);
@@ -199,12 +207,31 @@ impl AudioEnginePort for CpalAudioEngine {
         Ok(())
     }
 
-    fn set_eq(&self, mode: EqMode, gains: &[GainDb]) -> Result<()> {
+    fn set_eq(&self, setting: &EqSetting) -> Result<()> {
+        // Both modes are flattened to the same three numbers a filter needs.
+        // Which of them is a shelf is the chain's business, and it works that
+        // out from the mode and the band's place in it.
+        let bands: Vec<(u32, f32, f32)> = match setting.mode {
+            EqMode::Simple => vec![
+                (SIMPLE_BASS_HZ, SIMPLE_MID_Q, setting.simple.bass.as_db()),
+                (SIMPLE_MID_HZ, SIMPLE_MID_Q, setting.simple.mid.as_db()),
+                (
+                    SIMPLE_TREBLE_HZ,
+                    SIMPLE_MID_Q,
+                    setting.simple.treble.as_db(),
+                ),
+            ],
+            EqMode::Advanced => setting
+                .advanced
+                .iter()
+                .map(|band| (band.frequency_hz(), band.q(), band.gain().as_db()))
+                .collect(),
+        };
+
         // A small allocation on a control call, which is the side of the ring
         // where allocating is allowed. What crosses to the callback is the
         // fixed array of atomics inside `Shared`.
-        let decibels: Vec<f32> = gains.iter().map(|gain| gain.as_db()).collect();
-        self.shared.set_eq(mode, &decibels);
+        self.shared.set_eq(setting.mode, &bands);
         Ok(())
     }
 
