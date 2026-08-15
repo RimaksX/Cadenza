@@ -543,10 +543,9 @@ export component EqualiserView inherits Rectangle {
                 // the two things a fader cannot say: where the band sits and
                 // how wide it is.
                 //
-                // Two lines rather than one. Four controls abreast and a
-                // sentence of numbers do not both fit beside a bank of faders,
-                // and the first arrangement that tried pushed the presets off
-                // the side of the window.
+                // Centred under the bank, like the controls beneath it. A
+                // reading pinned to the left with its own buttons centred below
+                // it is two alignments in six inches of screen.
                 if root.advanced: VerticalLayout {
                     vertical-stretch: 0;
                     spacing: Theme.space-2;
@@ -560,6 +559,7 @@ export component EqualiserView inherits Rectangle {
                             font-size: Theme.text-label;
                             height: 18px;
                             vertical-alignment: center;
+                            horizontal-alignment: center;
                             letter-spacing: Theme.label-spacing;
                             color: Theme.ink-mute;
                         }
@@ -570,6 +570,7 @@ export component EqualiserView inherits Rectangle {
                             font-size: Theme.text-body;
                             height: 22px;
                             vertical-alignment: center;
+                            horizontal-alignment: center;
                             letter-spacing: Theme.number-spacing;
                             color: Theme.ink-0;
                         }
@@ -607,7 +608,6 @@ export component EqualiserView inherits Rectangle {
                                 root.widen-band(root.selected, 0.3);
                             }
                         }
-
                     }
                 }
             }

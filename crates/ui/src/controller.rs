@@ -685,14 +685,15 @@ impl Controller {
                 .get(index)
                 .ok_or_else(|| CoreError::not_found("eq band", index))?;
 
-            self.services.eq.set_band(
-                index,
-                EqBand::new(
-                    band.frequency_hz(),
-                    (band.q() + step).clamp(MIN_BAND_Q, MAX_BAND_Q),
-                    band.gain(),
-                )?,
-            )
+            // Rounded to the tenth the readout shows. Left at full precision
+            // a step out and back lands on 0.99999994 rather than 1, and a
+            // preset that had been chosen would stop matching itself over a
+            // difference nobody can hear or see.
+            let q = (((band.q() + step) * 10.0).round() / 10.0).clamp(MIN_BAND_Q, MAX_BAND_Q);
+
+            self.services
+                .eq
+                .set_band(index, EqBand::new(band.frequency_hz(), q, band.gain())?)
         });
         self.refresh_eq();
     }
