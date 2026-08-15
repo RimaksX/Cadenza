@@ -511,8 +511,28 @@ impl Controller {
         self.run(|| self.services.playback.set_volume(Volume::clamped(level)));
     }
 
-    /// Everything the equaliser screen draws.
+    /// Everything the equaliser screen draws, presets included.
     pub fn refresh_eq(&self) {
+        self.refresh_eq_controls();
+
+        let (Some(window), Ok(setting), Ok(presets)) = (
+            self.window.upgrade(),
+            self.services.eq.current(),
+            self.services.eq.list(),
+        ) else {
+            return;
+        };
+
+        let rows = eq_vm::presets(&presets, &setting);
+        window.set_eq_presets(ModelRc::new(VecModel::from(rows)));
+    }
+
+    /// The controls alone: the dial, the curve, and what they read out.
+    ///
+    /// Separate from the presets because this runs on every step of a drag, and
+    /// listing nine presets to find out that none of them is lit is a database
+    /// query per pointer event.
+    fn refresh_eq_controls(&self) {
         let Some(window) = self.window.upgrade() else {
             return;
         };
@@ -540,11 +560,6 @@ impl Controller {
 
         let bands = eq_vm::bands(&setting, selected);
         window.set_eq_bands(ModelRc::new(VecModel::from(bands)));
-
-        if let Ok(presets) = self.services.eq.list() {
-            let rows = eq_vm::presets(&presets, &setting);
-            window.set_eq_presets(ModelRc::new(VecModel::from(rows)));
-        }
     }
 
     /// Switches between the three controls and the eight bells.
@@ -559,18 +574,23 @@ impl Controller {
     }
 
     /// Moves one of the three tone controls.
+    ///
+    /// The sound follows the hand and the database waits: a control being
+    /// dragged reports every step of the way, and twenty-eight rows written per
+    /// step is a database asked to keep up with a wrist.
     pub fn set_eq_simple(&self, which: i32, decibels: f32) {
         self.run(|| {
-            let mut simple = self.services.eq.current()?.simple;
+            let mut setting = self.services.eq.current()?;
             let gain = GainDb::clamped(decibels);
             match which {
-                0 => simple.bass = gain,
-                1 => simple.mid = gain,
-                _ => simple.treble = gain,
+                0 => setting.simple.bass = gain,
+                1 => setting.simple.mid = gain,
+                _ => setting.simple.treble = gain,
             }
-            self.services.eq.set_simple(simple)
+            setting.mode = EqMode::Simple;
+            self.services.eq.preview(setting)
         });
-        self.refresh_eq();
+        self.refresh_eq_controls();
     }
 
     /// Drops a bell where it was dragged to.
@@ -579,21 +599,26 @@ impl Controller {
         self.selected_band.set(index);
 
         self.run(|| {
-            let setting = self.services.eq.current()?;
-            let band = setting
+            let mut setting = self.services.eq.current()?;
+            let band = *setting
                 .advanced
                 .get(index)
                 .ok_or_else(|| CoreError::not_found("eq band", index))?;
 
-            self.services.eq.set_band(
-                index,
-                EqBand::new(
-                    eq_vm::x_to_frequency(x),
-                    band.q(),
-                    GainDb::clamped(eq_vm::y_to_gain(y)),
-                )?,
-            )
+            setting.advanced[index] = EqBand::new(
+                eq_vm::x_to_frequency(x),
+                band.q(),
+                GainDb::clamped(eq_vm::y_to_gain(y)),
+            )?;
+            setting.mode = EqMode::Advanced;
+            self.services.eq.preview(setting)
         });
+        self.refresh_eq_controls();
+    }
+
+    /// The hand let go of a control: write down what it left behind.
+    pub fn settle_eq(&self) {
+        self.run(|| self.services.eq.commit());
         self.refresh_eq();
     }
 

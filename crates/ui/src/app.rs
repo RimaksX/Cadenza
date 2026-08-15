@@ -194,6 +194,11 @@ fn wire(window: &AppWindow, controller: &Rc<Controller>) {
         move |index| controller.select_eq_band(index)
     });
 
+    window.on_settle_eq({
+        let controller = Rc::clone(controller);
+        move || controller.settle_eq()
+    });
+
     window.on_widen_eq_band({
         let controller = Rc::clone(controller);
         move |index, step| controller.widen_eq_band(index, step)

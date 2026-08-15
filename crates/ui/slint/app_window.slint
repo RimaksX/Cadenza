@@ -124,6 +124,7 @@ export component AppWindow inherits Window {
     callback set-eq-simple(int, float);
     callback move-eq-band(int, float, float);
     callback select-eq-band(int);
+    callback settle-eq();
     callback widen-eq-band(int, float);
     callback pick-eq-preset(string);
     callback save-eq-preset(string);
@@ -274,6 +275,9 @@ export component AppWindow inherits Window {
         }
         select-eq-band(index) => {
             root.select-eq-band(index);
+        }
+        settle-eq => {
+            root.settle-eq();
         }
         widen-eq-band(index, step) => {
             root.widen-eq-band(index, step);

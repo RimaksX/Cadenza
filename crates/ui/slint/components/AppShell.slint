@@ -115,6 +115,7 @@ export component AppShell inherits Rectangle {
     callback set-eq-simple(int, float);
     callback move-eq-band(int, float, float);
     callback select-eq-band(int);
+    callback settle-eq();
     callback widen-eq-band(int, float);
     callback pick-eq-preset(string);
     callback save-eq-preset(string);
@@ -248,6 +249,9 @@ export component AppShell inherits Rectangle {
                 }
                 select-band(index) => {
                     root.select-eq-band(index);
+                }
+                settle-eq => {
+                    root.settle-eq();
                 }
                 widen-band(index, step) => {
                     root.widen-eq-band(index, step);

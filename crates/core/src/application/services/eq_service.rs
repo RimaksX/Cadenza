@@ -138,6 +138,30 @@ impl EqService {
         self.write(setting)
     }
 
+    /// Applies a setting to the filters without writing it down.
+    ///
+    /// What a control being dragged does. A parametric setting is twenty-eight
+    /// rows, and a hand on a curve produces movement faster than any database
+    /// wants to hear about it — so the sound follows at once and the writing
+    /// waits for [`Self::commit`], which is what letting go is for.
+    pub fn preview(&self, setting: EqSetting) -> Result<()> {
+        let profile_id = self.context.require_active_profile()?;
+
+        self.ports.engine.set_eq(&setting)?;
+        *self.current.write().unwrap_or_else(|err| err.into_inner()) = Some((profile_id, setting));
+        Ok(())
+    }
+
+    /// Writes down what is set now.
+    pub fn commit(&self) -> Result<()> {
+        let profile_id = self.context.require_active_profile()?;
+        let setting = self.current()?;
+
+        self.store(profile_id, &setting)?;
+        self.announce();
+        Ok(())
+    }
+
     /// Puts everything back to doing nothing.
     pub fn reset(&self) -> Result<()> {
         self.write(EqSetting::flat())

@@ -42,14 +42,13 @@ component DialArm inherits Rectangle {
     in property <float> unit-y;
 
     callback moved(float);
+    /// The hand let go, so what was set is worth writing down.
+    callback settled();
 
     // How far along the arm the handle sits, from the middle out.
     property <float> travel: (root.value - root.lowest) / (root.highest - root.lowest);
     property <length> handle-x: root.centre-x + root.reach * root.travel * root.unit-x;
     property <length> handle-y: root.centre-y + root.reach * root.travel * root.unit-y;
-    /// What the value was when the hand went down, so a drag adds to it rather
-    /// than to whatever it has already become.
-    property <float> held;
 
     // The track. Drawn as a path because a line at an angle is not a rectangle,
     // and Slint will not rotate one.
@@ -86,18 +85,29 @@ component DialArm inherits Rectangle {
         height: 44px;
         mouse-cursor: pointer;
 
+        // Where the pointer is on the dial, whatever this target has done in
+        // the meantime. Two things make a delta wrong here: the handle follows
+        // the value, so the target moves out from under the hand and the delta
+        // stops growing; and `moved` arrives on hover as well as on a drag, so
+        // a delta measured from a press that never happened is nonsense. An
+        // absolute position has neither problem.
+        property <length> pointer-x: self.absolute-position.x + self.mouse-x - root.absolute-position.x;
+        property <length> pointer-y: self.absolute-position.y + self.mouse-y - root.absolute-position.y;
+        /// How far along the arm the pointer is, projected onto it. Movement
+        /// across the arm is ignored rather than losing the grip.
+        property <float> along: ((self.pointer-x - root.centre-x) / 1px * root.unit-x
+            + (self.pointer-y - root.centre-y) / 1px * root.unit-y) / (root.reach / 1px);
+
         pointer-event(event) => {
-            if (event.kind == PointerEventKind.down) {
-                root.held = root.value;
+            if (event.kind == PointerEventKind.up) {
+                root.settled();
             }
         }
-        // The pointer is grabbed on press, so this keeps arriving after the
-        // hand has left the handle: the drag is projected onto the arm, and
-        // movement across it is ignored rather than losing the grip.
         moved => {
-            root.moved(root.held + ((self.mouse-x - self.pressed-x) / 1px * root.unit-x
-                + (self.mouse-y - self.pressed-y) / 1px * root.unit-y)
-                / (root.reach / 1px) * (root.highest - root.lowest));
+            if (self.pressed) {
+                root.moved(max(root.lowest, min(root.highest,
+                    root.lowest + self.along * (root.highest - root.lowest))));
+            }
         }
     }
 
@@ -142,6 +152,8 @@ component ToneDial inherits Rectangle {
 
     /// Which control moved, and where to. Zero is bass, one is mid, two treble.
     callback moved(int, float);
+    /// The hand let go.
+    callback settled();
 
     property <length> side: min(root.width, root.height);
     property <length> centre-x: root.width / 2;
@@ -186,6 +198,9 @@ component ToneDial inherits Rectangle {
         moved(value) => {
             root.moved(1, value);
         }
+        settled => {
+            root.settled();
+        }
     }
     DialArm {
         label: "BASS";
@@ -199,6 +214,9 @@ component ToneDial inherits Rectangle {
         unit-y: 0.5;
         moved(value) => {
             root.moved(0, value);
+        }
+        settled => {
+            root.settled();
         }
     }
     DialArm {
@@ -214,6 +232,9 @@ component ToneDial inherits Rectangle {
         moved(value) => {
             root.moved(2, value);
         }
+        settled => {
+            root.settled();
+        }
     }
 }
 
@@ -222,9 +243,11 @@ component BandCurve inherits Rectangle {
     in property <string> curve;
     in property <[EqBandData]> bands;
 
-    /// A band was dragged: its index, and where it was dropped.
+    /// A band was dragged: its index, and where it is now.
     callback moved(int, float, float);
     callback chosen(int);
+    /// The hand let go, so what was set is worth writing down.
+    callback settled();
 
     property <length> inset: 20px;
     property <length> plot-width: root.width - 2 * root.inset;
@@ -283,8 +306,6 @@ component BandCurve inherits Rectangle {
     for band[index] in root.bands: Rectangle {
         property <length> node-x: root.inset + root.plot-width * band.x;
         property <length> node-y: root.inset + root.plot-height * band.y;
-        property <float> held-x;
-        property <float> held-y;
 
         x: self.node-x - self.width / 2;
         y: self.node-y - self.height / 2;
@@ -303,18 +324,30 @@ component BandCurve inherits Rectangle {
             height: parent.height + 28px;
             mouse-cursor: pointer;
 
+            // Where the pointer is on the plot, whatever this target has done
+            // in the meantime. The node follows the band, so the target moves
+            // out from under the hand and a delta stops growing; and `moved`
+            // arrives on hover as well as on a drag, so a delta measured from a
+            // press that never happened would throw the band across the
+            // spectrum for anyone whose pointer merely passed over it.
+            property <float> pointer-x: (self.absolute-position.x + self.mouse-x
+                - root.absolute-position.x - root.inset) / (root.plot-width / 1px) / 1px;
+            property <float> pointer-y: (self.absolute-position.y + self.mouse-y
+                - root.absolute-position.y - root.inset) / (root.plot-height / 1px) / 1px;
+
             pointer-event(event) => {
                 if (event.kind == PointerEventKind.down) {
-                    parent.held-x = band.x;
-                    parent.held-y = band.y;
                     root.chosen(index);
+                } else if (event.kind == PointerEventKind.up) {
+                    root.settled();
                 }
             }
             moved => {
-                root.moved(
-                    index,
-                    parent.held-x + (self.mouse-x - self.pressed-x) / (root.plot-width / 1px) / 1px,
-                    parent.held-y + (self.mouse-y - self.pressed-y) / (root.plot-height / 1px) / 1px);
+                if (self.pressed) {
+                    root.moved(index,
+                        max(0, min(1, self.pointer-x)),
+                        max(0, min(1, self.pointer-y)));
+                }
             }
         }
     }
@@ -340,6 +373,8 @@ export component EqualiserView inherits Rectangle {
     callback set-simple(int, float);
     callback move-band(int, float, float);
     callback select-band(int);
+    /// A control was let go of: what is set is worth writing down.
+    callback settle-eq();
     callback widen-band(int, float);
     callback pick-preset(string);
     callback save-preset();
@@ -442,6 +477,9 @@ export component EqualiserView inherits Rectangle {
                     moved(which, value) => {
                         root.set-simple(which, value);
                     }
+                    settled => {
+                        root.settle-eq();
+                    }
                 }
 
                 if root.advanced: BandCurve {
@@ -452,6 +490,9 @@ export component EqualiserView inherits Rectangle {
                     }
                     chosen(index) => {
                         root.select-band(index);
+                    }
+                    settled => {
+                        root.settle-eq();
                     }
                 }
 
