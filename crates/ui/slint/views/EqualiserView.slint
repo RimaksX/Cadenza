@@ -237,115 +237,157 @@ component ToneDial inherits Rectangle {
     }
 }
 
-// The eight bands, as a row of faders.
+// One band, as a fader of its own.
 //
-// A curve with points on it was the first attempt and the wrong one: it asked
-// somebody to read a shape before they could change anything, and it made the
-// obvious act — pull this band up — the hardest one to perform. A fader says
-// what it does by looking like what it does.
+// Its own column, its own line, its own target. The first arrangement put all
+// eight inside one box and let a row of layouts decide where each line fell,
+// which meant the visible line and the place that answered a click were not the
+// same place — aim at one band, move its neighbour.
+//
+// The volume slider had already got this right and is the model: read the
+// pointer's position on the track, ignore where it started, and let the handle
+// follow rather than lead.
+component Fader inherits Rectangle {
+    in property <float> value;
+    in property <string> gain;
+    in property <string> frequency;
+    in property <bool> selected;
+
+    callback moved(float);
+    callback chosen();
+    callback settled();
+
+    // Always the same width, whatever its numbers read. A column sized by its
+    // label is a column that changes width when the value does, and a bank of
+    // them shuffles under the hand as it is being used.
+    width: 64px;
+
+    VerticalLayout {
+        spacing: Theme.space-2;
+
+        Text {
+            text: root.gain;
+            font-family: Theme.mono;
+            font-size: Theme.text-label;
+            height: 18px;
+            vertical-alignment: center;
+            horizontal-alignment: center;
+            letter-spacing: Theme.number-spacing;
+            color: root.selected ? Theme.ink-0 : Theme.ink-2;
+            animate color { duration: 120ms; }
+        }
+
+        track := Rectangle {
+            vertical-stretch: 1;
+
+            // The line this band runs on.
+            Rectangle {
+                x: round((parent.width - self.width) / 1px / 2) * 1px;
+                width: 2px;
+                background: Theme.line-soft;
+            }
+
+            // Where this band does nothing. A tick of its own rather than a
+            // rule across the bank: eight faders standing on one line read as
+            // one control with eight handles, which is what this was.
+            Rectangle {
+                x: round((parent.width - self.width) / 1px / 2) * 1px;
+                y: round((parent.height - self.height) / 1px / 2) * 1px;
+                width: 16px;
+                height: 1px;
+                background: Theme.line;
+            }
+
+            // From that tick to the handle: how far this band is from doing
+            // nothing, and which way.
+            Rectangle {
+                x: round((parent.width - self.width) / 1px / 2) * 1px;
+                y: min(parent.height * root.value, parent.height / 2);
+                width: 2px;
+                height: abs(parent.height * root.value - parent.height / 2);
+                background: root.selected ? Theme.ink-0 : Theme.ink-2;
+                animate background { duration: 120ms; }
+            }
+
+            Rectangle {
+                x: round((parent.width - self.width) / 1px / 2) * 1px;
+                y: round((parent.height * root.value - self.height / 2) / 1px) * 1px;
+                width: touch.pressed ? 20px : (root.selected ? 18px : 15px);
+                height: self.width;
+                border-radius: self.width / 2;
+                background: root.selected || touch.has-hover ? Theme.ink-0 : Theme.ink-1;
+                animate width, height, background { duration: 120ms; }
+            }
+
+            // The target: narrower than the column, so there is dead ground
+            // between one fader and the next and a near miss moves nothing.
+            // It never moves itself — a target that followed its handle would
+            // slide out from under the hand.
+            touch := TouchArea {
+                x: round((parent.width - self.width) / 1px / 2) * 1px;
+                width: 44px;
+                mouse-cursor: pointer;
+
+                pointer-event(event) => {
+                    if (event.kind == PointerEventKind.down) {
+                        root.chosen();
+                        root.moved(max(0, min(1, self.mouse-y / (parent.height / 1px) / 1px)));
+                    } else if (event.kind == PointerEventKind.up) {
+                        root.settled();
+                    }
+                }
+                // `moved` arrives on hover as well as on a drag.
+                moved => {
+                    if (self.pressed) {
+                        root.moved(max(0, min(1, self.mouse-y / (parent.height / 1px) / 1px)));
+                    }
+                }
+            }
+        }
+
+        // Where this band sits. The row no longer says so by position — a fader
+        // is a fader wherever it stands — so it says so in words, under its own
+        // line rather than under the gap beside it.
+        Text {
+            text: root.frequency;
+            font-family: Theme.mono;
+            font-size: Theme.text-label;
+            height: 18px;
+            vertical-alignment: center;
+            horizontal-alignment: center;
+            letter-spacing: Theme.number-spacing;
+            color: root.selected ? Theme.ink-1 : Theme.ink-mute;
+            animate color { duration: 120ms; }
+        }
+    }
+}
+
+// The eight bands, side by side.
 component FaderBank inherits Rectangle {
     in property <[EqBandData]> bands;
 
-    /// A fader moved: its index, and how far down the track it now is.
     callback moved(int, float);
     callback chosen(int);
-    /// The hand let go, so what was set is worth writing down.
     callback settled();
 
     HorizontalLayout {
-        for band[index] in root.bands: VerticalLayout {
-            horizontal-stretch: 1;
-            spacing: Theme.space-2;
+        alignment: center;
+        spacing: Theme.space-1;
 
-            // What this band is doing, above the fader that does it.
-            Text {
-                text: band.gain;
-                font-family: Theme.mono;
-                font-size: Theme.text-label;
-                height: 18px;
-                vertical-alignment: center;
-                horizontal-alignment: center;
-                letter-spacing: Theme.number-spacing;
-                color: band.selected ? Theme.ink-0 : Theme.ink-2;
-                animate color { duration: 120ms; }
+        for band[index] in root.bands: Fader {
+            value: band.y;
+            gain: band.gain;
+            frequency: band.frequency;
+            selected: band.selected;
+
+            moved(value) => {
+                root.moved(index, value);
             }
-
-            track := Rectangle {
-                vertical-stretch: 1;
-
-                // The line the fader runs on.
-                Rectangle {
-                    x: round((parent.width - 2px) / 2px) * 2px;
-                    width: 2px;
-                    background: Theme.line-soft;
-                }
-
-                // Where nothing is added or taken away. Drawn across the whole
-                // bank rather than per fader, so the eye reads one horizon.
-                Rectangle {
-                    y: round((parent.height - 1px) / 2px) * 2px;
-                    height: 1px;
-                    background: Theme.line-soft;
-                }
-
-                // From the horizon to the handle: how far this band is from
-                // doing nothing, and which way.
-                Rectangle {
-                    x: round((parent.width - 2px) / 2px) * 2px;
-                    y: min(parent.height * band.y, parent.height / 2);
-                    width: 2px;
-                    height: abs(parent.height * band.y - parent.height / 2);
-                    background: band.selected ? Theme.ink-0 : Theme.ink-2;
-                    animate background { duration: 120ms; }
-                }
-
-                Rectangle {
-                    x: round((parent.width - self.width) / 2px) * 2px;
-                    y: parent.height * band.y - self.height / 2;
-                    width: touch.pressed ? 20px : (band.selected ? 18px : 14px);
-                    height: self.width;
-                    border-radius: self.width / 2;
-                    background: band.selected || touch.has-hover ? Theme.ink-0 : Theme.ink-1;
-                    animate width, height, background { duration: 120ms; }
-                }
-
-                // One target for the whole column, and it never moves. The
-                // handle follows the value; a target that followed the handle
-                // would slide out from under the hand and the drag would stall
-                // after one step.
-                touch := TouchArea {
-                    mouse-cursor: pointer;
-
-                    pointer-event(event) => {
-                        if (event.kind == PointerEventKind.down) {
-                            root.chosen(index);
-                            root.moved(index, max(0, min(1, self.mouse-y / (parent.height / 1px) / 1px)));
-                        } else if (event.kind == PointerEventKind.up) {
-                            root.settled();
-                        }
-                    }
-                    // `moved` arrives on hover as well as on a drag, so without
-                    // this every band a pointer passed over would jump.
-                    moved => {
-                        if (self.pressed) {
-                            root.moved(index, max(0, min(1, self.mouse-y / (parent.height / 1px) / 1px)));
-                        }
-                    }
-                }
+            chosen => {
+                root.chosen(index);
             }
-
-            // Where this band sits. The row no longer says so by position — a
-            // fader is a fader wherever it stands — so it says so in words.
-            Text {
-                text: band.frequency;
-                font-family: Theme.mono;
-                font-size: Theme.text-label;
-                height: 18px;
-                vertical-alignment: center;
-                horizontal-alignment: center;
-                letter-spacing: Theme.number-spacing;
-                color: band.selected ? Theme.ink-1 : Theme.ink-mute;
-                animate color { duration: 120ms; }
+            settled => {
+                root.settled();
             }
         }
     }

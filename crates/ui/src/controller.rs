@@ -5,6 +5,7 @@
 //! method here is a translation and a call (PROJECT_MASTER 4.3).
 
 use std::cell::{Cell, RefCell};
+use std::rc::Rc;
 
 use cadenza_core::domain::eq::{EqBand, EqMode};
 use cadenza_core::domain::ids::{EqPresetId, MediaFileId, PlaylistId};
@@ -14,10 +15,10 @@ use cadenza_core::domain::queue::RepeatMode;
 use cadenza_core::domain::value_objects::theme_mode::ThemeMode;
 use cadenza_core::domain::value_objects::{GainDb, PlaybackPosition, Volume};
 use cadenza_core::{CoreError, Result};
-use slint::{ComponentHandle, ModelRc, VecModel, Weak};
+use slint::{ComponentHandle, Model, ModelRc, VecModel, Weak};
 
 use crate::view_models::{self, eq_vm, library_vm, player_vm, playlist_vm};
-use crate::{AppWindow, Theme, UiServices};
+use crate::{AppWindow, EqBandData, Theme, UiServices};
 
 /// What to do when there is no profile to be a library for.
 const NO_PROFILE_HINT: &str =
@@ -53,6 +54,14 @@ pub struct Controller {
     /// the queue's entries carry it, and that is what makes the rest of the
     /// list follow rather than the rest of the library.
     open_playlist: RefCell<Option<PlaylistId>>,
+    /// The bands the equaliser screen is showing.
+    ///
+    /// Held rather than rebuilt. Handing the window a *new* model makes Slint
+    /// destroy and recreate every element the repeater built from it — and one
+    /// of those is the touch area holding the pointer during a drag. That is
+    /// why a fader could only ever be clicked: the first movement threw away
+    /// the target that was following it.
+    eq_bands: Rc<VecModel<EqBandData>>,
     /// Which bell the equaliser's numbers are about.
     ///
     /// Interface state and nothing else: which band is being looked at changes
@@ -70,6 +79,7 @@ impl Controller {
             profile,
             query: RefCell::new(String::new()),
             open_playlist: RefCell::new(None),
+            eq_bands: Rc::new(VecModel::default()),
             selected_band: Cell::new(0),
         }
     }
@@ -557,8 +567,23 @@ impl Controller {
             window.set_eq_selected_gain(eq_vm::decibels(band.gain().as_db()).into());
         }
 
+        // Written into the model that is already there, row by row. The first
+        // pass fills it; from then on the elements the window built stay put,
+        // which is what lets a fader be dragged rather than only clicked.
         let bands = eq_vm::bands(&setting, selected);
-        window.set_eq_bands(ModelRc::new(VecModel::from(bands)));
+        if self.eq_bands.row_count() == bands.len() {
+            for (index, band) in bands.into_iter().enumerate() {
+                self.eq_bands.set_row_data(index, band);
+            }
+        } else {
+            while self.eq_bands.row_count() > 0 {
+                self.eq_bands.remove(0);
+            }
+            for band in bands {
+                self.eq_bands.push(band);
+            }
+            window.set_eq_bands(ModelRc::from(Rc::clone(&self.eq_bands)));
+        }
     }
 
     /// Switches between the three controls and the eight bells.
