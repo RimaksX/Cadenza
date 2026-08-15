@@ -106,6 +106,9 @@ export component Dialog inherits Rectangle {
     in property <bool> asks-for-text;
     in property <string> confirm-label: "SAVE";
     in property <bool> destructive;
+    /// Set where the dialog tells rather than asks. A panel of explanation has
+    /// nothing to cancel: there is one way out of it and it is the way out.
+    in property <bool> informs;
     /// What the field starts with. A binding rather than a value pushed in: the
     /// dialog is built fresh every time it opens, and typing replaces it.
     in property <string> initial;
@@ -137,7 +140,9 @@ export component Dialog inherits Rectangle {
     }
 
     card := Rectangle {
-        width: 440px;
+        // Wider where the dialog explains: a paragraph at 440 is a column of
+        // six words, and seven of them is a wall.
+        width: root.informs ? 560px : 440px;
         height: layout.preferred-height;
         // Whole pixels. A card centred on a window of odd height lands on
         // half a pixel, every glyph inside it is then snapped to the pixel
@@ -194,7 +199,7 @@ export component Dialog inherits Rectangle {
                 alignment: end;
                 spacing: Theme.space-2;
 
-                TextButton {
+                if !root.informs: TextButton {
                     label: "CANCEL";
                     pressed => {
                         root.cancelled();

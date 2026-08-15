@@ -264,6 +264,9 @@ export component AppShell inherits Rectangle {
                 save-preset => {
                     root.ask("new-eq-preset", "", "");
                 }
+                explain => {
+                    root.ask("eq-help", "", "");
+                }
                 reset-eq => {
                     root.reset-eq();
                 }
@@ -377,7 +380,12 @@ export component AppShell inherits Rectangle {
         width: 100%;
         height: 100%;
 
-        title: root.dialog == "new-eq-preset"
+        // Wide enough for a paragraph, because one of these is a paragraph.
+        informs: root.dialog == "eq-help";
+
+        title: root.dialog == "eq-help"
+            ? "Using the equaliser"
+            : (root.dialog == "new-eq-preset"
             ? "Save this sound"
             : (root.dialog == "new-playlist" || root.dialog == "new-playlist-with"
                 ? "New playlist"
@@ -385,29 +393,35 @@ export component AppShell inherits Rectangle {
                     ? "Rename playlist"
                     : (root.dialog == "remove-track"
                         ? "Remove from library"
-                        : "Delete playlist")));
-        message: root.dialog == "delete-playlist"
+                        : "Delete playlist"))));
+        message: root.dialog == "eq-help"
+            ? "The three controls change the whole sound at once: bass, middle and treble. Nothing to choose, nothing to aim at." + "\n\n" + "The eight bands each change one part of it, and every band is three numbers." + "\n\n" + "GAIN is the fader itself - how far that band lifts or cuts. It is the only one of the three you hear on its own." + "\n\n" + "FREQUENCY is where the band sits. LOWER and HIGHER move it a sixth of an octave at a time." + "\n\n" + "WIDTH is how much of the sound around it comes along. WIDER and NARROWER." + "\n\n" + "Choose a band with the dot under its fader, then change it. A band at 0 dB does nothing wherever you put it, so move its fader first - otherwise LOWER and HIGHER are moving a filter that is not doing anything, and you will hear no difference at all." + "\n\n" + "A preset stays lit while the sound is exactly that preset. Move anything and it goes out, which is the screen telling the truth rather than losing your work: everything you set is still there and still playing."
+            : (root.dialog == "delete-playlist"
             ? "\"" + root.dialog-value + "\" goes; the tracks in it stay in your library."
             : (root.dialog == "remove-track"
                 ? "The track leaves this profile's library. The file stays on disk, and other profiles keep theirs."
-                : "");
+                : ""));
         placeholder: root.dialog == "new-eq-preset" ? "Late night listening" : "Late night";
         asks-for-text: root.dialog == "new-playlist"
             || root.dialog == "new-playlist-with"
             || root.dialog == "rename-playlist"
             || root.dialog == "new-eq-preset";
         initial: root.dialog == "rename-playlist" ? root.dialog-value : "";
-        confirm-label: root.dialog == "new-eq-preset"
+        confirm-label: root.dialog == "eq-help"
+            ? "GOT IT"
+            : (root.dialog == "new-eq-preset"
             ? "SAVE"
             : (root.dialog == "new-playlist" || root.dialog == "new-playlist-with"
                 ? "CREATE"
                 : (root.dialog == "rename-playlist"
                     ? "RENAME"
-                    : (root.dialog == "remove-track" ? "REMOVE" : "DELETE")));
+                    : (root.dialog == "remove-track" ? "REMOVE" : "DELETE"))));
         destructive: root.dialog == "delete-playlist" || root.dialog == "remove-track";
 
         confirmed(value) => {
-            if (root.dialog == "new-eq-preset") {
+            if (root.dialog == "eq-help") {
+                // Nothing to do: it was read.
+            } else if (root.dialog == "new-eq-preset") {
                 root.save-eq-preset(value);
             } else if (root.dialog == "new-playlist") {
                 root.create-playlist(value);

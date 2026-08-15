@@ -359,6 +359,36 @@ component Fader inherits Rectangle {
             color: root.selected ? Theme.ink-1 : Theme.ink-mute;
             animate color { duration: 120ms; }
         }
+
+        // The way to choose a band without moving it. Pressing the fader also
+        // chooses, but pressing a fader is how a fader is moved — and choosing
+        // which band to retune should not retune the one you were listening to.
+        Rectangle {
+            height: 32px;
+
+            Image {
+                source: root.selected
+                    ? @image-url("../../../../resources/ui/icons/circle-dot.svg")
+                    : @image-url("../../../../resources/ui/icons/circle.svg");
+                width: 14px;
+                height: self.width;
+                x: round((parent.width - self.width) / 1px / 2) * 1px;
+                y: round((parent.height - self.height) / 1px / 2) * 1px;
+                colorize: root.selected
+                    ? Theme.ink-0
+                    : (dot.has-hover ? Theme.ink-1 : Theme.ink-mute);
+                animate colorize { duration: 120ms; }
+            }
+
+            dot := TouchArea {
+                x: round((parent.width - self.width) / 1px / 2) * 1px;
+                width: 32px;
+                mouse-cursor: pointer;
+                clicked => {
+                    root.chosen();
+                }
+            }
+        }
     }
 }
 
@@ -418,6 +448,8 @@ export component EqualiserView inherits Rectangle {
     callback settle-eq();
     callback widen-band(int, float);
     callback pick-preset(string);
+    /// Somebody asked what all this does.
+    callback explain();
     callback save-preset();
     callback reset-eq();
 
@@ -485,6 +517,37 @@ export component EqualiserView inherits Rectangle {
                             selected: root.advanced;
                             pressed => {
                                 root.set-mode(true);
+                            }
+                        }
+
+                        // The only icon-only control on the page, and the only
+                        // one whose meaning is a shape everybody already knows.
+                        Rectangle {
+                            width: 34px;
+                            height: 34px;
+                            border-radius: Theme.radius;
+                            border-width: 1px;
+                            border-color: help.has-hover ? Theme.line : Theme.line-soft;
+                            background: help.pressed
+                                ? Theme.bg-3
+                                : (help.has-hover ? Theme.bg-2 : transparent);
+                            animate background, border-color { duration: 120ms; }
+
+                            Image {
+                                source: @image-url("../../../../resources/ui/icons/circle-question-mark.svg");
+                                width: 16px;
+                                height: self.width;
+                                x: round((parent.width - self.width) / 1px / 2) * 1px;
+                                y: round((parent.height - self.height) / 1px / 2) * 1px;
+                                colorize: help.has-hover ? Theme.ink-0 : Theme.ink-2;
+                                animate colorize { duration: 120ms; }
+                            }
+
+                            help := TouchArea {
+                                mouse-cursor: pointer;
+                                clicked => {
+                                    root.explain();
+                                }
                             }
                         }
                     }
