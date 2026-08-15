@@ -151,9 +151,14 @@ export component TrackList inherits Rectangle {
                     // field is a control, and this interface draws its controls
                     // as a hairline rectangle — a bare underline here read as a
                     // different family of object.
+                    // Collapses in both directions where the page does not
+                    // search. Left at its full height it was an invisible 34px
+                    // standing above the page's own button, the head grew by
+                    // that much, and the heading — centred in a taller row —
+                    // sat nine pixels lower on the queue than on the library.
                     Rectangle {
                         width: root.searchable ? 280px : 0px;
-                        height: 34px;
+                        height: root.searchable ? 34px : 0px;
                         clip: true;
                         border-radius: Theme.radius;
                         border-width: 1px;

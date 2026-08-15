@@ -1,3 +1,4 @@
+import { ListView } from "std-widgets.slint";
 import { Theme } from "../theme/tokens.slint";
 import { Field } from "Field.slint";
 import { MenuItemData } from "RowMenu.slint";
@@ -246,9 +247,18 @@ export component PickDialog inherits Rectangle {
         }
     }
 
+    // A row of the list, and how many of them the card will show before the
+    // rest have to be scrolled to. Six because the card must still hold its
+    // title, its buttons and its own padding inside a small window.
+    property <length> option-height: 52px;
+    property <int> shown-options: 6;
+
     Rectangle {
         width: 440px;
-        height: min(520px, layout.preferred-height);
+        // The card is as tall as what it holds. It used to be capped instead,
+        // and a seventh playlist pushed the buttons out through the bottom
+        // edge — the list scrolls now, so the height cannot run away.
+        height: layout.preferred-height;
         // Whole pixels. A card centred on a window of odd height lands on
         // half a pixel, every glyph inside it is then snapped to the pixel
         // grid on its own, and the line comes out with its letters at
@@ -282,15 +292,19 @@ export component PickDialog inherits Rectangle {
                 wrap: word-wrap;
             }
 
-            // The options are their own column with no spacing between them.
-            // The dialog's own layout puts sixteen pixels between everything it
+            // The options are their own list, with nothing between them: the
+            // dialog's own layout puts sixteen pixels between everything it
             // holds, and applied to a list that turns rows into cards floating
             // apart from each other.
-            VerticalLayout {
-                spacing: 0px;
+            //
+            // A list rather than a column, because there is no number of
+            // playlists at which this question stops being askable.
+            ListView {
+                height: min(root.options.length * root.option-height,
+                    root.shown-options * root.option-height);
 
-            for option[index] in root.options: Rectangle {
-                height: 52px;
+            for option in root.options: Rectangle {
+                height: root.option-height;
 
                 option-touch := TouchArea {
                     mouse-cursor: pointer;
@@ -308,8 +322,11 @@ export component PickDialog inherits Rectangle {
                 }
 
                 HorizontalLayout {
-                    padding-left: Theme.space-3;
-                    padding-right: Theme.space-3;
+                    // Wider than the menu rows are: the list can scroll, and a
+                    // scrollbar drawn inside the right edge would otherwise
+                    // stand on top of the last digits of a length.
+                    padding-left: Theme.space-4;
+                    padding-right: Theme.space-4;
                     spacing: Theme.space-4;
 
                     VerticalLayout {

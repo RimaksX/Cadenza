@@ -35,16 +35,28 @@ import io
 import re
 import sys
 
+TOKENS = "crates/ui/slint/theme/tokens.slint"
+
+
+def scale():
+    """The type scale, read from the theme rather than copied out of it.
+
+    Copied, it drifted: the table here still named three sizes that had been
+    removed and put the title two pixels short, so check 2 was measuring
+    against numbers nobody used any more — and a box too small for a 12px
+    label, which is the defect that ate a button's text twice, passed.
+    """
+    source = io.open(TOKENS, encoding="utf-8").read()
+    return {
+        "Theme.%s" % name: float(size)
+        for name, size in re.findall(
+            r"out property <length> (text-[\w-]+):\s*([\d.]+)px", source
+        )
+    }
+
+
 # The type scale, so a `font-size: Theme.text-body` can be measured too.
-SIZES = {
-    "Theme.text-display": 36,
-    "Theme.text-title": 18,
-    "Theme.text-row-title": 19,
-    "Theme.text-body": 14,
-    "Theme.text-meta": 13,
-    "Theme.text-number": 12,
-    "Theme.text-label": 10.5,
-}
+SIZES = scale()
 
 # A line box below this multiple of the font size is a dropped line, not a
 # tight one.
@@ -94,7 +106,12 @@ def audit(path):
 
         if text is not None:
             if statement.startswith("font-size:"):
-                text["size"] = size_of(statement.split(":", 1)[1].rstrip(";"))
+                asked = statement.split(":", 1)[1].rstrip(";").strip()
+                text["size"] = size_of(asked)
+                # A name the theme does not have is the drift that made this
+                # script quietly stop checking. Unmeasurable is a finding.
+                if text["size"] is None:
+                    findings.append((number, "type size %s is not in the theme" % asked))
             elif statement.startswith("height:"):
                 text["box"] = statement
             elif statement.startswith("wrap:"):
