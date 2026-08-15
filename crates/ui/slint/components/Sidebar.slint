@@ -199,6 +199,22 @@ export component Sidebar inherits Rectangle {
                 glyph: @image-url("../../../../resources/ui/icons/radio.svg");
                 enabled: false;
             }
+
+            // A group of its own. The equaliser is not somewhere the music is
+            // kept, it is something done to it — and a rule with a word on it
+            // is how this sidebar says so.
+            NavLabel {
+                text: "SOUND";
+                padding-top: Theme.space-4;
+            }
+            NavItem {
+                label: "Equaliser";
+                glyph: @image-url("../../../../resources/ui/icons/equalizer.svg");
+                selected: root.section == "equaliser";
+                chosen => {
+                    root.select("equaliser");
+                }
+            }
         }
 
         Rectangle { }

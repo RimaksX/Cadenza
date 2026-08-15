@@ -41,13 +41,22 @@ impl SqliteEqPresetRepository {
 }
 
 impl EqPresetRepositoryPort for SqliteEqPresetRepository {
+    /// The built-ins first, in the order PROJECT_MASTER 2.8 names them, then
+    /// the listener's own by name.
+    ///
+    /// The order of the built-ins is their identifiers': migration 15 numbers
+    /// them the way the specification lists them, which is an order with a
+    /// shape — Flat, then the genres, then the two boosts — and alphabetical is
+    /// not.
     fn list_for_profile(&self, profile_id: ProfileId) -> Result<Vec<EqPreset>> {
         let connection = self.pool.get()?;
         let mut statement = connection
             .prepare(&format!(
                 "SELECT {COLUMNS} FROM eq_presets
                  WHERE profile_id IS NULL OR profile_id = ?1
-                 ORDER BY is_builtin DESC, name COLLATE NOCASE"
+                 ORDER BY is_builtin DESC,
+                          CASE WHEN is_builtin = 1 THEN id END,
+                          name COLLATE NOCASE"
             ))
             .map_err(db_error_in("listing equaliser presets"))?;
 

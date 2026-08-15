@@ -84,3 +84,23 @@ nobody chose.
 
 It stays ignored because a machine without an output device is not a machine
 with a failing test.
+
+## Rendering the window
+
+`python scripts/shoot.py out.png [--section equaliser]` asks the window to draw
+itself into a bitmap we own — `PrintWindow`, not a screenshot. Nothing is
+captured from the desktop, so the result does not depend on what is in front of
+it, whether the machine is locked, or where the pointer is. It is the window's
+own drawing, which is the only thing worth checking.
+
+`--section` rewrites the shell's default page for the length of one render and
+puts it back, because reaching another page would need a click.
+
+It has caught what tests could not: a collapsed progress bar, a clipped tile, a
+missing player title, and — the day the equaliser arrived — three dial arms
+running off the page because a Slint `Path` without a viewbox is stretched to
+fill whatever it is given.
+
+What it cannot show is everything that needs a live pointer: hover, drag, focus
+and the click itself. Those stay unverified, and are said to be rather than
+implied.

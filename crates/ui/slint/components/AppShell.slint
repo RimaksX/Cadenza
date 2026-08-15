@@ -7,6 +7,7 @@ import { LibraryView } from "../views/LibraryView.slint";
 import { QueueView } from "../views/QueueView.slint";
 import { PlaylistsView, PlaylistCardData } from "../views/PlaylistsView.slint";
 import { PlaylistDetailView } from "../views/PlaylistDetailView.slint";
+import { EqualiserView, EqPresetData, EqBandData } from "../views/EqualiserView.slint";
 import { Dialog, PickDialog } from "Dialog.slint";
 import { MenuItemData } from "RowMenu.slint";
 
@@ -34,6 +35,19 @@ export component AppShell inherits Rectangle {
     in property <string> open-playlist-id;
     /// The playlists as a menu of destinations, for "add to playlist".
     in property <[MenuItemData]> playlist-options;
+
+    in property <bool> eq-advanced;
+    in property <float> eq-bass;
+    in property <float> eq-mid;
+    in property <float> eq-treble;
+    in property <string> eq-curve;
+    in property <[EqBandData]> eq-bands;
+    in property <[EqPresetData]> eq-presets;
+    in property <string> eq-summary;
+    in property <int> eq-selected;
+    in property <string> eq-selected-frequency;
+    in property <string> eq-selected-q;
+    in property <string> eq-selected-gain;
 
     /// The screen showing. Held here rather than passed in, because navigation
     /// changes nothing outside the window.
@@ -97,6 +111,14 @@ export component AppShell inherits Rectangle {
     callback previous();
     callback toggle-shuffle();
     callback cycle-repeat();
+    callback set-eq-mode(bool);
+    callback set-eq-simple(int, float);
+    callback move-eq-band(int, float, float);
+    callback select-eq-band(int);
+    callback widen-eq-band(int, float);
+    callback pick-eq-preset(string);
+    callback save-eq-preset(string);
+    callback reset-eq();
 
     background: Theme.bg-0;
     // The window has no frame of its own now, so it needs an edge of its own —
@@ -198,6 +220,46 @@ export component AppShell inherits Rectangle {
                 }
                 act(id, name, action) => {
                     root.ask(action == "rename" ? "rename-playlist" : "delete-playlist", id, name);
+                }
+            }
+
+            if root.section == "equaliser": EqualiserView {
+                advanced: root.eq-advanced;
+                bass: root.eq-bass;
+                mid: root.eq-mid;
+                treble: root.eq-treble;
+                curve: root.eq-curve;
+                bands: root.eq-bands;
+                presets: root.eq-presets;
+                summary: root.eq-summary;
+                selected: root.eq-selected;
+                selected-frequency: root.eq-selected-frequency;
+                selected-q: root.eq-selected-q;
+                selected-gain: root.eq-selected-gain;
+
+                set-mode(advanced) => {
+                    root.set-eq-mode(advanced);
+                }
+                set-simple(which, value) => {
+                    root.set-eq-simple(which, value);
+                }
+                move-band(index, x, y) => {
+                    root.move-eq-band(index, x, y);
+                }
+                select-band(index) => {
+                    root.select-eq-band(index);
+                }
+                widen-band(index, step) => {
+                    root.widen-eq-band(index, step);
+                }
+                pick-preset(id) => {
+                    root.pick-eq-preset(id);
+                }
+                save-preset => {
+                    root.ask("new-eq-preset", "", "");
+                }
+                reset-eq => {
+                    root.reset-eq();
                 }
             }
 
@@ -309,30 +371,39 @@ export component AppShell inherits Rectangle {
         width: 100%;
         height: 100%;
 
-        title: root.dialog == "new-playlist" || root.dialog == "new-playlist-with"
-            ? "New playlist"
-            : (root.dialog == "rename-playlist"
-                ? "Rename playlist"
-                : (root.dialog == "remove-track" ? "Remove from library" : "Delete playlist"));
+        title: root.dialog == "new-eq-preset"
+            ? "Save this sound"
+            : (root.dialog == "new-playlist" || root.dialog == "new-playlist-with"
+                ? "New playlist"
+                : (root.dialog == "rename-playlist"
+                    ? "Rename playlist"
+                    : (root.dialog == "remove-track"
+                        ? "Remove from library"
+                        : "Delete playlist")));
         message: root.dialog == "delete-playlist"
             ? "\"" + root.dialog-value + "\" goes; the tracks in it stay in your library."
             : (root.dialog == "remove-track"
                 ? "The track leaves this profile's library. The file stays on disk, and other profiles keep theirs."
                 : "");
-        placeholder: "Late night";
+        placeholder: root.dialog == "new-eq-preset" ? "Late night listening" : "Late night";
         asks-for-text: root.dialog == "new-playlist"
             || root.dialog == "new-playlist-with"
-            || root.dialog == "rename-playlist";
+            || root.dialog == "rename-playlist"
+            || root.dialog == "new-eq-preset";
         initial: root.dialog == "rename-playlist" ? root.dialog-value : "";
-        confirm-label: root.dialog == "new-playlist" || root.dialog == "new-playlist-with"
-            ? "CREATE"
-            : (root.dialog == "rename-playlist"
-                ? "RENAME"
-                : (root.dialog == "remove-track" ? "REMOVE" : "DELETE"));
+        confirm-label: root.dialog == "new-eq-preset"
+            ? "SAVE"
+            : (root.dialog == "new-playlist" || root.dialog == "new-playlist-with"
+                ? "CREATE"
+                : (root.dialog == "rename-playlist"
+                    ? "RENAME"
+                    : (root.dialog == "remove-track" ? "REMOVE" : "DELETE")));
         destructive: root.dialog == "delete-playlist" || root.dialog == "remove-track";
 
         confirmed(value) => {
-            if (root.dialog == "new-playlist") {
+            if (root.dialog == "new-eq-preset") {
+                root.save-eq-preset(value);
+            } else if (root.dialog == "new-playlist") {
                 root.create-playlist(value);
             } else if (root.dialog == "new-playlist-with") {
                 root.create-playlist-with(root.dialog-target, value);

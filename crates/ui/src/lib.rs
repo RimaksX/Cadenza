@@ -20,7 +20,7 @@ use std::sync::Arc;
 
 use cadenza_core::Result;
 use cadenza_core::application::services::{
-    LibraryService, PlaybackService, PlaylistService, QueueService,
+    EqService, LibraryService, PlaybackService, PlaylistService, QueueService,
 };
 use cadenza_core::domain::profile::Profile;
 
@@ -48,6 +48,8 @@ pub struct UiServices {
     pub queue: Arc<QueueService>,
     /// The lists the listener keeps.
     pub playlists: Arc<PlaylistService>,
+    /// The filters, their presets, and what the listener has them set to.
+    pub eq: Arc<EqService>,
     /// Who is listening, if anyone is yet.
     ///
     /// The profile itself rather than the service that manages profiles: the

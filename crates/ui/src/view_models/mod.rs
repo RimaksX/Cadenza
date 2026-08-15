@@ -8,6 +8,7 @@
 //! Keeping that here rather than in Slint is what makes it testable: these are
 //! plain functions over plain data, and the tests below need no window.
 
+pub mod eq_vm;
 pub mod library_vm;
 pub mod player_vm;
 pub mod playlist_vm;

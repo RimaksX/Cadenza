@@ -14,7 +14,7 @@ section `11_План_реализации`. This file tracks progress only.
 | M6 | UI shell | done |
 | M7 | Плейлисты, очередь, repeat/shuffle | done |
 | M8 | Crossfade и gapless | done |
-| M9 | Эквалайзер | not started |
+| M9 | Эквалайзер | done |
 | M10 | Визуализация | not started |
 | M11 | DSP-анализ | not started |
 | M12 | Smart shuffle | not started |
@@ -487,3 +487,44 @@ length are already stored per profile — `playback.crossfade_enabled` and
 `playback.crossfade_ms`, read through `PlaybackService::settings` — so M11 owes
 a switch and a length control over values that already exist, and a way for a
 running window to pick up the change without being restarted.
+
+## M9 — Эквалайзер
+
+The filters, the presets, and a screen to reach them from. What the domain and
+the schema had been holding since M2 — `EqMode`, `SimpleEq`, `EqBand`,
+`EqPreset`, `GainDb`, the `eq_presets` table and its port — was finally used,
+and one part of it was replaced: the advanced mode is parametric rather than a
+ten-band graphic (`MASTER_ISSUES` 41), which the owner chose after seeing what
+NothingX does with the same idea.
+
+Built:
+
+- `infra/audio/biquad.rs`: the cookbook's low shelf, peaking and high shelf in
+  transposed direct form II — the form that behaves when its coefficients move
+  underneath it.
+- `infra/audio/eq.rs`: the chain, on the realtime callback. Section 8.2 lists
+  DSP among the things the callback may do, and it is the only side of the ring
+  where a control is heard the moment it moves.
+- Migration 15: the nine presets 2.8 names, with curves of ours.
+- `SqliteEqPresetRepository` and `EqService`, which keep a preset and a setting
+  apart — a preset is a named curve, the setting is what the filters are doing,
+  and they part company the moment somebody nudges a control.
+- `views/EqualiserView.slint`: a three-armed dial for the tone controls, a
+  response curve with eight draggable bells for the parametric mode, the presets
+  beside them, and one question — what to call a sound worth keeping.
+
+The definition of done:
+
+| | |
+|---|---|
+| EQ меняет звук | a tone through the chain comes out at the gain that was asked for, to within a decibel, and a tone four octaves away does not move |
+| пресеты сохраняются | a band at 440 Hz, Q 2.5, −7.5 dB is still there, on the filters, after the service is rebuilt over the same database |
+| нет щелчков | **by ear.** What is asserted is that a band dragged two octaves while climbing twelve decibels never moves the waveform further between two samples than the tone itself does |
+
+Not verified: **dragging**. The screen was rendered and read, both modes; that a
+handle follows the hand is something only a hand can check. The same was true of
+the volume and position sliders in M6.
+
+Deliberately not built: a command-line way in. The screen arrived in this
+milestone instead — the owner asked for it — so the equaliser is reached by
+clicking Equaliser, and there is nothing a `cadenza eq` verb would add.

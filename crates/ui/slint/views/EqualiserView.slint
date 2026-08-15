@@ -1,0 +1,613 @@
+import { Theme } from "../theme/tokens.slint";
+import { TextButton } from "../components/Dialog.slint";
+
+// One preset, as the view model hands it over.
+export struct EqPresetData {
+    id: string,
+    name: string,
+    selected: bool,
+    editable: bool,
+}
+
+// One bell of the parametric equaliser, already placed on the screen: `x` is
+// how far across, `y` is how far down, both from zero to one. Hertz and
+// decibels are the listener's units and stay in Rust.
+export struct EqBandData {
+    index: int,
+    x: float,
+    y: float,
+    frequency: string,
+    q: string,
+    gain: string,
+    selected: bool,
+}
+
+// One arm of the dial: a track from the middle outwards, and a handle on it.
+//
+// Three of these make the figure. The reference draws it as a radar and calls
+// the shape the control; ours is the same idea in this interface's own hand —
+// hairlines, one filled handle, mono capitals.
+component DialArm inherits Rectangle {
+    in property <string> label;
+    in property <float> value;
+    in property <float> lowest;
+    in property <float> highest;
+    /// Where the middle of the dial is, and how far the arm reaches.
+    in property <length> centre-x;
+    in property <length> centre-y;
+    in property <length> reach;
+    /// The direction the arm points, as a unit vector. Worked out by the parent
+    /// so that all three agree about where the middle is.
+    in property <float> unit-x;
+    in property <float> unit-y;
+
+    callback moved(float);
+
+    // How far along the arm the handle sits, from the middle out.
+    property <float> travel: (root.value - root.lowest) / (root.highest - root.lowest);
+    property <length> handle-x: root.centre-x + root.reach * root.travel * root.unit-x;
+    property <length> handle-y: root.centre-y + root.reach * root.travel * root.unit-y;
+    /// What the value was when the hand went down, so a drag adds to it rather
+    /// than to whatever it has already become.
+    property <float> held;
+
+    // The track. Drawn as a path because a line at an angle is not a rectangle,
+    // and Slint will not rotate one.
+    Path {
+        // One viewbox unit is one pixel. Left at its default a path is scaled
+        // to fill whatever it is given, which stretched every arm out to the
+        // corners of the page and left the ring somewhere in the middle of it.
+        viewbox-x: 0;
+        viewbox-y: 0;
+        viewbox-width: root.width / 1px;
+        viewbox-height: root.height / 1px;
+        commands: "M " + root.centre-x / 1px + " " + root.centre-y / 1px
+            + " L " + (root.centre-x + root.reach * root.unit-x) / 1px
+            + " " + (root.centre-y + root.reach * root.unit-y) / 1px;
+        stroke: Theme.line-soft;
+        stroke-width: 2px;
+    }
+
+    // The handle.
+    Rectangle {
+        x: root.handle-x - self.width / 2;
+        y: root.handle-y - self.height / 2;
+        width: touch.pressed ? 22px : 18px;
+        height: self.width;
+        border-radius: self.width / 2;
+        background: touch.has-hover || touch.pressed ? Theme.ink-0 : Theme.ink-1;
+        animate width, height, background { duration: 120ms; }
+    }
+
+    touch := TouchArea {
+        x: root.handle-x - 22px;
+        y: root.handle-y - 22px;
+        width: 44px;
+        height: 44px;
+        mouse-cursor: pointer;
+
+        pointer-event(event) => {
+            if (event.kind == PointerEventKind.down) {
+                root.held = root.value;
+            }
+        }
+        // The pointer is grabbed on press, so this keeps arriving after the
+        // hand has left the handle: the drag is projected onto the arm, and
+        // movement across it is ignored rather than losing the grip.
+        moved => {
+            root.moved(root.held + ((self.mouse-x - self.pressed-x) / 1px * root.unit-x
+                + (self.mouse-y - self.pressed-y) / 1px * root.unit-y)
+                / (root.reach / 1px) * (root.highest - root.lowest));
+        }
+    }
+
+    // The name and the number, at the far end of the arm where the handle is
+    // heading rather than where it happens to be.
+    VerticalLayout {
+        x: root.centre-x + (root.reach + 26px) * root.unit-x - self.width / 2;
+        y: root.centre-y + (root.reach + 26px) * root.unit-y - self.height / 2;
+        alignment: center;
+        spacing: 2px;
+
+        Text {
+            text: root.label;
+            font-family: Theme.mono;
+            font-size: Theme.text-label;
+            height: 18px;
+            vertical-alignment: center;
+            horizontal-alignment: center;
+            letter-spacing: Theme.label-spacing;
+            color: Theme.ink-mute;
+        }
+        Text {
+            text: root.value == 0 ? "0" : (root.value > 0
+                ? "+" + round(root.value * 10) / 10
+                : "" + round(root.value * 10) / 10);
+            font-family: Theme.mono;
+            font-size: Theme.text-body;
+            height: 22px;
+            vertical-alignment: center;
+            horizontal-alignment: center;
+            letter-spacing: Theme.number-spacing;
+            color: Theme.ink-0;
+        }
+    }
+}
+
+// The three tone controls, as one figure.
+component ToneDial inherits Rectangle {
+    in property <float> bass;
+    in property <float> mid;
+    in property <float> treble;
+
+    /// Which control moved, and where to. Zero is bass, one is mid, two treble.
+    callback moved(int, float);
+
+    property <length> side: min(root.width, root.height);
+    property <length> centre-x: root.width / 2;
+    property <length> centre-y: root.height / 2;
+    // Room at the edge for the labels, which sit outside the reach.
+    property <length> reach: root.side / 2 - 56px;
+
+    // The ring the arms end on: the outer edge of every control, drawn once.
+    Rectangle {
+        x: root.centre-x - root.reach - 1px;
+        y: root.centre-y - root.reach - 1px;
+        width: 2 * root.reach + 2px;
+        height: self.width;
+        border-radius: self.width / 2;
+        border-width: 1px;
+        border-color: Theme.line-soft;
+    }
+
+    // And the ring at rest: where every handle sits when nothing is added.
+    Rectangle {
+        x: root.centre-x - root.reach / 2;
+        y: root.centre-y - root.reach / 2;
+        width: root.reach;
+        height: self.width;
+        border-radius: self.width / 2;
+        border-width: 1px;
+        border-color: Theme.line-soft.with-alpha(0.5);
+    }
+
+    // Up, lower-left, lower-right — the arrangement the reference uses, and the
+    // one that reads as a figure rather than as three sliders in a fan.
+    DialArm {
+        label: "MID";
+        value: root.mid;
+        lowest: -12;
+        highest: 12;
+        centre-x: root.centre-x;
+        centre-y: root.centre-y;
+        reach: root.reach;
+        unit-x: 0;
+        unit-y: -1;
+        moved(value) => {
+            root.moved(1, value);
+        }
+    }
+    DialArm {
+        label: "BASS";
+        value: root.bass;
+        lowest: -12;
+        highest: 12;
+        centre-x: root.centre-x;
+        centre-y: root.centre-y;
+        reach: root.reach;
+        unit-x: -0.866;
+        unit-y: 0.5;
+        moved(value) => {
+            root.moved(0, value);
+        }
+    }
+    DialArm {
+        label: "TREBLE";
+        value: root.treble;
+        lowest: -12;
+        highest: 12;
+        centre-x: root.centre-x;
+        centre-y: root.centre-y;
+        reach: root.reach;
+        unit-x: 0.866;
+        unit-y: 0.5;
+        moved(value) => {
+            root.moved(2, value);
+        }
+    }
+}
+
+// The response curve, and the eight bells that make it.
+component BandCurve inherits Rectangle {
+    in property <string> curve;
+    in property <[EqBandData]> bands;
+
+    /// A band was dragged: its index, and where it was dropped.
+    callback moved(int, float, float);
+    callback chosen(int);
+
+    property <length> inset: 20px;
+    property <length> plot-width: root.width - 2 * root.inset;
+    property <length> plot-height: root.height - 2 * root.inset;
+
+    border-width: 1px;
+    border-color: Theme.line-soft;
+    border-radius: Theme.radius;
+    background: Theme.bg-1;
+
+    // The line the curve sits on when nothing is being done.
+    Rectangle {
+        x: root.inset;
+        y: root.inset + root.plot-height / 2;
+        width: root.plot-width;
+        height: 1px;
+        background: Theme.line-soft;
+    }
+
+    // Three marks, so the curve is over something rather than in the air. A
+    // decade apart, which on a logarithmic axis is three even steps.
+    for hz in [100, 1000, 10000]: Rectangle {
+        property <float> at: (log(hz, 10) - log(20, 10)) / (log(20000, 10) - log(20, 10));
+
+        x: root.inset + root.plot-width * self.at;
+        y: root.inset;
+        width: 1px;
+        height: root.plot-height;
+        background: Theme.line-soft.with-alpha(0.6);
+
+        Text {
+            x: 6px;
+            y: parent.height - self.height - 4px;
+            text: hz >= 1000 ? (hz / 1000) + "k" : hz + "";
+            font-family: Theme.mono;
+            font-size: Theme.text-label;
+            height: 18px;
+            vertical-alignment: center;
+            letter-spacing: Theme.number-spacing;
+            color: Theme.ink-mute;
+        }
+    }
+
+    Path {
+        x: root.inset;
+        y: root.inset;
+        width: root.plot-width;
+        height: root.plot-height;
+        viewbox-width: 1000;
+        viewbox-height: 1000;
+        commands: root.curve;
+        stroke: Theme.ink-1;
+        stroke-width: 2px;
+    }
+
+    for band[index] in root.bands: Rectangle {
+        property <length> node-x: root.inset + root.plot-width * band.x;
+        property <length> node-y: root.inset + root.plot-height * band.y;
+        property <float> held-x;
+        property <float> held-y;
+
+        x: self.node-x - self.width / 2;
+        y: self.node-y - self.height / 2;
+        width: band.selected || node-touch.has-hover ? 18px : 14px;
+        height: self.width;
+        border-radius: self.width / 2;
+        background: band.selected ? Theme.ink-0 : Theme.bg-3;
+        border-width: 1px;
+        border-color: band.selected ? Theme.ink-0 : Theme.line;
+        animate width, height, background { duration: 120ms; }
+
+        node-touch := TouchArea {
+            x: -14px;
+            y: -14px;
+            width: parent.width + 28px;
+            height: parent.height + 28px;
+            mouse-cursor: pointer;
+
+            pointer-event(event) => {
+                if (event.kind == PointerEventKind.down) {
+                    parent.held-x = band.x;
+                    parent.held-y = band.y;
+                    root.chosen(index);
+                }
+            }
+            moved => {
+                root.moved(
+                    index,
+                    parent.held-x + (self.mouse-x - self.pressed-x) / (root.plot-width / 1px) / 1px,
+                    parent.held-y + (self.mouse-y - self.pressed-y) / (root.plot-height / 1px) / 1px);
+            }
+        }
+    }
+}
+
+// The equaliser: what the sound is set to, and what it can be set from.
+export component EqualiserView inherits Rectangle {
+    in property <bool> advanced;
+    in property <float> bass;
+    in property <float> mid;
+    in property <float> treble;
+    in property <string> curve;
+    in property <[EqBandData]> bands;
+    in property <[EqPresetData]> presets;
+    in property <string> summary;
+    /// The band whose numbers are shown under the curve.
+    in property <int> selected;
+    in property <string> selected-frequency;
+    in property <string> selected-q;
+    in property <string> selected-gain;
+
+    callback set-mode(bool);
+    callback set-simple(int, float);
+    callback move-band(int, float, float);
+    callback select-band(int);
+    callback widen-band(int, float);
+    callback pick-preset(string);
+    callback save-preset();
+    callback reset-eq();
+
+    background: Theme.bg-0;
+
+    VerticalLayout {
+        VerticalLayout {
+            vertical-stretch: 0;
+            padding-left: Theme.page-inset;
+            padding-right: Theme.page-inset;
+            padding-top: Theme.space-6;
+            padding-bottom: Theme.space-5;
+            spacing: Theme.space-2;
+
+            Text {
+                text: "YOUR SOUND";
+                font-family: Theme.mono;
+                font-size: Theme.text-label;
+                height: 18px;
+                vertical-alignment: center;
+                letter-spacing: Theme.label-spacing;
+                color: Theme.ink-mute;
+            }
+
+            HorizontalLayout {
+                alignment: space-between;
+                spacing: Theme.space-5;
+
+                VerticalLayout {
+                    alignment: center;
+
+                    Text {
+                        text: "Equaliser";
+                        font-family: Theme.serif;
+                        font-size: Theme.text-display;
+                        height: 54px;
+                        vertical-alignment: bottom;
+                        color: Theme.ink-0;
+                    }
+                }
+
+                // The two modes, side by side rather than one button that
+                // flips: both states are visible, and each is directly
+                // reachable. A control that has to say what it will do next is
+                // a control that needs explaining.
+                VerticalLayout {
+                    alignment: end;
+                    padding-bottom: 4px;
+
+                    HorizontalLayout {
+                        spacing: Theme.space-2;
+
+                        TextButton {
+                            label: "SIMPLE";
+                            primary: !root.advanced;
+                            pressed => {
+                                root.set-mode(false);
+                            }
+                        }
+                        TextButton {
+                            label: "ADVANCED";
+                            primary: root.advanced;
+                            pressed => {
+                                root.set-mode(true);
+                            }
+                        }
+                    }
+                }
+            }
+
+            Text {
+                text: root.summary;
+                font-family: Theme.mono;
+                font-size: Theme.text-label;
+                height: 18px;
+                vertical-alignment: center;
+                letter-spacing: Theme.number-spacing;
+                color: Theme.ink-2;
+            }
+        }
+
+        // The control itself, whichever one it is.
+        HorizontalLayout {
+            vertical-stretch: 1;
+            padding-left: Theme.page-inset;
+            padding-right: Theme.page-inset;
+            padding-bottom: Theme.space-5;
+            spacing: Theme.space-6;
+
+            VerticalLayout {
+                horizontal-stretch: 1;
+                spacing: Theme.space-4;
+
+                if !root.advanced: ToneDial {
+                    bass: root.bass;
+                    mid: root.mid;
+                    treble: root.treble;
+                    moved(which, value) => {
+                        root.set-simple(which, value);
+                    }
+                }
+
+                if root.advanced: BandCurve {
+                    curve: root.curve;
+                    bands: root.bands;
+                    moved(index, x, y) => {
+                        root.move-band(index, x, y);
+                    }
+                    chosen(index) => {
+                        root.select-band(index);
+                    }
+                }
+
+                // What the chosen bell is doing, in the listener's own units.
+                // Width is the one thing a curve cannot be dragged into saying,
+                // so it has buttons.
+                if root.advanced: HorizontalLayout {
+                    vertical-stretch: 0;
+                    alignment: start;
+                    spacing: Theme.space-5;
+
+                    VerticalLayout {
+                        alignment: center;
+                        spacing: 2px;
+
+                        Text {
+                            text: "FREQUENCY";
+                            font-family: Theme.mono;
+                            font-size: Theme.text-label;
+                            height: 18px;
+                            vertical-alignment: center;
+                            letter-spacing: Theme.label-spacing;
+                            color: Theme.ink-mute;
+                        }
+                        Text {
+                            text: root.selected-frequency + " Hz";
+                            font-family: Theme.mono;
+                            font-size: Theme.text-body;
+                            height: 22px;
+                            vertical-alignment: center;
+                            letter-spacing: Theme.number-spacing;
+                            color: Theme.ink-0;
+                        }
+                    }
+
+                    VerticalLayout {
+                        alignment: center;
+                        spacing: 2px;
+
+                        Text {
+                            text: "GAIN";
+                            font-family: Theme.mono;
+                            font-size: Theme.text-label;
+                            height: 18px;
+                            vertical-alignment: center;
+                            letter-spacing: Theme.label-spacing;
+                            color: Theme.ink-mute;
+                        }
+                        Text {
+                            text: root.selected-gain + " dB";
+                            font-family: Theme.mono;
+                            font-size: Theme.text-body;
+                            height: 22px;
+                            vertical-alignment: center;
+                            letter-spacing: Theme.number-spacing;
+                            color: Theme.ink-0;
+                        }
+                    }
+
+                    VerticalLayout {
+                        alignment: center;
+                        spacing: 2px;
+
+                        Text {
+                            text: "WIDTH";
+                            font-family: Theme.mono;
+                            font-size: Theme.text-label;
+                            height: 18px;
+                            vertical-alignment: center;
+                            letter-spacing: Theme.label-spacing;
+                            color: Theme.ink-mute;
+                        }
+                        Text {
+                            text: root.selected-q;
+                            font-family: Theme.mono;
+                            font-size: Theme.text-body;
+                            height: 22px;
+                            vertical-alignment: center;
+                            letter-spacing: Theme.number-spacing;
+                            color: Theme.ink-0;
+                        }
+                    }
+
+                    VerticalLayout {
+                        alignment: center;
+
+                        HorizontalLayout {
+                            spacing: Theme.space-2;
+
+                            TextButton {
+                                label: "WIDER";
+                                pressed => {
+                                    root.widen-band(root.selected, -0.3);
+                                }
+                            }
+                            TextButton {
+                                label: "NARROWER";
+                                pressed => {
+                                    root.widen-band(root.selected, 0.3);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // The presets, in the column the reference puts them in — two
+            // abreast, under the control, in reach without scrolling.
+            VerticalLayout {
+                width: 320px;
+                spacing: Theme.space-2;
+
+                Text {
+                    text: "PRESETS";
+                    font-family: Theme.mono;
+                    font-size: Theme.text-label;
+                    height: 18px;
+                    vertical-alignment: center;
+                    letter-spacing: Theme.label-spacing;
+                    color: Theme.ink-mute;
+                }
+
+                for preset[index] in root.presets: HorizontalLayout {
+                    vertical-stretch: 0;
+
+                    TextButton {
+                        label: preset.name;
+                        primary: preset.selected;
+                        pressed => {
+                            root.pick-preset(preset.id);
+                        }
+                    }
+                }
+
+                Rectangle {
+                    vertical-stretch: 1;
+                }
+
+                HorizontalLayout {
+                    spacing: Theme.space-2;
+
+                    TextButton {
+                        label: "SAVE AS…";
+                        primary: true;
+                        pressed => {
+                            root.save-preset();
+                        }
+                    }
+                    TextButton {
+                        label: "RESET";
+                        pressed => {
+                            root.reset-eq();
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

@@ -174,6 +174,46 @@ fn wire(window: &AppWindow, controller: &Rc<Controller>) {
         move || controller.cycle_repeat()
     });
 
+    window.on_set_eq_mode({
+        let controller = Rc::clone(controller);
+        move |advanced| controller.set_eq_mode(advanced)
+    });
+
+    window.on_set_eq_simple({
+        let controller = Rc::clone(controller);
+        move |which, value| controller.set_eq_simple(which, value)
+    });
+
+    window.on_move_eq_band({
+        let controller = Rc::clone(controller);
+        move |index, x, y| controller.move_eq_band(index, x, y)
+    });
+
+    window.on_select_eq_band({
+        let controller = Rc::clone(controller);
+        move |index| controller.select_eq_band(index)
+    });
+
+    window.on_widen_eq_band({
+        let controller = Rc::clone(controller);
+        move |index, step| controller.widen_eq_band(index, step)
+    });
+
+    window.on_pick_eq_preset({
+        let controller = Rc::clone(controller);
+        move |id| controller.pick_eq_preset(&id)
+    });
+
+    window.on_save_eq_preset({
+        let controller = Rc::clone(controller);
+        move |name| controller.save_eq_preset(&name)
+    });
+
+    window.on_reset_eq({
+        let controller = Rc::clone(controller);
+        move || controller.reset_eq()
+    });
+
     // No theme callback: the palette is read from the profile at startup and
     // changed from the settings screen, which does not exist yet. Until then
     // `cadenza theme <dark|light>` is the way.

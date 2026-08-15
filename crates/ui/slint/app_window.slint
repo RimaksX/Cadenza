@@ -15,6 +15,7 @@ import { AppShell } from "components/AppShell.slint";
 import { TrackRowData } from "components/TrackRow.slint";
 import { PlaylistCardData } from "views/PlaylistsView.slint";
 import { MenuItemData } from "components/RowMenu.slint";
+import { EqPresetData, EqBandData } from "views/EqualiserView.slint";
 
 // Re-exported so the controller can set the palette. A global's input is set
 // from the native side; markup may read it but never assign to it, which is
@@ -57,6 +58,18 @@ export component AppWindow inherits Window {
     in property <string> playlist-hint;
     in property <string> open-playlist-id;
     in property <[MenuItemData]> playlist-options;
+    in property <bool> eq-advanced;
+    in property <float> eq-bass;
+    in property <float> eq-mid;
+    in property <float> eq-treble;
+    in property <string> eq-curve;
+    in property <[EqBandData]> eq-bands;
+    in property <[EqPresetData]> eq-presets;
+    in property <string> eq-summary;
+    in property <int> eq-selected;
+    in property <string> eq-selected-frequency;
+    in property <string> eq-selected-q;
+    in property <string> eq-selected-gain;
     in property <string> profile-name;
     in property <string> profile-initial;
     in property <string> now-title;
@@ -107,6 +120,14 @@ export component AppWindow inherits Window {
     callback previous();
     callback toggle-shuffle();
     callback cycle-repeat();
+    callback set-eq-mode(bool);
+    callback set-eq-simple(int, float);
+    callback move-eq-band(int, float, float);
+    callback select-eq-band(int);
+    callback widen-eq-band(int, float);
+    callback pick-eq-preset(string);
+    callback save-eq-preset(string);
+    callback reset-eq();
 
     AppShell {
         maximized: root.maximized;
@@ -138,6 +159,18 @@ export component AppWindow inherits Window {
         playlist-hint: root.playlist-hint;
         open-playlist-id: root.open-playlist-id;
         playlist-options: root.playlist-options;
+        eq-advanced: root.eq-advanced;
+        eq-bass: root.eq-bass;
+        eq-mid: root.eq-mid;
+        eq-treble: root.eq-treble;
+        eq-curve: root.eq-curve;
+        eq-bands: root.eq-bands;
+        eq-presets: root.eq-presets;
+        eq-summary: root.eq-summary;
+        eq-selected: root.eq-selected;
+        eq-selected-frequency: root.eq-selected-frequency;
+        eq-selected-q: root.eq-selected-q;
+        eq-selected-gain: root.eq-selected-gain;
         profile-name: root.profile-name;
         profile-initial: root.profile-initial;
         now-title: root.now-title;
@@ -229,6 +262,30 @@ export component AppWindow inherits Window {
         }
         cycle-repeat => {
             root.cycle-repeat();
+        }
+        set-eq-mode(advanced) => {
+            root.set-eq-mode(advanced);
+        }
+        set-eq-simple(which, value) => {
+            root.set-eq-simple(which, value);
+        }
+        move-eq-band(index, x, y) => {
+            root.move-eq-band(index, x, y);
+        }
+        select-eq-band(index) => {
+            root.select-eq-band(index);
+        }
+        widen-eq-band(index, step) => {
+            root.widen-eq-band(index, step);
+        }
+        pick-eq-preset(id) => {
+            root.pick-eq-preset(id);
+        }
+        save-eq-preset(name) => {
+            root.save-eq-preset(name);
+        }
+        reset-eq => {
+            root.reset-eq();
         }
     }
 

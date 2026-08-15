@@ -16,8 +16,8 @@ use std::sync::Arc;
 use std::{env, io};
 
 use cadenza_core::application::services::{
-    LibraryPorts, LibraryService, PlaybackPorts, PlaybackService, PlaylistPorts, PlaylistService,
-    QueuePorts, QueueService,
+    EqPorts, EqService, LibraryPorts, LibraryService, PlaybackPorts, PlaybackService,
+    PlaylistPorts, PlaylistService, QueuePorts, QueueService,
 };
 use cadenza_core::application::{AppContext, ProfileService};
 use cadenza_core::domain::playback::PlaybackState;
@@ -34,7 +34,7 @@ use cadenza_core::{CoreError, Result};
 use cadenza_infra::audio::{CpalAudioEngine, SymphoniaDecoder};
 use cadenza_infra::db;
 use cadenza_infra::db::repositories::{
-    SqliteAlbumRepository, SqliteArtistRepository, SqliteGenreRepository,
+    SqliteAlbumRepository, SqliteArtistRepository, SqliteEqPresetRepository, SqliteGenreRepository,
     SqliteImportReviewRepository, SqliteMediaFileRepository, SqlitePlaylistRepository,
     SqliteProfileRepository, SqliteQueueRepository, SqliteSettingsRepository,
     SqliteTrackRepository,
@@ -128,10 +128,15 @@ fn run() -> std::result::Result<(), String> {
     if command == Command::Ui {
         // The audio device is opened here and nowhere else: a command line that
         // lists profiles has no business claiming the speakers.
+        // One engine, shared: the equaliser and the transport are two things
+        // asked of the same filters.
+        let engine: Arc<dyn AudioEnginePort> =
+            Arc::new(CpalAudioEngine::new().map_err(|err| err.to_string())?);
+
         let playback = Arc::new(PlaybackService::new(
             Arc::clone(&context),
             PlaybackPorts {
-                engine: Arc::new(CpalAudioEngine::new().map_err(|err| err.to_string())?),
+                engine: Arc::clone(&engine),
                 media_files: Arc::new(SqliteMediaFileRepository::new(pool.clone())),
                 tracks: Arc::new(SqliteTrackRepository::new(pool.clone())),
             },
@@ -144,12 +149,21 @@ fn run() -> std::result::Result<(), String> {
             Arc::clone(&playback),
             QueuePorts {
                 queue: Arc::new(SqliteQueueRepository::new(pool.clone())),
-                tracks: Arc::new(SqliteTrackRepository::new(pool)),
+                tracks: Arc::new(SqliteTrackRepository::new(pool.clone())),
+            },
+        ));
+
+        let eq = Arc::new(EqService::new(
+            Arc::clone(&context),
+            EqPorts {
+                presets: Arc::new(SqliteEqPresetRepository::new(pool.clone())),
+                engine: Arc::clone(&engine),
             },
         ));
 
         return cadenza_ui::run(cadenza_ui::UiServices {
             library: Arc::clone(&library),
+            eq,
             playback,
             queue,
             playlists,

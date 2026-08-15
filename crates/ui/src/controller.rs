@@ -4,17 +4,19 @@
 //! window, commands up into the application layer. It holds no rules — every
 //! method here is a translation and a call (PROJECT_MASTER 4.3).
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 
-use cadenza_core::domain::ids::{MediaFileId, PlaylistId};
+use cadenza_core::domain::eq::{EqBand, EqMode};
+use cadenza_core::domain::ids::{EqPresetId, MediaFileId, PlaylistId};
+use cadenza_core::domain::policies::eq_policy::{MAX_BAND_Q, MIN_BAND_Q};
 use cadenza_core::domain::profile::Profile;
 use cadenza_core::domain::queue::RepeatMode;
 use cadenza_core::domain::value_objects::theme_mode::ThemeMode;
-use cadenza_core::domain::value_objects::{PlaybackPosition, Volume};
+use cadenza_core::domain::value_objects::{GainDb, PlaybackPosition, Volume};
 use cadenza_core::{CoreError, Result};
 use slint::{ComponentHandle, ModelRc, VecModel, Weak};
 
-use crate::view_models::{self, library_vm, player_vm, playlist_vm};
+use crate::view_models::{self, eq_vm, library_vm, player_vm, playlist_vm};
 use crate::{AppWindow, Theme, UiServices};
 
 /// What to do when there is no profile to be a library for.
@@ -51,6 +53,11 @@ pub struct Controller {
     /// the queue's entries carry it, and that is what makes the rest of the
     /// list follow rather than the rest of the library.
     open_playlist: RefCell<Option<PlaylistId>>,
+    /// Which bell the equaliser's numbers are about.
+    ///
+    /// Interface state and nothing else: which band is being looked at changes
+    /// nothing about the sound, so nothing outside the window needs telling.
+    selected_band: Cell<usize>,
 }
 
 impl Controller {
@@ -63,6 +70,7 @@ impl Controller {
             profile,
             query: RefCell::new(String::new()),
             open_playlist: RefCell::new(None),
+            selected_band: Cell::new(0),
         }
     }
 
@@ -72,6 +80,7 @@ impl Controller {
         self.refresh_library();
         self.refresh_queue();
         self.refresh_playlists();
+        self.refresh_eq();
         self.refresh_player();
     }
 
@@ -500,6 +509,142 @@ impl Controller {
     /// Sets the output level.
     pub fn set_volume(&self, level: f32) {
         self.run(|| self.services.playback.set_volume(Volume::clamped(level)));
+    }
+
+    /// Everything the equaliser screen draws.
+    pub fn refresh_eq(&self) {
+        let Some(window) = self.window.upgrade() else {
+            return;
+        };
+        let Ok(setting) = self.services.eq.current() else {
+            return;
+        };
+
+        let selected = self
+            .selected_band
+            .get()
+            .min(setting.advanced.len().saturating_sub(1));
+        window.set_eq_advanced(setting.mode == EqMode::Advanced);
+        window.set_eq_bass(setting.simple.bass.as_db());
+        window.set_eq_mid(setting.simple.mid.as_db());
+        window.set_eq_treble(setting.simple.treble.as_db());
+        window.set_eq_curve(eq_vm::curve(&setting).into());
+        window.set_eq_summary(eq_vm::summary_line(&setting).into());
+        window.set_eq_selected(selected as i32);
+
+        if let Some(band) = setting.advanced.get(selected) {
+            window.set_eq_selected_frequency(eq_vm::hertz(band.frequency_hz()).into());
+            window.set_eq_selected_q(format!("{:.1}", band.q()).into());
+            window.set_eq_selected_gain(eq_vm::decibels(band.gain().as_db()).into());
+        }
+
+        let bands = eq_vm::bands(&setting, selected);
+        window.set_eq_bands(ModelRc::new(VecModel::from(bands)));
+
+        if let Ok(presets) = self.services.eq.list() {
+            let rows = eq_vm::presets(&presets, &setting);
+            window.set_eq_presets(ModelRc::new(VecModel::from(rows)));
+        }
+    }
+
+    /// Switches between the three controls and the eight bells.
+    pub fn set_eq_mode(&self, advanced: bool) {
+        let mode = if advanced {
+            EqMode::Advanced
+        } else {
+            EqMode::Simple
+        };
+        self.run(|| self.services.eq.set_mode(mode));
+        self.refresh_eq();
+    }
+
+    /// Moves one of the three tone controls.
+    pub fn set_eq_simple(&self, which: i32, decibels: f32) {
+        self.run(|| {
+            let mut simple = self.services.eq.current()?.simple;
+            let gain = GainDb::clamped(decibels);
+            match which {
+                0 => simple.bass = gain,
+                1 => simple.mid = gain,
+                _ => simple.treble = gain,
+            }
+            self.services.eq.set_simple(simple)
+        });
+        self.refresh_eq();
+    }
+
+    /// Drops a bell where it was dragged to.
+    pub fn move_eq_band(&self, index: i32, x: f32, y: f32) {
+        let index = index.max(0) as usize;
+        self.selected_band.set(index);
+
+        self.run(|| {
+            let setting = self.services.eq.current()?;
+            let band = setting
+                .advanced
+                .get(index)
+                .ok_or_else(|| CoreError::not_found("eq band", index))?;
+
+            self.services.eq.set_band(
+                index,
+                EqBand::new(
+                    eq_vm::x_to_frequency(x),
+                    band.q(),
+                    GainDb::clamped(eq_vm::y_to_gain(y)),
+                )?,
+            )
+        });
+        self.refresh_eq();
+    }
+
+    /// Says which bell the numbers under the curve are about.
+    pub fn select_eq_band(&self, index: i32) {
+        self.selected_band.set(index.max(0) as usize);
+        self.refresh_eq();
+    }
+
+    /// Widens or narrows a bell without moving it.
+    pub fn widen_eq_band(&self, index: i32, step: f32) {
+        let index = index.max(0) as usize;
+
+        self.run(|| {
+            let setting = self.services.eq.current()?;
+            let band = setting
+                .advanced
+                .get(index)
+                .ok_or_else(|| CoreError::not_found("eq band", index))?;
+
+            self.services.eq.set_band(
+                index,
+                EqBand::new(
+                    band.frequency_hz(),
+                    (band.q() + step).clamp(MIN_BAND_Q, MAX_BAND_Q),
+                    band.gain(),
+                )?,
+            )
+        });
+        self.refresh_eq();
+    }
+
+    /// Sets everything at once from a preset.
+    pub fn pick_eq_preset(&self, id: &str) {
+        let Ok(id) = EqPresetId::parse(id) else {
+            return;
+        };
+        self.run(|| self.services.eq.apply_preset(id));
+        self.refresh_eq();
+    }
+
+    /// Saves what is set now under a name of the listener's own.
+    pub fn save_eq_preset(&self, name: &str) {
+        self.run(|| self.services.eq.save_as(name).map(|_| ()));
+        self.refresh_eq();
+    }
+
+    /// Puts the equaliser back to doing nothing.
+    pub fn reset_eq(&self) {
+        self.run(|| self.services.eq.reset());
+        self.refresh_eq();
     }
 
     /// Silences output, or restores it.
