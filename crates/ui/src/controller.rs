@@ -8,7 +8,7 @@ use std::cell::{Cell, RefCell};
 
 use cadenza_core::domain::eq::{EqBand, EqMode};
 use cadenza_core::domain::ids::{EqPresetId, MediaFileId, PlaylistId};
-use cadenza_core::domain::policies::eq_policy::{MAX_BAND_Q, MIN_BAND_Q};
+use cadenza_core::domain::policies::eq_policy::{MAX_BAND_HZ, MAX_BAND_Q, MIN_BAND_HZ, MIN_BAND_Q};
 use cadenza_core::domain::profile::Profile;
 use cadenza_core::domain::queue::RepeatMode;
 use cadenza_core::domain::value_objects::theme_mode::ThemeMode;
@@ -548,7 +548,6 @@ impl Controller {
         window.set_eq_bass(setting.simple.bass.as_db());
         window.set_eq_mid(setting.simple.mid.as_db());
         window.set_eq_treble(setting.simple.treble.as_db());
-        window.set_eq_curve(eq_vm::curve(&setting).into());
         window.set_eq_summary(eq_vm::summary_line(&setting).into());
         window.set_eq_selected(selected as i32);
 
@@ -593,8 +592,8 @@ impl Controller {
         self.refresh_eq_controls();
     }
 
-    /// Drops a bell where it was dragged to.
-    pub fn move_eq_band(&self, index: i32, x: f32, y: f32) {
+    /// Sets one band's gain from where its fader was left.
+    pub fn move_eq_band(&self, index: i32, y: f32) {
         let index = index.max(0) as usize;
         self.selected_band.set(index);
 
@@ -605,11 +604,7 @@ impl Controller {
                 .get(index)
                 .ok_or_else(|| CoreError::not_found("eq band", index))?;
 
-            setting.advanced[index] = EqBand::new(
-                eq_vm::x_to_frequency(x),
-                band.q(),
-                GainDb::clamped(eq_vm::y_to_gain(y)),
-            )?;
+            setting.advanced[index] = band.with_gain(GainDb::clamped(eq_vm::y_to_gain(y)));
             setting.mode = EqMode::Advanced;
             self.services.eq.preview(setting)
         });
@@ -625,6 +620,32 @@ impl Controller {
     /// Says which bell the numbers under the curve are about.
     pub fn select_eq_band(&self, index: i32) {
         self.selected_band.set(index.max(0) as usize);
+        self.refresh_eq();
+    }
+
+    /// Moves the chosen band along the spectrum, a sixth of an octave at a time.
+    ///
+    /// Buttons rather than a drag: a row of faders says nothing about where a
+    /// band sits, so the frequency needs a control of its own — and a step that
+    /// is a fraction of an octave moves by the same *musical* amount wherever
+    /// the band happens to be.
+    pub fn tune_eq_band(&self, index: i32, direction: i32) {
+        let index = index.max(0) as usize;
+
+        self.run(|| {
+            let setting = self.services.eq.current()?;
+            let band = setting
+                .advanced
+                .get(index)
+                .ok_or_else(|| CoreError::not_found("eq band", index))?;
+
+            let moved = f64::from(band.frequency_hz()) * 2.0_f64.powf(f64::from(direction) / 6.0);
+            let frequency_hz = (moved.round() as u32).clamp(MIN_BAND_HZ, MAX_BAND_HZ);
+
+            self.services
+                .eq
+                .set_band(index, EqBand::new(frequency_hz, band.q(), band.gain())?)
+        });
         self.refresh_eq();
     }
 

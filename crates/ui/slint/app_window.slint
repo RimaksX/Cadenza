@@ -62,7 +62,6 @@ export component AppWindow inherits Window {
     in property <float> eq-bass;
     in property <float> eq-mid;
     in property <float> eq-treble;
-    in property <string> eq-curve;
     in property <[EqBandData]> eq-bands;
     in property <[EqPresetData]> eq-presets;
     in property <string> eq-summary;
@@ -122,7 +121,8 @@ export component AppWindow inherits Window {
     callback cycle-repeat();
     callback set-eq-mode(bool);
     callback set-eq-simple(int, float);
-    callback move-eq-band(int, float, float);
+    callback move-eq-band(int, float);
+    callback tune-eq-band(int, int);
     callback select-eq-band(int);
     callback settle-eq();
     callback widen-eq-band(int, float);
@@ -164,7 +164,6 @@ export component AppWindow inherits Window {
         eq-bass: root.eq-bass;
         eq-mid: root.eq-mid;
         eq-treble: root.eq-treble;
-        eq-curve: root.eq-curve;
         eq-bands: root.eq-bands;
         eq-presets: root.eq-presets;
         eq-summary: root.eq-summary;
@@ -270,8 +269,11 @@ export component AppWindow inherits Window {
         set-eq-simple(which, value) => {
             root.set-eq-simple(which, value);
         }
-        move-eq-band(index, x, y) => {
-            root.move-eq-band(index, x, y);
+        move-eq-band(index, y) => {
+            root.move-eq-band(index, y);
+        }
+        tune-eq-band(index, direction) => {
+            root.tune-eq-band(index, direction);
         }
         select-eq-band(index) => {
             root.select-eq-band(index);

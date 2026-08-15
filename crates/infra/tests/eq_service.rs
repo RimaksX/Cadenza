@@ -149,7 +149,7 @@ fn a_fresh_profile_hears_nothing_added() {
 }
 
 #[test]
-fn choosing_a_preset_reaches_the_filters_with_its_own_mode() {
+fn choosing_a_preset_leaves_the_listener_in_the_mode_they_are_in() {
     let harness = harness();
     let presets = harness.eq.list().expect("the built-ins");
     let rock = presets
@@ -157,13 +157,25 @@ fn choosing_a_preset_reaches_the_filters_with_its_own_mode() {
         .find(|preset| preset.name == "Rock")
         .expect("Rock ships");
 
+    // In the simple mode, where a fresh profile starts: the three controls
+    // move and nothing switches underneath the listener.
     harness.eq.apply_preset(rock.id).expect("applied");
+    let applied = harness.engine.applied();
+    assert_eq!(applied.mode, EqMode::Simple);
+    assert_eq!(applied.simple, rock.simple, "the three controls moved");
+    assert!(
+        !applied.simple.is_flat(),
+        "and a preset that says something says it here too"
+    );
 
+    // And in the advanced mode, the same preset moves the eight faders.
+    harness.eq.set_mode(EqMode::Advanced).expect("switched");
+    harness.eq.apply_preset(rock.id).expect("applied");
     let applied = harness.engine.applied();
     assert_eq!(applied.mode, EqMode::Advanced);
     assert_eq!(
         applied.advanced, rock.advanced,
-        "every bell, where the preset put it"
+        "every band, where the preset put it"
     );
 }
 

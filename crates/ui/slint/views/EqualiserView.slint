@@ -9,12 +9,11 @@ export struct EqPresetData {
     editable: bool,
 }
 
-// One bell of the parametric equaliser, already placed on the screen: `x` is
-// how far across, `y` is how far down, both from zero to one. Hertz and
-// decibels are the listener's units and stay in Rust.
+// One band of the parametric equaliser, already placed on its fader: `y` is how
+// far down the track the handle sits, from zero to one. Hertz and decibels are
+// the listener's units and stay in Rust, as words.
 export struct EqBandData {
     index: int,
-    x: float,
     y: float,
     frequency: string,
     q: string,
@@ -238,116 +237,115 @@ component ToneDial inherits Rectangle {
     }
 }
 
-// The response curve, and the eight bells that make it.
-component BandCurve inherits Rectangle {
-    in property <string> curve;
+// The eight bands, as a row of faders.
+//
+// A curve with points on it was the first attempt and the wrong one: it asked
+// somebody to read a shape before they could change anything, and it made the
+// obvious act — pull this band up — the hardest one to perform. A fader says
+// what it does by looking like what it does.
+component FaderBank inherits Rectangle {
     in property <[EqBandData]> bands;
 
-    /// A band was dragged: its index, and where it is now.
-    callback moved(int, float, float);
+    /// A fader moved: its index, and how far down the track it now is.
+    callback moved(int, float);
     callback chosen(int);
     /// The hand let go, so what was set is worth writing down.
     callback settled();
 
-    property <length> inset: 20px;
-    property <length> plot-width: root.width - 2 * root.inset;
-    property <length> plot-height: root.height - 2 * root.inset;
+    HorizontalLayout {
+        for band[index] in root.bands: VerticalLayout {
+            horizontal-stretch: 1;
+            spacing: Theme.space-2;
 
-    border-width: 1px;
-    border-color: Theme.line-soft;
-    border-radius: Theme.radius;
-    background: Theme.bg-1;
+            // What this band is doing, above the fader that does it.
+            Text {
+                text: band.gain;
+                font-family: Theme.mono;
+                font-size: Theme.text-label;
+                height: 18px;
+                vertical-alignment: center;
+                horizontal-alignment: center;
+                letter-spacing: Theme.number-spacing;
+                color: band.selected ? Theme.ink-0 : Theme.ink-2;
+                animate color { duration: 120ms; }
+            }
 
-    // The line the curve sits on when nothing is being done.
-    Rectangle {
-        x: root.inset;
-        y: root.inset + root.plot-height / 2;
-        width: root.plot-width;
-        height: 1px;
-        background: Theme.line-soft;
-    }
+            track := Rectangle {
+                vertical-stretch: 1;
 
-    // Three marks, so the curve is over something rather than in the air. A
-    // decade apart, which on a logarithmic axis is three even steps.
-    for hz in [100, 1000, 10000]: Rectangle {
-        property <float> at: (log(hz, 10) - log(20, 10)) / (log(20000, 10) - log(20, 10));
+                // The line the fader runs on.
+                Rectangle {
+                    x: round((parent.width - 2px) / 2px) * 2px;
+                    width: 2px;
+                    background: Theme.line-soft;
+                }
 
-        x: root.inset + root.plot-width * self.at;
-        y: root.inset;
-        width: 1px;
-        height: root.plot-height;
-        background: Theme.line-soft.with-alpha(0.6);
+                // Where nothing is added or taken away. Drawn across the whole
+                // bank rather than per fader, so the eye reads one horizon.
+                Rectangle {
+                    y: round((parent.height - 1px) / 2px) * 2px;
+                    height: 1px;
+                    background: Theme.line-soft;
+                }
 
-        Text {
-            x: 6px;
-            y: parent.height - self.height - 4px;
-            text: hz >= 1000 ? (hz / 1000) + "k" : hz + "";
-            font-family: Theme.mono;
-            font-size: Theme.text-label;
-            height: 18px;
-            vertical-alignment: center;
-            letter-spacing: Theme.number-spacing;
-            color: Theme.ink-mute;
-        }
-    }
+                // From the horizon to the handle: how far this band is from
+                // doing nothing, and which way.
+                Rectangle {
+                    x: round((parent.width - 2px) / 2px) * 2px;
+                    y: min(parent.height * band.y, parent.height / 2);
+                    width: 2px;
+                    height: abs(parent.height * band.y - parent.height / 2);
+                    background: band.selected ? Theme.ink-0 : Theme.ink-2;
+                    animate background { duration: 120ms; }
+                }
 
-    Path {
-        x: root.inset;
-        y: root.inset;
-        width: root.plot-width;
-        height: root.plot-height;
-        viewbox-width: 1000;
-        viewbox-height: 1000;
-        commands: root.curve;
-        stroke: Theme.ink-1;
-        stroke-width: 2px;
-    }
+                Rectangle {
+                    x: round((parent.width - self.width) / 2px) * 2px;
+                    y: parent.height * band.y - self.height / 2;
+                    width: touch.pressed ? 20px : (band.selected ? 18px : 14px);
+                    height: self.width;
+                    border-radius: self.width / 2;
+                    background: band.selected || touch.has-hover ? Theme.ink-0 : Theme.ink-1;
+                    animate width, height, background { duration: 120ms; }
+                }
 
-    for band[index] in root.bands: Rectangle {
-        property <length> node-x: root.inset + root.plot-width * band.x;
-        property <length> node-y: root.inset + root.plot-height * band.y;
+                // One target for the whole column, and it never moves. The
+                // handle follows the value; a target that followed the handle
+                // would slide out from under the hand and the drag would stall
+                // after one step.
+                touch := TouchArea {
+                    mouse-cursor: pointer;
 
-        x: self.node-x - self.width / 2;
-        y: self.node-y - self.height / 2;
-        width: band.selected || node-touch.has-hover ? 18px : 14px;
-        height: self.width;
-        border-radius: self.width / 2;
-        background: band.selected ? Theme.ink-0 : Theme.bg-3;
-        border-width: 1px;
-        border-color: band.selected ? Theme.ink-0 : Theme.line;
-        animate width, height, background { duration: 120ms; }
-
-        node-touch := TouchArea {
-            x: -14px;
-            y: -14px;
-            width: parent.width + 28px;
-            height: parent.height + 28px;
-            mouse-cursor: pointer;
-
-            // Where the pointer is on the plot, whatever this target has done
-            // in the meantime. The node follows the band, so the target moves
-            // out from under the hand and a delta stops growing; and `moved`
-            // arrives on hover as well as on a drag, so a delta measured from a
-            // press that never happened would throw the band across the
-            // spectrum for anyone whose pointer merely passed over it.
-            property <float> pointer-x: (self.absolute-position.x + self.mouse-x
-                - root.absolute-position.x - root.inset) / (root.plot-width / 1px) / 1px;
-            property <float> pointer-y: (self.absolute-position.y + self.mouse-y
-                - root.absolute-position.y - root.inset) / (root.plot-height / 1px) / 1px;
-
-            pointer-event(event) => {
-                if (event.kind == PointerEventKind.down) {
-                    root.chosen(index);
-                } else if (event.kind == PointerEventKind.up) {
-                    root.settled();
+                    pointer-event(event) => {
+                        if (event.kind == PointerEventKind.down) {
+                            root.chosen(index);
+                            root.moved(index, max(0, min(1, self.mouse-y / (parent.height / 1px) / 1px)));
+                        } else if (event.kind == PointerEventKind.up) {
+                            root.settled();
+                        }
+                    }
+                    // `moved` arrives on hover as well as on a drag, so without
+                    // this every band a pointer passed over would jump.
+                    moved => {
+                        if (self.pressed) {
+                            root.moved(index, max(0, min(1, self.mouse-y / (parent.height / 1px) / 1px)));
+                        }
+                    }
                 }
             }
-            moved => {
-                if (self.pressed) {
-                    root.moved(index,
-                        max(0, min(1, self.pointer-x)),
-                        max(0, min(1, self.pointer-y)));
-                }
+
+            // Where this band sits. The row no longer says so by position — a
+            // fader is a fader wherever it stands — so it says so in words.
+            Text {
+                text: band.frequency;
+                font-family: Theme.mono;
+                font-size: Theme.text-label;
+                height: 18px;
+                vertical-alignment: center;
+                horizontal-alignment: center;
+                letter-spacing: Theme.number-spacing;
+                color: band.selected ? Theme.ink-1 : Theme.ink-mute;
+                animate color { duration: 120ms; }
             }
         }
     }
@@ -359,7 +357,6 @@ export component EqualiserView inherits Rectangle {
     in property <float> bass;
     in property <float> mid;
     in property <float> treble;
-    in property <string> curve;
     in property <[EqBandData]> bands;
     in property <[EqPresetData]> presets;
     in property <string> summary;
@@ -371,7 +368,9 @@ export component EqualiserView inherits Rectangle {
 
     callback set-mode(bool);
     callback set-simple(int, float);
-    callback move-band(int, float, float);
+    callback move-band(int, float);
+    /// Which way to move the chosen band's own frequency.
+    callback tune-band(int, int);
     callback select-band(int);
     /// A control was let go of: what is set is worth writing down.
     callback settle-eq();
@@ -427,18 +426,21 @@ export component EqualiserView inherits Rectangle {
                     padding-bottom: 4px;
 
                     HorizontalLayout {
+                        alignment: end;
                         spacing: Theme.space-2;
 
                         TextButton {
                             label: "SIMPLE";
-                            primary: !root.advanced;
+                            fixed-width: 128px;
+                            selected: !root.advanced;
                             pressed => {
                                 root.set-mode(false);
                             }
                         }
                         TextButton {
                             label: "ADVANCED";
-                            primary: root.advanced;
+                            fixed-width: 128px;
+                            selected: root.advanced;
                             pressed => {
                                 root.set-mode(true);
                             }
@@ -482,11 +484,10 @@ export component EqualiserView inherits Rectangle {
                     }
                 }
 
-                if root.advanced: BandCurve {
-                    curve: root.curve;
+                if root.advanced: FaderBank {
                     bands: root.bands;
-                    moved(index, x, y) => {
-                        root.move-band(index, x, y);
+                    moved(index, y) => {
+                        root.move-band(index, y);
                     }
                     chosen(index) => {
                         root.select-band(index);
@@ -496,20 +497,23 @@ export component EqualiserView inherits Rectangle {
                     }
                 }
 
-                // What the chosen bell is doing, in the listener's own units.
-                // Width is the one thing a curve cannot be dragged into saying,
-                // so it has buttons.
-                if root.advanced: HorizontalLayout {
+                // What the chosen band is, in the listener's own units, and
+                // the two things a fader cannot say: where the band sits and
+                // how wide it is.
+                //
+                // Two lines rather than one. Four controls abreast and a
+                // sentence of numbers do not both fit beside a bank of faders,
+                // and the first arrangement that tried pushed the presets off
+                // the side of the window.
+                if root.advanced: VerticalLayout {
                     vertical-stretch: 0;
-                    alignment: start;
-                    spacing: Theme.space-5;
+                    spacing: Theme.space-2;
 
                     VerticalLayout {
-                        alignment: center;
                         spacing: 2px;
 
                         Text {
-                            text: "FREQUENCY";
+                            text: "BAND";
                             font-family: Theme.mono;
                             font-size: Theme.text-label;
                             height: 18px;
@@ -518,7 +522,8 @@ export component EqualiserView inherits Rectangle {
                             color: Theme.ink-mute;
                         }
                         Text {
-                            text: root.selected-frequency + " Hz";
+                            text: root.selected-frequency + " Hz · Q " + root.selected-q
+                                + " · " + root.selected-gain + " dB";
                             font-family: Theme.mono;
                             font-size: Theme.text-body;
                             height: 22px;
@@ -528,73 +533,39 @@ export component EqualiserView inherits Rectangle {
                         }
                     }
 
-                    VerticalLayout {
+                    HorizontalLayout {
                         alignment: center;
-                        spacing: 2px;
+                        spacing: Theme.space-2;
 
-                        Text {
-                            text: "GAIN";
-                            font-family: Theme.mono;
-                            font-size: Theme.text-label;
-                            height: 18px;
-                            vertical-alignment: center;
-                            letter-spacing: Theme.label-spacing;
-                            color: Theme.ink-mute;
-                        }
-                        Text {
-                            text: root.selected-gain + " dB";
-                            font-family: Theme.mono;
-                            font-size: Theme.text-body;
-                            height: 22px;
-                            vertical-alignment: center;
-                            letter-spacing: Theme.number-spacing;
-                            color: Theme.ink-0;
-                        }
-                    }
-
-                    VerticalLayout {
-                        alignment: center;
-                        spacing: 2px;
-
-                        Text {
-                            text: "WIDTH";
-                            font-family: Theme.mono;
-                            font-size: Theme.text-label;
-                            height: 18px;
-                            vertical-alignment: center;
-                            letter-spacing: Theme.label-spacing;
-                            color: Theme.ink-mute;
-                        }
-                        Text {
-                            text: root.selected-q;
-                            font-family: Theme.mono;
-                            font-size: Theme.text-body;
-                            height: 22px;
-                            vertical-alignment: center;
-                            letter-spacing: Theme.number-spacing;
-                            color: Theme.ink-0;
-                        }
-                    }
-
-                    VerticalLayout {
-                        alignment: center;
-
-                        HorizontalLayout {
-                            spacing: Theme.space-2;
-
-                            TextButton {
-                                label: "WIDER";
-                                pressed => {
-                                    root.widen-band(root.selected, -0.3);
-                                }
-                            }
-                            TextButton {
-                                label: "NARROWER";
-                                pressed => {
-                                    root.widen-band(root.selected, 0.3);
-                                }
+                        TextButton {
+                            label: "LOWER";
+                            fixed-width: 98px;
+                            pressed => {
+                                root.tune-band(root.selected, -1);
                             }
                         }
+                        TextButton {
+                            label: "HIGHER";
+                            fixed-width: 98px;
+                            pressed => {
+                                root.tune-band(root.selected, 1);
+                            }
+                        }
+                        TextButton {
+                            label: "WIDER";
+                            fixed-width: 98px;
+                            pressed => {
+                                root.widen-band(root.selected, -0.3);
+                            }
+                        }
+                        TextButton {
+                            label: "NARROWER";
+                            fixed-width: 98px;
+                            pressed => {
+                                root.widen-band(root.selected, 0.3);
+                            }
+                        }
+
                     }
                 }
             }
@@ -602,7 +573,7 @@ export component EqualiserView inherits Rectangle {
             // The presets, in the column the reference puts them in — two
             // abreast, under the control, in reach without scrolling.
             VerticalLayout {
-                width: 320px;
+                width: 208px;
                 spacing: Theme.space-2;
 
                 Text {
@@ -620,7 +591,8 @@ export component EqualiserView inherits Rectangle {
 
                     TextButton {
                         label: preset.name;
-                        primary: preset.selected;
+                        fixed-width: 208px;
+                        selected: preset.selected;
                         pressed => {
                             root.pick-preset(preset.id);
                         }
@@ -632,10 +604,12 @@ export component EqualiserView inherits Rectangle {
                 }
 
                 HorizontalLayout {
+                    alignment: center;
                     spacing: Theme.space-2;
 
                     TextButton {
                         label: "SAVE AS…";
+                        fixed-width: 100px;
                         primary: true;
                         pressed => {
                             root.save-preset();
@@ -643,10 +617,12 @@ export component EqualiserView inherits Rectangle {
                     }
                     TextButton {
                         label: "RESET";
+                        fixed-width: 100px;
                         pressed => {
                             root.reset-eq();
                         }
                     }
+
                 }
             }
         }

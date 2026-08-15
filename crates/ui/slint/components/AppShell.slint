@@ -40,7 +40,6 @@ export component AppShell inherits Rectangle {
     in property <float> eq-bass;
     in property <float> eq-mid;
     in property <float> eq-treble;
-    in property <string> eq-curve;
     in property <[EqBandData]> eq-bands;
     in property <[EqPresetData]> eq-presets;
     in property <string> eq-summary;
@@ -113,7 +112,8 @@ export component AppShell inherits Rectangle {
     callback cycle-repeat();
     callback set-eq-mode(bool);
     callback set-eq-simple(int, float);
-    callback move-eq-band(int, float, float);
+    callback move-eq-band(int, float);
+    callback tune-eq-band(int, int);
     callback select-eq-band(int);
     callback settle-eq();
     callback widen-eq-band(int, float);
@@ -229,7 +229,6 @@ export component AppShell inherits Rectangle {
                 bass: root.eq-bass;
                 mid: root.eq-mid;
                 treble: root.eq-treble;
-                curve: root.eq-curve;
                 bands: root.eq-bands;
                 presets: root.eq-presets;
                 summary: root.eq-summary;
@@ -244,8 +243,11 @@ export component AppShell inherits Rectangle {
                 set-simple(which, value) => {
                     root.set-eq-simple(which, value);
                 }
-                move-band(index, x, y) => {
-                    root.move-eq-band(index, x, y);
+                move-band(index, y) => {
+                    root.move-eq-band(index, y);
+                }
+                tune-band(index, direction) => {
+                    root.tune-eq-band(index, direction);
                 }
                 select-band(index) => {
                     root.select-eq-band(index);

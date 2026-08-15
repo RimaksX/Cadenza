@@ -12,34 +12,48 @@ import { MenuItemData } from "RowMenu.slint";
 // that makes sound, and this for everything else — instead of four.
 export component TextButton inherits Rectangle {
     in property <string> label;
+    /// The one action a screen is about. Loud ink, nothing behind it.
     in property <bool> primary;
+    /// One of a set, and the one in force. A filled ground rather than louder
+    /// ink, because "this is chosen" and "this is the thing to press" are two
+    /// different sentences and were being said the same way.
+    in property <bool> selected;
     in property <bool> destructive;
-    in property <image> glyph;
+    /// Set to make every button in a group the same size. A column of controls
+    /// whose widths follow their labels is a column with a ragged edge, and a
+    /// ragged edge is noise with no meaning in it.
+    in property <length> fixed-width;
 
     callback pressed();
 
     property <color> tone: root.destructive
         ? Theme.danger
-        : (root.primary ? Theme.ink-0 : Theme.ink-2);
+        : (root.primary || root.selected ? Theme.ink-0 : Theme.ink-2);
 
-    // Whole pixels: a button whose width is fractional is placed by its layout
-    // at a fractional x, and every letter of its label is then rasterised from
-    // half a pixel out.
-    width: round((content.preferred-width + 2 * Theme.space-4) / 1px) * 1px;
+    // Whole, even pixels: a button whose width is fractional is placed by its
+    // layout at a fractional x, and every letter of its label is then
+    // rasterised from half a pixel out.
+    width: root.fixed-width > 0
+        ? root.fixed-width
+        : round((label.preferred-width + 2 * Theme.space-4) / 2px) * 2px;
     height: 34px;
     border-radius: Theme.radius;
     border-width: 1px;
-    border-color: touch.has-hover
-        ? (root.destructive ? Theme.danger.with-alpha(0.5) : Theme.line)
-        : Theme.line-soft;
+    border-color: root.selected
+        ? Theme.line
+        : (touch.has-hover
+            ? (root.destructive ? Theme.danger.with-alpha(0.5) : Theme.line)
+            : Theme.line-soft);
     // Three states, not two. A control that looks the same held down as it
     // does under the pointer gives nothing back at the moment of the press,
     // which is the moment somebody is asking whether it worked.
     background: touch.pressed
         ? (root.destructive ? Theme.danger.with-alpha(0.22) : Theme.bg-3)
-        : (touch.has-hover
-            ? (root.destructive ? Theme.danger.with-alpha(0.12) : Theme.bg-2)
-            : transparent);
+        : (root.selected
+            ? Theme.bg-2
+            : (touch.has-hover
+                ? (root.destructive ? Theme.danger.with-alpha(0.12) : Theme.bg-2)
+                : transparent));
     animate background, border-color { duration: 120ms; }
 
     touch := TouchArea {
@@ -49,46 +63,32 @@ export component TextButton inherits Rectangle {
         }
     }
 
-    // Packed from the left rather than centred. Centring divides whatever is
-    // left over after the label, and a label's natural width is fractional —
-    // so the words landed on half a pixel however even the button itself was.
-    // Started at a fixed padding, they land on 16.
-    content := HorizontalLayout {
-        alignment: start;
-        spacing: 8px;
-        padding-left: Theme.space-4;
-        padding-right: Theme.space-4;
-
-        if root.glyph.width > 0: VerticalLayout {
-            alignment: center;
-
-            Image {
-                source: root.glyph;
-                width: 14px;
-                height: self.width;
-                colorize: touch.has-hover ? root.tone : root.tone.with-alpha(0.8);
-                animate colorize { duration: 120ms; }
-            }
-        }
-
-        VerticalLayout {
-            alignment: center;
-
-            Text {
-                // An even height, so centring it in an even button is whole
-                // arithmetic. Left to ask for its own, a line of type wants
-                // something fractional and the letters come out at different
-                // heights.
-                height: 18px;
-                text: root.label;
-                font-family: Theme.mono;
-                font-size: Theme.text-label;
-                letter-spacing: Theme.label-spacing;
-                color: touch.has-hover ? root.tone : root.tone.with-alpha(0.8);
-                animate color { duration: 120ms; }
-                vertical-alignment: center;
-            }
-        }
+    // Placed rather than laid out. A label that spans its button has to be
+    // told to, and a child told to fill inside a layout tells the layout it
+    // wants everything — which made every button in a row demand the whole row
+    // and put the four of them one row-width apart.
+    //
+    // Centring the *text* is safe where centring an element is not: the box is
+    // the button, whose width is already whole and even, so the only thing that
+    // can land on a fraction is the glyph run, which the renderer places as one
+    // piece.
+    label := Text {
+        x: 0;
+        // An even height, so centring it in an even button is whole arithmetic.
+        // Left to ask for its own, a line of type wants something fractional
+        // and the letters come out at different heights.
+        y: round((root.height - 18px) / 1px / 2) * 1px;
+        width: root.width;
+        height: 18px;
+        text: root.label;
+        font-family: Theme.mono;
+        font-size: Theme.text-label;
+        letter-spacing: Theme.label-spacing;
+        color: touch.has-hover || root.selected ? root.tone : root.tone.with-alpha(0.8);
+        animate color { duration: 120ms; }
+        vertical-alignment: center;
+        horizontal-alignment: center;
+        overflow: elide;
     }
 }
 

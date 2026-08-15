@@ -88,10 +88,12 @@ impl EqService {
 
     /// Sets everything at once, from a preset.
     ///
-    /// A preset carries its own mode, so choosing one can change which set of
-    /// controls is on screen. That is the honest behaviour: a curve of eight
-    /// bells cannot be shown on three knobs, and pretending otherwise would
-    /// mean picking "Rock" and hearing something else.
+    /// **The listener stays in the mode they are in.** A preset describes the
+    /// same intention twice — as three controls and as eight bands — so
+    /// choosing one in the simple mode moves the three arms, and choosing it in
+    /// the advanced mode moves the eight faders. Switching modes underneath
+    /// somebody who pressed a preset was the first thing anybody noticed about
+    /// this screen, and it was the screen being wrong rather than them.
     pub fn apply_preset(&self, id: EqPresetId) -> Result<()> {
         let preset = self
             .ports
@@ -105,7 +107,9 @@ impl EqService {
             return Err(CoreError::not_found("eq preset", id));
         }
 
-        self.write(EqSetting::from(&preset))
+        let mut setting = EqSetting::from(&preset);
+        setting.mode = self.current()?.mode;
+        self.write(setting)
     }
 
     /// Switches between the three controls and the eight bells.

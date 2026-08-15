@@ -66,34 +66,48 @@ component NavItem inherits Rectangle {
     }
 }
 
-component NavLabel inherits HorizontalLayout {
+component NavLabel inherits Rectangle {
     in property <string> text;
 
-    padding-left: Theme.space-3;
-    padding-right: Theme.space-3;
-    padding-bottom: Theme.space-2;
-    spacing: Theme.space-2;
+    // A box of its own rather than a layout with padding. The rule has to sit
+    // on the words' own middle, and a layout that centres it in the padded box
+    // puts it below them — which is why one group's line hung low and the next
+    // one's, with different padding above it, rode high.
+    height: 26px;
 
-    VerticalLayout {
-        alignment: center;
+    HorizontalLayout {
+        y: round((parent.height - 18px) / 2px) * 2px;
+        height: 18px;
+        padding-left: Theme.space-3;
+        padding-right: Theme.space-3;
+        spacing: Theme.space-2;
 
-        Text {
-            text: root.text;
-            font-family: Theme.mono;
-            font-size: Theme.text-label;
-            height: 18px;
-            letter-spacing: Theme.label-spacing;
-            color: Theme.ink-mute;
-            vertical-alignment: center;
+        // Wrapped, like every boxed line in a row: a child with a height of
+        // its own cannot stretch, and a layout stands it at the top rather than
+        // beside what it belongs with.
+        VerticalLayout {
+            alignment: center;
+
+            Text {
+                text: root.text;
+                font-family: Theme.mono;
+                font-size: Theme.text-label;
+                height: 18px;
+                letter-spacing: Theme.label-spacing;
+                color: Theme.ink-mute;
+                vertical-alignment: center;
+            }
         }
-    }
 
-    // The rule runs from the label to the edge, which is how the eye finds the
-    // group boundary without a heavier separator.
-    Rectangle {
-        y: round((parent.height - 1px) / 1px / 2) * 1px;
-        height: 1px;
-        background: Theme.line-soft;
+        // The rule runs from the label to the edge, which is how the eye finds
+        // the group boundary without a heavier separator. On the line's own
+        // middle: half of eighteen is nine, and nine is where a capital's waist
+        // is.
+        Rectangle {
+            y: 8px;
+            height: 1px;
+            background: Theme.line-soft;
+        }
     }
 }
 
@@ -205,7 +219,7 @@ export component Sidebar inherits Rectangle {
             // is how this sidebar says so.
             NavLabel {
                 text: "SOUND";
-                padding-top: Theme.space-4;
+                height: 42px;
             }
             NavItem {
                 label: "Equaliser";

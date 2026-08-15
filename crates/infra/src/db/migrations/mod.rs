@@ -28,6 +28,7 @@ mod m0012_review;
 mod m0013_profile_genres;
 mod m0014_queue;
 mod m0015_builtin_eq_presets;
+mod m0016_preset_tone_controls;
 
 /// One numbered schema change.
 pub struct Migration {
@@ -115,6 +116,11 @@ pub const MIGRATIONS: &[Migration] = &[
         version: 15,
         name: "builtin_eq_presets",
         sql: m0015_builtin_eq_presets::SQL,
+    },
+    Migration {
+        version: 16,
+        name: "preset_tone_controls",
+        sql: m0016_preset_tone_controls::SQL,
     },
 ];
 
