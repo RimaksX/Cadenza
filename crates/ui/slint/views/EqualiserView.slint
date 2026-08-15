@@ -437,13 +437,21 @@ component PresetRow inherits Rectangle {
     callback picked();
     callback acted(string);
 
-    height: 34px;
+    // Taller than the control in it, and the difference is the air between one
+    // sound and the next. A scrolling list has no spacing of its own to give —
+    // it lays its rows out edge to edge — so the row carries its own.
+    height: 42px;
+    // A fixed width rather than the list's own: the eight pixels between this
+    // and the column's edge are the scroll bar's lane, and without them it is
+    // drawn over the right border of every button.
+    width: 208px;
 
     // Full width, every row of them. Reserving a column for the mark made the
     // nine that shipped end short of the two controls under them, which is a
     // ragged edge of a different kind: the mark sits *over* the end of its own
     // row instead, and only a listener's own sound has one.
     TextButton {
+        y: round((parent.height - self.height) / 1px / 2) * 1px;
         width: parent.width;
         label: root.data.name;
         selected: root.data.selected;
@@ -457,7 +465,7 @@ component PresetRow inherits Rectangle {
     // the preset it belongs to.
     Rectangle {
         x: parent.width - self.width - 1px;
-        y: 1px;
+        y: round((parent.height - self.height) / 1px / 2) * 1px;
         width: 32px;
         height: 32px;
         border-radius: Theme.radius;
@@ -756,7 +764,8 @@ export component EqualiserView inherits Rectangle {
             // The presets, in the column the reference puts them in — two
             // abreast, under the control, in reach without scrolling.
             VerticalLayout {
-                width: 208px;
+                // Eight wider than its rows, for the scroll bar to live in.
+                width: 216px;
                 spacing: Theme.space-2;
 
                 Text {
