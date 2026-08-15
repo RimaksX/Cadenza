@@ -27,6 +27,11 @@ export component PlaylistCard inherits Rectangle {
     callback played();
     callback acted(string);
 
+    // One state for the whole tile. A nested touch area takes the pointer from
+    // the one beneath it, so asking only the tile's own area meant the tile
+    // dropped back down the moment the hand reached a button on it.
+    property <bool> hovered: touch.has-hover || dots.has-hover || start.has-hover;
+
     touch := TouchArea {
         // One click. Opening a list is not a destructive act, and there is
         // nothing else a click on a tile could mean.
@@ -55,10 +60,10 @@ export component PlaylistCard inherits Rectangle {
             Rectangle {
                 width: 100%;
                 height: 100%;
-                y: touch.has-hover ? -4px : 0;
+                y: root.hovered ? -4px : 0;
                 background: @linear-gradient(150deg, Theme.bg-2 0%, Theme.bg-1 55%, Theme.bg-0 100%);
                 border-width: 1px;
-                border-color: touch.has-hover ? Theme.line : Theme.line-soft;
+                border-color: root.hovered ? Theme.line : Theme.line-soft;
                 animate y, border-color { duration: 300ms; easing: ease-out; }
 
                 VerticalLayout {
@@ -93,7 +98,7 @@ export component PlaylistCard inherits Rectangle {
                             vertical-alignment: center;
                             letter-spacing: Theme.label-spacing;
                             color: Theme.ink-mute;
-                            opacity: touch.has-hover || dots.has-hover ? 0.0 : 1.0;
+                            opacity: root.hovered ? 0.0 : 1.0;
                             animate opacity { duration: 120ms; }
                         }
                     }
@@ -139,7 +144,7 @@ export component PlaylistCard inherits Rectangle {
                     height: 32px;
                     border-radius: Theme.radius;
                     background: dots.has-hover ? Theme.bg-3 : transparent;
-                    opacity: touch.has-hover || dots.has-hover ? 1.0 : 0.0;
+                    opacity: root.hovered ? 1.0 : 0.0;
                     animate background, opacity { duration: 120ms; }
 
                     // Horizontal on a tile, where there is width to spare and
@@ -158,7 +163,7 @@ export component PlaylistCard inherits Rectangle {
                         // Invisible until the tile is under the pointer, and
                         // unclickable until then: a button nobody can see is
                         // not a button, whatever it does when pressed.
-                        enabled: touch.has-hover || self.has-hover;
+                        enabled: root.hovered;
                         mouse-cursor: pointer;
                         clicked => {
                             menu.show();
@@ -191,7 +196,7 @@ export component PlaylistCard inherits Rectangle {
                     height: 44px;
                     border-radius: self.width / 2;
                     background: start.has-hover ? Theme.ink-1 : Theme.ink-0;
-                    opacity: touch.has-hover || start.has-hover ? 1.0 : 0.0;
+                    opacity: root.hovered ? 1.0 : 0.0;
                     animate background, opacity { duration: 120ms; }
 
                     Image {
@@ -204,7 +209,7 @@ export component PlaylistCard inherits Rectangle {
                     }
 
                     start := TouchArea {
-                        enabled: touch.has-hover || self.has-hover;
+                        enabled: root.hovered;
                         mouse-cursor: pointer;
                         clicked => {
                             root.played();
@@ -226,7 +231,7 @@ export component PlaylistCard inherits Rectangle {
                 font-size: Theme.text-title;
                 height: 30px;
                 vertical-alignment: center;
-                color: touch.has-hover ? Theme.ink-0 : Theme.ink-1;
+                color: root.hovered ? Theme.ink-0 : Theme.ink-1;
                 overflow: elide;
                 animate color { duration: 120ms; }
             }
