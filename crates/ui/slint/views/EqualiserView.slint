@@ -440,10 +440,15 @@ component PresetRow inherits Rectangle {
     // Taller than the control in it, and the difference is the air between one
     // sound and the next. A scrolling list has no spacing of its own to give —
     // it lays its rows out edge to edge — so the row carries its own.
-    height: 42px;
-    // A fixed width rather than the list's own: the eight pixels between this
-    // and the column's edge are the scroll bar's lane, and without them it is
-    // drawn over the right border of every button.
+    //
+    // Forty rather than forty-two so that the nine that ship fit the column
+    // exactly. Six pixels over and the last of them is clipped and the rule
+    // beneath is lit, which says "there is another sound below" about six
+    // pixels of a button.
+    height: 40px;
+    // The column's own width. It was eight narrower while there was a scroll
+    // bar to leave room for, which left the list standing four pixels to the
+    // left of the two controls centred under it.
     width: 208px;
 
     // Full width, every row of them. Reserving a column for the mark made the
@@ -764,8 +769,7 @@ export component EqualiserView inherits Rectangle {
             // The presets, in the column the reference puts them in — two
             // abreast, under the control, in reach without scrolling.
             VerticalLayout {
-                // Eight wider than its rows, for the scroll bar to live in.
-                width: 216px;
+                width: 208px;
                 spacing: Theme.space-2;
 
                 Text {
