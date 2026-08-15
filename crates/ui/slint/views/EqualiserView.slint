@@ -431,51 +431,48 @@ component FaderBank inherits Rectangle {
 // A component rather than a block inside the loop, because a popup menu cannot
 // be repeated directly — the track row and the playlist tile are the same shape
 // for the same reason.
-component PresetRow inherits HorizontalLayout {
+component PresetRow inherits Rectangle {
     in property <EqPresetData> data;
 
     callback picked();
     callback acted(string);
 
     height: 34px;
-    spacing: Theme.space-1;
 
+    // Full width, every row of them. Reserving a column for the mark made the
+    // nine that shipped end short of the two controls under them, which is a
+    // ragged edge of a different kind: the mark sits *over* the end of its own
+    // row instead, and only a listener's own sound has one.
     TextButton {
+        width: parent.width;
         label: root.data.name;
-        fixed-width: 172px;
         selected: root.data.selected;
         pressed => {
             root.picked();
         }
     }
 
-    // Only a sound of the listener's own can be renamed or thrown away. The
-    // nine that shipped are the same on every machine, so their corner stays
-    // empty rather than offering something that would be refused — and every
-    // row keeps the same width either way, because a straight edge is what
-    // says the two kinds are one list.
+    // Declared after the button, so it is above it: a nested touch area takes
+    // the pointer from the one beneath, which is what stops the ··· choosing
+    // the preset it belongs to.
     Rectangle {
+        x: parent.width - self.width - 1px;
+        y: 1px;
         width: 32px;
-        height: 34px;
+        height: 32px;
+        border-radius: Theme.radius;
+        background: dots.has-hover ? Theme.bg-3 : transparent;
+        opacity: root.data.editable ? 1.0 : 0.0;
+        animate background { duration: 120ms; }
 
-        Rectangle {
-            y: 1px;
-            width: 32px;
-            height: 32px;
-            border-radius: Theme.radius;
-            background: dots.has-hover ? Theme.bg-3 : transparent;
-            opacity: root.data.editable ? 1.0 : 0.0;
-            animate background { duration: 120ms; }
-
-            Image {
-                source: @image-url("../../../../resources/ui/icons/dots-vertical.svg");
-                width: 18px;
-                height: self.width;
-                x: round((parent.width - self.width) / 1px / 2) * 1px;
-                y: round((parent.height - self.height) / 1px / 2) * 1px;
-                colorize: dots.has-hover ? Theme.ink-0 : Theme.ink-mute;
-                animate colorize { duration: 120ms; }
-            }
+        Image {
+            source: @image-url("../../../../resources/ui/icons/dots-vertical.svg");
+            width: 18px;
+            height: self.width;
+            x: round((parent.width - self.width) / 1px / 2) * 1px;
+            y: round((parent.height - self.height) / 1px / 2) * 1px;
+            colorize: dots.has-hover ? Theme.ink-0 : Theme.ink-mute;
+            animate colorize { duration: 120ms; }
         }
 
         dots := TouchArea {
