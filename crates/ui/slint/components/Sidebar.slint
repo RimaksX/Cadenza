@@ -97,12 +97,12 @@ component NavLabel inherits HorizontalLayout {
     }
 }
 
-// One half of the theme switch.
+// Where everything is, down the left edge.
 //
-// A switch rather than a toggle: two states that are both visible, each
-// directly reachable. A single button that flips would have to say what it will
-// do, which is why the old one read "→ LIGHT" — a label explaining a control is
-// a control that needs explaining.
+// Three destinations and one that is not built yet, the wordmark above them and
+// the listener below. Nothing here scrolls and nothing here changes with the
+// page: the frame is fixed (PROJECT_MASTER 2.10), and this is the half of it
+// that says what the application contains.
 export component Sidebar inherits Rectangle {
     in property <string> profile-name;
     in property <string> profile-initial;
@@ -245,7 +245,7 @@ export component Sidebar inherits Rectangle {
                                 text: root.profile-initial;
                                 font-family: Theme.serif;
                                 font-italic: true;
-                                font-size: 14px;
+                                font-size: Theme.text-body;
                                 height: 22px;
                                 color: Theme.ink-1;
                                 horizontal-alignment: center;

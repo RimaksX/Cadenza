@@ -269,8 +269,12 @@ export component PlaylistsView inherits Rectangle {
     property <length> min-tile: 220px;
     property <length> gap-x: Theme.space-6;
     property <length> gap-y: 40px;
-    // The square, plus the caption under it and the space between.
-    property <length> caption-height: 48px;
+    // The square, plus the caption under it and the space between: twelve for
+    // the gap, thirty for the name, four between the two lines, eighteen for
+    // the size. Counted rather than estimated — at forty-eight the caption
+    // overflowed its own card by sixteen pixels into the gap below, and the
+    // rows stood that much closer together than the grid said they did.
+    property <length> caption-height: 64px;
     // Room above the first row for the lift on hover. A scroll view clips at
     // its own edge, so without this the top row rises straight through it and
     // loses its border to the crop.

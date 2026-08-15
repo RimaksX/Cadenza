@@ -167,7 +167,6 @@ export component PlayerBar inherits Rectangle {
     in property <bool> loaded;
     in property <bool> muted;
     in property <float> volume;
-    in property <string> message;
     in property <bool> shuffle;
     in property <bool> repeating;
     in property <bool> repeat-one;
@@ -412,18 +411,5 @@ export component PlayerBar inherits Rectangle {
                 }
             }
         }
-    }
-
-    // Whatever went wrong, along the bottom edge where it interrupts nothing.
-    if root.message != "": Text {
-        y: parent.height - self.height - 6px;
-        text: root.message;
-        font-family: Theme.mono;
-        font-size: Theme.text-label;
-        height: 18px;
-        vertical-alignment: center;
-        color: Theme.ink-2;
-        horizontal-alignment: center;
-        overflow: elide;
     }
 }

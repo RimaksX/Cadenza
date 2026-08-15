@@ -103,7 +103,8 @@ export global Theme {
     // otherwise it ends flush against the edge and the row looks cut off.
     out property <length> row-end-inset: 16px;
 
-    // Mono capitals are set wide; a label at 9px is otherwise a smudge.
+    // Mono capitals are set wide: at label size and in upper case they crowd
+    // each other, and a caption is read as a shape before it is read as words.
     out property <length> label-spacing: 2px;
     // Digits get a hair of the same treatment, so a column of times reads as a
     // column rather than as a word.
