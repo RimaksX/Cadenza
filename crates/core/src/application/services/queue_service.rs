@@ -10,6 +10,7 @@
 //! across the boundary without putting half the rule in the interface, which is
 //! the layer least allowed to hold one.
 
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, RwLock};
 
 use uuid::Uuid;
@@ -17,7 +18,7 @@ use uuid::Uuid;
 use crate::application::context::AppContext;
 use crate::application::view_state::QueueView;
 use crate::domain::ids::{MediaFileId, PlaylistId};
-use crate::domain::policies::playback_policy::{PreviousAction, previous_action};
+use crate::domain::policies::playback_policy::{PreviousAction, previous_action, transition_for};
 use crate::domain::policies::shuffle_policy;
 use crate::domain::ports::event_bus::DomainEvent;
 use crate::domain::ports::repositories::{QueueRepositoryPort, TrackRepositoryPort};
@@ -44,6 +45,8 @@ pub struct QueueService {
     /// The live queue. The stored copy is written after every change so a crash
     /// costs at most the change that was in flight.
     queue: RwLock<Queue>,
+    /// How many joins the engine had made the last time anybody looked.
+    seen_advances: AtomicU64,
 }
 
 impl QueueService {
@@ -68,6 +71,7 @@ impl QueueService {
             playback,
             ports,
             queue: RwLock::new(queue),
+            seen_advances: AtomicU64::new(0),
         }
     }
 
@@ -311,16 +315,87 @@ impl QueueService {
     /// two atomic loads.
     /// Returns whether anything changed, so a caller can redraw only then.
     pub fn poll(&self) -> Result<bool> {
-        let view = self.playback.view();
+        let mut changed = self.catch_up()?;
 
+        let view = self.playback.view();
         // Stopped with a track still loaded is the one state that only
         // end-of-track produces: pausing reports paused, and stopping unloads.
-        if view.state.has_track() || view.track.is_none() {
+        // It now means the track ran out with nothing armed behind it — the end
+        // of the queue, or a file that would not open when it was armed.
+        if !view.state.has_track() && view.track.is_some() {
+            self.next()?;
+            changed = true;
+        }
+
+        // Arm whatever follows. Doing it here rather than at every change to
+        // the queue costs one atomic read per tick and cannot be forgotten: the
+        // engine drops what it had armed whenever the ground moves under it,
+        // and this asks it rather than trying to remember for it.
+        self.arm_next()?;
+
+        Ok(changed)
+    }
+
+    /// Brings the queue's own bookkeeping up to what the engine already played.
+    ///
+    /// A join makes no silence and asks no permission, so nothing here may
+    /// touch the engine: the audio has moved on, and loading the track that is
+    /// already playing would flush the ring and put a hole in the middle of the
+    /// handover that was the whole point.
+    fn catch_up(&self) -> Result<bool> {
+        let advances = self.playback.advances();
+        let seen = self.seen_advances.swap(advances, Ordering::Relaxed);
+        if seen >= advances {
             return Ok(false);
         }
 
-        self.next()?;
+        for _ in seen..advances {
+            self.write_queue(Queue::advance);
+        }
+
+        if let Some(entry) = self.with_queue(|queue| queue.current) {
+            self.playback.adopt(entry.media_file_id)?;
+        }
+        self.persist();
+        self.announce();
         Ok(true)
+    }
+
+    /// Opens the track that follows the one playing, so the join can be decoded
+    /// before it is needed.
+    ///
+    /// The transition is chosen from what is *playing*, not from what is
+    /// coming: PROJECT_MASTER 2.4 is a rule about the material being listened
+    /// to, and a playlist does not start fading out because the next thing was
+    /// queued by hand.
+    fn arm_next(&self) -> Result<()> {
+        if self.playback.armed() {
+            return Ok(());
+        }
+
+        // Asked before the settings are: with nothing playing there is nothing
+        // to arm, and a window opened before anybody has chosen a profile has
+        // no settings to read either.
+        let Some(current) = self.with_queue(|queue| queue.current) else {
+            return Ok(());
+        };
+        let Some(following) = self.with_queue(Queue::following) else {
+            return Ok(());
+        };
+
+        let settings = self.playback.settings()?;
+        if !settings.preload_next {
+            return Ok(());
+        }
+
+        // A file that will not open is not a reason to interrupt what is
+        // playing. It stays unarmed, the track ends the ordinary way, and the
+        // failure is reported then — by the load that also fails.
+        let _ = self.playback.preload(
+            following.media_file_id,
+            transition_for(current.origin, &settings),
+        );
+        Ok(())
     }
 
     /// What the transport buttons need to draw themselves.

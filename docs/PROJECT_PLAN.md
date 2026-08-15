@@ -13,7 +13,7 @@ section `11_План_реализации`. This file tracks progress only.
 | M5 | Базовый audio engine | done |
 | M6 | UI shell | done |
 | M7 | Плейлисты, очередь, repeat/shuffle | done |
-| M8 | Crossfade и gapless | not started |
+| M8 | Crossfade и gapless | done |
 | M9 | Эквалайзер | not started |
 | M10 | Визуализация | not started |
 | M11 | DSP-анализ | not started |
@@ -206,7 +206,8 @@ recorded as findings 27 and 24.
 
 Deferred, each to the milestone that first has something to put in it:
 `mixer.rs` and `crossfade.rs`/`gapless.rs` (M8 — a mixer over a single stream is
-an abstraction with one implementation), `biquad.rs`/`eq.rs` (M9),
+an abstraction with one implementation; what M8 actually built of those three is
+recorded in findings 38 and 40), `biquad.rs`/`eq.rs` (M9),
 `visualizer.rs` (M10), and `clock.rs`, whose entire content is one atomic frame
 counter inside `Shared`. `decoder.rs` alongside `symphonia_decoder.rs` would be a
 second name for one adapter.
@@ -435,3 +436,46 @@ but sixteen files of `todo!()` are dead code that M3–M14 would rewrite. The
 schema is proven by integration tests using plain SQL — which also means a
 failure points at the schema rather than at a mapping layer. `profile_repo` and
 `settings_repo` arrive in M3, where the plan already puts them.
+
+## M8 — Crossfade и gapless
+
+A track no longer has to end for the next one to begin. The decoder holds two
+open files through a transition and produces the join itself; the callback plays
+one unbroken stream and is only told, after the fact, that the clock now belongs
+to a different track.
+
+Built:
+
+- `infra/audio/stream.rs`: the decoder became two-laned. A `Lane` is one file,
+  its resampler and what it has decoded; a `Producer` holds the one playing and
+  the one armed behind it, and mixes the join.
+- `infra/audio/crossfade.rs`: the fade's own arithmetic — its length against
+  what is left of the outgoing track, and the equal-power gains along it.
+- The callback gained one branch: cross the mark the decoder left, rebase the
+  position, count the handover. Everything it does is still section 8.2's
+  allowed list.
+- `core`: `AudioEnginePort` gained `armed()` and `advances()`; `PlaybackService`
+  gained `preload`, `adopt` and the profile's playback settings;
+  `QueueService::poll` arms the next track and catches its bookkeeping up to
+  joins the engine already made.
+- `Queue::following`, which is what `advance` would reach — including the rewind
+  repeat all performs, because the track after the last one is a track that has
+  to be decoded before the last one ends.
+- `cadenza crossfade <on|off> [seconds]`, because crossfade is off by default
+  and there is no settings screen yet to turn it on from.
+
+The definition of done, and how each part of it was answered:
+
+| | |
+|---|---|
+| переходы без пауз | two real files decoded end to end, asserting no silent sample anywhere and that the join is where the mark says (`stream.rs`) |
+| crossfade работает | the mixed output is checked against the equal-power curve at four points along the fade, and clamped when the track is shorter than the fade |
+| нет кликов | **by ear, and not by me.** What is asserted is the objective half: the waveform's largest step across the whole join, which is what a click is |
+
+A live-device test sits in `crates/infra/tests/audio_join.rs`, ignored by
+default: a build server has no speakers, and a machine without an output device
+is not a machine with a failing test.
+
+Not built: a settings screen for any of this (M11), and gapless MP3 beyond what
+Symphonia does with the encoder's own delay and padding — which is what
+PROJECT_MASTER 2.4 asks for, "по возможности".

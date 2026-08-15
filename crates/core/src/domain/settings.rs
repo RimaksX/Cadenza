@@ -177,8 +177,20 @@ pub struct ProfileFolder {
     pub last_scan_at: Option<Timestamp>,
 }
 
+/// Where the crossfade switch is kept, per profile.
+///
+/// Named once so that whoever writes it and whoever reads it cannot disagree
+/// about a string.
+pub const CROSSFADE_ENABLED_KEY: &str = "playback.crossfade_enabled";
+
+/// Where the crossfade length is kept, in milliseconds.
+pub const CROSSFADE_MS_KEY: &str = "playback.crossfade_ms";
+
+/// Where the preloading switch is kept.
+pub const PRELOAD_NEXT_KEY: &str = "playback.preload_next";
+
 /// Per-profile playback preferences.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PlaybackSettings {
     /// Whether ordinary track changes crossfade.
     ///
@@ -192,6 +204,22 @@ pub struct PlaybackSettings {
     /// Effectively always on; exposed so it can be turned off when diagnosing
     /// audio problems.
     pub preload_next: bool,
+}
+
+/// Crossfade off, four seconds when it is turned on, and preloading on.
+///
+/// Written out rather than derived. A derived `Default` makes every flag false,
+/// which would have shipped a `preload_next` of `false` under a doc comment
+/// saying it is effectively always on — and preloading off means a gap between
+/// every pair of tracks.
+impl Default for PlaybackSettings {
+    fn default() -> Self {
+        Self {
+            crossfade_enabled: false,
+            crossfade: CrossfadeDuration::DEFAULT,
+            preload_next: true,
+        }
+    }
 }
 
 #[cfg(test)]

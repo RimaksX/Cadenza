@@ -66,3 +66,21 @@ any change to `crates/ui/slint/`.
 What it cannot see is everything that needs a live pointer: hover, drag, focus
 and the click itself. Those are checked by running the binary and looking, and
 what cannot be checked that way is said plainly rather than implied.
+
+## The test that needs a sound card
+
+`crates/infra/tests/audio_join.rs` is `#[ignore]`d. It opens the real device,
+plays a real file into a real join and asserts that the engine handed over by
+itself without stopping. Run it by hand:
+
+```text
+cargo test -p cadenza-infra --test audio_join -- --ignored
+```
+
+Everything else about transitions is tested on the decode thread with no device
+at all, because that is where the arithmetic is. This one exists for what cannot
+be: that three threads agree on hardware whose buffer size and sample rate
+nobody chose.
+
+It stays ignored because a machine without an output device is not a machine
+with a failing test.

@@ -25,8 +25,11 @@ use cadenza_core::domain::ports::audio_engine::AudioEnginePort;
 use cadenza_core::domain::ports::decoder::DecoderPort;
 use cadenza_core::domain::ports::file_watcher::FileWatcherPort;
 use cadenza_core::domain::profile::Profile;
+use cadenza_core::domain::settings::{
+    CROSSFADE_ENABLED_KEY, CROSSFADE_MS_KEY, CrossfadeDuration, SettingValue,
+};
 use cadenza_core::domain::value_objects::theme_mode::ThemeMode;
-use cadenza_core::domain::value_objects::{PlaybackPosition, Volume};
+use cadenza_core::domain::value_objects::{DurationMs, PlaybackPosition, Volume};
 use cadenza_core::{CoreError, Result};
 use cadenza_infra::audio::{CpalAudioEngine, SymphoniaDecoder};
 use cadenza_infra::db;
@@ -155,7 +158,8 @@ fn run() -> std::result::Result<(), String> {
         .map_err(|err| err.to_string());
     }
 
-    dispatch(&command, &profiles, &library, &playlists, active).map_err(|err| err.to_string())
+    dispatch(&command, &context, &profiles, &library, &playlists, active)
+        .map_err(|err| err.to_string())
 }
 
 /// Watches the library folders until the listener stops it.
@@ -303,6 +307,7 @@ fn report(engine: &CpalAudioEngine) {
 
 fn dispatch(
     command: &Command,
+    context: &AppContext,
     profiles: &ProfileService,
     library: &LibraryService,
     playlists: &PlaylistService,
@@ -386,6 +391,54 @@ fn dispatch(
             };
             let updated = profiles.set_theme(profile.id, mode)?;
             println!("{} now uses the {} theme", updated.name, updated.theme);
+        }
+
+        Command::Crossfade { enabled, seconds } => {
+            let Some(profile) = active else {
+                return Err(CoreError::NoActiveProfile);
+            };
+            let now = context.now();
+
+            if let Some(seconds) = *seconds {
+                let duration = CrossfadeDuration::new(DurationMs::from_secs(seconds))?;
+                let millis = i64::try_from(duration.as_duration().as_millis()).map_err(|_| {
+                    CoreError::invalid("crossfade", "the length does not fit a number")
+                })?;
+                context.settings.profile_set(
+                    profile.id,
+                    CROSSFADE_MS_KEY,
+                    &SettingValue::Integer(millis),
+                    now,
+                )?;
+            }
+
+            context.settings.profile_set(
+                profile.id,
+                CROSSFADE_ENABLED_KEY,
+                &SettingValue::Bool(*enabled),
+                now,
+            )?;
+
+            // Read back rather than echoed: the length that matters is the one
+            // stored, which is not always the one this command was given.
+            let length = match context.settings.profile_get(profile.id, CROSSFADE_MS_KEY)? {
+                Some(value) => {
+                    DurationMs::from_millis(u64::try_from(value.as_integer()?).unwrap_or_default())
+                }
+                None => CrossfadeDuration::DEFAULT.as_duration(),
+            };
+
+            if *enabled {
+                println!(
+                    "{} now crossfades ordinary tracks over {}",
+                    profile.name, length
+                );
+            } else {
+                println!("{} no longer crossfades", profile.name);
+            }
+            println!(
+                "playlists and radio stay gapless either way; a window already open picks this up when it restarts"
+            );
         }
 
         Command::Folders => {

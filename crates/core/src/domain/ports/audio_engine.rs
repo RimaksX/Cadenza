@@ -40,6 +40,21 @@ pub trait AudioEnginePort: Send + Sync {
     /// Sets the output level.
     fn set_volume(&self, volume: Volume) -> Result<()>;
 
+    /// Whether a following track is already open and waiting.
+    ///
+    /// The caller arms one when this is false. Asking rather than remembering:
+    /// the engine drops what it had armed whenever the ground moves under it —
+    /// a seek, a new track loaded — and only the engine knows when that was.
+    fn armed(&self) -> bool;
+
+    /// How many times the engine has handed over to a preloaded track by itself.
+    ///
+    /// A count rather than a flag, so a caller that missed a tick still sees
+    /// that it missed one. It is the only way the queue learns that the track
+    /// it believes is playing has already given way to the next: with a join
+    /// there is no moment of silence for anyone to notice.
+    fn advances(&self) -> u64;
+
     /// Sets the crossfade length used for [`TransitionProfile::Crossfade`].
     fn set_crossfade(&self, duration: CrossfadeDuration) -> Result<()>;
 

@@ -2,8 +2,8 @@
 
 Normative definition: `PROJECT_MASTER.json`, section `8_Audio_pipeline`.
 
-Status: playing since M5. Transitions land in M8, the equaliser in M9, the
-visualiser tap in M10.
+Status: playing since M5, joining tracks since M8. The equaliser lands in M9,
+the visualiser tap in M10.
 
 ## Signal chain
 
@@ -14,7 +14,11 @@ Specified:
 
 Built so far:
 
-`TrackStream -> channel map -> Resampling -> SampleRing -> gain -> cpal output`
+`TrackStream -> channel map -> Resampling -> mixer -> SampleRing -> gain -> cpal output`
+
+Two `TrackStream`s at once through the transition, which is what the mixer is
+for. It sits **before** the ring, on the decode thread, rather than on the
+callback — see `MASTER_ISSUES` 38 for why, and what it costs.
 
 Decoding is Symphonia, output is cpal, resampling is rubato, FFT will be rustfft.
 FFmpeg is not used. The channel map is not in section 8.1 and is not optional: a
@@ -30,7 +34,7 @@ upstream of it may allocate and block, and everything downstream may not.
 | Thread | Does | May block |
 |---|---|---|
 | control | `AudioEnginePort` calls: load, play, pause, seek, volume | yes |
-| decode | opens files, decodes, resamples, fills the ring | yes |
+| decode | opens files, decodes, resamples, mixes the join, fills the ring | yes |
 | callback | empties the ring, applies gain, writes to the device | **no** |
 
 The cpal stream lives on a fourth thread that only holds it open: `cpal::Stream`
@@ -95,3 +99,61 @@ tracks. Radio and playlists default to gapless with sample-accurate joins and th
 next track decoded ahead of time. Neither may introduce clicks or artificial
 gaps. None of this exists yet: `preload_next` returns an error rather than
 pretending, so a caller cannot mistake a gap for a transition.
+
+## Transitions
+
+A track does not end for the next one to begin. The decoder is told what follows
+while the current track is still playing, opens it, and produces the join
+itself; the callback plays out one unbroken stream of samples and never learns
+that anything happened.
+
+- **Gapless** is concatenation. When the outgoing file runs out, the next lane's
+  samples are the next samples pushed. Nothing is timed, so nothing can be
+  mistimed — this is what "sample-accurate" means here.
+- **Crossfade** overlaps them by the stored length, using equal-power gains
+  (`cos`/`sin`, so `cos² + sin² = 1`). A linear fade dips 3 dB in the middle and
+  is heard as a hole. The fade is clamped to what is left of the outgoing track,
+  and a block is cut short so it begins on the exact frame rather than at
+  whatever buffer boundary falls inside it.
+- **Which one** is `playback_policy::transition_for`, keyed on the origin of the
+  track that is *playing*: radio and playlists are continuous material and stay
+  gapless whatever the switch says (PROJECT_MASTER 2.4). A container that will
+  not state its length cannot be faded on a schedule, so it joins gapless.
+
+### Telling the application
+
+The callback owns the clock, so it also owns the moment of the handover:
+
+- The decoder publishes **where** the new track begins, as a frame index on the
+  same ruler both ends count on, before a single sample of it is queued.
+- The callback crosses that mark, rebases the position onto the new track, and
+  bumps a counter.
+- `QueueService::poll` compares that counter with what it last saw and moves the
+  queue's own bookkeeping on — **without touching the engine**. Loading the
+  track that is already playing would flush the ring and put a hole in the
+  middle of the join.
+
+Nothing here is a callback into the application: section 8.2 forbids it, so the
+application asks, four times a second, at the cost of two atomic loads.
+
+### Arming
+
+`QueueService::poll` also arms the next track, by asking `armed()` rather than
+by remembering that it did. The engine drops what it had armed whenever the
+ground moves — a hard load, a seek — and only the engine knows when that was.
+
+Preloading is a per-profile setting and is on by default. Crossfade is off by
+default and, until there is a settings screen, is turned on from the command
+line:
+
+```text
+cadenza crossfade on 4
+cadenza crossfade off
+```
+
+### What is not covered by tests
+
+Gapless MP3 is "as far as the format allows" (PROJECT_MASTER 2.4): whether the
+encoder's delay and padding are trimmed is Symphonia's business, not Cadenza's.
+And "no clicks" is judged by ear. What the tests can assert is the objective
+half — that the waveform does not step at the join — and they do.

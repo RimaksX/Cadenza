@@ -9,13 +9,16 @@ use std::sync::{Arc, RwLock};
 
 use crate::application::context::AppContext;
 use crate::application::view_state::PlayerView;
-use crate::domain::ids::MediaFileId;
-use crate::domain::playback::PlaybackState;
+use crate::domain::ids::{MediaFileId, ProfileId};
+use crate::domain::playback::{PlaybackState, TransitionProfile};
 use crate::domain::ports::audio_engine::AudioEnginePort;
 use crate::domain::ports::event_bus::DomainEvent;
 use crate::domain::ports::repositories::{MediaFileRepositoryPort, TrackRepositoryPort};
+use crate::domain::settings::{
+    CROSSFADE_ENABLED_KEY, CROSSFADE_MS_KEY, CrossfadeDuration, PRELOAD_NEXT_KEY, PlaybackSettings,
+};
 use crate::domain::track::TrackSummary;
-use crate::domain::value_objects::{PlaybackPosition, Volume};
+use crate::domain::value_objects::{DurationMs, PlaybackPosition, Volume};
 use crate::{CoreError, Result};
 
 /// Everything playback talks to.
@@ -39,6 +42,13 @@ pub struct PlaybackService {
     /// muted. Mute has to remember what to go back to (PROJECT_MASTER 2.3).
     volume: RwLock<Volume>,
     muted: RwLock<bool>,
+    /// The active profile's playback preferences, and whose they are.
+    ///
+    /// Cached because the queue asks for them four times a second, and three
+    /// key reads per tick is a database kept busy saying the same thing. The
+    /// profile travels with them so a switch cannot be answered from the last
+    /// listener's settings.
+    settings: RwLock<Option<(ProfileId, PlaybackSettings)>>,
 }
 
 impl PlaybackService {
@@ -50,7 +60,109 @@ impl PlaybackService {
             loaded: RwLock::new(None),
             volume: RwLock::new(Volume::default()),
             muted: RwLock::new(false),
+            settings: RwLock::new(None),
         }
+    }
+
+    /// Opens the track that will follow, so the engine can join it on.
+    ///
+    /// Nothing audible happens here: the file is read and decoded ahead of the
+    /// join, and whether that join is a fade or a butt splice is the transition
+    /// profile's business (PROJECT_MASTER 8.4).
+    pub fn preload(&self, media_file_id: MediaFileId, transition: TransitionProfile) -> Result<()> {
+        let media_file = self
+            .ports
+            .media_files
+            .get(media_file_id)?
+            .ok_or_else(|| CoreError::not_found("media file", media_file_id))?;
+
+        if !media_file.state.is_playable() {
+            return Err(CoreError::Audio(format!(
+                "{} cannot be queued to follow: it is {}",
+                media_file.path.display(),
+                media_file.state.as_str()
+            )));
+        }
+
+        self.ports.engine.preload_next(&media_file.path, transition)
+    }
+
+    /// Whether a following track is already open and waiting.
+    pub fn armed(&self) -> bool {
+        self.ports.engine.armed()
+    }
+
+    /// How many times the engine has handed over to a preloaded track by itself.
+    pub fn advances(&self) -> u64 {
+        self.ports.engine.advances()
+    }
+
+    /// Records that the engine has moved on to a track by itself.
+    ///
+    /// The counterpart to [`Self::play_track`], and deliberately not it: the
+    /// audio is already playing. Loading it again would flush the ring and put
+    /// a hole in the middle of the join that was the whole point.
+    pub fn adopt(&self, media_file_id: MediaFileId) -> Result<()> {
+        let profile_id = self.context.require_active_profile()?;
+        let summary = self
+            .ports
+            .tracks
+            .summary(profile_id, media_file_id)?
+            .ok_or_else(|| CoreError::not_found("track", media_file_id))?;
+
+        self.write_loaded(Some(summary));
+        self.announce();
+        Ok(())
+    }
+
+    /// The active profile's playback preferences.
+    ///
+    /// Anything never chosen comes back as its documented default, and the
+    /// crossfade length is pushed to the engine as it is read — the engine has
+    /// no database and no way to ask.
+    pub fn settings(&self) -> Result<PlaybackSettings> {
+        let profile_id = self.context.require_active_profile()?;
+
+        if let Some((cached_for, settings)) =
+            *self.settings.read().unwrap_or_else(|err| err.into_inner())
+            && cached_for == profile_id
+        {
+            return Ok(settings);
+        }
+
+        let settings = self.read_settings(profile_id)?;
+        self.ports.engine.set_crossfade(settings.crossfade)?;
+        *self.settings.write().unwrap_or_else(|err| err.into_inner()) =
+            Some((profile_id, settings));
+        Ok(settings)
+    }
+
+    fn read_settings(&self, profile_id: ProfileId) -> Result<PlaybackSettings> {
+        let defaults = PlaybackSettings::default();
+        let store = &self.context.settings;
+
+        let crossfade_enabled = match store.profile_get(profile_id, CROSSFADE_ENABLED_KEY)? {
+            Some(value) => value.as_bool()?,
+            None => defaults.crossfade_enabled,
+        };
+        let preload_next = match store.profile_get(profile_id, PRELOAD_NEXT_KEY)? {
+            Some(value) => value.as_bool()?,
+            None => defaults.preload_next,
+        };
+        let crossfade = match store.profile_get(profile_id, CROSSFADE_MS_KEY)? {
+            Some(value) => {
+                let millis = u64::try_from(value.as_integer()?)
+                    .map_err(|_| CoreError::invalid("crossfade", "a length cannot be negative"))?;
+                CrossfadeDuration::new(DurationMs::from_millis(millis))?
+            }
+            None => defaults.crossfade,
+        };
+
+        Ok(PlaybackSettings {
+            crossfade_enabled,
+            crossfade,
+            preload_next,
+        })
     }
 
     /// Loads a track from the active profile's library and starts it.
@@ -232,6 +344,9 @@ mod tests {
     #[derive(Default)]
     struct FakeEngine {
         loaded: Mutex<Option<PathBuf>>,
+        /// What was armed to follow, which a load throws away exactly as the
+        /// real engine does.
+        armed: Mutex<Option<PathBuf>>,
         playing: AtomicBool,
         volume: Mutex<Option<Volume>>,
         position: Mutex<PlaybackPosition>,
@@ -240,11 +355,19 @@ mod tests {
     impl AudioEnginePort for FakeEngine {
         fn load(&self, path: &Path) -> Result<()> {
             *self.loaded.lock().expect("not poisoned") = Some(path.to_path_buf());
+            *self.armed.lock().expect("not poisoned") = None;
             *self.position.lock().expect("not poisoned") = PlaybackPosition::START;
             Ok(())
         }
-        fn preload_next(&self, _path: &Path, _transition: TransitionProfile) -> Result<()> {
+        fn preload_next(&self, path: &Path, _transition: TransitionProfile) -> Result<()> {
+            *self.armed.lock().expect("not poisoned") = Some(path.to_path_buf());
             Ok(())
+        }
+        fn armed(&self) -> bool {
+            self.armed.lock().expect("not poisoned").is_some()
+        }
+        fn advances(&self) -> u64 {
+            0
         }
         fn play(&self) -> Result<()> {
             self.playing.store(true, Ordering::Relaxed);

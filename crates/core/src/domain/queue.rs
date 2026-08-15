@@ -144,6 +144,30 @@ impl Queue {
         self.manual.front().or_else(|| self.upcoming.front())
     }
 
+    /// The entry [`Self::advance`] would move to, without moving to it.
+    ///
+    /// [`Self::peek_next`] answers the shorter question — what is queued — which
+    /// is what a "next" button needs to know. This one also covers the rewind
+    /// repeat all performs at the end of a list, because the track that follows
+    /// the last one is a track that has to be decoded before the last one ends.
+    pub fn following(&self) -> Option<QueueEntry> {
+        if self.repeat.holds_current_track() && self.current.is_some() {
+            return self.current;
+        }
+
+        if let Some(next) = self.manual.front().or_else(|| self.upcoming.front()) {
+            return Some(*next);
+        }
+
+        if self.repeat == RepeatMode::All {
+            // What played first plays first again, and a list of one is still a
+            // list: with no history to rewind, the current track follows itself.
+            return self.history.first().copied().or(self.current);
+        }
+
+        None
+    }
+
     /// Moves to the next entry and returns it, or `None` when there is nowhere
     /// left to go.
     ///
@@ -307,6 +331,33 @@ mod tests {
 
         assert_eq!(queue.advance(), Some(only));
         assert!(queue.history.is_empty(), "it never left");
+    }
+
+    #[test]
+    fn what_follows_is_what_advancing_would_reach() {
+        let mut queue = Queue::new(ProfileId::new());
+        let (a, b, c) = (
+            entry(QueueOrigin::Library),
+            entry(QueueOrigin::Library),
+            entry(QueueOrigin::Library),
+        );
+        queue.start(a, vec![b, c]);
+
+        assert_eq!(queue.following(), Some(b));
+        assert_eq!(queue.following(), queue.peek_next().copied());
+
+        // On the last track of a repeating list the two part company: nothing
+        // is queued, so `peek_next` says there is nothing — and the track that
+        // has to be decoded before this one ends is the first of the round to
+        // come.
+        queue.repeat = RepeatMode::All;
+        queue.advance();
+        queue.advance();
+        assert_eq!(queue.peek_next(), None);
+        assert_eq!(queue.following(), Some(a), "the list starts again");
+
+        queue.repeat = RepeatMode::One;
+        assert_eq!(queue.following(), Some(c), "and repeat one holds");
     }
 
     #[test]

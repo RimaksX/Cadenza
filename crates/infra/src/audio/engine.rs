@@ -1,7 +1,7 @@
 //! The audio engine: cpal output, and the port the application calls.
 
 use std::path::Path;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::Ordering;
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::{Arc, Mutex, PoisonError};
 use std::thread::{self, JoinHandle};
@@ -41,8 +41,6 @@ pub struct CpalAudioEngine {
     keepalive: Mutex<Option<Sender<()>>>,
     output_thread: Mutex<Option<JoinHandle<()>>>,
     decode_thread: Mutex<Option<JoinHandle<()>>>,
-    /// Crossfade length in milliseconds. Stored now, used by M8.
-    crossfade_ms: AtomicU64,
     /// Device name, rate and channel count, for diagnostics.
     description: String,
 }
@@ -77,7 +75,6 @@ impl CpalAudioEngine {
             keepalive: Mutex::new(Some(alive_tx)),
             output_thread: Mutex::new(Some(output_thread)),
             decode_thread: Mutex::new(Some(decode_thread)),
-            crossfade_ms: AtomicU64::new(CrossfadeDuration::DEFAULT.as_duration().as_millis()),
             description,
         })
     }
@@ -109,9 +106,9 @@ impl CpalAudioEngine {
             .clone()
     }
 
-    /// The crossfade length last set. Used by M8.
+    /// The crossfade length last set.
     pub fn crossfade(&self) -> DurationMs {
-        DurationMs::from_millis(self.crossfade_ms.load(Ordering::Relaxed))
+        DurationMs::from_millis(self.shared.crossfade_ms.load(Ordering::Relaxed))
     }
 
     fn send(&self, command: Command) -> Result<()> {
@@ -144,13 +141,16 @@ impl AudioEnginePort for CpalAudioEngine {
         Ok(())
     }
 
-    fn preload_next(&self, _path: &Path, _transition: TransitionProfile) -> Result<()> {
-        // Deliberately an error rather than a silent no-op: a caller that thinks
-        // it has armed the next track and gets a gap instead has no way to tell
-        // what went wrong.
-        Err(CoreError::Audio(
-            "preloading the next track arrives with gapless and crossfade in M8".into(),
-        ))
+    fn preload_next(&self, path: &Path, transition: TransitionProfile) -> Result<()> {
+        let (reply, replies) = mpsc::channel();
+        self.request(
+            Command::Preload {
+                path: path.to_path_buf(),
+                transition,
+                reply,
+            },
+            &replies,
+        )
     }
 
     fn play(&self) -> Result<()> {
@@ -182,8 +182,17 @@ impl AudioEnginePort for CpalAudioEngine {
         Ok(())
     }
 
+    fn armed(&self) -> bool {
+        self.shared.armed.load(Ordering::Relaxed)
+    }
+
+    fn advances(&self) -> u64 {
+        self.shared.advances.load(Ordering::Relaxed)
+    }
+
     fn set_crossfade(&self, duration: CrossfadeDuration) -> Result<()> {
-        self.crossfade_ms
+        self.shared
+            .crossfade_ms
             .store(duration.as_duration().as_millis(), Ordering::Relaxed);
         Ok(())
     }

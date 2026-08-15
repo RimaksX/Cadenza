@@ -570,3 +570,58 @@ left the library, so the row that answers is the row that was pointed at.
 
 What jumping forward does with what it skipped: those entries become history,
 because that is what "previous" walks back through.
+
+## 38. The mixer stands before the ring, not on the audio thread
+
+Section 8.1 gives the chain as `... -> stream volume / fade -> Mixer ->
+visualizer tap -> audio output`, and ADR 5 was written expecting to build the
+mixer where a mixer usually is: on the realtime callback, pulling from two
+rings. Section 8.2 then forbids that callback almost everything.
+
+**Chosen:** the two decoded streams are mixed on the **decode** thread, before
+the ring, and the callback stays what it was — pop, ramp, multiply, count.
+
+The order of the chain is unchanged; only the side of the ring it sits on is.
+What that buys:
+
+- **The join is sample-accurate by construction.** The thread that mixes is the
+  thread that produced both sets of samples, so the frame the fade begins on is
+  chosen, not raced for.
+- **No new realtime code beyond eight lines.** The callback gained one branch —
+  crossing the mark the decoder left — and it is arithmetic on atomics.
+- **The whole feature is testable without a device.** `stream.rs` decodes two
+  real files and asserts on the samples that would have gone to the speakers.
+
+What it costs: the transition point is fixed once the samples are queued. A seek
+into the last seconds of a track throws away a fade that had already begun, so
+the engine drops what it had armed and the queue arms it again — which it does
+on every tick anyway, by asking `armed()` rather than by remembering.
+
+The mixer moves onto the callback the day two streams have to be started
+independently of each other. Nothing in sections 2.3, 2.4 or 8 asks for that.
+
+## 39. Preloading defaulted to off under a comment saying it is always on
+
+`PlaybackSettings` derived `Default`, which makes every flag false —
+`preload_next` included, directly under a doc comment calling it "effectively
+always on". Nothing read the struct until M8, so nothing had noticed.
+
+**Chosen:** `Default` is written out. Preloading on, crossfade off, four
+seconds when it is turned on — which is what 2.4 says and what the doc comment
+already claimed. A derived default that contradicts its own documentation is a
+bug waiting for its first reader.
+
+## 40. `gapless.rs` is not written, and will not be
+
+Section 5 lists both `crates/infra/src/audio/crossfade.rs` and
+`.../gapless.rs`. M8 built the first and left the second out.
+
+**Chosen:** a gapless join is the *absence* of processing — the next lane's
+samples are simply the next samples pushed, on the frame the last one ran out.
+There is no length to decide, no curve to apply and no state to keep. A file
+named for it would hold a comment.
+
+`crossfade.rs` exists because a crossfade does have arithmetic of its own: how
+long the fade runs given what is left of the outgoing track, and the two gains
+at each point along it. That is worth reading and testing apart from the
+decoding it is applied to; nothing else about transitions is.

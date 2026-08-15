@@ -4,14 +4,15 @@
 //! now is the spine of it:
 //!
 //! ```text
-//! TrackStream -> channel map -> Resampling -> SampleRing -> gain -> device
+//! TrackStream -> channel map -> Resampling -> mixer -> SampleRing -> gain -> device
 //! ```
 //!
-//! The EQ chain arrives in M9, the mixer and its fades in M8, and the visualiser
-//! tap in M10. Each of them inserts into this chain rather than replacing it,
+//! Two `TrackStream`s run at once through a transition, which is what the mixer
+//! is there for. The EQ chain arrives in M9 and the visualiser tap in M10. Each of them inserts into this chain rather than replacing it,
 //! which is why the ring sits where it does: everything before it is free to
 //! allocate and block, and everything after it is not (PROJECT_MASTER 8.2).
 
+mod crossfade;
 pub mod engine;
 pub mod resampler;
 pub mod ring_buffer;

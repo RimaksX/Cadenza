@@ -5,7 +5,7 @@
 //! and what survives a restart, neither of which needs a speaker.
 
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 
 use cadenza_core::Result;
@@ -13,13 +13,15 @@ use cadenza_core::application::services::{
     PlaybackPorts, PlaybackService, QueuePorts, QueueService,
 };
 use cadenza_core::application::{AppContext, ProfileService};
-use cadenza_core::domain::ids::{MediaFileId, ProfileId};
+use cadenza_core::domain::ids::{MediaFileId, PlaylistId, ProfileId};
 use cadenza_core::domain::media_file::{AudioFormat, AudioProperties, FileState, MediaFile};
 use cadenza_core::domain::playback::{PlaybackState, TransitionProfile};
 use cadenza_core::domain::ports::audio_engine::AudioEnginePort;
-use cadenza_core::domain::ports::repositories::{MediaFileRepositoryPort, TrackRepositoryPort};
+use cadenza_core::domain::ports::repositories::{
+    MediaFileRepositoryPort, SettingsRepositoryPort, TrackRepositoryPort,
+};
 use cadenza_core::domain::queue::RepeatMode;
-use cadenza_core::domain::settings::CrossfadeDuration;
+use cadenza_core::domain::settings::{CROSSFADE_ENABLED_KEY, CrossfadeDuration, SettingValue};
 use cadenza_core::domain::track::Track;
 use cadenza_core::domain::value_objects::{DurationMs, PlaybackPosition, Timestamp, Volume};
 use cadenza_infra::db::repositories::{
@@ -40,6 +42,14 @@ struct FakeEngine {
     /// which is the one state the real engine reports as stopped-but-loaded.
     ended: AtomicBool,
     position: Mutex<PlaybackPosition>,
+    /// What has been armed to follow, if anything, and how it would arrive.
+    armed: Mutex<Option<PathBuf>>,
+    armed_transition: Mutex<Option<TransitionProfile>>,
+    /// How many times a track was loaded outright, which is the thing a join
+    /// must not do.
+    loads: AtomicU64,
+    /// How many joins have been made without anybody asking.
+    advances: AtomicU64,
 }
 
 impl FakeEngine {
@@ -58,16 +68,41 @@ impl FakeEngine {
             .collect()
     }
 
+    /// How the armed track would arrive, if one is armed.
+    fn armed_transition(&self) -> Option<TransitionProfile> {
+        *self.armed_transition.lock().expect("not poisoned")
+    }
+
     /// Runs the current track out.
     fn finish(&self) {
         self.ended.store(true, Ordering::Relaxed);
         self.playing.store(false, Ordering::Relaxed);
     }
+
+    /// Plays out the join the engine had armed, the way the real one does.
+    ///
+    /// Nothing stops and nothing is loaded: the armed track simply becomes the
+    /// one being heard, and the count says it happened. A caller that only
+    /// watches for silence would never notice.
+    fn hand_over(&self) {
+        let Some(path) = self.armed.lock().expect("not poisoned").take() else {
+            panic!("nothing was armed to hand over to");
+        };
+        self.started
+            .lock()
+            .expect("not poisoned")
+            .push(path.clone());
+        *self.loaded.lock().expect("not poisoned") = Some(path);
+        *self.position.lock().expect("not poisoned") = PlaybackPosition::START;
+        self.advances.fetch_add(1, Ordering::Relaxed);
+    }
 }
 
 impl AudioEnginePort for FakeEngine {
     fn load(&self, path: &Path) -> Result<()> {
+        self.loads.fetch_add(1, Ordering::Relaxed);
         *self.loaded.lock().expect("not poisoned") = Some(path.to_path_buf());
+        *self.armed.lock().expect("not poisoned") = None;
         self.started
             .lock()
             .expect("not poisoned")
@@ -76,8 +111,16 @@ impl AudioEnginePort for FakeEngine {
         self.ended.store(false, Ordering::Relaxed);
         Ok(())
     }
-    fn preload_next(&self, _path: &Path, _transition: TransitionProfile) -> Result<()> {
+    fn preload_next(&self, path: &Path, transition: TransitionProfile) -> Result<()> {
+        *self.armed.lock().expect("not poisoned") = Some(path.to_path_buf());
+        *self.armed_transition.lock().expect("not poisoned") = Some(transition);
         Ok(())
+    }
+    fn armed(&self) -> bool {
+        self.armed.lock().expect("not poisoned").is_some()
+    }
+    fn advances(&self) -> u64 {
+        self.advances.load(Ordering::Relaxed)
     }
     fn play(&self) -> Result<()> {
         self.playing.store(true, Ordering::Relaxed);
@@ -570,5 +613,104 @@ fn the_queue_is_still_there_after_a_restart() {
             .collect::<Vec<_>>(),
         waiting,
         "and what is still to play"
+    );
+}
+
+#[test]
+fn the_track_that_follows_is_opened_before_it_is_needed() {
+    let harness = harness();
+    harness
+        .queue
+        .play_from_library(harness.tracks[0])
+        .expect("played");
+    assert!(
+        !harness.engine.armed(),
+        "nothing is armed until somebody looks"
+    );
+
+    harness.queue.poll().expect("polled");
+
+    assert!(
+        harness.engine.armed(),
+        "the join is decoded ahead of itself"
+    );
+    assert_eq!(
+        harness.engine.heard(),
+        vec!["one"],
+        "and nothing else has been started"
+    );
+}
+
+#[test]
+fn a_join_moves_the_queue_on_without_starting_anything() {
+    let harness = harness();
+    harness
+        .queue
+        .play_from_library(harness.tracks[0])
+        .expect("played");
+    harness.queue.poll().expect("polled");
+
+    let following = harness.listed().first().cloned().expect("something queued");
+
+    // The engine plays the join out by itself. Nothing stops, so the state the
+    // old end-of-track check watches for never happens.
+    harness.engine.hand_over();
+    assert!(harness.queue.poll().expect("polled"), "the queue caught up");
+
+    assert_eq!(
+        harness.engine.heard(),
+        vec!["one".to_owned(), following],
+        "the second track is what is playing"
+    );
+    assert_eq!(
+        harness.engine.loads.load(Ordering::Relaxed),
+        1,
+        "and it was never loaded — loading it would have cut the join in half"
+    );
+    assert!(
+        harness.queue.view().has_previous,
+        "the track that handed over is history"
+    );
+}
+
+#[test]
+fn the_transition_follows_what_is_playing_rather_than_the_switch_alone() {
+    let harness = harness();
+
+    // Crossfade on for this profile. PROJECT_MASTER 2.4 makes that a statement
+    // about ordinary tracks, not about everything.
+    let settings = SqliteSettingsRepository::new(harness.db.pool().clone());
+    settings
+        .profile_set(
+            harness.profile_id,
+            CROSSFADE_ENABLED_KEY,
+            &SettingValue::Bool(true),
+            Timestamp::from_millis(0),
+        )
+        .expect("stored");
+
+    harness
+        .queue
+        .play_from_library(harness.tracks[0])
+        .expect("played");
+    harness.queue.poll().expect("polled");
+    assert_eq!(
+        harness.engine.armed_transition(),
+        Some(TransitionProfile::Crossfade),
+        "an ordinary track fades"
+    );
+
+    let library = SqliteTrackRepository::new(harness.db.pool().clone())
+        .summaries_for_profile(harness.profile_id)
+        .expect("a library");
+    harness
+        .queue
+        .play_playlist(PlaylistId::new(), &library, harness.tracks[0])
+        .expect("played");
+    harness.queue.poll().expect("polled");
+    assert_eq!(
+        harness.engine.armed_transition(),
+        Some(TransitionProfile::Gapless),
+        "a playlist is continuous material and stays gapless"
     );
 }

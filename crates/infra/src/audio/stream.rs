@@ -19,9 +19,12 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
 
+use cadenza_core::domain::playback::TransitionProfile;
+use cadenza_core::domain::settings::DEFAULT_CROSSFADE;
 use cadenza_core::domain::value_objects::{DurationMs, PlaybackPosition, Volume};
 use cadenza_core::{CoreError, Result};
 
+use super::crossfade::{equal_power, fade_length};
 use super::resampler::Resampling;
 use super::ring_buffer::SampleRing;
 use super::symphonia_decoder::{StreamInfo, TrackStream};
@@ -59,6 +62,17 @@ const FLUSH_TIMEOUT: Duration = Duration::from_millis(200);
 /// How long the decode thread sleeps when there is nothing useful to do.
 const IDLE_NAP: Duration = Duration::from_millis(3);
 
+/// Stands for "no track is waiting". A real boundary is a frame index, and
+/// output will not reach this one in any listening lifetime.
+const NO_BOUNDARY: u64 = u64::MAX;
+
+/// How many samples the decoder mixes in one pass.
+///
+/// Small enough that a crossfade's gain is recomputed often, large enough that
+/// the ring is not poked a hundred times a second. It is rounded down to whole
+/// frames before use.
+const BLOCK_SAMPLES: usize = 4_096;
+
 /// State shared by the control thread, the decode thread and the callback.
 #[derive(Debug)]
 pub(crate) struct Shared {
@@ -80,13 +94,42 @@ pub(crate) struct Shared {
     /// Output amplitude, as the bits of an `f32`. Already tapered.
     volume: AtomicU32,
     /// Frames handed to the device since the last flush base.
+    ///
+    /// Absolute: it counts output, not the position in any one track, and it is
+    /// never rewound by a transition. Where the current track started in this
+    /// count is [`Self::track_base`], and the difference is the position.
     frames_played: AtomicU64,
+    /// Frames the decoder has pushed, counted the same way.
+    ///
+    /// The decoder's end of the same ruler. It is what lets it say "the next
+    /// track begins at frame N" in a number the callback can compare against.
+    frames_pushed: AtomicU64,
+    /// Where the track now playing began.
+    track_base: AtomicU64,
+    /// Where the next track begins, or [`u64::MAX`] while none is coming.
+    ///
+    /// Published by the decoder as it mixes the join, acted on by the callback
+    /// when output reaches it. That is what makes the handover sample-accurate:
+    /// nobody has to notice it in time, because the frame it happens on was
+    /// decided before the samples were queued.
+    boundary: AtomicU64,
+    /// Length of the track waiting at [`Self::boundary`].
+    boundary_duration_ms: AtomicU64,
+    /// How many times output has crossed a boundary.
+    ///
+    /// The application watches this number: it is how the queue learns that the
+    /// track it thinks is playing has already handed over.
+    pub(crate) advances: AtomicU64,
+    /// Crossfade length in milliseconds, as last set through the port.
+    pub(crate) crossfade_ms: AtomicU64,
     /// Length of the loaded track in milliseconds.
     pub(crate) duration_ms: AtomicU64,
     /// Set by the decoder when no more samples are coming.
     pub(crate) ended: AtomicBool,
     /// Whether a track is loaded at all.
     pub(crate) loaded: AtomicBool,
+    /// Whether a following track is open and waiting to be joined on.
+    pub(crate) armed: AtomicBool,
     /// Bumped by the decoder to ask the callback to discard the ring.
     flush_seq: AtomicU64,
     /// Echoed by the callback once it has.
@@ -114,9 +157,16 @@ impl Shared {
             prime_samples: (rate as f32 * PRIME_SECONDS) as usize * usize::from(channels.max(1)),
             volume: AtomicU32::new(1.0_f32.to_bits()),
             frames_played: AtomicU64::new(0),
+            frames_pushed: AtomicU64::new(0),
+            track_base: AtomicU64::new(0),
+            boundary: AtomicU64::new(NO_BOUNDARY),
+            boundary_duration_ms: AtomicU64::new(0),
+            advances: AtomicU64::new(0),
+            crossfade_ms: AtomicU64::new(DEFAULT_CROSSFADE.as_millis()),
             duration_ms: AtomicU64::new(0),
             ended: AtomicBool::new(false),
             loaded: AtomicBool::new(false),
+            armed: AtomicBool::new(false),
             flush_seq: AtomicU64::new(0),
             flush_ack: AtomicU64::new(0),
             flush_base: AtomicU64::new(0),
@@ -131,10 +181,41 @@ impl Shared {
             .store(amplitude(volume).to_bits(), Ordering::Relaxed);
     }
 
-    /// Where playback has reached.
+    /// Where playback has reached, in the track now playing.
+    ///
+    /// The difference between two counters rather than one number: output runs
+    /// on without interruption across a join, and it is only the base that
+    /// moves when a new track takes over.
     pub(crate) fn position(&self) -> PlaybackPosition {
-        let frames = self.frames_played.load(Ordering::Relaxed);
+        let played = self.frames_played.load(Ordering::Relaxed);
+        let base = self.track_base.load(Ordering::Relaxed);
+        let frames = played.saturating_sub(base);
         PlaybackPosition::from_millis(frames * 1_000 / u64::from(self.rate))
+    }
+
+    /// Records frames the decoder has handed to the ring.
+    fn pushed(&self, frames: u64) {
+        self.frames_pushed.fetch_add(frames, Ordering::Relaxed);
+    }
+
+    /// The frame the next sample pushed will occupy.
+    fn write_head(&self) -> u64 {
+        self.frames_pushed.load(Ordering::Relaxed)
+    }
+
+    /// Says where a new track starts and how long it runs.
+    ///
+    /// Called once per transition, before any of that track's samples are
+    /// queued, so the callback sees the mark no later than the audio it marks.
+    fn mark_boundary(&self, frame: u64, duration: DurationMs) {
+        self.boundary_duration_ms
+            .store(duration.as_millis(), Ordering::Relaxed);
+        self.boundary.store(frame, Ordering::Release);
+    }
+
+    /// Forgets a transition that was published but never reached.
+    fn clear_boundary(&self) {
+        self.boundary.store(NO_BOUNDARY, Ordering::Relaxed);
     }
 
     /// Length of the loaded track.
@@ -162,6 +243,11 @@ impl Shared {
         let frames = position.as_millis() * u64::from(self.rate) / 1_000;
         self.flush_base.store(frames, Ordering::Relaxed);
         self.primed.store(false, Ordering::Relaxed);
+        // Both ends of the ruler move together, and any transition queued
+        // behind the discarded samples goes with them.
+        self.frames_pushed.store(frames, Ordering::Relaxed);
+        self.track_base.store(0, Ordering::Relaxed);
+        self.clear_boundary();
 
         let next = self.flush_seq.load(Ordering::Relaxed).wrapping_add(1);
         self.flush_seq.store(next, Ordering::Release);
@@ -255,9 +341,25 @@ pub(crate) fn fill_output(shared: &Shared, out: &mut [f32], gain: &mut f32) {
     }
 
     let frames = taken / usize::from(shared.channels);
-    shared
+    let played = shared
         .frames_played
-        .fetch_add(frames as u64, Ordering::Relaxed);
+        .fetch_add(frames as u64, Ordering::Relaxed)
+        + frames as u64;
+
+    // Output has reached the join the decoder queued. The audio needed nothing
+    // from this — it was mixed into the samples that just played — but the
+    // clock does: from here the position belongs to the new track, and the
+    // application is told the queue moved on without being asked.
+    let boundary = shared.boundary.load(Ordering::Acquire);
+    if boundary != NO_BOUNDARY && played >= boundary {
+        shared.track_base.store(boundary, Ordering::Relaxed);
+        shared.duration_ms.store(
+            shared.boundary_duration_ms.load(Ordering::Relaxed),
+            Ordering::Relaxed,
+        );
+        shared.boundary.store(NO_BOUNDARY, Ordering::Relaxed);
+        shared.advances.fetch_add(1, Ordering::Relaxed);
+    }
 }
 
 /// What the control thread asks the decode thread to do.
@@ -268,6 +370,16 @@ pub(crate) enum Command {
         path: PathBuf,
         /// Where the outcome goes, so `load` can report a real error.
         reply: Sender<Result<StreamInfo>>,
+    },
+    /// Open the track that follows, so the join can be decoded before it.
+    Preload {
+        /// File to play after the current one.
+        path: PathBuf,
+        /// How the two should meet.
+        transition: TransitionProfile,
+        /// Where the outcome goes: a file that will not open is worth knowing
+        /// about seconds early rather than as a silence.
+        reply: Sender<Result<()>>,
     },
     /// Jump within the current track.
     Seek {
@@ -318,44 +430,189 @@ pub(crate) fn decode_loop(shared: Arc<Shared>, commands: &Receiver<Command>) {
     }
 }
 
+/// One source being decoded: the file, its resampler, and what it has produced
+/// but not yet handed over.
+///
+/// Two of these are alive through every transition, which is the whole of what
+/// makes gapless and crossfade possible (ADR 5). They are peers: nothing here
+/// knows which one is playing.
+struct Lane {
+    source: TrackStream,
+    resampler: Option<Resampling>,
+    /// Samples at the output rate and layout, waiting to be taken.
+    ready: Vec<f32>,
+    /// How much of `ready` has already been taken.
+    taken: usize,
+    /// Channel-mapped frames, kept between passes to avoid reallocating.
+    mapped: Vec<f32>,
+    /// Output frames produced so far.
+    frames: u64,
+    /// The whole length in output frames, or zero where the container will not
+    /// say. Only a crossfade needs it: a gapless join is made where the file
+    /// actually ends, not where it was advertised to.
+    total: u64,
+    /// Set once the decoder has nothing left to give.
+    drained: bool,
+    /// Why it stopped, when it stopped badly.
+    failure: Option<String>,
+}
+
+impl Lane {
+    fn open(path: &Path, rate: u32, channels: u16) -> Result<Self> {
+        let source = TrackStream::open(path)?;
+        let info = source.info();
+
+        let resampler = if info.sample_rate == rate {
+            None
+        } else {
+            Some(Resampling::new(info.sample_rate, rate, channels)?)
+        };
+
+        Ok(Self {
+            source,
+            resampler,
+            ready: Vec::new(),
+            taken: 0,
+            mapped: Vec::new(),
+            frames: 0,
+            total: info.duration.as_millis() * u64::from(rate) / 1_000,
+            drained: false,
+            failure: None,
+        })
+    }
+
+    fn info(&self) -> StreamInfo {
+        self.source.info()
+    }
+
+    /// Samples decoded and not yet taken.
+    fn ready(&self) -> &[f32] {
+        &self.ready[self.taken..]
+    }
+
+    /// Decodes until `want` samples are waiting, or the file runs out.
+    fn fill(&mut self, want: usize, channels: u16) {
+        if self.taken > 0 {
+            self.ready.drain(..self.taken);
+            self.taken = 0;
+        }
+        while self.ready.len() < want && !self.drained {
+            self.decode_once(channels);
+        }
+    }
+
+    fn decode_once(&mut self, channels: u16) {
+        let source_channels = self.info().channels;
+
+        // The mapping happens inside the match so the decoder's borrow ends
+        // with it: what comes back is a view into the lane's own reader.
+        let outcome = match self.source.next_frames() {
+            Ok(Some(frames)) => {
+                map_channels(frames, source_channels, channels, &mut self.mapped);
+                Ok(())
+            }
+            Ok(None) => Err(None),
+            Err(err) => Err(Some(err.to_string())),
+        };
+
+        if let Err(failure) = outcome {
+            self.failure = failure;
+            self.drained = true;
+            return;
+        }
+
+        match self.resampler.as_mut() {
+            Some(resampler) => match resampler.process(&self.mapped) {
+                Ok(resampled) => self.ready.extend_from_slice(resampled),
+                Err(err) => {
+                    self.failure = Some(err.to_string());
+                    self.drained = true;
+                }
+            },
+            None => self.ready.extend_from_slice(&self.mapped),
+        }
+    }
+
+    /// Marks samples as used, and counts the frames they were.
+    fn consume(&mut self, samples: usize, channels: usize) {
+        self.taken += samples;
+        self.frames += (samples / channels) as u64;
+    }
+
+    fn seek(&mut self, position: PlaybackPosition, rate: u32) -> Result<PlaybackPosition> {
+        let landed = self.source.seek(position)?;
+
+        self.ready.clear();
+        self.taken = 0;
+        self.drained = false;
+        self.frames = landed.as_millis() * u64::from(rate) / 1_000;
+        if let Some(resampler) = self.resampler.as_mut() {
+            resampler.reset();
+        }
+
+        Ok(landed)
+    }
+}
+
 /// The decode thread's own state.
 struct Producer {
     shared: Arc<Shared>,
-    source: Option<TrackStream>,
-    resampler: Option<Resampling>,
-    /// Frames converted but not yet accepted by the ring.
-    carry: Vec<f32>,
-    /// How much of `carry` has been handed over.
-    carry_offset: usize,
-    /// Channel-mapped frames, kept between passes to avoid reallocating.
-    mapped: Vec<f32>,
+    /// The track being played.
+    current: Option<Lane>,
+    /// The track armed to follow it.
+    next: Option<Lane>,
+    /// How the two are to meet.
+    transition: TransitionProfile,
+    /// Mixed samples not yet accepted by the ring.
+    out: Vec<f32>,
+    /// How much of `out` has been handed over.
+    out_taken: usize,
+    /// Length of the crossfade under way, in frames. Zero when none is.
+    fade_frames: u64,
+    /// How much of it has been mixed.
+    fade_done: u64,
 }
 
 impl Producer {
     fn new(shared: Arc<Shared>) -> Self {
         Self {
             shared,
-            source: None,
-            resampler: None,
-            carry: Vec::new(),
-            carry_offset: 0,
-            mapped: Vec::new(),
+            current: None,
+            next: None,
+            transition: TransitionProfile::Gapless,
+            out: Vec::new(),
+            out_taken: 0,
+            fade_frames: 0,
+            fade_done: 0,
         }
     }
 
     /// True when there is nothing left to decode or hand over.
     ///
     /// A finished track counts as idle even though its file is still open: it is
-    /// held so that the listener can seek back into it.
+    /// held so that the listener can seek back into it. A finished track with
+    /// something armed behind it does not — the join is still to be made.
     fn is_idle(&self) -> bool {
-        let exhausted = self.source.is_none() || self.shared.ended.load(Ordering::Relaxed);
-        exhausted && self.carry_offset >= self.carry.len()
+        if self.out_taken < self.out.len() || self.next.is_some() {
+            return false;
+        }
+        self.current
+            .as_ref()
+            .is_none_or(|lane| lane.drained && lane.ready().is_empty())
     }
 
     fn handle(&mut self, command: Command) {
         match command {
             Command::Load { path, reply } => {
                 let outcome = self.load(&path);
+                let _ = reply.send(outcome);
+            }
+            Command::Preload {
+                path,
+                transition,
+                reply,
+            } => {
+                let outcome = self.preload(&path, transition);
                 let _ = reply.send(outcome);
             }
             Command::Seek { position, reply } => {
@@ -368,23 +625,15 @@ impl Producer {
     }
 
     fn load(&mut self, path: &Path) -> Result<StreamInfo> {
-        let source = TrackStream::open(path)?;
-        let info = source.info();
+        let lane = Lane::open(path, self.shared.rate, self.shared.channels)?;
+        let info = lane.info();
 
-        let resampler = if info.sample_rate == self.shared.rate {
-            None
-        } else {
-            Some(Resampling::new(
-                info.sample_rate,
-                self.shared.rate,
-                self.shared.channels,
-            )?)
-        };
-
-        self.source = Some(source);
-        self.resampler = resampler;
-        self.carry.clear();
-        self.carry_offset = 0;
+        // A hard load replaces everything, the armed track included: whatever
+        // was going to follow was going to follow something else.
+        self.current = Some(lane);
+        self.disarm();
+        self.out.clear();
+        self.out_taken = 0;
 
         self.shared.set_failure(None);
         self.shared
@@ -397,18 +646,40 @@ impl Producer {
         Ok(info)
     }
 
+    /// Opens the track that follows and says how it should arrive.
+    ///
+    /// Opening it here, on the decode thread, is the point: by the time the
+    /// join is reached the file has been read, its decoder built and its first
+    /// packets turned into samples, so nothing about the handover waits on a
+    /// disk.
+    fn preload(&mut self, path: &Path, transition: TransitionProfile) -> Result<()> {
+        if self.current.is_none() {
+            return Err(CoreError::Audio(
+                "nothing is playing for a track to follow".into(),
+            ));
+        }
+
+        let lane = Lane::open(path, self.shared.rate, self.shared.channels)?;
+        self.next = Some(lane);
+        self.transition = transition;
+        self.shared.armed.store(true, Ordering::Relaxed);
+        Ok(())
+    }
+
     fn seek(&mut self, position: PlaybackPosition) -> Result<PlaybackPosition> {
-        let Some(source) = self.source.as_mut() else {
+        let rate = self.shared.rate;
+        let Some(current) = self.current.as_mut() else {
             return Err(CoreError::Audio("nothing is loaded to seek in".into()));
         };
 
-        let landed = source.seek(position)?;
+        let landed = current.seek(position, rate)?;
 
-        self.carry.clear();
-        self.carry_offset = 0;
-        if let Some(resampler) = self.resampler.as_mut() {
-            resampler.reset();
-        }
+        // Whatever was armed had already begun to be mixed in at a point that
+        // no longer exists. It is dropped rather than rewound, and the caller
+        // arms it again — which it does anyway, on every tick.
+        self.disarm();
+        self.out.clear();
+        self.out_taken = 0;
 
         // The track may have run out earlier and been seeked back into.
         self.shared.ended.store(false, Ordering::Relaxed);
@@ -418,10 +689,10 @@ impl Producer {
     }
 
     fn unload(&mut self) {
-        self.source = None;
-        self.resampler = None;
-        self.carry.clear();
-        self.carry_offset = 0;
+        self.current = None;
+        self.disarm();
+        self.out.clear();
+        self.out_taken = 0;
 
         self.shared.loaded.store(false, Ordering::Relaxed);
         self.shared.ended.store(true, Ordering::Relaxed);
@@ -429,17 +700,30 @@ impl Producer {
         self.shared.flush(PlaybackPosition::START);
     }
 
+    /// Forgets the armed track and any fade that had begun on it.
+    fn disarm(&mut self) {
+        self.next = None;
+        self.fade_frames = 0;
+        self.fade_done = 0;
+        self.shared.armed.store(false, Ordering::Relaxed);
+    }
+
     /// Moves one step of work along. Returns false when there was nothing to do.
     fn pump(&mut self) -> bool {
-        if self.carry_offset < self.carry.len() {
-            let accepted = self.shared.ring.push(&self.carry[self.carry_offset..]);
-            self.carry_offset += accepted;
+        if self.out_taken < self.out.len() {
+            let accepted = self.shared.ring.push(&self.out[self.out_taken..]);
+            self.out_taken += accepted;
+            self.shared
+                .pushed((accepted / usize::from(self.shared.channels)) as u64);
             return accepted > 0;
         }
 
-        // Nothing more to read, or the file is finished and only being kept for
-        // a seek.
-        if self.source.is_none() || self.shared.ended.load(Ordering::Relaxed) {
+        if self.current.is_none() {
+            return false;
+        }
+
+        // Nothing more is coming and nothing is waiting to follow.
+        if self.shared.ended.load(Ordering::Relaxed) && self.next.is_none() {
             return false;
         }
 
@@ -448,46 +732,183 @@ impl Producer {
             return false;
         }
 
-        let (source_channels, decoded) = {
-            let source = self.source.as_mut().expect("checked above");
-            let channels = source.info().channels;
-            match source.next_frames() {
-                Ok(Some(frames)) => (channels, Ok(frames)),
-                Ok(None) => (channels, Err(None)),
-                Err(err) => (channels, Err(Some(err.to_string()))),
-            }
-        };
+        self.produce()
+    }
 
-        let decoded = match decoded {
-            Ok(frames) => frames,
-            Err(failure) => {
-                self.finish(failure);
-                return false;
-            }
-        };
+    /// Mixes the next block into `out`. Returns false when there was none to mix.
+    fn produce(&mut self) -> bool {
+        let channels = usize::from(self.shared.channels);
+        let want = BLOCK_SAMPLES / channels * channels;
 
-        map_channels(
-            decoded,
-            source_channels,
-            self.shared.channels,
-            &mut self.mapped,
-        );
-
-        self.carry.clear();
-        self.carry_offset = 0;
-        match self.resampler.as_mut() {
-            Some(resampler) => match resampler.process(&self.mapped) {
-                Ok(resampled) => self.carry.extend_from_slice(resampled),
-                Err(err) => {
-                    self.finish(Some(err.to_string()));
-                    return false;
-                }
-            },
-            None => self.carry.extend_from_slice(&self.mapped),
+        if self.fade_frames == 0 {
+            self.begin_fade_if_due();
+        }
+        if self.fade_frames > 0 {
+            return self.mix_fade(want, channels);
         }
 
-        self.carry_offset = self.shared.ring.push(&self.carry);
+        // Stop the block exactly where the fade will begin. Left to run its
+        // full length it would overshoot, the fade would start at whatever
+        // boundary first fell inside it, and a four-second crossfade would come
+        // out short by an amount that depended on the buffer size.
+        let want = match self.frames_until_fade() {
+            Some(frames) if frames > 0 => want.min(frames as usize * channels),
+            _ => want,
+        };
+
+        let Some(current) = self.current.as_mut() else {
+            return false;
+        };
+        current.fill(want, self.shared.channels);
+
+        let available = current.ready().len();
+        if available == 0 {
+            if !current.drained {
+                return false;
+            }
+            // The file has run out. Either the armed track takes over from this
+            // exact sample, or there is nothing more to play.
+            let failure = current.failure.take();
+            if self.next.is_some() {
+                self.swap_in_next(true);
+                return true;
+            }
+            self.finish(failure);
+            return false;
+        }
+
+        let taking = available.min(want);
+        self.out.clear();
+        self.out.extend_from_slice(&current.ready()[..taking]);
+        current.consume(taking, channels);
+        self.out_taken = 0;
         true
+    }
+
+    /// How many frames of the outgoing track are left before the fade starts.
+    ///
+    /// `None` where no crossfade is coming: nothing armed, a gapless join, or a
+    /// container that will not say how long it is. That last one cannot be
+    /// faded out on a schedule — there is nothing to count back from — so it
+    /// joins gapless instead, which is the honest fallback rather than a silent
+    /// one.
+    fn frames_until_fade(&self) -> Option<u64> {
+        if self.transition != TransitionProfile::Crossfade || self.next.is_none() {
+            return None;
+        }
+
+        let current = self.current.as_ref()?;
+        if current.total == 0 {
+            return None;
+        }
+
+        let wanted =
+            self.shared.crossfade_ms.load(Ordering::Relaxed) * u64::from(self.shared.rate) / 1_000;
+        let remaining = current.total.saturating_sub(current.frames);
+        Some(remaining.saturating_sub(wanted))
+    }
+
+    /// Starts the crossfade once the outgoing track has only its length left.
+    fn begin_fade_if_due(&mut self) {
+        if self.frames_until_fade() != Some(0) {
+            return;
+        }
+
+        let current = self.current.as_ref().expect("checked above");
+        let remaining = current.total.saturating_sub(current.frames);
+        let wanted =
+            self.shared.crossfade_ms.load(Ordering::Relaxed) * u64::from(self.shared.rate) / 1_000;
+
+        self.fade_frames = fade_length(wanted, remaining);
+        self.fade_done = 0;
+
+        // The new track is heard from here, so this is where its clock starts —
+        // not where the old one finally stops.
+        let duration = self.next.as_ref().expect("armed above").info().duration;
+        self.shared
+            .mark_boundary(self.shared.write_head(), duration);
+    }
+
+    /// Mixes both lanes for one block of the crossfade.
+    fn mix_fade(&mut self, want: usize, channels: usize) -> bool {
+        let (fade_frames, fade_done) = (self.fade_frames, self.fade_done);
+        let layout = self.shared.channels;
+
+        let (Some(current), Some(next)) = (self.current.as_mut(), self.next.as_mut()) else {
+            self.fade_frames = 0;
+            return false;
+        };
+
+        current.fill(want, layout);
+        next.fill(want, layout);
+
+        let left = ((fade_frames - fade_done) as usize) * channels;
+        let head = next.ready().len().min(want).min(left);
+        if head == 0 {
+            if !next.drained {
+                return false;
+            }
+            // The incoming track is shorter than the fade. Stop fading and let
+            // it take over as it is; the ordinary path will find it finished.
+            self.swap_in_next(false);
+            return true;
+        }
+
+        // A tail shorter than the head is normal at the end of a file: the
+        // outgoing track simply contributes silence for the rest of the fade,
+        // and the incoming one still arrives at full level on schedule.
+        let tail = current.ready().len().min(head);
+        let frames = head / channels;
+
+        self.out.clear();
+        self.out.reserve(head);
+        for frame in 0..frames {
+            let t = (fade_done + frame as u64) as f32 / fade_frames as f32;
+            let (fade_out, fade_in) = equal_power(t);
+            for channel in 0..channels {
+                let index = frame * channels + channel;
+                let outgoing = if index < tail {
+                    current.ready()[index] * fade_out
+                } else {
+                    0.0
+                };
+                self.out.push(outgoing + next.ready()[index] * fade_in);
+            }
+        }
+
+        current.consume(tail, channels);
+        next.consume(head, channels);
+        self.out_taken = 0;
+        self.fade_done += frames as u64;
+
+        if self.fade_done >= self.fade_frames {
+            // The boundary was published when the fade began, which is when the
+            // new track was first heard.
+            self.swap_in_next(false);
+        }
+        true
+    }
+
+    /// Makes the armed track the current one.
+    ///
+    /// `mark` says whether the join still has to be published. It is false at
+    /// the end of a crossfade, where the mark went out when the fade started.
+    fn swap_in_next(&mut self, mark: bool) {
+        let Some(next) = self.next.take() else {
+            return;
+        };
+
+        if mark {
+            // Published before a single sample of the new track is queued: the
+            // callback must never meet audio it has no mark for.
+            self.shared
+                .mark_boundary(self.shared.write_head(), next.info().duration);
+        }
+
+        self.current = Some(next);
+        self.fade_frames = 0;
+        self.fade_done = 0;
+        self.shared.armed.store(false, Ordering::Relaxed);
     }
 
     /// Marks the end of the stream, with a reason when it ended badly.
@@ -545,7 +966,8 @@ mod tests {
     use std::sync::Arc;
     use std::sync::atomic::Ordering;
 
-    use cadenza_core::domain::value_objects::{PlaybackPosition, Volume};
+    use cadenza_core::domain::playback::TransitionProfile;
+    use cadenza_core::domain::value_objects::{DurationMs, PlaybackPosition, Volume};
     use cadenza_testkit::TempDir;
     use cadenza_testkit::audio_fixtures::write_wav;
 
@@ -762,6 +1184,254 @@ mod tests {
         assert!(
             producer.seek(PlaybackPosition::START).is_err(),
             "there is nothing to seek in once the track is unloaded"
+        );
+    }
+
+    /// Runs the decoder until it has nothing left, collecting everything it
+    /// produced in order — which is what the device would have heard.
+    fn decode_stream(producer: &mut Producer, shared: &Shared) -> Vec<f32> {
+        let mut heard = Vec::new();
+        let mut buffer = vec![0.0; 8_192];
+
+        for _ in 0..1_000_000 {
+            let worked = producer.pump();
+            loop {
+                let taken = shared.ring.pop(&mut buffer);
+                if taken == 0 {
+                    break;
+                }
+                heard.extend_from_slice(&buffer[..taken]);
+            }
+            if !worked && shared.ended.load(Ordering::Relaxed) {
+                return heard;
+            }
+        }
+        panic!("the decoder never reached the end of the join");
+    }
+
+    /// The largest step between neighbouring samples.
+    ///
+    /// A click is a discontinuity in the waveform, and this is the objective
+    /// half of "no clicks": whatever it sounds like, a join that steps is
+    /// wrong, and one that does not step cannot click at the join.
+    fn largest_step(samples: &[f32]) -> f32 {
+        samples
+            .windows(2)
+            .map(|pair| (pair[1] - pair[0]).abs())
+            .fold(0.0_f32, f32::max)
+    }
+
+    /// A producer at the fixtures' own rate, so nothing is resampled.
+    fn joined() -> (Arc<Shared>, Producer) {
+        let shared = Arc::new(Shared::new(44_100, 2));
+        let producer = Producer::new(Arc::clone(&shared));
+        (shared, producer)
+    }
+
+    #[test]
+    fn a_gapless_join_runs_one_track_straight_into_the_next() {
+        let directory = TempDir::new("stream-gapless");
+        let first = write_wav(directory.path(), "first.wav", 1, 12_000);
+        let second = write_wav(directory.path(), "second.wav", 1, -12_000);
+
+        let (shared, mut producer) = joined();
+        producer.load(&first).expect("loaded");
+        producer
+            .preload(&second, TransitionProfile::Gapless)
+            .expect("armed");
+
+        let heard = decode_stream(&mut producer, &shared);
+
+        // Both tracks in full, and not one sample of silence anywhere in them:
+        // a gap would show up here as a run of zeros.
+        assert_eq!(heard.len(), 44_100 * 2 * 2, "two whole seconds, in stereo");
+        assert!(
+            heard.iter().all(|sample| sample.abs() > 0.3),
+            "something in the join was silent"
+        );
+
+        // The second file is the first one inverted, so the join is the single
+        // place the sign changes — and it is where the mark says it is.
+        let join = heard
+            .iter()
+            .position(|sample| *sample < 0.0)
+            .expect("the second track was heard");
+        assert_eq!(join, 44_100 * 2, "the first track played out whole");
+        assert_eq!(
+            shared.boundary.load(Ordering::Relaxed),
+            44_100,
+            "the mark stands at the first frame of the new track"
+        );
+    }
+
+    #[test]
+    fn a_crossfade_arrives_on_the_equal_power_curve() {
+        let directory = TempDir::new("stream-crossfade");
+        let first = write_wav(directory.path(), "first.wav", 2, 12_000);
+        let second = write_wav(directory.path(), "second.wav", 2, 24_000);
+
+        let (shared, mut producer) = joined();
+        // A second rather than the four the listener gets. The port refuses
+        // anything outside three to five seconds; the decoder only obeys, and
+        // a shorter fade is the same arithmetic over less audio.
+        shared.crossfade_ms.store(1_000, Ordering::Relaxed);
+
+        producer.load(&first).expect("loaded");
+        producer
+            .preload(&second, TransitionProfile::Crossfade)
+            .expect("armed");
+
+        let heard = decode_stream(&mut producer, &shared);
+
+        // Four seconds of material, one second of which is heard twice over.
+        assert_eq!(heard.len(), 44_100 * 3 * 2, "the fade overlaps the two");
+        assert_eq!(
+            shared.boundary.load(Ordering::Relaxed),
+            44_100,
+            "the new track's clock starts where it is first heard"
+        );
+
+        let quiet = 12_000.0 / 32_768.0;
+        let loud = 24_000.0 / 32_768.0;
+        // One second in: the fade is the last second of a two-second track.
+        let fade_start = 44_100;
+
+        for (frame, position) in [(0, 0.0), (11_025, 0.25), (22_050, 0.5), (44_099, 1.0)] {
+            let angle = position * std::f32::consts::FRAC_PI_2;
+            let expected = quiet * angle.cos() + loud * angle.sin();
+            let actual = heard[(fade_start + frame) * 2];
+            assert!(
+                (actual - expected).abs() < 0.01,
+                "at {position} of the way through the fade: {actual} rather than {expected}"
+            );
+        }
+
+        // Nothing steps: the fade begins at exactly the outgoing level and ends
+        // at exactly the incoming one, so there is no edge to hear.
+        assert!(
+            largest_step(&heard) < 0.001,
+            "the waveform jumps by {}",
+            largest_step(&heard)
+        );
+    }
+
+    #[test]
+    fn a_crossfade_never_outlasts_the_track_it_is_fading() {
+        let directory = TempDir::new("stream-short-crossfade");
+        let first = write_wav(directory.path(), "first.wav", 1, 12_000);
+        let second = write_wav(directory.path(), "second.wav", 1, 24_000);
+
+        let (shared, mut producer) = joined();
+        // Four seconds of fade asked of a track one second long.
+        shared.crossfade_ms.store(4_000, Ordering::Relaxed);
+
+        producer.load(&first).expect("loaded");
+        producer
+            .preload(&second, TransitionProfile::Crossfade)
+            .expect("armed");
+
+        let heard = decode_stream(&mut producer, &shared);
+
+        // The fade takes the whole of the first track and no more: what plays
+        // is one second of the two together and then the rest of the second.
+        assert_eq!(heard.len(), 44_100 * 2);
+        assert!(
+            (heard[0] - 12_000.0 / 32_768.0).abs() < 0.01,
+            "it still begins at the outgoing level"
+        );
+        assert!(largest_step(&heard) < 0.001, "and it still does not step");
+    }
+
+    #[test]
+    fn loading_a_track_throws_away_whatever_was_armed_behind_the_old_one() {
+        let directory = TempDir::new("stream-rearm");
+        let first = write_wav(directory.path(), "first.wav", 1, 12_000);
+        let second = write_wav(directory.path(), "second.wav", 1, -12_000);
+
+        let (shared, mut producer) = joined();
+        producer.load(&first).expect("loaded");
+        producer
+            .preload(&second, TransitionProfile::Gapless)
+            .expect("armed");
+        assert!(shared.armed.load(Ordering::Relaxed));
+
+        producer.load(&second).expect("loaded");
+
+        assert!(
+            !shared.armed.load(Ordering::Relaxed),
+            "what was going to follow was going to follow something else"
+        );
+    }
+
+    #[test]
+    fn seeking_drops_the_join_it_had_already_begun_to_mix() {
+        let directory = TempDir::new("stream-seek-armed");
+        let first = write_wav(directory.path(), "first.wav", 1, 12_000);
+        let second = write_wav(directory.path(), "second.wav", 1, -12_000);
+
+        let (shared, mut producer) = joined();
+        producer.load(&first).expect("loaded");
+        producer
+            .preload(&second, TransitionProfile::Gapless)
+            .expect("armed");
+        producer
+            .seek(PlaybackPosition::from_millis(200))
+            .expect("seeked");
+
+        assert!(
+            !shared.armed.load(Ordering::Relaxed),
+            "the join was aimed at a point that no longer exists"
+        );
+        assert_eq!(
+            shared.boundary.load(Ordering::Relaxed),
+            u64::MAX,
+            "and the mark went with it"
+        );
+    }
+
+    #[test]
+    fn nothing_can_be_armed_behind_a_track_that_is_not_playing() {
+        let directory = TempDir::new("stream-arm-nothing");
+        let path = write_wav(directory.path(), "one.wav", 1, 12_000);
+
+        let (_shared, mut producer) = joined();
+
+        assert!(producer.preload(&path, TransitionProfile::Gapless).is_err());
+    }
+
+    #[test]
+    fn the_callback_moves_the_clock_to_the_new_track_at_the_join() {
+        let shared = shared();
+        ready(&shared);
+        shared.ring.push(&[1.0; 400]);
+        // The decoder queued 100 frames of the old track and then the new one,
+        // which runs for two seconds.
+        shared.mark_boundary(100, DurationMs::from_secs(2));
+
+        let mut gain = 1.0;
+        fill_output(&shared, &mut [0.0; 160], &mut gain);
+        assert_eq!(
+            shared.position(),
+            PlaybackPosition::from_millis(80),
+            "still the old track, eighty frames in at 1 kHz"
+        );
+        assert_eq!(shared.advances.load(Ordering::Relaxed), 0);
+
+        fill_output(&shared, &mut [0.0; 160], &mut gain);
+        assert_eq!(
+            shared.position(),
+            PlaybackPosition::from_millis(60),
+            "past the join: 160 frames played, 100 of them the old track's"
+        );
+        assert_eq!(
+            shared.duration_ms.load(Ordering::Relaxed),
+            2_000,
+            "and the length shown is the new track's"
+        );
+        assert_eq!(
+            shared.advances.load(Ordering::Relaxed),
+            1,
+            "the queue is told once"
         );
     }
 

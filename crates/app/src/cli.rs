@@ -31,6 +31,13 @@ pub enum Command {
     History(bool),
     /// Set the active profile's theme. `true` is dark.
     Theme(bool),
+    /// Turn crossfading on or off, and say how long it takes.
+    Crossfade {
+        /// Whether ordinary tracks fade into each other at all.
+        enabled: bool,
+        /// How long the fade runs. `None` leaves the stored length alone.
+        seconds: Option<u64>,
+    },
     /// List the folders the active profile scans.
     Folders,
     /// Add a folder to the active profile's library.
@@ -130,6 +137,7 @@ USAGE:
     cadenza delete <name> --yes      delete a profile and all of its data
     cadenza history <on|off>         set history for the active profile
     cadenza theme <dark|light>       set the theme for the active profile
+    cadenza crossfade <on|off> [s]   fade ordinary tracks into each other, 3 to 5 seconds
 
     cadenza folders                  list the folders being scanned
     cadenza add-folder <path> [-r]   add a folder, -r to include subfolders
@@ -228,6 +236,21 @@ pub fn parse<I: IntoIterator<Item = String>>(args: I) -> Result<Command, String>
             "light" => Command::Theme(false),
             other => return Err(format!("theme takes dark or light, not {other:?}")),
         },
+
+        "crossfade" => {
+            let enabled = match require_value(args.next(), "crossfade", "on or off")?.as_str() {
+                "on" => true,
+                "off" => false,
+                other => return Err(format!("crossfade takes on or off, not {other:?}")),
+            };
+            let seconds = match args.next() {
+                Some(value) => Some(value.parse::<u64>().map_err(|_| {
+                    format!("crossfade takes a length in whole seconds, not {value:?}")
+                })?),
+                None => None,
+            };
+            Command::Crossfade { enabled, seconds }
+        }
 
         "history" => match require_value(args.next(), "history", "on or off")?.as_str() {
             "on" => Command::History(true),
@@ -387,6 +410,23 @@ mod tests {
             parse_args(&["switch", "Kim"]),
             Ok(Command::Switch("Kim".to_owned()))
         );
+        assert_eq!(
+            parse_args(&["crossfade", "on", "4"]),
+            Ok(Command::Crossfade {
+                enabled: true,
+                seconds: Some(4)
+            })
+        );
+        assert_eq!(
+            parse_args(&["crossfade", "off"]),
+            Ok(Command::Crossfade {
+                enabled: false,
+                seconds: None
+            })
+        );
+        assert!(parse_args(&["crossfade", "maybe"]).is_err());
+        assert!(parse_args(&["crossfade", "on", "soon"]).is_err());
+
         assert_eq!(parse_args(&["history", "on"]), Ok(Command::History(true)));
         assert_eq!(parse_args(&["history", "off"]), Ok(Command::History(false)));
         assert_eq!(parse_args(&["paths"]), Ok(Command::Paths));
