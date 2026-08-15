@@ -1,0 +1,138 @@
+"""Five questions asked of every line of Slint markup.
+
+Run from the repository root:
+
+    python scripts/audit_ui.py
+
+Each check exists because the defect it names actually shipped and had to be
+found by eye first:
+
+1. A line of type with no box of its own. A text asks for a fractional height
+   from its font's metrics; a layout centring that fraction puts the line
+   between two pixel rows, and the letters are then rasterised at visibly
+   different heights.
+
+2. A box too small for the type in it. Slint does not clip a line that will not
+   fit — it drops it. A button lost its label this way, twice.
+
+3. A boxed line standing directly in a horizontal layout. A child with a height
+   of its own cannot stretch, so the layout stands it at the top of the row
+   instead of the middle, beside whatever it was meant to line up with.
+
+4. A halving that was never rounded. `(parent - self) / 2` is the interface's
+   most common expression and lands on half a pixel whenever the two differ by
+   an odd number.
+
+5. Any odd length. The rule in `theme/tokens.slint` is that every length is
+   even, so that halving one is whole arithmetic and nobody has to remember
+   check 4 at all.
+
+Exit status is 1 when anything is found, so this can be a gate.
+"""
+
+import glob
+import io
+import re
+import sys
+
+# The type scale, so a `font-size: Theme.text-body` can be measured too.
+SIZES = {
+    "Theme.text-display": 36,
+    "Theme.text-title": 18,
+    "Theme.text-row-title": 19,
+    "Theme.text-body": 14,
+    "Theme.text-meta": 13,
+    "Theme.text-number": 12,
+    "Theme.text-label": 10.5,
+}
+
+# A line box below this multiple of the font size is a dropped line, not a
+# tight one.
+MINIMUM_LINE = 1.35
+
+
+def size_of(expression):
+    expression = expression.strip()
+    literal = re.fullmatch(r"([\d.]+)px", expression)
+    return float(literal.group(1)) if literal else SIZES.get(expression)
+
+
+def audit(path):
+    findings = []
+    stack, text = [], None
+
+    for number, line in enumerate(io.open(path, encoding="utf-8").read().splitlines(), 1):
+        statement = line.strip()
+
+        if re.search(r"\) / 2;", statement) and "round(" not in statement \
+                and "self.width / 2" not in statement:
+            findings.append((number, "halved without rounding"))
+
+        for match in re.finditer(
+            r"\b(width|height|padding[\w-]*|spacing|border-radius):\s*(\d+)px", statement
+        ):
+            value = int(match.group(2))
+            if value % 2 and value != 1:
+                findings.append((number, "odd length %dpx" % value))
+
+        if re.search(r"\bText \{", statement):
+            text = {
+                "line": number,
+                "parent": stack[-1] if stack else "none",
+                "size": None,
+                "box": None,
+                "wraps": False,
+            }
+            stack.append("text")
+            continue
+        if re.search(r"(HorizontalLayout|VerticalLayout|GridLayout) \{", statement):
+            stack.append("row" if "Horizontal" in statement else "column")
+            continue
+        if statement.endswith("{"):
+            stack.append("other")
+            continue
+
+        if text is not None:
+            if statement.startswith("font-size:"):
+                text["size"] = size_of(statement.split(":", 1)[1].rstrip(";"))
+            elif statement.startswith("height:"):
+                text["box"] = statement
+            elif statement.startswith("wrap:"):
+                text["wraps"] = True
+
+        if statement.startswith("}"):
+            if stack and stack[-1] == "text" and text:
+                size, box = text["size"], text["box"]
+                if size and box:
+                    fixed = re.search(r"height:\s*(\d+)px", box)
+                    if fixed and int(fixed.group(1)) < size * MINIMUM_LINE:
+                        findings.append(
+                            (text["line"], "box %spx too small for %spx type"
+                             % (fixed.group(1), size))
+                        )
+                if size and not box and not text["wraps"]:
+                    findings.append((text["line"], "no line box for %spx type" % size))
+                if box and text["parent"] == "row":
+                    findings.append(
+                        (text["line"], "boxed text standing in a horizontal layout")
+                    )
+                text = None
+            if stack:
+                stack.pop()
+
+    return findings
+
+
+def main():
+    total = 0
+    for path in sorted(glob.glob("crates/ui/slint/**/*.slint", recursive=True)):
+        for number, what in audit(path):
+            sys.stdout.write("%s:%d  %s\n" % (path.replace("\\", "/"), number, what))
+            total += 1
+
+    sys.stdout.write("%d finding%s\n" % (total, "" if total == 1 else "s"))
+    return 1 if total else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

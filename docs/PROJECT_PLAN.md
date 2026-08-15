@@ -238,6 +238,31 @@ map, the callback and the decode thread all run without one. What no test can
 claim is that the result sounds right, and that is checked by running
 `cadenza play`.
 
+## Between M7 and M8 — input, menus and the interface audit
+
+Pulled forward from M15 at the owner's decision: the three things they asked
+for next — making a playlist, editing a track, adding tracks to the library —
+all needed the same missing thing, and it was cheaper to build once than three
+times. What that missing thing was: the interface had no text field, no menu
+and no dialog.
+
+Built: `Field`, `RowMenu` and `Dialog`/`PickDialog`, all from Slint's unstyled
+primitives so they wear this design rather than the widget set's. With them, a
+playlist is made, renamed and deleted from the window; a track is added to a
+playlist or taken out of one, put in the queue or taken out of it, and removed
+from the library; the library is searched; the queue is cleared; a playlist is
+played from its tile or its page.
+
+`scripts/audit_ui.py` came out of that work and stays. Five questions asked of
+every line of markup, each one a defect that shipped first and was found by eye
+— see `docs/TESTING.md`.
+
+Not built, and known: editing a track's title, artist and album, which needs a
+`LibraryService::edit_track` that does not exist yet — the menu deliberately
+does not offer it. The settings screen. And adding a folder from the window,
+which needs a native file dialog and therefore a decision about the stack that
+is the owner's to make.
+
 ## M7 — what was actually built
 
 Something to play next. The queue advances on its own when a track ends, goes

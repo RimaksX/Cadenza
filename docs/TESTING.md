@@ -49,3 +49,20 @@ Every fixture in a test harness struct is declared **last**. Fields drop in
 declaration order, and the database cannot delete its directory while a
 repository above it still holds a connection into it. Getting that order wrong
 is why the directories were left behind in the first place.
+
+## The interface audit
+
+`python scripts/audit_ui.py` asks five questions of every line of Slint markup
+and exits non-zero if any of them has an answer. Each check is there because
+the defect it names shipped once and had to be found by eye: type with no line
+box of its own, a box too small for the type in it (Slint drops such a line
+rather than clipping it), a boxed line standing directly in a horizontal layout
+where it cannot stretch and so rides at the top of its row, a halving that was
+never rounded, and any odd length at all.
+
+It is not part of `cargo test` — it reads markup, not Rust — so run it after
+any change to `crates/ui/slint/`.
+
+What it cannot see is everything that needs a live pointer: hover, drag, focus
+and the click itself. Those are checked by running the binary and looking, and
+what cannot be checked that way is said plainly rather than implied.
