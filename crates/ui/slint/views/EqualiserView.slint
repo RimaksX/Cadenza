@@ -1,5 +1,7 @@
 import { Theme } from "../theme/tokens.slint";
 import { TextButton } from "../components/Dialog.slint";
+import { ListView } from "std-widgets.slint";
+import { RowMenu, MenuItemData } from "../components/RowMenu.slint";
 
 // One preset, as the view model hands it over.
 export struct EqPresetData {
@@ -423,6 +425,82 @@ component FaderBank inherits Rectangle {
     }
 }
 
+// One saved sound in the column: the name to press, and the corner that says
+// what else can be done to it.
+//
+// A component rather than a block inside the loop, because a popup menu cannot
+// be repeated directly — the track row and the playlist tile are the same shape
+// for the same reason.
+component PresetRow inherits HorizontalLayout {
+    in property <EqPresetData> data;
+
+    callback picked();
+    callback acted(string);
+
+    height: 34px;
+    spacing: Theme.space-1;
+
+    TextButton {
+        label: root.data.name;
+        fixed-width: 172px;
+        selected: root.data.selected;
+        pressed => {
+            root.picked();
+        }
+    }
+
+    // Only a sound of the listener's own can be renamed or thrown away. The
+    // nine that shipped are the same on every machine, so their corner stays
+    // empty rather than offering something that would be refused — and every
+    // row keeps the same width either way, because a straight edge is what
+    // says the two kinds are one list.
+    Rectangle {
+        width: 32px;
+        height: 34px;
+
+        Rectangle {
+            y: 1px;
+            width: 32px;
+            height: 32px;
+            border-radius: Theme.radius;
+            background: dots.has-hover ? Theme.bg-3 : transparent;
+            opacity: root.data.editable ? 1.0 : 0.0;
+            animate background { duration: 120ms; }
+
+            Image {
+                source: @image-url("../../../../resources/ui/icons/dots-vertical.svg");
+                width: 18px;
+                height: self.width;
+                x: round((parent.width - self.width) / 1px / 2) * 1px;
+                y: round((parent.height - self.height) / 1px / 2) * 1px;
+                colorize: dots.has-hover ? Theme.ink-0 : Theme.ink-mute;
+                animate colorize { duration: 120ms; }
+            }
+        }
+
+        dots := TouchArea {
+            enabled: root.data.editable;
+            mouse-cursor: pointer;
+            clicked => {
+                menu.show();
+            }
+        }
+
+        // Opens to the left: this is the right edge of the page.
+        menu := RowMenu {
+            x: 32px - self.width;
+            y: 32px;
+            items: [
+                { action: "rename", label: "Rename…" },
+                { action: "delete", label: "Delete this sound", destructive: true },
+            ];
+            chosen(action) => {
+                root.acted(action);
+            }
+        }
+    }
+}
+
 // The equaliser: what the sound is set to, and what it can be set from.
 export component EqualiserView inherits Rectangle {
     in property <bool> advanced;
@@ -450,6 +528,9 @@ export component EqualiserView inherits Rectangle {
     callback pick-preset(string);
     /// Somebody asked what all this does.
     callback explain();
+    /// A saved sound, and what to do to it. The name travels with the
+    /// identifier because the question that follows has to show it.
+    callback act-on-preset(string, string, string);
     callback save-preset();
     callback reset-eq();
 
@@ -691,21 +772,21 @@ export component EqualiserView inherits Rectangle {
                     color: Theme.ink-mute;
                 }
 
-                for preset[index] in root.presets: HorizontalLayout {
-                    vertical-stretch: 0;
+                // Scrolled, because this column grows: nine sounds shipped and
+                // the tenth is the listener's. Without it the page reached past
+                // the bottom of the window the first time one was saved.
+                ListView {
+                    vertical-stretch: 1;
 
-                    TextButton {
-                        label: preset.name;
-                        fixed-width: 208px;
-                        selected: preset.selected;
-                        pressed => {
+                    for preset[index] in root.presets: PresetRow {
+                        data: preset;
+                        picked => {
                             root.pick-preset(preset.id);
                         }
+                        acted(action) => {
+                            root.act-on-preset(preset.id, preset.name, action);
+                        }
                     }
-                }
-
-                Rectangle {
-                    vertical-stretch: 1;
                 }
 
                 HorizontalLayout {

@@ -172,19 +172,20 @@ impl EqService {
     }
 
     /// Saves what is set now under a name of the listener's own.
+    ///
+    /// Both halves of it, whichever mode was on screen: a saved sound behaves
+    /// like a built-in one, moving the three controls in the simple mode and
+    /// the eight bands in the advanced.
     pub fn save_as(&self, name: &str) -> Result<EqPreset> {
         let profile_id = self.context.require_active_profile()?;
-        let name = name.trim();
-        if name.is_empty() {
-            return Err(CoreError::invalid("eq preset", "a preset needs a name"));
-        }
+        let name = self.usable_name(profile_id, name, None)?;
 
         let setting = self.current()?;
         let now = self.context.now();
         let preset = EqPreset {
             id: EqPresetId::new(),
             profile_id: Some(profile_id),
-            name: name.to_owned(),
+            name,
             is_builtin: false,
             mode: setting.mode,
             simple: setting.simple,
@@ -198,8 +199,78 @@ impl EqService {
         Ok(preset)
     }
 
+    /// Gives one of the listener's own presets another name.
+    pub fn rename(&self, id: EqPresetId, name: &str) -> Result<()> {
+        let profile_id = self.context.require_active_profile()?;
+        let mut preset = self.own_preset(profile_id, id)?;
+
+        preset.name = self.usable_name(profile_id, name, Some(id))?;
+        preset.updated_at = self.context.now();
+
+        self.ports.presets.save(&preset)?;
+        self.announce();
+        Ok(())
+    }
+
+    /// A name that is not empty and not already somebody else's.
+    ///
+    /// Checked here rather than left to the unique index, which can only fail —
+    /// and fails in the vocabulary of a database. Compared without regard for
+    /// case, because two sounds called "Late night" and "late night" are two
+    /// ways of losing track of one.
+    fn usable_name(
+        &self,
+        profile_id: ProfileId,
+        name: &str,
+        except: Option<EqPresetId>,
+    ) -> Result<String> {
+        let name = name.trim();
+        if name.is_empty() {
+            return Err(CoreError::invalid("eq preset", "a sound needs a name"));
+        }
+
+        let taken = self
+            .ports
+            .presets
+            .list_for_profile(profile_id)?
+            .into_iter()
+            .any(|other| Some(other.id) != except && other.name.eq_ignore_ascii_case(name));
+
+        if taken {
+            return Err(CoreError::invalid(
+                "eq preset",
+                format!(
+                    "there is already a sound called \"{name}\" —                      give this one another name, or rename that one from its ··· menu"
+                ),
+            ));
+        }
+
+        Ok(name.to_owned())
+    }
+
+    /// One of the listener's own presets, refusing the built-ins and everybody
+    /// else's.
+    fn own_preset(&self, profile_id: ProfileId, id: EqPresetId) -> Result<EqPreset> {
+        let preset = self
+            .ports
+            .presets
+            .get(id)?
+            .ok_or_else(|| CoreError::not_found("eq preset", id))?;
+
+        if preset.is_builtin || preset.profile_id != Some(profile_id) {
+            return Err(CoreError::invalid(
+                "eq preset",
+                "that sound is not one of yours to change",
+            ));
+        }
+        Ok(preset)
+    }
+
     /// Forgets one of the listener's own presets. What is playing is unchanged.
     pub fn delete(&self, id: EqPresetId) -> Result<()> {
+        let profile_id = self.context.require_active_profile()?;
+        self.own_preset(profile_id, id)?;
+
         self.ports.presets.delete(id)?;
         self.announce();
         Ok(())

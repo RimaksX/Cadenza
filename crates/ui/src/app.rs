@@ -219,6 +219,16 @@ fn wire(window: &AppWindow, controller: &Rc<Controller>) {
         move |name| controller.save_eq_preset(&name)
     });
 
+    window.on_rename_eq_preset({
+        let controller = Rc::clone(controller);
+        move |id, name| controller.rename_eq_preset(&id, &name)
+    });
+
+    window.on_delete_eq_preset({
+        let controller = Rc::clone(controller);
+        move |id| controller.delete_eq_preset(&id)
+    });
+
     window.on_reset_eq({
         let controller = Rc::clone(controller);
         move || controller.reset_eq()

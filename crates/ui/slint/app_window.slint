@@ -128,6 +128,8 @@ export component AppWindow inherits Window {
     callback widen-eq-band(int, float);
     callback pick-eq-preset(string);
     callback save-eq-preset(string);
+    callback rename-eq-preset(string, string);
+    callback delete-eq-preset(string);
     callback reset-eq();
 
     AppShell {
@@ -289,6 +291,12 @@ export component AppWindow inherits Window {
         }
         save-eq-preset(name) => {
             root.save-eq-preset(name);
+        }
+        rename-eq-preset(id, name) => {
+            root.rename-eq-preset(id, name);
+        }
+        delete-eq-preset(id) => {
+            root.delete-eq-preset(id);
         }
         reset-eq => {
             root.reset-eq();

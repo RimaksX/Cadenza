@@ -713,6 +713,24 @@ impl Controller {
         self.refresh_eq();
     }
 
+    /// Gives one of the listener's own sounds another name.
+    pub fn rename_eq_preset(&self, id: &str, name: &str) {
+        let Ok(id) = EqPresetId::parse(id) else {
+            return;
+        };
+        self.run(|| self.services.eq.rename(id, name));
+        self.refresh_eq();
+    }
+
+    /// Throws one away. What is playing is unchanged.
+    pub fn delete_eq_preset(&self, id: &str) {
+        let Ok(id) = EqPresetId::parse(id) else {
+            return;
+        };
+        self.run(|| self.services.eq.delete(id));
+        self.refresh_eq();
+    }
+
     /// Puts the equaliser back to doing nothing.
     pub fn reset_eq(&self) {
         self.run(|| self.services.eq.reset());

@@ -289,3 +289,78 @@ fn a_preset_belonging_to_somebody_else_is_not_found() {
         "and they see only what shipped"
     );
 }
+
+#[test]
+fn a_saved_sound_can_be_renamed_and_thrown_away() {
+    let harness = harness();
+    harness
+        .eq
+        .set_simple(SimpleEq {
+            bass: GainDb::new(6.0).expect("in range"),
+            ..SimpleEq::FLAT
+        })
+        .expect("set");
+
+    let mine = harness.eq.save_as("Late night").expect("saved");
+    harness
+        .eq
+        .rename(mine.id, "  Very late  ")
+        .expect("renamed");
+
+    let listed = harness.eq.list().expect("listed");
+    let renamed = listed
+        .iter()
+        .find(|preset| preset.id == mine.id)
+        .expect("still there");
+    assert_eq!(renamed.name, "Very late", "and the name is trimmed");
+    assert_eq!(
+        renamed.simple.bass.as_db(),
+        6.0,
+        "a rename changes the name and nothing else"
+    );
+
+    harness.eq.delete(mine.id).expect("deleted");
+    assert_eq!(harness.eq.list().expect("listed").len(), 9);
+}
+
+#[test]
+fn a_name_already_taken_is_refused_before_the_database_refuses_it() {
+    let harness = harness();
+    harness.eq.save_as("Late night").expect("saved");
+
+    let refused = harness.eq.save_as("late NIGHT").expect_err("taken");
+    assert!(
+        refused.to_string().contains("already a sound called"),
+        "the refusal has to say what is wrong: {refused}"
+    );
+
+    // A built-in's name is taken too, and by something nobody can rename.
+    assert!(harness.eq.save_as("Rock").is_err());
+
+    // Renaming something to what it is already called is not a clash with
+    // itself.
+    let mine = harness
+        .eq
+        .list()
+        .expect("listed")
+        .into_iter()
+        .find(|preset| preset.name == "Late night")
+        .expect("saved above");
+    assert!(harness.eq.rename(mine.id, "Late night").is_ok());
+}
+
+#[test]
+fn the_nine_that_shipped_cannot_be_renamed_or_thrown_away() {
+    let harness = harness();
+    let rock = harness
+        .eq
+        .list()
+        .expect("listed")
+        .into_iter()
+        .find(|preset| preset.name == "Rock")
+        .expect("Rock ships");
+
+    assert!(harness.eq.rename(rock.id, "Not Rock").is_err());
+    assert!(harness.eq.delete(rock.id).is_err());
+    assert_eq!(harness.eq.list().expect("listed").len(), 9);
+}
