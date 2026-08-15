@@ -781,8 +781,16 @@ export component EqualiserView inherits Rectangle {
                 // Scrolled, because this column grows: nine sounds shipped and
                 // the tenth is the listener's. Without it the page reached past
                 // the bottom of the window the first time one was saved.
-                ListView {
+                // The scroll bar is the one thing on this page drawn by the
+                // widget library rather than by us, and it shows: it is inset
+                // from the ends of its own track, so at the top of the list it
+                // sits below the first button and says there is something above
+                // it. There is not. It is turned off, and the hairline under
+                // the list says the same thing more quietly — it is there while
+                // there is more to see and gone when there is not.
+                list := ListView {
                     vertical-stretch: 1;
+                    vertical-scrollbar-policy: ScrollBarPolicy.always-off;
 
                     for preset[index] in root.presets: PresetRow {
                         data: preset;
@@ -793,6 +801,15 @@ export component EqualiserView inherits Rectangle {
                             root.act-on-preset(preset.id, preset.name, action);
                         }
                     }
+                }
+
+                Rectangle {
+                    height: 1px;
+                    width: 208px;
+                    background: list.viewport-height + list.viewport-y > list.visible-height
+                        ? Theme.line-soft
+                        : transparent;
+                    animate background { duration: 120ms; }
                 }
 
                 HorizontalLayout {
