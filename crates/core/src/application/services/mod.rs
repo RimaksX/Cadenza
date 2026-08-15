@@ -6,14 +6,17 @@
 //! X" belongs in a policy, where it can be tested without a database.
 //!
 //! Services arrive with the milestone that needs them: profiles in M3, the
-//! library in M4, playback in M5, queue and playlists in M7.
+//! library in M4, playback in M5, queue and playlists in M7, the
+//! equaliser in M9.
 
+pub mod eq_service;
 pub mod library_service;
 pub mod playback_service;
 pub mod playlist_service;
 pub mod profile_service;
 pub mod queue_service;
 
+pub use eq_service::{EqPorts, EqService};
 pub use library_service::{LibraryPorts, LibraryService, ScanReport};
 pub use playback_service::{PlaybackPorts, PlaybackService};
 pub use playlist_service::{PlaylistPorts, PlaylistService, PlaylistSummary};

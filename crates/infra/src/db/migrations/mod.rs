@@ -27,6 +27,7 @@ mod m0011_analysis;
 mod m0012_review;
 mod m0013_profile_genres;
 mod m0014_queue;
+mod m0015_builtin_eq_presets;
 
 /// One numbered schema change.
 pub struct Migration {
@@ -109,6 +110,11 @@ pub const MIGRATIONS: &[Migration] = &[
         version: 14,
         name: "queue",
         sql: m0014_queue::SQL,
+    },
+    Migration {
+        version: 15,
+        name: "builtin_eq_presets",
+        sql: m0015_builtin_eq_presets::SQL,
     },
 ];
 

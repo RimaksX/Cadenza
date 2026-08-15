@@ -1,0 +1,306 @@
+//! The equaliser: what it is set to, and the presets it can be set from.
+//!
+//! Two things live here that look like one. A **preset** is a named curve in a
+//! table; the **setting** is what the filters are actually doing. They part
+//! company the moment somebody picks a preset and nudges a control, which is
+//! most of the time — so the setting is stored in its own right rather than as
+//! a pointer at a preset that no longer describes it (PROJECT_MASTER 2.8,
+//! "сохранение состояния").
+
+use std::sync::{Arc, RwLock};
+
+use crate::application::context::AppContext;
+use crate::domain::eq::{EqBand, EqMode, EqPreset, EqSetting, SimpleEq};
+use crate::domain::ids::{EqPresetId, ProfileId};
+use crate::domain::policies::eq_policy::{ADVANCED_BAND_COUNT, default_advanced_bands};
+use crate::domain::ports::audio_engine::AudioEnginePort;
+use crate::domain::ports::event_bus::DomainEvent;
+use crate::domain::ports::repositories::EqPresetRepositoryPort;
+use crate::domain::settings::SettingValue;
+use crate::domain::value_objects::GainDb;
+use crate::{CoreError, Result};
+
+/// Where the mode is kept.
+const MODE_KEY: &str = "eq.mode";
+
+/// Where the three tone controls are kept.
+const SIMPLE_KEYS: [&str; 3] = ["eq.simple.bass", "eq.simple.mid", "eq.simple.treble"];
+
+/// Everything the equaliser talks to.
+pub struct EqPorts {
+    /// The presets table.
+    pub presets: Arc<dyn EqPresetRepositoryPort>,
+    /// The filters themselves.
+    pub engine: Arc<dyn AudioEnginePort>,
+}
+
+/// The equaliser's settings and presets.
+pub struct EqService {
+    context: Arc<AppContext>,
+    ports: EqPorts,
+    /// What is in force, and whose it is.
+    ///
+    /// Cached because the screen asks for it while it draws, and because a
+    /// parametric setting is twenty-eight rows to read. The profile travels
+    /// with it so a switch cannot be answered from the last listener's sound.
+    current: RwLock<Option<(ProfileId, EqSetting)>>,
+}
+
+impl EqService {
+    /// Wires the service to the shared context and its ports.
+    pub fn new(context: Arc<AppContext>, ports: EqPorts) -> Self {
+        Self {
+            context,
+            ports,
+            current: RwLock::new(None),
+        }
+    }
+
+    /// The built-in presets and the listener's own.
+    pub fn list(&self) -> Result<Vec<EqPreset>> {
+        let profile_id = self.context.require_active_profile()?;
+        self.ports.presets.list_for_profile(profile_id)
+    }
+
+    /// What the filters are set to.
+    ///
+    /// Reading it is also what applies it: the engine has no database, so the
+    /// first ask after a start is what puts the listener's sound back.
+    pub fn current(&self) -> Result<EqSetting> {
+        let profile_id = self.context.require_active_profile()?;
+
+        if let Some((cached_for, setting)) = self
+            .current
+            .read()
+            .unwrap_or_else(|err| err.into_inner())
+            .as_ref()
+            && *cached_for == profile_id
+        {
+            return Ok(setting.clone());
+        }
+
+        let setting = self.read_setting(profile_id)?;
+        self.ports.engine.set_eq(&setting)?;
+        *self.current.write().unwrap_or_else(|err| err.into_inner()) =
+            Some((profile_id, setting.clone()));
+        Ok(setting)
+    }
+
+    /// Sets everything at once, from a preset.
+    ///
+    /// A preset carries its own mode, so choosing one can change which set of
+    /// controls is on screen. That is the honest behaviour: a curve of eight
+    /// bells cannot be shown on three knobs, and pretending otherwise would
+    /// mean picking "Rock" and hearing something else.
+    pub fn apply_preset(&self, id: EqPresetId) -> Result<()> {
+        let preset = self
+            .ports
+            .presets
+            .get(id)?
+            .ok_or_else(|| CoreError::not_found("eq preset", id))?;
+
+        if let Some(owner) = preset.profile_id
+            && owner != self.context.require_active_profile()?
+        {
+            return Err(CoreError::not_found("eq preset", id));
+        }
+
+        self.write(EqSetting::from(&preset))
+    }
+
+    /// Switches between the three controls and the eight bells.
+    pub fn set_mode(&self, mode: EqMode) -> Result<()> {
+        let mut setting = self.current()?;
+        setting.mode = mode;
+        self.write(setting)
+    }
+
+    /// Moves the three tone controls.
+    pub fn set_simple(&self, simple: SimpleEq) -> Result<()> {
+        let mut setting = self.current()?;
+        setting.simple = simple;
+        setting.mode = EqMode::Simple;
+        self.write(setting)
+    }
+
+    /// Moves one bell: where it sits, how wide it is, how far it lifts.
+    pub fn set_band(&self, index: usize, band: EqBand) -> Result<()> {
+        let mut setting = self.current()?;
+        if index >= ADVANCED_BAND_COUNT {
+            return Err(CoreError::not_found("eq band", index));
+        }
+
+        if setting.advanced.len() != ADVANCED_BAND_COUNT {
+            setting.advanced = default_advanced_bands();
+        }
+        setting.advanced[index] = band;
+        setting.mode = EqMode::Advanced;
+        self.write(setting)
+    }
+
+    /// Puts everything back to doing nothing.
+    pub fn reset(&self) -> Result<()> {
+        self.write(EqSetting::flat())
+    }
+
+    /// Saves what is set now under a name of the listener's own.
+    pub fn save_as(&self, name: &str) -> Result<EqPreset> {
+        let profile_id = self.context.require_active_profile()?;
+        let name = name.trim();
+        if name.is_empty() {
+            return Err(CoreError::invalid("eq preset", "a preset needs a name"));
+        }
+
+        let setting = self.current()?;
+        let now = self.context.now();
+        let preset = EqPreset {
+            id: EqPresetId::new(),
+            profile_id: Some(profile_id),
+            name: name.to_owned(),
+            is_builtin: false,
+            mode: setting.mode,
+            simple: setting.simple,
+            advanced: setting.advanced,
+            created_at: now,
+            updated_at: now,
+        };
+
+        self.ports.presets.save(&preset)?;
+        self.announce();
+        Ok(preset)
+    }
+
+    /// Forgets one of the listener's own presets. What is playing is unchanged.
+    pub fn delete(&self, id: EqPresetId) -> Result<()> {
+        self.ports.presets.delete(id)?;
+        self.announce();
+        Ok(())
+    }
+
+    /// Applies a setting, stores it, and remembers it.
+    ///
+    /// In that order on purpose: the sound moves first because that is what was
+    /// asked for, and a database that will not write is not a reason to keep
+    /// playing what the listener has turned off.
+    fn write(&self, setting: EqSetting) -> Result<()> {
+        let profile_id = self.context.require_active_profile()?;
+
+        self.ports.engine.set_eq(&setting)?;
+        self.store(profile_id, &setting)?;
+        *self.current.write().unwrap_or_else(|err| err.into_inner()) = Some((profile_id, setting));
+
+        self.announce();
+        Ok(())
+    }
+
+    /// Reads the stored setting, falling back to flat where nothing was chosen.
+    fn read_setting(&self, profile_id: ProfileId) -> Result<EqSetting> {
+        let store = &self.context.settings;
+        let mut setting = EqSetting::flat();
+
+        if let Some(value) = store.profile_get(profile_id, MODE_KEY)? {
+            setting.mode = EqMode::parse(value.as_text()?)?;
+        }
+
+        let mut simple = [GainDb::ZERO; 3];
+        for (slot, key) in simple.iter_mut().zip(SIMPLE_KEYS) {
+            if let Some(value) = store.profile_get(profile_id, key)? {
+                *slot = GainDb::clamped(value.as_float()? as f32);
+            }
+        }
+        setting.simple = SimpleEq {
+            bass: simple[0],
+            mid: simple[1],
+            treble: simple[2],
+        };
+
+        for (index, band) in setting.advanced.iter_mut().enumerate() {
+            let stored = (
+                store.profile_get(profile_id, &band_key(index, "hz"))?,
+                store.profile_get(profile_id, &band_key(index, "q"))?,
+                store.profile_get(profile_id, &band_key(index, "db"))?,
+            );
+            let (Some(hz), Some(q), Some(db)) = stored else {
+                continue;
+            };
+
+            // A band that will not rebuild is one somebody edited by hand into
+            // something a filter cannot use. The default placement is a better
+            // answer than refusing to start.
+            let frequency_hz = u32::try_from(hz.as_integer()?).unwrap_or_default();
+            if let Ok(rebuilt) = EqBand::new(
+                frequency_hz,
+                q.as_float()? as f32,
+                GainDb::clamped(db.as_float()? as f32),
+            ) {
+                *band = rebuilt;
+            }
+        }
+
+        Ok(setting)
+    }
+
+    /// Writes the setting out as flat scalars.
+    ///
+    /// Twenty-eight keys rather than one blob: `SettingValue` has four scalar
+    /// shapes and deliberately no nesting, and this is the reason it does — a
+    /// stored blob cannot be constrained, and these numbers reach a realtime
+    /// filter.
+    fn store(&self, profile_id: ProfileId, setting: &EqSetting) -> Result<()> {
+        let store = &self.context.settings;
+        let now = self.context.now();
+
+        store.profile_set(
+            profile_id,
+            MODE_KEY,
+            &SettingValue::Text(setting.mode.as_str().to_owned()),
+            now,
+        )?;
+
+        let simple = [
+            setting.simple.bass,
+            setting.simple.mid,
+            setting.simple.treble,
+        ];
+        for (gain, key) in simple.iter().zip(SIMPLE_KEYS) {
+            store.profile_set(
+                profile_id,
+                key,
+                &SettingValue::Float(f64::from(gain.as_db())),
+                now,
+            )?;
+        }
+
+        for (index, band) in setting.advanced.iter().enumerate() {
+            store.profile_set(
+                profile_id,
+                &band_key(index, "hz"),
+                &SettingValue::Integer(i64::from(band.frequency_hz())),
+                now,
+            )?;
+            store.profile_set(
+                profile_id,
+                &band_key(index, "q"),
+                &SettingValue::Float(f64::from(band.q())),
+                now,
+            )?;
+            store.profile_set(
+                profile_id,
+                &band_key(index, "db"),
+                &SettingValue::Float(f64::from(band.gain().as_db())),
+                now,
+            )?;
+        }
+
+        Ok(())
+    }
+
+    fn announce(&self) {
+        self.context.events.publish(DomainEvent::EqChanged);
+    }
+}
+
+/// Where one number of one band is kept.
+fn band_key(index: usize, field: &str) -> String {
+    format!("eq.band{index}.{field}")
+}
