@@ -112,9 +112,14 @@ that anything happened.
   mistimed — this is what "sample-accurate" means here.
 - **Crossfade** overlaps them by the stored length, using equal-power gains
   (`cos`/`sin`, so `cos² + sin² = 1`). A linear fade dips 3 dB in the middle and
-  is heard as a hole. The fade is clamped to what is left of the outgoing track,
-  and a block is cut short so it begins on the exact frame rather than at
-  whatever buffer boundary falls inside it.
+  is heard as a hole. A block is cut short so the fade begins on the exact frame
+  rather than at whatever buffer boundary falls inside it.
+- **A fade takes at most half the outgoing track.** Four seconds is a gentle
+  overlap at the end of a song and most of an interlude; on a six-second track
+  the stored length would have put two thirds of it underneath its neighbour,
+  which is a mix rather than a transition. The length is worked out from the
+  track's whole duration, not from what is left of it, so that the same number
+  decides when the fade starts and how long it then runs.
 - **Which one** is `playback_policy::transition_for`, keyed on the origin of the
   track that is *playing*: radio and playlists are continuous material and stay
   gapless whatever the switch says (PROJECT_MASTER 2.4). A container that will
@@ -124,9 +129,17 @@ that anything happened.
 
 The callback owns the clock, so it also owns the moment of the handover:
 
-- The decoder publishes **where** the new track begins, as a frame index on the
-  same ruler both ends count on, before a single sample of it is queued.
-- The callback crosses that mark, rebases the position onto the new track, and
+- The decoder publishes **where** the new track begins and **when to say so**,
+  as frame indices on the same ruler both ends count on, before a single sample
+  of it is queued.
+- Those are not the same frame. A gapless join is one instant and both are it,
+  but a crossfade is seconds long, and through its first half the louder track
+  is still the one leaving. Naming the incoming track over audio that is mostly
+  the outgoing one reads as a bug; the handover is said at the **middle** of the
+  fade, where what is heard changes over.
+- The clock is still rebased to where the new track actually began, so the
+  position shown at that moment is a truthful two seconds in rather than zero.
+- The callback crosses the mark, rebases the position onto the new track, and
   bumps a counter.
 - `QueueService::poll` compares that counter with what it last saw and moves the
   queue's own bookkeeping on — **without touching the engine**. Loading the

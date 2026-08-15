@@ -106,13 +106,23 @@ pub(crate) struct Shared {
     frames_pushed: AtomicU64,
     /// Where the track now playing began.
     track_base: AtomicU64,
-    /// Where the next track begins, or [`u64::MAX`] while none is coming.
+    /// Where the next track's own clock starts.
     ///
-    /// Published by the decoder as it mixes the join, acted on by the callback
-    /// when output reaches it. That is what makes the handover sample-accurate:
-    /// nobody has to notice it in time, because the frame it happens on was
-    /// decided before the samples were queued.
+    /// Published by the decoder as it mixes the join. That is what makes the
+    /// handover sample-accurate: nobody has to notice it in time, because the
+    /// frame it happens on was decided before the samples were queued.
     boundary: AtomicU64,
+    /// Where the handover should be *said*, or [`u64::MAX`] while none is
+    /// coming.
+    ///
+    /// Not the same frame. A gapless join is one instant and both are it, but a
+    /// crossfade is four seconds long, and for the first half of it the track
+    /// still louder is the one leaving. Announcing at the start would name the
+    /// incoming track over audio that is mostly the outgoing one; the middle is
+    /// where what is heard changes over, so the middle is where the window is
+    /// told. The clock is still rebased to [`Self::boundary`], so the position
+    /// shown at that moment is the truthful two seconds in.
+    announce_at: AtomicU64,
     /// Length of the track waiting at [`Self::boundary`].
     boundary_duration_ms: AtomicU64,
     /// How many times output has crossed a boundary.
@@ -160,6 +170,7 @@ impl Shared {
             frames_pushed: AtomicU64::new(0),
             track_base: AtomicU64::new(0),
             boundary: AtomicU64::new(NO_BOUNDARY),
+            announce_at: AtomicU64::new(NO_BOUNDARY),
             boundary_duration_ms: AtomicU64::new(0),
             advances: AtomicU64::new(0),
             crossfade_ms: AtomicU64::new(DEFAULT_CROSSFADE.as_millis()),
@@ -203,18 +214,22 @@ impl Shared {
         self.frames_pushed.load(Ordering::Relaxed)
     }
 
-    /// Says where a new track starts and how long it runs.
+    /// Says where a new track starts, when to say so, and how long it runs.
     ///
     /// Called once per transition, before any of that track's samples are
     /// queued, so the callback sees the mark no later than the audio it marks.
-    fn mark_boundary(&self, frame: u64, duration: DurationMs) {
+    /// `announce_at` is stored last and released: it is the one the callback
+    /// tests, so everything it will read is already in place when it passes.
+    fn mark_boundary(&self, frame: u64, announce_at: u64, duration: DurationMs) {
+        self.boundary.store(frame, Ordering::Relaxed);
         self.boundary_duration_ms
             .store(duration.as_millis(), Ordering::Relaxed);
-        self.boundary.store(frame, Ordering::Release);
+        self.announce_at.store(announce_at, Ordering::Release);
     }
 
     /// Forgets a transition that was published but never reached.
     fn clear_boundary(&self) {
+        self.announce_at.store(NO_BOUNDARY, Ordering::Relaxed);
         self.boundary.store(NO_BOUNDARY, Ordering::Relaxed);
     }
 
@@ -346,18 +361,20 @@ pub(crate) fn fill_output(shared: &Shared, out: &mut [f32], gain: &mut f32) {
         .fetch_add(frames as u64, Ordering::Relaxed)
         + frames as u64;
 
-    // Output has reached the join the decoder queued. The audio needed nothing
-    // from this — it was mixed into the samples that just played — but the
-    // clock does: from here the position belongs to the new track, and the
-    // application is told the queue moved on without being asked.
-    let boundary = shared.boundary.load(Ordering::Acquire);
-    if boundary != NO_BOUNDARY && played >= boundary {
-        shared.track_base.store(boundary, Ordering::Relaxed);
+    // Output has reached the point where the join should be said out loud. The
+    // audio needed nothing from this — it was mixed into the samples that just
+    // played — but the clock does: from here the position belongs to the new
+    // track, counted from where that track actually began.
+    let announce_at = shared.announce_at.load(Ordering::Acquire);
+    if announce_at != NO_BOUNDARY && played >= announce_at {
+        shared
+            .track_base
+            .store(shared.boundary.load(Ordering::Relaxed), Ordering::Relaxed);
         shared.duration_ms.store(
             shared.boundary_duration_ms.load(Ordering::Relaxed),
             Ordering::Relaxed,
         );
-        shared.boundary.store(NO_BOUNDARY, Ordering::Relaxed);
+        shared.announce_at.store(NO_BOUNDARY, Ordering::Relaxed);
         shared.advances.fetch_add(1, Ordering::Relaxed);
     }
 }
@@ -802,10 +819,19 @@ impl Producer {
             return None;
         }
 
-        let wanted =
-            self.shared.crossfade_ms.load(Ordering::Relaxed) * u64::from(self.shared.rate) / 1_000;
         let remaining = current.total.saturating_sub(current.frames);
-        Some(remaining.saturating_sub(wanted))
+        Some(remaining.saturating_sub(self.fade_wanted(current.total)))
+    }
+
+    /// How long a fade over the outgoing track would run.
+    ///
+    /// Asked of the whole track rather than of what is left of it, so that the
+    /// number does not move as the track plays: the same one decides when the
+    /// fade starts and how long it then lasts.
+    fn fade_wanted(&self, total: u64) -> u64 {
+        let stored =
+            self.shared.crossfade_ms.load(Ordering::Relaxed) * u64::from(self.shared.rate) / 1_000;
+        fade_length(stored, total)
     }
 
     /// Starts the crossfade once the outgoing track has only its length left.
@@ -816,17 +842,19 @@ impl Producer {
 
         let current = self.current.as_ref().expect("checked above");
         let remaining = current.total.saturating_sub(current.frames);
-        let wanted =
-            self.shared.crossfade_ms.load(Ordering::Relaxed) * u64::from(self.shared.rate) / 1_000;
 
-        self.fade_frames = fade_length(wanted, remaining);
+        // The `min` is for a track armed later than it should have been: there
+        // is no fading four seconds of a track with one second left.
+        self.fade_frames = self.fade_wanted(current.total).min(remaining).max(1);
         self.fade_done = 0;
 
         // The new track is heard from here, so this is where its clock starts —
-        // not where the old one finally stops.
+        // not where the old one finally stops. It is announced half a fade
+        // later, at the point where it becomes the louder of the two.
+        let head = self.shared.write_head();
         let duration = self.next.as_ref().expect("armed above").info().duration;
         self.shared
-            .mark_boundary(self.shared.write_head(), duration);
+            .mark_boundary(head, head + self.fade_frames / 2, duration);
     }
 
     /// Mixes both lanes for one block of the crossfade.
@@ -901,8 +929,8 @@ impl Producer {
         if mark {
             // Published before a single sample of the new track is queued: the
             // callback must never meet audio it has no mark for.
-            self.shared
-                .mark_boundary(self.shared.write_head(), next.info().duration);
+            let head = self.shared.write_head();
+            self.shared.mark_boundary(head, head, next.info().duration);
         }
 
         self.current = Some(next);
@@ -1316,7 +1344,7 @@ mod tests {
     }
 
     #[test]
-    fn a_crossfade_never_outlasts_the_track_it_is_fading() {
+    fn a_crossfade_takes_at_most_half_the_track_it_is_leaving() {
         let directory = TempDir::new("stream-short-crossfade");
         let first = write_wav(directory.path(), "first.wav", 1, 12_000);
         let second = write_wav(directory.path(), "second.wav", 1, 24_000);
@@ -1332,9 +1360,15 @@ mod tests {
 
         let heard = decode_stream(&mut producer, &shared);
 
-        // The fade takes the whole of the first track and no more: what plays
-        // is one second of the two together and then the rest of the second.
-        assert_eq!(heard.len(), 44_100 * 2);
+        // Half a second of fade, not four: a track this short would otherwise
+        // spend all of itself underneath the next one. Two seconds of material
+        // overlapping by half of one, in stereo.
+        assert_eq!(heard.len(), (44_100 * 2 - 22_050) * 2);
+        assert_eq!(
+            shared.boundary.load(Ordering::Relaxed),
+            22_050,
+            "the fade begins halfway through the first track"
+        );
         assert!(
             (heard[0] - 12_000.0 / 32_768.0).abs() < 0.01,
             "it still begins at the outgoing level"
@@ -1405,8 +1439,9 @@ mod tests {
         ready(&shared);
         shared.ring.push(&[1.0; 400]);
         // The decoder queued 100 frames of the old track and then the new one,
-        // which runs for two seconds.
-        shared.mark_boundary(100, DurationMs::from_secs(2));
+        // which runs for two seconds. A gapless join, so it is said at the
+        // moment it happens.
+        shared.mark_boundary(100, 100, DurationMs::from_secs(2));
 
         let mut gain = 1.0;
         fill_output(&shared, &mut [0.0; 160], &mut gain);
@@ -1432,6 +1467,38 @@ mod tests {
             shared.advances.load(Ordering::Relaxed),
             1,
             "the queue is told once"
+        );
+    }
+
+    #[test]
+    fn a_fade_is_announced_in_its_middle_and_still_reads_the_truth() {
+        let shared = shared();
+        ready(&shared);
+        shared.ring.push(&[1.0; 400]);
+
+        // A fade beginning at frame 20 and running 100 frames: the new track's
+        // clock starts at 20, and the handover is said at 70.
+        shared.mark_boundary(20, 70, DurationMs::from_secs(2));
+
+        let mut gain = 1.0;
+        fill_output(&shared, &mut [0.0; 120], &mut gain);
+        assert_eq!(
+            shared.advances.load(Ordering::Relaxed),
+            0,
+            "sixty frames in, the track leaving is still the louder one"
+        );
+
+        fill_output(&shared, &mut [0.0; 40], &mut gain);
+        assert_eq!(
+            shared.advances.load(Ordering::Relaxed),
+            1,
+            "past the middle, the window is told"
+        );
+        assert_eq!(
+            shared.position(),
+            PlaybackPosition::from_millis(60),
+            "and it reads eighty frames of output minus the twenty before the \
+             new track began — half a fade in, which is the truth"
         );
     }
 

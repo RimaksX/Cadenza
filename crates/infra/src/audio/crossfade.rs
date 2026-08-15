@@ -25,14 +25,22 @@ pub(crate) fn equal_power(t: f32) -> (f32, f32) {
     (angle.cos(), angle.sin())
 }
 
-/// How long the fade should actually be, in frames.
+/// How long the fade over a track of `total` frames should be.
 ///
-/// Never longer than what is left of the outgoing track: a fade that outlasts
-/// the track it is fading would run out of material, finish in silence and then
-/// jump. Never zero either — a fade of no length is a cut, and the caller has
-/// already decided that a fade is what happens here.
-pub(crate) fn fade_length(wanted: u64, remaining: u64) -> u64 {
-    wanted.min(remaining).max(1)
+/// Never more than half of it. Four seconds is a gentle overlap at the end of a
+/// song and most of an interlude: on a six-second track the stored length would
+/// have put two thirds of it underneath its neighbour, which is not a
+/// transition but a mix. Half is the point where the fade is still a fade.
+///
+/// Never zero either — a fade of no length is a cut, and by the time this is
+/// asked the caller has already decided a fade is what happens here.
+///
+/// It depends on the track's whole length rather than on what is left of it, so
+/// that the answer does not change as the track plays: the same number decides
+/// when the fade starts and how long it then runs, and those two disagreeing
+/// would either cut the outgoing track short or leave it running into silence.
+pub(crate) fn fade_length(wanted: u64, total: u64) -> u64 {
+    wanted.min(total / 2).max(1)
 }
 
 #[cfg(test)]
@@ -67,9 +75,20 @@ mod tests {
     }
 
     #[test]
-    fn a_fade_is_never_longer_than_what_is_left_to_fade() {
-        assert_eq!(fade_length(176_400, 88_200), 88_200);
-        assert_eq!(fade_length(88_200, 176_400), 88_200);
-        assert_eq!(fade_length(88_200, 0), 1, "a fade of no length is a cut");
+    fn a_fade_takes_at_most_half_the_track_it_is_leaving() {
+        let four_seconds = 44_100 * 4;
+
+        // A song: the stored length, untouched.
+        assert_eq!(fade_length(four_seconds, 44_100 * 200), four_seconds);
+
+        // A six-second interlude: three, not four. Four would have left two
+        // thirds of it playing underneath the next track.
+        assert_eq!(fade_length(four_seconds, 44_100 * 6), 44_100 * 3);
+
+        assert_eq!(
+            fade_length(four_seconds, 0),
+            1,
+            "a fade of no length is a cut"
+        );
     }
 }

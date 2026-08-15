@@ -127,7 +127,7 @@ pub enum PlaylistCommand {
 
 /// What to print when asked, and when the arguments make no sense.
 pub const USAGE: &str = "\
-cadenza — local music player (milestone M5: basic audio engine)
+cadenza — local music player, entirely offline
 
 USAGE:
     cadenza                          open the window
