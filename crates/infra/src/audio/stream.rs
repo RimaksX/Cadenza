@@ -13,18 +13,20 @@
 //! locking, no IO, no database, no UI.
 
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU8, AtomicU32, AtomicU64, Ordering};
 use std::sync::mpsc::{Receiver, Sender, TryRecvError};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
 
+use cadenza_core::domain::eq::EqMode;
 use cadenza_core::domain::playback::TransitionProfile;
 use cadenza_core::domain::settings::DEFAULT_CROSSFADE;
 use cadenza_core::domain::value_objects::{DurationMs, PlaybackPosition, Volume};
 use cadenza_core::{CoreError, Result};
 
 use super::crossfade::{equal_power, fade_length};
+use super::eq::{EqChain, MAX_BANDS};
 use super::resampler::Resampling;
 use super::ring_buffer::SampleRing;
 use super::symphonia_decoder::{StreamInfo, TrackStream};
@@ -132,6 +134,16 @@ pub(crate) struct Shared {
     pub(crate) advances: AtomicU64,
     /// Crossfade length in milliseconds, as last set through the port.
     pub(crate) crossfade_ms: AtomicU64,
+    /// Which set of controls the equaliser is using, as an [`EqMode`] index.
+    eq_mode: AtomicU8,
+    /// Each band's gain in decibels, as the bits of an `f32`.
+    ///
+    /// A fixed array rather than a lock: the callback reads these, and a lock
+    /// on the realtime path is the one thing section 8.2 has no exception for.
+    /// Simple mode uses the first three.
+    eq_gains: [AtomicU32; MAX_BANDS],
+    /// Bumped whenever the gains change, so the callback knows to look.
+    pub(crate) eq_seq: AtomicU64,
     /// Length of the loaded track in milliseconds.
     pub(crate) duration_ms: AtomicU64,
     /// Set by the decoder when no more samples are coming.
@@ -174,6 +186,9 @@ impl Shared {
             boundary_duration_ms: AtomicU64::new(0),
             advances: AtomicU64::new(0),
             crossfade_ms: AtomicU64::new(DEFAULT_CROSSFADE.as_millis()),
+            eq_mode: AtomicU8::new(0),
+            eq_gains: [const { AtomicU32::new(0) }; MAX_BANDS],
+            eq_seq: AtomicU64::new(0),
             duration_ms: AtomicU64::new(0),
             ended: AtomicBool::new(false),
             loaded: AtomicBool::new(false),
@@ -184,6 +199,43 @@ impl Shared {
             underruns: AtomicU64::new(0),
             failure: Mutex::new(None),
         }
+    }
+
+    /// Publishes an equaliser setting for the callback to walk towards.
+    ///
+    /// The gains go out first and the sequence number last, released: the
+    /// callback tests the sequence, so by the time it sees a new one every
+    /// value behind it is already in place.
+    pub(crate) fn set_eq(&self, mode: EqMode, gains: &[f32]) {
+        self.eq_mode.store(
+            match mode {
+                EqMode::Simple => 0,
+                EqMode::Advanced => 1,
+            },
+            Ordering::Relaxed,
+        );
+        for (slot, gain) in self
+            .eq_gains
+            .iter()
+            .zip(gains.iter().chain(std::iter::repeat(&0.0)))
+        {
+            slot.store(gain.to_bits(), Ordering::Relaxed);
+        }
+        self.eq_seq.fetch_add(1, Ordering::Release);
+    }
+
+    /// Which set of controls is published.
+    pub(crate) fn eq_mode(&self) -> EqMode {
+        if self.eq_mode.load(Ordering::Relaxed) == 0 {
+            EqMode::Simple
+        } else {
+            EqMode::Advanced
+        }
+    }
+
+    /// One band's published gain, in decibels.
+    pub(crate) fn eq_gain(&self, band: usize) -> f32 {
+        f32::from_bits(self.eq_gains[band].load(Ordering::Relaxed))
     }
 
     /// Sets the output level.
@@ -300,7 +352,7 @@ fn amplitude(volume: Volume) -> f32 {
 /// Everything it does is in section 8.2's allowed list: atomic reads, a
 /// lock-free ring, and multiplication. `gain` is the callback's own state, kept
 /// across calls so that a ramp survives the buffer boundary.
-pub(crate) fn fill_output(shared: &Shared, out: &mut [f32], gain: &mut f32) {
+pub(crate) fn fill_output(shared: &Shared, out: &mut [f32], gain: &mut f32, eq: &mut EqChain) {
     // A flush was asked for: discard the queue, adopt the new position, and come
     // back from silence so the discontinuity cannot be heard.
     let seq = shared.flush_seq.load(Ordering::Acquire);
@@ -342,6 +394,11 @@ pub(crate) fn fill_output(shared: &Shared, out: &mut [f32], gain: &mut f32) {
     if taken < out.len() && !shared.ended.load(Ordering::Relaxed) {
         shared.underruns.fetch_add(1, Ordering::Relaxed);
     }
+
+    // Section 8.1 puts the equaliser before the stream's own volume, and so
+    // does this: the listener's gain is the last thing applied, so a boosted
+    // band is turned down by the slider like everything else.
+    eq.process(shared, out);
 
     let step = 1.0 / (RAMP_SECONDS * shared.rate as f32);
     for frame in out.chunks_mut(usize::from(shared.channels)) {
@@ -999,7 +1056,18 @@ mod tests {
     use cadenza_testkit::TempDir;
     use cadenza_testkit::audio_fixtures::write_wav;
 
-    use super::{Producer, Shared, amplitude, fill_output, map_channels};
+    use super::{Producer, Shared, amplitude, map_channels};
+    use crate::audio::eq::EqChain;
+
+    /// The callback, with an equaliser that is flat and so skips itself.
+    ///
+    /// A wrapper because the chain is the callback's own state, like its gain:
+    /// what these tests are about is the ring and the clock, and a flat chain
+    /// returns before it touches a sample.
+    fn fill_output(shared: &Shared, out: &mut [f32], gain: &mut f32) {
+        let mut eq = EqChain::new(shared.rate, shared.channels);
+        super::fill_output(shared, out, gain, &mut eq);
+    }
 
     /// A stereo engine at a rate low enough that a five-millisecond ramp is a
     /// handful of frames, so the tests can assert on it inside one buffer.

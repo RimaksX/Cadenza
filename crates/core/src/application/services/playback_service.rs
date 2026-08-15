@@ -396,6 +396,13 @@ mod tests {
         ) -> Result<()> {
             Ok(())
         }
+        fn set_eq(
+            &self,
+            _mode: crate::domain::eq::EqMode,
+            _gains: &[crate::domain::value_objects::GainDb],
+        ) -> Result<()> {
+            Ok(())
+        }
         fn position(&self) -> PlaybackPosition {
             *self.position.lock().expect("not poisoned")
         }

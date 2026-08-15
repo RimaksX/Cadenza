@@ -4,16 +4,20 @@
 //! now is the spine of it:
 //!
 //! ```text
-//! TrackStream -> channel map -> Resampling -> mixer -> SampleRing -> gain -> device
+//! TrackStream -> channel map -> Resampling -> mixer -> SampleRing -> EQ -> gain -> device
 //! ```
 //!
 //! Two `TrackStream`s run at once through a transition, which is what the mixer
-//! is there for. The EQ chain arrives in M9 and the visualiser tap in M10. Each of them inserts into this chain rather than replacing it,
+//! is there for. The equaliser is downstream of the ring rather than upstream:
+//! it is the only side where a slider is heard at once. The visualiser tap
+//! arrives in M10. Each of them inserts into this chain rather than replacing it,
 //! which is why the ring sits where it does: everything before it is free to
 //! allocate and block, and everything after it is not (PROJECT_MASTER 8.2).
 
+mod biquad;
 mod crossfade;
 pub mod engine;
+mod eq;
 pub mod resampler;
 pub mod ring_buffer;
 mod stream;

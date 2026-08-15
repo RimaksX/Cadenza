@@ -7,14 +7,16 @@ use std::sync::{Arc, Mutex, PoisonError};
 use std::thread::{self, JoinHandle};
 use std::time::Duration;
 
+use cadenza_core::domain::eq::EqMode;
 use cadenza_core::domain::playback::{PlaybackState, TransitionProfile};
 use cadenza_core::domain::ports::audio_engine::AudioEnginePort;
 use cadenza_core::domain::settings::CrossfadeDuration;
-use cadenza_core::domain::value_objects::{DurationMs, PlaybackPosition, Volume};
+use cadenza_core::domain::value_objects::{DurationMs, GainDb, PlaybackPosition, Volume};
 use cadenza_core::{CoreError, Result};
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use cpal::{SampleFormat, StreamConfig};
 
+use super::eq::EqChain;
 use super::stream::{Command, Shared, decode_loop, fill_output};
 
 /// How long the caller waits for the output device to open.
@@ -197,6 +199,15 @@ impl AudioEnginePort for CpalAudioEngine {
         Ok(())
     }
 
+    fn set_eq(&self, mode: EqMode, gains: &[GainDb]) -> Result<()> {
+        // A small allocation on a control call, which is the side of the ring
+        // where allocating is allowed. What crosses to the callback is the
+        // fixed array of atomics inside `Shared`.
+        let decibels: Vec<f32> = gains.iter().map(|gain| gain.as_db()).collect();
+        self.shared.set_eq(mode, &decibels);
+        Ok(())
+    }
+
     fn position(&self) -> PlaybackPosition {
         self.shared.position()
     }
@@ -308,11 +319,14 @@ fn start_output() -> Result<(Arc<Shared>, cpal::Stream, String)> {
     let error_shared = Arc::clone(&shared);
     // The callback's own gain, so a ramp continues across buffer boundaries.
     let mut gain = 0.0_f32;
+    // And its own filters. Their memory belongs to the stream of samples, not
+    // to the application, so it is never shared and never locked.
+    let mut eq = EqChain::new(shared.rate, shared.channels);
 
     let stream = device
         .build_output_stream(
             config,
-            move |out: &mut [f32], _| fill_output(&callback_shared, out, &mut gain),
+            move |out: &mut [f32], _| fill_output(&callback_shared, out, &mut gain, &mut eq),
             move |err| {
                 // Called when the device itself fails. Nothing here can fix it;
                 // recording why lets the interface say something truthful.

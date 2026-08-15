@@ -479,3 +479,11 @@ is not a machine with a failing test.
 Not built: a settings screen for any of this (M11), and gapless MP3 beyond what
 Symphonia does with the encoder's own delay and padding — which is what
 PROJECT_MASTER 2.4 asks for, "по возможности".
+
+**What the settings screen owes this milestone.** The owner listened to the
+finished transitions and asked for one thing by name: the crossfade must be
+switchable from the window, not only from the command line. The setting and its
+length are already stored per profile — `playback.crossfade_enabled` and
+`playback.crossfade_ms`, read through `PlaybackService::settings` — so M11 owes
+a switch and a length control over values that already exist, and a way for a
+running window to pick up the change without being restarted.
