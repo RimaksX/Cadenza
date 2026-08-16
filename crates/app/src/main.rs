@@ -42,7 +42,7 @@ use cadenza_infra::db::repositories::{
 use cadenza_infra::events::InProcessEventBus;
 use cadenza_infra::library::{LocalFileSystem, NotifyFileWatcher};
 use cadenza_infra::metadata::{FileArtworkCache, LoftyMetadataReader};
-use cadenza_infra::system::{AppPaths, SystemClock};
+use cadenza_infra::system::{AppPaths, SystemClock, SystemFolderPicker};
 
 use cli::{Command, PlaylistCommand};
 
@@ -90,7 +90,7 @@ fn run() -> std::result::Result<(), String> {
         Arc::new(SqliteProfileRepository::new(pool.clone())),
         Arc::new(SqliteSettingsRepository::new(pool.clone())),
     ));
-    let profiles = ProfileService::new(Arc::clone(&context));
+    let profiles = Arc::new(ProfileService::new(Arc::clone(&context)));
 
     let library = Arc::new(LibraryService::new(
         Arc::clone(&context),
@@ -106,6 +106,7 @@ fn run() -> std::result::Result<(), String> {
             albums: Arc::new(SqliteAlbumRepository::new(pool.clone())),
             genres: Arc::new(SqliteGenreRepository::new(pool.clone())),
             reviews: Arc::new(SqliteImportReviewRepository::new(pool.clone())),
+            picker: Arc::new(SystemFolderPicker),
         },
     ));
 
@@ -162,6 +163,7 @@ fn run() -> std::result::Result<(), String> {
         ));
 
         return cadenza_ui::run(cadenza_ui::UiServices {
+            profiles: Arc::clone(&profiles),
             library: Arc::clone(&library),
             eq,
             playback,

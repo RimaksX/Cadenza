@@ -8,6 +8,7 @@ import { QueueView } from "../views/QueueView.slint";
 import { PlaylistsView, PlaylistCardData } from "../views/PlaylistsView.slint";
 import { PlaylistDetailView } from "../views/PlaylistDetailView.slint";
 import { EqualiserView, EqPresetData, EqBandData } from "../views/EqualiserView.slint";
+import { SettingsView, FolderRowData } from "../views/SettingsView.slint";
 import { Dialog, PickDialog } from "Dialog.slint";
 import { MenuItemData } from "RowMenu.slint";
 
@@ -36,6 +37,13 @@ export component AppShell inherits Rectangle {
     /// The playlists as a menu of destinations, for "add to playlist".
     in property <[MenuItemData]> playlist-options;
 
+    in property <bool> dark;
+    in property <bool> crossfade-on;
+    in property <int> crossfade-seconds;
+    in property <bool> history-on;
+    in property <[FolderRowData]> folders;
+    in property <string> suggested-folder;
+    in property <string> settings-summary;
     in property <bool> eq-advanced;
     in property <float> eq-bass;
     in property <float> eq-mid;
@@ -117,6 +125,13 @@ export component AppShell inherits Rectangle {
     callback tune-eq-band(int, int);
     callback select-eq-band(int);
     callback settle-eq();
+    callback set-theme(bool);
+    callback set-crossfade(bool, int);
+    callback set-history(bool);
+    callback add-folder();
+    callback use-suggested-folder();
+    callback remove-folder(string);
+    callback scan-now();
     callback widen-eq-band(int, float);
     callback pick-eq-preset(string);
     callback save-eq-preset(string);
@@ -224,6 +239,38 @@ export component AppShell inherits Rectangle {
                 }
                 act(id, name, action) => {
                     root.ask(action == "rename" ? "rename-playlist" : "delete-playlist", id, name);
+                }
+            }
+
+            if root.section == "settings": SettingsView {
+                dark: root.dark;
+                crossfade-on: root.crossfade-on;
+                crossfade-seconds: root.crossfade-seconds;
+                history-on: root.history-on;
+                folders: root.folders;
+                suggested: root.suggested-folder;
+                summary: root.settings-summary;
+
+                set-theme(dark) => {
+                    root.set-theme(dark);
+                }
+                set-crossfade(on, seconds) => {
+                    root.set-crossfade(on, seconds);
+                }
+                set-history(on) => {
+                    root.set-history(on);
+                }
+                add-folder => {
+                    root.add-folder();
+                }
+                use-suggested => {
+                    root.use-suggested-folder();
+                }
+                remove-folder(id) => {
+                    root.remove-folder(id);
+                }
+                scan-now => {
+                    root.scan-now();
                 }
             }
 

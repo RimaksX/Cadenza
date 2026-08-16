@@ -36,4 +36,10 @@ pub trait FileSystemPort: Send + Sync {
     /// Reads the whole file, so it is a background job rather than something the
     /// scanner does inline (PROJECT_MASTER 2.11).
     fn hash_file(&self, path: &Path) -> Result<String>;
+
+    /// Creates a directory and every parent it needs.
+    ///
+    /// Creating one that is already there is not an error: the caller wants it
+    /// to exist, not to have been the one who made it.
+    fn create_dir_all(&self, path: &Path) -> Result<()>;
 }

@@ -4,7 +4,7 @@
 //! problem — while the mechanisms (walking directories, reading tags, hashing)
 //! sit behind ports in the infrastructure layer.
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use crate::application::context::AppContext;
@@ -20,6 +20,7 @@ use crate::domain::ports::artwork_cache::ArtworkCachePort;
 use crate::domain::ports::event_bus::DomainEvent;
 use crate::domain::ports::file_system::FileSystemPort;
 use crate::domain::ports::file_watcher::FileChange;
+use crate::domain::ports::folder_picker::FolderPickerPort;
 use crate::domain::ports::metadata_reader::{FileMetadata, MetadataReaderPort, TrackTags};
 use crate::domain::ports::repositories::{
     AlbumRepositoryPort, ArtistRepositoryPort, GenreRepositoryPort, ImportReviewRepositoryPort,
@@ -55,6 +56,8 @@ pub struct LibraryPorts {
     pub genres: Arc<dyn GenreRepositoryPort>,
     /// The import review queue.
     pub reviews: Arc<dyn ImportReviewRepositoryPort>,
+    /// The system's folder chooser, and its opinion about where music lives.
+    pub picker: Arc<dyn FolderPickerPort>,
 }
 
 /// What one scan did.
@@ -126,6 +129,50 @@ impl LibraryService {
         };
         self.context.settings.save_folder(&folder)?;
         Ok(folder)
+    }
+
+    /// Asks the listener for a folder, adds it and scans it.
+    ///
+    /// One act rather than three. Somebody choosing a folder is saying "here is
+    /// my music"; making them find a separate scan afterwards is asking them to
+    /// say it twice.
+    ///
+    /// `None` means they closed the chooser, which is an answer.
+    pub fn choose_folder(&self) -> Result<Option<ScanReport>> {
+        let Some(path) = self
+            .ports
+            .picker
+            .pick_folder("Choose a folder with your music")?
+        else {
+            return Ok(None);
+        };
+
+        let folder = self.add_folder(&path, true)?;
+        self.scan_folder(&folder).map(Some)
+    }
+
+    /// Where this machine keeps music, with a room of ours inside it.
+    ///
+    /// A suggestion and nothing more: nothing is created until
+    /// [`Self::use_suggested_folder`] is called.
+    pub fn suggested_folder(&self) -> Option<PathBuf> {
+        self.ports.picker.suggested_music_folder()
+    }
+
+    /// Creates the suggested folder and starts watching it.
+    ///
+    /// The answer for somebody with no library and nowhere to point at. It
+    /// writes to their filesystem, which is why it happens on a press rather
+    /// than on a first run: a player that makes folders while nobody is looking
+    /// is a player that has to be forgiven for it later.
+    pub fn use_suggested_folder(&self) -> Result<ScanReport> {
+        let path = self.suggested_folder().ok_or_else(|| {
+            CoreError::invalid("library folder", "this machine has no music folder")
+        })?;
+
+        self.ports.files.create_dir_all(&path)?;
+        let folder = self.add_folder(&path, true)?;
+        self.scan_folder(&folder)
     }
 
     /// Stops scanning a folder. Files already imported stay in the library.

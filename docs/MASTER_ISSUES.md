@@ -663,3 +663,50 @@ What is lost, stated plainly: a graphic equaliser is legible at a glance and a
 parametric one is not. Nobody has to meet it — the presets are one click on the
 same screen — but the listener who opens the advanced mode now needs to know
 what Q means.
+
+## 42. Nothing in the plan builds a settings screen
+
+PROJECT_MASTER asks for per-profile theme (2.10, 7.1), crossfade with a length
+(2.4), history with a retention window (2.6) and library folders (2.1) — and
+none of the sixteen milestones builds anywhere to change them. M15 is the
+closest and is about integrating a design, not adding a screen. Every one of
+these settings has therefore lived on the command line since the milestone
+that introduced it, which is a player that has to be operated from a terminal.
+
+**Chosen:** the settings screen is built as an interlude before M11, the way
+the input layer was built between M7 and M8, and this is recorded rather than
+folded into a milestone that did not ask for it.
+
+It holds the four things the specification already stores: the theme, the
+crossfade and its length, whether history is kept, and where the music is.
+
+## 43. Choosing a folder needs a dialog, and a dialog needs a dependency
+
+The library has taken folders since M4 and had no way to be given one except
+`cadenza add-folder <path>`. The owner asked for that to be solved properly and
+offered an alternative: an application folder created at install time, with the
+listener putting music into it.
+
+**Chosen: both, and in that order of importance.**
+
+- **The chooser is the way in.** Cadenza's premise is that the music is already
+  the listener's and already somewhere — a second drive, a network share.
+  Making our folder the only one it can be in means asking them to move a
+  library to satisfy a player, which is the player serving itself.
+- **The suggestion answers the empty case.** Somebody with nothing should not
+  have to invent a place. The screen offers the system's own music folder with
+  a room of ours inside it — `…/Music/Cadenza` — and **creates it on a press,
+  never on a first run**. Writing into somebody's filesystem while nobody is
+  looking is a thing that has to be forgiven afterwards.
+
+The dependency is `rfd`, and it is worth being precise about why: reaching
+`IFileDialog` directly is COM, and COM is `unsafe`, which every crate here
+forbids. `rfd` is a thin safe wrapper over that one call, taken with default
+features off — the defaults are a Linux portal and an async runtime, and
+Windows is the whole target (1.2).
+
+What it does not do: parent itself to our window. The window lives in
+`cadenza-ui`, which cannot see `cadenza-infra` and must not. The dialog still
+opens in front, because the process asking is the foreground one; what it loses
+is being *owned* by the window, which shows only if somebody clicks behind it.
+A handle can be threaded through the port the day that matters.

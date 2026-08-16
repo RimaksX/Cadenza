@@ -60,6 +60,12 @@ impl FileSystemPort for LocalFileSystem {
     fn hash_file(&self, path: &Path) -> Result<String> {
         hash::hash_file(path)
     }
+
+    fn create_dir_all(&self, path: &Path) -> Result<()> {
+        std::fs::create_dir_all(path).map_err(|err| {
+            CoreError::FileSystem(format!("could not create {}: {err}", path.display()))
+        })
+    }
 }
 
 /// Reads the modification time, falling back to the epoch.

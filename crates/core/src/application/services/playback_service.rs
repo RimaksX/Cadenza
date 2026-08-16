@@ -16,6 +16,7 @@ use crate::domain::ports::event_bus::DomainEvent;
 use crate::domain::ports::repositories::{MediaFileRepositoryPort, TrackRepositoryPort};
 use crate::domain::settings::{
     CROSSFADE_ENABLED_KEY, CROSSFADE_MS_KEY, CrossfadeDuration, PRELOAD_NEXT_KEY, PlaybackSettings,
+    SettingValue,
 };
 use crate::domain::track::TrackSummary;
 use crate::domain::value_objects::{DurationMs, PlaybackPosition, Volume};
@@ -148,6 +149,37 @@ impl PlaybackService {
         *self.settings.write().unwrap_or_else(|err| err.into_inner()) =
             Some((profile_id, settings));
         Ok(settings)
+    }
+
+    /// Turns crossfading on or off and says how long it should take.
+    ///
+    /// Both at once, because they are one decision: a length nobody has turned
+    /// on changes nothing, and turning it on without a length is a question
+    /// about what the length is.
+    pub fn set_crossfade(&self, enabled: bool, duration: CrossfadeDuration) -> Result<()> {
+        let profile_id = self.context.require_active_profile()?;
+        let now = self.context.now();
+        let millis = i64::try_from(duration.as_duration().as_millis())
+            .map_err(|_| CoreError::invalid("crossfade", "the length does not fit a number"))?;
+
+        self.context.settings.profile_set(
+            profile_id,
+            CROSSFADE_ENABLED_KEY,
+            &SettingValue::Bool(enabled),
+            now,
+        )?;
+        self.context.settings.profile_set(
+            profile_id,
+            CROSSFADE_MS_KEY,
+            &SettingValue::Integer(millis),
+            now,
+        )?;
+
+        self.ports.engine.set_crossfade(duration)?;
+        // The cache answered from the old value a moment ago and would go on
+        // doing it: what the queue arms next has to be the new rule.
+        *self.settings.write().unwrap_or_else(|err| err.into_inner()) = None;
+        Ok(())
     }
 
     fn read_settings(&self, profile_id: ProfileId) -> Result<PlaybackSettings> {

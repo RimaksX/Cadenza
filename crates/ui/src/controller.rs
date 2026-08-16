@@ -13,13 +13,14 @@ use cadenza_core::domain::playback::PlaybackState;
 use cadenza_core::domain::policies::eq_policy::{MAX_BAND_HZ, MAX_BAND_Q, MIN_BAND_HZ, MIN_BAND_Q};
 use cadenza_core::domain::profile::Profile;
 use cadenza_core::domain::queue::RepeatMode;
+use cadenza_core::domain::settings::CrossfadeDuration;
 use cadenza_core::domain::value_objects::theme_mode::ThemeMode;
-use cadenza_core::domain::value_objects::{GainDb, PlaybackPosition, Volume};
+use cadenza_core::domain::value_objects::{DurationMs, GainDb, PlaybackPosition, Volume};
 use cadenza_core::{CoreError, Result};
 use slint::{ComponentHandle, Model, ModelRc, VecModel, Weak};
 
 use crate::view_models::{self, eq_vm, library_vm, player_vm, playlist_vm};
-use crate::{AppWindow, EqBandData, Theme, UiServices};
+use crate::{AppWindow, EqBandData, FolderRowData, Theme, UiServices};
 
 /// How many bars the player bar draws.
 ///
@@ -117,6 +118,7 @@ impl Controller {
         self.refresh_queue();
         self.refresh_playlists();
         self.refresh_eq();
+        self.refresh_settings();
         self.refresh_player();
 
         if let Some(window) = self.window.upgrade() {
@@ -765,6 +767,156 @@ impl Controller {
     pub fn reset_eq(&self) {
         self.run(|| self.services.eq.reset());
         self.refresh_eq();
+    }
+
+    /// Everything the settings screen draws.
+    pub fn refresh_settings(&self) {
+        let Some(window) = self.window.upgrade() else {
+            return;
+        };
+
+        if let Some(profile) = self.profile.borrow().as_ref() {
+            window.set_dark(profile.theme == ThemeMode::Dark);
+            window.set_history_on(profile.history_enabled);
+        }
+
+        if let Ok(settings) = self.services.playback.settings() {
+            window.set_crossfade_on(settings.crossfade_enabled);
+            window.set_crossfade_seconds(
+                (settings.crossfade.as_duration().as_millis() / 1_000) as i32,
+            );
+        }
+
+        window.set_suggested_folder(
+            self.services
+                .library
+                .suggested_folder()
+                .map(|path| path.display().to_string())
+                .unwrap_or_default()
+                .into(),
+        );
+
+        let Ok(folders) = self.services.library.folders() else {
+            return;
+        };
+        let rows: Vec<FolderRowData> = folders
+            .iter()
+            .map(|folder| FolderRowData {
+                id: folder.id.to_string().into(),
+                path: folder.path.display().to_string().into(),
+                note: if folder.include_subfolders {
+                    "WITH SUBFOLDERS".into()
+                } else {
+                    "THIS FOLDER ONLY".into()
+                },
+            })
+            .collect();
+        window.set_folders(ModelRc::new(VecModel::from(rows)));
+
+        let tracks = self
+            .services
+            .library
+            .tracks()
+            .map(|all| all.len())
+            .unwrap_or(0);
+        window.set_settings_summary(
+            format!(
+                "{} {} · {tracks} {}",
+                folders.len(),
+                if folders.len() == 1 {
+                    "folder"
+                } else {
+                    "folders"
+                },
+                if tracks == 1 { "track" } else { "tracks" }
+            )
+            .into(),
+        );
+    }
+
+    /// Which way round the ink and the paper go.
+    pub fn set_theme(&self, dark: bool) {
+        let Some(profile) = self.profile.borrow().clone() else {
+            return;
+        };
+        let mode = if dark {
+            ThemeMode::Dark
+        } else {
+            ThemeMode::Light
+        };
+
+        self.run(|| {
+            let updated = self.services.profiles.set_theme(profile.id, mode)?;
+            *self.profile.borrow_mut() = Some(updated);
+            Ok(())
+        });
+
+        if let Some(window) = self.window.upgrade() {
+            window.global::<Theme>().set_dark(dark);
+        }
+        self.refresh_settings();
+    }
+
+    /// Whether ordinary tracks fade into each other, and over how long.
+    pub fn set_crossfade(&self, enabled: bool, seconds: i32) {
+        self.run(|| {
+            let duration = CrossfadeDuration::new(DurationMs::from_secs(seconds.max(0) as u64))?;
+            self.services.playback.set_crossfade(enabled, duration)
+        });
+        self.refresh_settings();
+    }
+
+    /// Whether what was played is written down.
+    pub fn set_history(&self, keep: bool) {
+        let Some(profile) = self.profile.borrow().clone() else {
+            return;
+        };
+        self.run(|| {
+            let updated = self
+                .services
+                .profiles
+                .set_history_enabled(profile.id, keep)?;
+            *self.profile.borrow_mut() = Some(updated);
+            Ok(())
+        });
+        self.refresh_settings();
+    }
+
+    /// Asks for a folder and takes in what is in it.
+    pub fn add_folder(&self) {
+        self.run(|| self.services.library.choose_folder().map(|_| ()));
+        self.after_library_change();
+    }
+
+    /// Makes the folder this machine suggests and watches it.
+    pub fn use_suggested_folder(&self) {
+        self.run(|| self.services.library.use_suggested_folder().map(|_| ()));
+        self.after_library_change();
+    }
+
+    /// Stops watching one. What was imported from it stays.
+    pub fn remove_folder(&self, id: &str) {
+        self.run(|| {
+            let folders = self.services.library.folders()?;
+            let folder = folders
+                .iter()
+                .find(|folder| folder.id.to_string() == id)
+                .ok_or_else(|| CoreError::not_found("library folder", id))?;
+            self.services.library.remove_folder(folder)
+        });
+        self.after_library_change();
+    }
+
+    /// Looks again at every folder.
+    pub fn scan_now(&self) {
+        self.run(|| self.services.library.scan_all().map(|_| ()));
+        self.after_library_change();
+    }
+
+    /// The library moved, so everything that lists it has to look again.
+    fn after_library_change(&self) {
+        self.refresh_library();
+        self.refresh_settings();
     }
 
     /// Reads what is being heard and hands it to the player bar.

@@ -218,7 +218,7 @@ export component Sidebar inherits Rectangle {
             // kept, it is something done to it — and a rule with a word on it
             // is how this sidebar says so.
             NavLabel {
-                text: "SOUND";
+                text: "SETUP";
                 height: 42px;
             }
             NavItem {
@@ -227,6 +227,14 @@ export component Sidebar inherits Rectangle {
                 selected: root.section == "equaliser";
                 chosen => {
                     root.select("equaliser");
+                }
+            }
+            NavItem {
+                label: "Settings";
+                glyph: @image-url("../../../../resources/ui/icons/settings.svg");
+                selected: root.section == "settings";
+                chosen => {
+                    root.select("settings");
                 }
             }
         }

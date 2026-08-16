@@ -250,14 +250,45 @@ fn wire(window: &AppWindow, controller: &Rc<Controller>) {
         move |id| controller.delete_eq_preset(&id)
     });
 
+    window.on_set_theme({
+        let controller = Rc::clone(controller);
+        move |dark| controller.set_theme(dark)
+    });
+
+    window.on_set_crossfade({
+        let controller = Rc::clone(controller);
+        move |on, seconds| controller.set_crossfade(on, seconds)
+    });
+
+    window.on_set_history({
+        let controller = Rc::clone(controller);
+        move |keep| controller.set_history(keep)
+    });
+
+    window.on_add_folder({
+        let controller = Rc::clone(controller);
+        move || controller.add_folder()
+    });
+
+    window.on_use_suggested_folder({
+        let controller = Rc::clone(controller);
+        move || controller.use_suggested_folder()
+    });
+
+    window.on_remove_folder({
+        let controller = Rc::clone(controller);
+        move |id| controller.remove_folder(&id)
+    });
+
+    window.on_scan_now({
+        let controller = Rc::clone(controller);
+        move || controller.scan_now()
+    });
+
     window.on_reset_eq({
         let controller = Rc::clone(controller);
         move || controller.reset_eq()
     });
-
-    // No theme callback: the palette is read from the profile at startup and
-    // changed from the settings screen, which does not exist yet. Until then
-    // `cadenza theme <dark|light>` is the way.
 }
 
 /// The three buttons and the drag, which the system frame used to provide.

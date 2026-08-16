@@ -58,7 +58,19 @@ fn harness(tag: &str) -> Harness {
         .create("Sasha")
         .expect("a profile");
 
+    /// A chooser nobody opens: these tests hand the service paths directly.
+    struct NoPicker;
+    impl cadenza_core::domain::ports::folder_picker::FolderPickerPort for NoPicker {
+        fn pick_folder(&self, _title: &str) -> cadenza_core::Result<Option<std::path::PathBuf>> {
+            Ok(None)
+        }
+        fn suggested_music_folder(&self) -> Option<std::path::PathBuf> {
+            None
+        }
+    }
+
     let ports = LibraryPorts {
+        picker: Arc::new(NoPicker),
         files: Arc::new(LocalFileSystem),
         metadata: Arc::new(LoftyMetadataReader),
         artwork: Arc::new(FileArtworkCache::new(cache).expect("an artwork cache")),

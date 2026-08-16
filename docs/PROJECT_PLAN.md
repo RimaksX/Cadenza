@@ -554,3 +554,30 @@ Not done: pausing when the **window** is minimised rather than when playback
 stops. Section 2.9 asks for both; the second is wired and the first needs a
 visibility signal Slint does not obviously offer. A minimised window with music
 playing still pays the 0.68%.
+
+## Between M10 and M11 — the settings screen
+
+Not a milestone: nothing in the plan builds one, and everything in the
+specification assumes there is somewhere to change these things
+(`MASTER_ISSUES` 42). Built as an interlude, the way the input layer was
+between M7 and M8.
+
+Four sections, all of them over values the specification already stores:
+
+- **Appearance** — the theme, applied to the running window rather than at the
+  next start.
+- **Crossfade** — on or off, and three, four or five seconds, which is the whole
+  range 2.4 allows. This is the switch the owner asked for after hearing the
+  transitions in M8.
+- **History** — whether what was played is written down.
+- **Where your music is** — the folders, with the system's own chooser behind
+  ADD FOLDER…, and MAKE ME ONE for somebody with nowhere to point at
+  (`MASTER_ISSUES` 43).
+
+Choosing a folder adds it *and* scans it: somebody pointing at a folder is
+saying "here is my music", and making them find a separate scan afterwards is
+asking them to say it twice.
+
+Not verified by me: that the chooser opens and returns a path. It is a modal
+system dialog — a render captures a still frame and cannot click a button in
+one. The screen either side of it was rendered and read.

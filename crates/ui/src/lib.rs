@@ -19,6 +19,7 @@
 use std::sync::Arc;
 
 use cadenza_core::Result;
+use cadenza_core::application::ProfileService;
 use cadenza_core::application::services::{
     EqService, LibraryService, PlaybackService, PlaylistService, QueueService,
 };
@@ -50,6 +51,9 @@ pub struct UiServices {
     pub playlists: Arc<PlaylistService>,
     /// The filters, their presets, and what the listener has them set to.
     pub eq: Arc<EqService>,
+    /// Profiles, for the settings screen: the theme and the history switch
+    /// belong to the listener rather than to the application.
+    pub profiles: Arc<ProfileService>,
     /// Who is listening, if anyone is yet.
     ///
     /// The profile itself rather than the service that manages profiles: the
