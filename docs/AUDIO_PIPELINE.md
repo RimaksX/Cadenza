@@ -198,13 +198,36 @@ Everything else runs on the thread that asks:
 Nothing is read while nothing is playing, and the tap is turned off with it —
 so the cost when the music stops is zero rather than small.
 
-What one reading costs is measured rather than claimed:
+### What it costs
+
+Measured on a Ryzen 7 3700X, release build, as a share of **one** core:
+
+| | |
+|---|---|
+| Decoding, equaliser and output, visualiser off | 0.3% |
+| With the visualiser, as first written | 15.1% |
+| With it, after the trimming below | 5.7% |
+
+The surprise is where the cost is not. The transform is a tenth of a per cent;
+the engine is a third of one. Everything else is the **window repainting** —
+touching the model is what asks for a frame, and a frame is the expensive
+thing. Three changes, in order of what they saved:
+
+- **No animation on the bars.** An animated property makes Slint redraw at the
+  display's rate whether or not anything new has arrived. The readings are
+  twenty a second and that is the animation. (15.1% → 8.1%)
+- **Twenty readings a second rather than thirty.** The cap in 2.9 is thirty;
+  nothing requires it, and a row of bars still moves like sound at twenty.
+- **Only write a bar that moved a whole pixel.** The square gives a bar
+  forty-six pixels, so anything finer is a difference the window would round
+  away — and every write is a repaint. (→ 5.7%)
+
+A reading's own cost can be measured on its own:
 
 ```text
 cargo test -p cadenza-infra --lib what_a_reading_costs -- --ignored --nocapture
 ```
 
-On this machine, in an unoptimised build, 228 µs a reading — 0.68% of one core
-at thirty a second. A release build is the one that ships and is faster than
-that; the number to distrust is any that comes without saying which build it
-came from.
+Any number here without the build it came from is worth nothing: the same
+binary in a debug build costs 112% of one core, which is seven per cent of a
+sixteen-thread machine and is what a listener will report if they run one.

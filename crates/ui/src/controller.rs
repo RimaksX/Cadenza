@@ -27,6 +27,12 @@ use crate::{AppWindow, EqBandData, Theme, UiServices};
 /// is what the square in the player bar has room to separate.
 const SPECTRUM_BARS: usize = 8;
 
+/// How many heights a bar can take.
+///
+/// The square gives it forty-six pixels, so anything finer is a difference the
+/// window would round away anyway — and every write is a repaint.
+const BAR_STEPS: f32 = 46.0;
+
 /// What to do when there is no profile to be a library for.
 const NO_PROFILE_HINT: &str =
     "no profile yet — run:  cadenza create <your name>\nthen restart Cadenza";
@@ -82,6 +88,8 @@ pub struct Controller {
     selected_band: Cell<usize>,
     /// Whether the tap is on, so it is only switched when it changes.
     visualising: Cell<bool>,
+    /// The heights the window is already showing, to the pixel.
+    shown_bars: RefCell<[f32; SPECTRUM_BARS]>,
 }
 
 impl Controller {
@@ -98,6 +106,7 @@ impl Controller {
             spectrum: Rc::new(VecModel::from(vec![0.0; SPECTRUM_BARS])),
             selected_band: Cell::new(0),
             visualising: Cell::new(false),
+            shown_bars: RefCell::new([0.0; SPECTRUM_BARS]),
         }
     }
 
@@ -783,8 +792,20 @@ impl Controller {
             return;
         }
 
+        // Rounded to the pixel it will be drawn at, and written only where that
+        // pixel moved. Touching the model is what makes the window repaint, and
+        // a repaint is the whole cost of this: the engine and the transform
+        // together are a third of a per cent of one core, and drawing thirty
+        // frames a second is twenty-six times that. A bar that has not visibly
+        // changed is a frame nobody needs.
+        let mut shown = self.shown_bars.borrow_mut();
         for (index, height) in bars.into_iter().enumerate() {
-            self.spectrum.set_row_data(index, height);
+            let stepped = (height * BAR_STEPS).round() / BAR_STEPS;
+            if (stepped - shown[index]).abs() < f32::EPSILON {
+                continue;
+            }
+            shown[index] = stepped;
+            self.spectrum.set_row_data(index, stepped);
         }
     }
 

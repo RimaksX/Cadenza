@@ -548,7 +548,7 @@ Built:
 | | |
 |---|---|
 | визуализация работает | a tone through the reader lights the bar it belongs to and leaves the far ones down; silence brings every bar to rest |
-| CPU не растёт заметно | measured, not claimed: `what_a_reading_costs` prints the per-reading time. 228 µs in a debug build here, 0.68% of a core at thirty a second — and nothing at all while the music is stopped |
+| CPU не растёт заметно | measured, not claimed, and then trimmed: 0.3% of one core with the visualiser off, 15.1% with it as first written, 5.7% after. The cost was never the transform — it was the window repainting. See `docs/AUDIO_PIPELINE.md` |
 
 Not done: pausing when the **window** is minimised rather than when playback
 stops. Section 2.9 asks for both; the second is wired and the first needs a

@@ -18,10 +18,15 @@ const TICK: Duration = Duration::from_millis(250);
 
 /// How often the spectrum is read.
 ///
-/// Thirty a second, which is the ceiling PROJECT_MASTER 2.9 sets. Nothing is
-/// read while nothing is playing, and while nothing is read nothing is copied
-/// out of the audio callback either.
-const FRAME: Duration = Duration::from_millis(33);
+/// Twenty a second, under the ceiling of thirty PROJECT_MASTER 2.9 sets. The
+/// cap is not the cost: reading the spectrum is a tenth of a per cent of one
+/// core, and *drawing* it is eight per cent, because every change repaints the
+/// window. Twenty is where a row of bars still moves like sound and the price
+/// is a third off.
+///
+/// Nothing is read while nothing is playing, and while nothing is read nothing
+/// is copied out of the audio callback either.
+const FRAME: Duration = Duration::from_millis(50);
 
 /// Opens the window and blocks until it closes.
 pub fn run(services: UiServices) -> Result<()> {
