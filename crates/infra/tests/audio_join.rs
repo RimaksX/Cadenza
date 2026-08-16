@@ -116,3 +116,29 @@ fn the_tap_keeps_giving_the_visualiser_something_new() {
         &readings[..3.min(readings.len())]
     );
 }
+
+#[test]
+#[ignore = "needs a real output device"]
+fn a_track_with_nothing_behind_it_reports_that_it_stopped() {
+    let directory = TempDir::new("engine-end");
+    let only = write_wav(directory.path(), "only.wav", 1, 12_000);
+
+    let engine = CpalAudioEngine::new().expect("an output device");
+    engine.set_volume(quietly()).expect("quiet");
+    engine.load(&only).expect("loaded");
+    engine.play().expect("playing");
+
+    // One second of audio, and no second track. What the queue watches for is
+    // this exact state: stopped, with a track still loaded.
+    let deadline = Instant::now() + Duration::from_secs(6);
+    while Instant::now() < deadline && engine.state() != PlaybackState::Stopped {
+        thread::sleep(Duration::from_millis(50));
+    }
+
+    assert_eq!(
+        engine.state(),
+        PlaybackState::Stopped,
+        "a track that ran out with nothing behind it never said so"
+    );
+    assert_eq!(engine.advances(), 0, "and nothing was handed over to");
+}

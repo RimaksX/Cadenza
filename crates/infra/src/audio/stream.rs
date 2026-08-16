@@ -716,13 +716,22 @@ impl Producer {
     /// A finished track counts as idle even though its file is still open: it is
     /// held so that the listener can seek back into it. A finished track with
     /// something armed behind it does not — the join is still to be made.
+    ///
+    /// Drained is not finished. The decoder stops several ring-lengths before
+    /// the listener does, and the track is only over once [`Self::produce`] has
+    /// said so by setting `ended`. Going to sleep in between leaves that flag
+    /// unset for good — the loop blocks on the next command, `produce` is never
+    /// reached again, and the engine reports a track that is playing in silence
+    /// for ever (MASTER_ISSUES 46).
     fn is_idle(&self) -> bool {
         if self.out_taken < self.out.len() || self.next.is_some() {
             return false;
         }
-        self.current
-            .as_ref()
-            .is_none_or(|lane| lane.drained && lane.ready().is_empty())
+
+        let Some(lane) = self.current.as_ref() else {
+            return true;
+        };
+        lane.drained && lane.ready().is_empty() && self.shared.ended.load(Ordering::Relaxed)
     }
 
     fn handle(&mut self, command: Command) {

@@ -788,3 +788,36 @@ The service now remembers what it armed and re-arms whenever what follows is no
 longer that. The cost is a second decode setup on a queue edit, and one place
 where it is imperfect: an edit made *during* a fade cannot recall audio already
 mixed into the ring.
+
+## 46. A track that ran out went on playing silence for ever
+
+The end of the last track left the player showing it as playing, at a standstill
+and in silence. Nothing advanced, nothing stopped, and pressing play did nothing
+useful.
+
+The queue was innocent. It watches for the one state only an ended track
+produces — stopped, with a track still loaded — and that state never arrived,
+because the decode thread went to sleep before it could be reported.
+`Producer::is_idle` counted a *drained* lane as idle: the decoder stops several
+ring-lengths before the listener does, so the moment the file was read to its
+end the loop blocked on the next command. `produce` was never reached again,
+and it is `produce` that calls `finish` and sets `ended`. The flag stayed false
+for ever, so `state()` kept answering `Playing`.
+
+It only ever showed with nothing armed behind the track: an armed lane makes
+`is_idle` false, which is why every join, every crossfade and the whole of M8
+worked. Before the queue stopped filling itself (`MASTER_ISSUES` 45) the bottom
+of the queue was the bottom of a whole rotated library and hardly ever reached.
+Afterwards it is two tracks away, and the owner met it immediately.
+
+**Chosen:** idle now means drained *and* ended. The loop naps its three
+milliseconds a few more times, `produce` sets the flag, the ring plays out, and
+`state()` reports stopped once it is empty — after which the thread blocks as
+before and costs nothing.
+
+Verified against a real device: `a_track_with_nothing_behind_it_reports_that_it_stopped`
+in `tests/audio_join.rs` failed with `Playing` before the change and passes
+after it.
+
+The rule in one line: *a decoder that has finished is not a track that has
+finished, and only the second one is worth telling anybody about.*
