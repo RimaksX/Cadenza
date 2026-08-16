@@ -9,6 +9,7 @@ use std::rc::Rc;
 
 use cadenza_core::domain::eq::{EqBand, EqMode};
 use cadenza_core::domain::ids::{EqPresetId, MediaFileId, PlaylistId};
+use cadenza_core::domain::playback::PlaybackState;
 use cadenza_core::domain::policies::eq_policy::{MAX_BAND_HZ, MAX_BAND_Q, MIN_BAND_HZ, MIN_BAND_Q};
 use cadenza_core::domain::profile::Profile;
 use cadenza_core::domain::queue::RepeatMode;
@@ -19,6 +20,12 @@ use slint::{ComponentHandle, Model, ModelRc, VecModel, Weak};
 
 use crate::view_models::{self, eq_vm, library_vm, player_vm, playlist_vm};
 use crate::{AppWindow, EqBandData, Theme, UiServices};
+
+/// How many bars the player bar draws.
+///
+/// The engine folds the spectrum into exactly as many as it is asked for; this
+/// is what the square in the player bar has room to separate.
+const SPECTRUM_BARS: usize = 8;
 
 /// What to do when there is no profile to be a library for.
 const NO_PROFILE_HINT: &str =
@@ -62,11 +69,19 @@ pub struct Controller {
     /// why a fader could only ever be clicked: the first movement threw away
     /// the target that was following it.
     eq_bands: Rc<VecModel<EqBandData>>,
+    /// What is being heard, as the player bar draws it.
+    ///
+    /// Kept alive for the same reason the equaliser's bands are: handing the
+    /// window a new model thirty times a second would rebuild eight elements
+    /// thirty times a second.
+    spectrum: Rc<VecModel<f32>>,
     /// Which bell the equaliser's numbers are about.
     ///
     /// Interface state and nothing else: which band is being looked at changes
     /// nothing about the sound, so nothing outside the window needs telling.
     selected_band: Cell<usize>,
+    /// Whether the tap is on, so it is only switched when it changes.
+    visualising: Cell<bool>,
 }
 
 impl Controller {
@@ -80,7 +95,9 @@ impl Controller {
             query: RefCell::new(String::new()),
             open_playlist: RefCell::new(None),
             eq_bands: Rc::new(VecModel::default()),
+            spectrum: Rc::new(VecModel::from(vec![0.0; SPECTRUM_BARS])),
             selected_band: Cell::new(0),
+            visualising: Cell::new(false),
         }
     }
 
@@ -92,6 +109,10 @@ impl Controller {
         self.refresh_playlists();
         self.refresh_eq();
         self.refresh_player();
+
+        if let Some(window) = self.window.upgrade() {
+            window.set_spectrum(ModelRc::from(Rc::clone(&self.spectrum)));
+        }
     }
 
     /// Who is listening, and in which theme.
@@ -735,6 +756,36 @@ impl Controller {
     pub fn reset_eq(&self) {
         self.run(|| self.services.eq.reset());
         self.refresh_eq();
+    }
+
+    /// Reads what is being heard and hands it to the player bar.
+    ///
+    /// Called on its own timer rather than the transport's: section 2.9 caps
+    /// this at thirty a second, and the transport is happy at four. Nothing is
+    /// read while nothing is playing — and nothing is copied out of the audio
+    /// callback either, because the tap is turned off with it.
+    pub fn refresh_spectrum(&self) {
+        let Some(window) = self.window.upgrade() else {
+            return;
+        };
+
+        let playing = self.services.playback.view().state == PlaybackState::Playing;
+        if playing != self.visualising.get() {
+            self.visualising.set(playing);
+            self.services.playback.set_visualising(playing);
+            if !playing {
+                window.set_spectrum(ModelRc::from(Rc::clone(&self.spectrum)));
+            }
+        }
+
+        let mut bars = [0.0_f32; SPECTRUM_BARS];
+        if !self.services.playback.spectrum(&mut bars) {
+            return;
+        }
+
+        for (index, height) in bars.into_iter().enumerate() {
+            self.spectrum.set_row_data(index, height);
+        }
     }
 
     /// Silences output, or restores it.

@@ -167,6 +167,8 @@ export component PlayerBar inherits Rectangle {
     in property <bool> loaded;
     in property <bool> muted;
     in property <float> volume;
+    /// What is being heard, from zero to one, low to high.
+    in property <[float]> spectrum;
     in property <bool> shuffle;
     in property <bool> repeating;
     in property <bool> repeat-one;
@@ -206,12 +208,16 @@ export component PlayerBar inherits Rectangle {
             VerticalLayout {
                 alignment: center;
 
+                // The square where a cover goes when a listener can choose one.
+                // Until then it holds a letter — and, while there is sound, what
+                // that sound is made of.
                 Rectangle {
                     width: 56px;
                     height: 56px;
                     background: Theme.bg-2;
                     border-width: 1px;
                     border-color: Theme.line-soft;
+                    clip: true;
 
                     Text {
                         text: root.initial;
@@ -222,6 +228,23 @@ export component PlayerBar inherits Rectangle {
                         color: Theme.ink-1;
                         horizontal-alignment: center;
                         vertical-alignment: center;
+                        opacity: root.playing ? 0.0 : 1.0;
+                        animate opacity { duration: 300ms; }
+                    }
+
+                    // Eight bars standing on the floor of the square, in the
+                    // same ink and at the same widths as the equaliser's own —
+                    // the two are the same idea seen from opposite ends, one
+                    // asking for a sound and one showing it.
+                    for level[index] in root.spectrum: Rectangle {
+                        x: 4px + index * 6px;
+                        y: parent.height - self.height - 4px;
+                        width: 4px;
+                        height: max(2px, 46px * level);
+                        background: Theme.ink-2;
+                        opacity: root.playing ? 1.0 : 0.0;
+                        animate opacity { duration: 300ms; }
+                        animate height { duration: 60ms; easing: ease-out; }
                     }
                 }
             }

@@ -149,6 +149,10 @@ impl AudioEnginePort for FakeEngine {
     fn set_eq(&self, _setting: &EqSetting) -> Result<()> {
         Ok(())
     }
+    fn set_visualising(&self, _on: bool) {}
+    fn spectrum(&self, _bars: &mut [f32]) -> bool {
+        false
+    }
     fn position(&self) -> PlaybackPosition {
         *self.position.lock().expect("not poisoned")
     }

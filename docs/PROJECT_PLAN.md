@@ -15,7 +15,7 @@ section `11_План_реализации`. This file tracks progress only.
 | M7 | Плейлисты, очередь, repeat/shuffle | done |
 | M8 | Crossfade и gapless | done |
 | M9 | Эквалайзер | done |
-| M10 | Визуализация | not started |
+| M10 | Визуализация | done |
 | M11 | DSP-анализ | not started |
 | M12 | Smart shuffle | not started |
 | M13 | Smart Radio | not started |
@@ -528,3 +528,29 @@ the volume and position sliders in M6.
 Deliberately not built: a command-line way in. The screen arrived in this
 milestone instead — the owner asked for it — so the equaliser is reached by
 clicking Equaliser, and there is nothing a `cadenza eq` verb would add.
+
+## M10 — Визуализация
+
+Eight bars in the square where a cover will go, in the same ink and at the same
+widths as the equaliser's own faders — the two are one idea seen from opposite
+ends, one asking for a sound and one showing it. While something plays they
+stand in for the letter; when it stops they fall and the letter comes back.
+
+Built:
+
+- `infra/audio/visualizer.rs`: the window, the transform, the octave buckets
+  and the fall. `rustfft` arrives with it, as ADR 5 said it would.
+- A tap at the end of the chain in `stream.rs`, gated by an atomic that is off
+  unless something is playing.
+- `AudioEnginePort` gained `set_visualising` and `spectrum`; the window drives
+  both from a timer of its own at thirty frames a second.
+
+| | |
+|---|---|
+| визуализация работает | a tone through the reader lights the bar it belongs to and leaves the far ones down; silence brings every bar to rest |
+| CPU не растёт заметно | measured, not claimed: `what_a_reading_costs` prints the per-reading time. 228 µs in a debug build here, 0.68% of a core at thirty a second — and nothing at all while the music is stopped |
+
+Not done: pausing when the **window** is minimised rather than when playback
+stops. Section 2.9 asks for both; the second is wired and the first needs a
+visibility signal Slint does not obviously offer. A minimised window with music
+playing still pays the 0.68%.

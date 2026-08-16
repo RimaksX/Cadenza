@@ -758,6 +758,7 @@ dependencies = [
  "notify",
  "rubato",
  "rusqlite",
+ "rustfft",
  "serde_json",
  "symphonia",
 ]

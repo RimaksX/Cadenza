@@ -83,6 +83,7 @@ export component AppWindow inherits Window {
     in property <bool> muted;
     in property <float> volume: 1.0;
     in property <string> message;
+    in property <[float]> spectrum;
     in property <bool> maximized;
     in property <bool> shuffle;
     in property <bool> repeating;
@@ -187,6 +188,7 @@ export component AppWindow inherits Window {
         muted: root.muted;
         volume: root.volume;
         message: root.message;
+        spectrum: root.spectrum;
         shuffle: root.shuffle;
         repeating: root.repeating;
         repeat-one: root.repeat-one;

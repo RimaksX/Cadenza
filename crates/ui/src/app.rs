@@ -16,6 +16,13 @@ use crate::{AppWindow, UiServices};
 /// it is (PROJECT_MASTER 2.9 caps the far more expensive visualiser at 30 Hz).
 const TICK: Duration = Duration::from_millis(250);
 
+/// How often the spectrum is read.
+///
+/// Thirty a second, which is the ceiling PROJECT_MASTER 2.9 sets. Nothing is
+/// read while nothing is playing, and while nothing is read nothing is copied
+/// out of the audio callback either.
+const FRAME: Duration = Duration::from_millis(33);
+
 /// Opens the window and blocks until it closes.
 pub fn run(services: UiServices) -> Result<()> {
     let window = AppWindow::new().map_err(|err| CoreError::Invalid {
@@ -39,6 +46,15 @@ pub fn run(services: UiServices) -> Result<()> {
             controller.poll_queue();
             controller.refresh_player();
         }
+    });
+
+    // The visualiser has a clock of its own: section 2.9 caps it at thirty a
+    // second, and the transport above is happy at four. Kept alive alongside
+    // that one, for the same reason.
+    let frames = Timer::default();
+    frames.start(TimerMode::Repeated, FRAME, {
+        let controller = Rc::clone(&controller);
+        move || controller.refresh_spectrum()
     });
 
     window.run().map_err(|err| CoreError::Invalid {

@@ -75,6 +75,7 @@ export component AppShell inherits Rectangle {
     in property <bool> muted;
     in property <float> volume;
     in property <string> message;
+    in property <[float]> spectrum;
     in property <bool> maximized;
     in property <bool> shuffle;
     in property <bool> repeating;
@@ -345,6 +346,7 @@ export component AppShell inherits Rectangle {
             loaded: root.loaded;
             muted: root.muted;
             volume: root.volume;
+            spectrum: root.spectrum;
             shuffle: root.shuffle;
             repeating: root.repeating;
             repeat-one: root.repeat-one;

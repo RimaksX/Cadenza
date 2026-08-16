@@ -2,8 +2,8 @@
 
 Normative definition: `PROJECT_MASTER.json`, section `8_Audio_pipeline`.
 
-Status: playing since M5, joining tracks since M8. The equaliser lands in M9,
-the visualiser tap in M10.
+Status: playing since M5, joining tracks since M8, equalised since M9, and
+tapped for the visualiser since M10.
 
 ## Signal chain
 
@@ -170,3 +170,38 @@ Gapless MP3 is "as far as the format allows" (PROJECT_MASTER 2.4): whether the
 encoder's delay and padding are trimmed is Symphonia's business, not Cadenza's.
 And "no clicks" is judged by ear. What the tests can assert is the objective
 half — that the waveform does not step at the join — and they do.
+
+## The visualiser
+
+The tap is the **last** stage, after the equaliser and after the gain: what is
+drawn is what is heard. The callback's whole part in it is a copy into a ring —
+section 8.2 allows passing frames to a tap and nothing else — and the copy is
+skipped entirely while nobody is looking.
+
+Everything else runs on the thread that asks:
+
+- **Thirty times a second**, which is the ceiling section 2.9 sets, on a timer
+  of its own. The transport's tick is four a second and stays there.
+- **A window of 1024 samples**, summed to mono and shaped by a Hann window.
+  Without the window the ends of the block are a step, and a step is broadband:
+  every bar would carry a little of every other.
+- **Eight bars, spaced by octave.** A linear spacing gives the top octave half
+  the bars and the bottom two none; the ear hears ratios.
+- **Decibels, floored at −60.** Below that is silence or a noise floor, and
+  drawing it makes a row of bars that never quite rests.
+- **Fast up, slow down.** A bar that falls as fast as it rises spends its time
+  at the extremes; the asymmetry is what makes it look like sound.
+
+Nothing is read while nothing is playing, and the tap is turned off with it —
+so the cost when the music stops is zero rather than small.
+
+What one reading costs is measured rather than claimed:
+
+```text
+cargo test -p cadenza-infra --lib what_a_reading_costs -- --ignored --nocapture
+```
+
+On this machine, in an unoptimised build, 228 µs a reading — 0.68% of one core
+at thirty a second. A release build is the one that ships and is faster than
+that; the number to distrust is any that comes without saying which build it
+came from.
