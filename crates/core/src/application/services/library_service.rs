@@ -148,7 +148,7 @@ impl LibraryService {
         };
 
         let folder = self.add_folder(&path, true)?;
-        self.scan_folder(&folder).map(Some)
+        self.adopt_folder(&folder).map(Some)
     }
 
     /// Where this machine keeps music, with a room of ours inside it.
@@ -172,7 +172,7 @@ impl LibraryService {
 
         self.ports.files.create_dir_all(&path)?;
         let folder = self.add_folder(&path, true)?;
-        self.scan_folder(&folder)
+        self.adopt_folder(&folder)
     }
 
     /// Stops scanning a folder. Files already imported stay in the library.
@@ -201,6 +201,20 @@ impl LibraryService {
     /// the review queue and the walk continues. One corrupt download must not
     /// cost the listener the other four thousand tracks.
     pub fn scan_folder(&self, folder: &ProfileFolder) -> Result<ScanReport> {
+        self.walk(folder, false)
+    }
+
+    /// Scans a folder and brings back anything in it the listener had hidden.
+    ///
+    /// What adding a folder does, as against what a routine scan does. Taking
+    /// one track out of the library is a decision, and a scan every few minutes
+    /// must not undo it — but choosing the folder again is a newer decision
+    /// about the same music, and the older one gives way to it.
+    pub fn adopt_folder(&self, folder: &ProfileFolder) -> Result<ScanReport> {
+        self.walk(folder, true)
+    }
+
+    fn walk(&self, folder: &ProfileFolder, revive: bool) -> Result<ScanReport> {
         let profile_id = self.context.require_active_profile()?;
         if folder.profile_id != profile_id {
             return Err(CoreError::invalid(
@@ -236,7 +250,8 @@ impl LibraryService {
                 }
 
                 report.seen += 1;
-                match self.import_file(profile_id, &entry, metadata.size, metadata.modified) {
+                match self.import_file(profile_id, &entry, metadata.size, metadata.modified, revive)
+                {
                     Ok(Imported::Added) => report.added += 1,
                     Ok(Imported::Updated) => report.updated += 1,
                     Ok(Imported::Unchanged) => report.unchanged += 1,
@@ -326,7 +341,7 @@ impl LibraryService {
                     return Ok(());
                 }
 
-                match self.import_file(profile_id, path, metadata.size, metadata.modified) {
+                match self.import_file(profile_id, path, metadata.size, metadata.modified, false) {
                     Ok(_) => {}
                     Err(err) => self.record_failure(profile_id, path, &err)?,
                 }
@@ -479,6 +494,7 @@ impl LibraryService {
         path: &Path,
         size: u64,
         modified: Timestamp,
+        revive: bool,
     ) -> Result<Imported> {
         let now = self.context.now();
         let known = self.ports.media_files.find_by_path(path)?;
@@ -498,7 +514,7 @@ impl LibraryService {
             if self.awaiting_decision(profile_id, file.id)? {
                 return Ok(Imported::Duplicate);
             }
-            return self.ensure_in_library(profile_id, file, now);
+            return self.ensure_in_library(profile_id, file, now, revive);
         }
 
         let read = self.ports.metadata.read(path)?;
@@ -682,9 +698,26 @@ impl LibraryService {
         profile_id: ProfileId,
         media_file: &MediaFile,
         now: Timestamp,
+        revive: bool,
     ) -> Result<Imported> {
-        if self.ports.tracks.get(profile_id, media_file.id)?.is_some() {
-            return Ok(Imported::Unchanged);
+        if let Some(track) = self.ports.tracks.get(profile_id, media_file.id)? {
+            if !revive || track.removed_at.is_none() {
+                return Ok(Imported::Unchanged);
+            }
+
+            // Taken out of the library once, and now inside a folder the
+            // listener has just pointed at again. Pointing at a folder is a
+            // statement about everything in it, and it is the newer of the two.
+            //
+            // Without this there is no way back at all: the file is on disk, in
+            // a watched folder, catalogued and unchanged, so every later scan
+            // takes the fast path and leaves it hidden for good.
+            let restored = Track {
+                removed_at: None,
+                ..track
+            };
+            self.ports.tracks.save(&restored)?;
+            return Ok(Imported::Added);
         }
 
         // The file is catalogued, so this scan took the fast path and never
@@ -714,7 +747,7 @@ impl LibraryService {
             return self.ports.tracks.restore(profile_id, media_file_id);
         }
 
-        self.ensure_in_library(profile_id, &media_file, now)
+        self.ensure_in_library(profile_id, &media_file, now, true)
             .map(|_| ())
     }
 

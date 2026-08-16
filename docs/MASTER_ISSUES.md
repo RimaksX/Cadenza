@@ -710,3 +710,27 @@ What it does not do: parent itself to our window. The window lives in
 opens in front, because the process asking is the foreground one; what it loses
 is being *owned* by the window, which shows only if somebody clicks behind it.
 A handle can be threaded through the port the day that matters.
+
+## 44. A track taken out of the library had no way back
+
+Removing a track is a decision and a scan must not undo it — a file sitting in
+a watched folder would come back every few minutes, which makes the row menu's
+"Remove from library" meaningless. So `import_file` takes the fast path for an
+unchanged file and leaves the removal alone.
+
+The consequence was worse than the bug it avoided. The file is on disk, in a
+watched folder, catalogued and unchanged, so **every** later scan takes that
+same fast path: removing the folder and adding it back does nothing, deleting
+the file and restoring it does nothing, and the only way back is an `UPDATE`
+against the database. The owner met this directly — five tracks, a fresh
+folder, an empty library and a scan that cheerfully reported five files
+unchanged.
+
+**Chosen:** a routine scan still leaves removals alone; **adopting a folder
+brings back what is inside it.** `LibraryService::adopt_folder` is what
+choosing a folder runs — from the window and from `cadenza add-folder`, which
+now scans as part of adding rather than telling the listener to run a second
+command.
+
+The rule in one line: *pointing at a folder is a statement about everything in
+it, and it is newer than an older statement about one file.*

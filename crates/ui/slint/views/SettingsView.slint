@@ -188,7 +188,7 @@ export component SettingsView inherits Rectangle {
             // The three decisions that fit in a line each.
             VerticalLayout {
                 width: 320px;
-                spacing: Theme.space-4;
+                spacing: Theme.space-5;
 
                 VerticalLayout {
                     spacing: Theme.space-2;
@@ -259,8 +259,8 @@ export component SettingsView inherits Rectangle {
                         spacing: Theme.space-2;
 
                         for seconds in [3, 4, 5]: TextButton {
-                            label: seconds + " SECONDS";
-                            fixed-width: 132px;
+                            label: seconds + "";
+                            fixed-width: 100px;
                             selected: root.crossfade-seconds == seconds;
                             pressed => {
                                 root.set-crossfade(root.crossfade-on, seconds);
@@ -269,7 +269,7 @@ export component SettingsView inherits Rectangle {
                     }
 
                     SectionNote {
-                        text: "Playlists and radio stay gapless either way.";
+                        text: "Seconds. Playlists and radio never fade.";
                     }
                 }
 
@@ -321,8 +321,8 @@ export component SettingsView inherits Rectangle {
 
                 if root.folders.length == 0: VerticalLayout {
                     vertical-stretch: 1;
-                    alignment: center;
-                    spacing: Theme.space-3;
+                    alignment: start;
+                    spacing: Theme.space-2;
 
                     Text {
                         text: "No folders yet";
@@ -358,6 +358,10 @@ export component SettingsView inherits Rectangle {
                             root.remove-folder(folder.id);
                         }
                     }
+                }
+
+                Rectangle {
+                    vertical-stretch: 1;
                 }
 
                 HorizontalLayout {

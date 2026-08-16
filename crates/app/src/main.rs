@@ -477,9 +477,15 @@ fn dispatch(
         }
 
         Command::AddFolder { path, recursive } => {
+            // Added and taken in, as one act. Pointing at a folder is saying
+            // "here is my music"; a separate scan afterwards asks for it twice.
             let folder = library.add_folder(Path::new(path), *recursive)?;
+            let report = library.adopt_folder(&folder)?;
             println!("watching {}", folder.path.display());
-            println!("run: cadenza scan");
+            println!(
+                "{} file(s) seen: {} added, {} updated, {} unchanged",
+                report.seen, report.added, report.updated, report.unchanged
+            );
         }
 
         Command::Scan => {
