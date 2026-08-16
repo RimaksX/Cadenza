@@ -69,3 +69,50 @@ fn the_engine_joins_two_files_without_stopping_between_them() {
     );
     assert_eq!(engine.underruns(), 0, "and the decoder kept up");
 }
+
+#[test]
+#[ignore = "needs a real output device"]
+fn the_tap_keeps_giving_the_visualiser_something_new() {
+    let directory = TempDir::new("engine-tap");
+    // Two seconds of tone, loud enough to register above the floor.
+    let path = write_wav(directory.path(), "tone.wav", 2, 20_000);
+
+    let engine = CpalAudioEngine::new().expect("an output device");
+    // Louder than the join test needs: the tap sits *after* the volume, so a
+    // whisper is a whisper to the visualiser too. Two per cent is sixty-odd
+    // decibels down, which is under the floor the bars rest on.
+    engine
+        .set_volume(Volume::new(0.3).expect("in range"))
+        .expect("audible");
+    engine.load(&path).expect("loaded");
+    engine.set_visualising(true);
+    engine.play().expect("playing");
+
+    let mut bars = [0.0_f32; 8];
+    let mut readings: Vec<Vec<f32>> = Vec::new();
+
+    let deadline = Instant::now() + Duration::from_secs(3);
+    while Instant::now() < deadline && readings.len() < 20 {
+        if engine.spectrum(&mut bars) {
+            readings.push(bars.to_vec());
+        }
+        thread::sleep(Duration::from_millis(33));
+    }
+
+    assert!(
+        readings.len() >= 10,
+        "only {} readings came back with anything",
+        readings.len()
+    );
+    assert!(
+        readings
+            .iter()
+            .any(|reading| reading.iter().any(|bar| *bar > 0.05)),
+        "every reading was silence: {readings:?}"
+    );
+    assert!(
+        readings.windows(2).any(|pair| pair[0] != pair[1]),
+        "every reading was the same picture: {:?}",
+        &readings[..3.min(readings.len())]
+    );
+}

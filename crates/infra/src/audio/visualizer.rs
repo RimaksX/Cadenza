@@ -31,9 +31,13 @@ const HIGHEST_HZ: f32 = 16_000.0;
 
 /// How quiet a band has to be to leave its bar on the floor.
 ///
-/// Sixty decibels below full scale. Anything under this is either silence or a
-/// noise floor, and drawing it makes a row of bars that never quite rests.
-const FLOOR_DB: f32 = -60.0;
+/// Forty decibels below full scale, and this number is the whole difference
+/// between a row of bars that dances and one that looks painted on. Music at a
+/// normal level spends its time between about −40 and −15 dB: over a sixty
+/// decibel range that is a third of the height and a wobble of two pixels, and
+/// the first version of this drew exactly that. Over forty it is most of the
+/// height, and the bars move the way the music does.
+const FLOOR_DB: f32 = -40.0;
 
 /// How fast a bar rises towards a louder reading, per frame at thirty a second.
 ///
@@ -43,9 +47,9 @@ const ATTACK: f32 = 0.6;
 /// How fast it falls back.
 ///
 /// Slower than it rises, which is what makes a row of bars look like sound
-/// rather than like a flicker. A bar left to drop as fast as it climbs spends
-/// its time at the extremes and never in between.
-const RELEASE: f32 = 0.12;
+/// rather than like a flicker — but not so slow that a bar never comes down
+/// between two beats, which is the other way to look painted on.
+const RELEASE: f32 = 0.2;
 
 /// Reads the tap and turns it into bar heights.
 ///

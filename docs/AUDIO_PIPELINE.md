@@ -187,8 +187,11 @@ Everything else runs on the thread that asks:
   every bar would carry a little of every other.
 - **Eight bars, spaced by octave.** A linear spacing gives the top octave half
   the bars and the bottom two none; the ear hears ratios.
-- **Decibels, floored at −60.** Below that is silence or a noise floor, and
-  drawing it makes a row of bars that never quite rests.
+- **Decibels, floored at −40.** This number is the whole difference between a
+  row of bars that dances and one that looks painted on. Music at a normal
+  level lives between about −40 and −15 dB: over a sixty decibel range that is
+  a third of the height and a wobble of two pixels, which is what the first
+  version drew and what the owner reported as "they do not move".
 - **Fast up, slow down.** A bar that falls as fast as it rises spends its time
   at the extremes; the asymmetry is what makes it look like sound.
 
