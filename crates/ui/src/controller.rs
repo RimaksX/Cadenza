@@ -43,7 +43,8 @@ const NO_TRACKS_HINT: &str =
     "add a folder and scan it:\ncadenza add-folder <path> -r\ncadenza scan";
 
 /// What to do when nothing is waiting to play.
-const NO_QUEUE_HINT: &str = "play something from the library\nand the rest follows it";
+const NO_QUEUE_HINT: &str =
+    "queue a track to choose what follows\nor the library plays on by itself";
 
 /// What to do when there are no playlists.
 const NO_PLAYLISTS_HINT: &str = "press + NEW PLAYLIST to start one";
@@ -192,7 +193,7 @@ impl Controller {
         self.refresh_library();
     }
 
-    /// Empties the queue and stops.
+    /// Empties the queue, leaving what is playing where it is.
     pub fn clear_queue(&self) {
         self.run(|| self.services.queue.clear());
         self.refresh_queue();

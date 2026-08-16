@@ -581,3 +581,20 @@ asking them to say it twice.
 Not verified by me: that the chooser opens and returns a path. It is a modal
 system dialog — a render captures a still frame and cannot click a button in
 one. The screen either side of it was rendered and read.
+
+## Between M10 and M11 — the queue becomes a list somebody wrote
+
+Also not a milestone, and a correction rather than a feature. The queue was
+filling itself with the rest of the library whenever a track was played, which
+made clearing it stop the music and made shuffle look as though it ignored it
+altogether. `MASTER_ISSUES` 45 has the reasoning; what changed:
+
+- `play_from_library` queues nothing at all.
+- `playback_policy::next_in_library` works out what follows — the next row, or
+  a track that has not had its turn under shuffle.
+- `QueueService::clear` empties the lanes and leaves playback alone.
+- The service remembers which track it armed, so a track queued moments before
+  the join replaces the one already decoded.
+
+Repeat off now stops at the bottom of the library rather than wrapping to the
+top; repeat all still wraps.

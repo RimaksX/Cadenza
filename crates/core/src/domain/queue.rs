@@ -144,12 +144,33 @@ impl Queue {
         self.manual.front().or_else(|| self.upcoming.front())
     }
 
+    /// True when the round being played is a list the queue is holding.
+    ///
+    /// A playlist puts its remaining tracks in [`Self::upcoming`], so the queue
+    /// knows where that round begins and can start it again. Library playback
+    /// puts nothing there: its round is the library itself, which is a set of
+    /// rows only the service can read. Repeat all therefore means two different
+    /// things, and this is which of them applies.
+    fn holds_its_own_round(&self) -> bool {
+        !matches!(
+            self.current,
+            Some(QueueEntry {
+                origin: QueueOrigin::Library,
+                ..
+            })
+        )
+    }
+
     /// The entry [`Self::advance`] would move to, without moving to it.
     ///
     /// [`Self::peek_next`] answers the shorter question — what is queued — which
     /// is what a "next" button needs to know. This one also covers the rewind
     /// repeat all performs at the end of a list, because the track that follows
     /// the last one is a track that has to be decoded before the last one ends.
+    ///
+    /// `None` is not the same as "nothing follows": with nothing queued, what
+    /// follows a library track is the next row of the library, and the queue
+    /// has no rows.
     pub fn following(&self) -> Option<QueueEntry> {
         if self.repeat.holds_current_track() && self.current.is_some() {
             return self.current;
@@ -159,7 +180,7 @@ impl Queue {
             return Some(*next);
         }
 
-        if self.repeat == RepeatMode::All {
+        if self.repeat == RepeatMode::All && self.holds_its_own_round() {
             // What played first plays first again, and a list of one is still a
             // list: with no history to rewind, the current track follows itself.
             return self.history.first().copied().or(self.current);
@@ -179,7 +200,11 @@ impl Queue {
             return self.current;
         }
 
-        if self.manual.is_empty() && self.upcoming.is_empty() && self.repeat == RepeatMode::All {
+        if self.manual.is_empty()
+            && self.upcoming.is_empty()
+            && self.repeat == RepeatMode::All
+            && self.holds_its_own_round()
+        {
             // Everything that has played goes back in front, in the order it
             // played. The track that is ending is not among them yet — it is
             // pushed below, and so leads the round after this one.
@@ -230,10 +255,19 @@ impl Queue {
     /// The manual queue survives: it is the listener's own list, and choosing
     /// something else to play is not a reason to discard it.
     pub fn start(&mut self, entry: QueueEntry, continuation: Vec<QueueEntry>) {
+        self.upcoming = continuation.into();
+        self.move_to(entry);
+    }
+
+    /// Moves to an entry that was never waiting in either lane.
+    ///
+    /// What the library plays next is not held anywhere — it is simply the row
+    /// after this one — so there is nothing to pop, only a track to leave
+    /// behind.
+    pub fn move_to(&mut self, entry: QueueEntry) {
         if let Some(leaving) = self.current.take() {
             self.history.push(leaving);
         }
-        self.upcoming = continuation.into();
         self.current = Some(entry);
     }
 }
@@ -307,11 +341,8 @@ mod tests {
     #[test]
     fn repeat_all_starts_the_list_again_in_the_order_it_played() {
         let mut queue = Queue::new(ProfileId::new());
-        let (a, b, c) = (
-            entry(QueueOrigin::Library),
-            entry(QueueOrigin::Library),
-            entry(QueueOrigin::Library),
-        );
+        let list = QueueOrigin::Playlist(PlaylistId::new());
+        let (a, b, c) = (entry(list), entry(list), entry(list));
         queue.repeat = RepeatMode::All;
         queue.start(a, vec![b, c]);
 
@@ -325,7 +356,7 @@ mod tests {
     #[test]
     fn repeat_all_with_one_track_plays_it_again() {
         let mut queue = Queue::new(ProfileId::new());
-        let only = entry(QueueOrigin::Library);
+        let only = entry(QueueOrigin::Playlist(PlaylistId::new()));
         queue.repeat = RepeatMode::All;
         queue.start(only, Vec::new());
 
@@ -334,13 +365,26 @@ mod tests {
     }
 
     #[test]
+    fn a_library_round_is_never_refilled_from_what_has_played() {
+        let mut queue = Queue::new(ProfileId::new());
+        let (a, b) = (entry(QueueOrigin::Library), entry(QueueOrigin::Library));
+        queue.repeat = RepeatMode::All;
+        queue.start(a, vec![b]);
+        assert_eq!(queue.advance(), Some(b));
+
+        // Repeat all still means "begin the round again" — but the round is the
+        // library, and putting what has played back in front would fill the
+        // queue with tracks nobody queued.
+        assert_eq!(queue.following(), None, "the service asks the library");
+        assert_eq!(queue.advance(), None);
+        assert!(queue.upcoming.is_empty(), "nothing was put back in front");
+    }
+
+    #[test]
     fn what_follows_is_what_advancing_would_reach() {
         let mut queue = Queue::new(ProfileId::new());
-        let (a, b, c) = (
-            entry(QueueOrigin::Library),
-            entry(QueueOrigin::Library),
-            entry(QueueOrigin::Library),
-        );
+        let list = QueueOrigin::Playlist(PlaylistId::new());
+        let (a, b, c) = (entry(list), entry(list), entry(list));
         queue.start(a, vec![b, c]);
 
         assert_eq!(queue.following(), Some(b));

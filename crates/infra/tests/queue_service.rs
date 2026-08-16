@@ -74,6 +74,20 @@ impl FakeEngine {
         *self.armed_transition.lock().expect("not poisoned")
     }
 
+    /// Which track is open to follow this one.
+    fn armed_name(&self) -> Option<String> {
+        self.armed
+            .lock()
+            .expect("not poisoned")
+            .as_ref()
+            .map(|path| {
+                path.file_stem()
+                    .expect("a name")
+                    .to_string_lossy()
+                    .into_owned()
+            })
+    }
+
     /// Runs the current track out.
     fn finish(&self) {
         self.ended.store(true, Ordering::Relaxed);
@@ -307,7 +321,7 @@ impl Harness {
 }
 
 #[test]
-fn choosing_a_row_queues_the_rest_of_the_library_behind_it() {
+fn choosing_a_row_queues_nothing_and_still_has_somewhere_to_go() {
     let harness = harness();
     harness
         .queue
@@ -316,34 +330,67 @@ fn choosing_a_row_queues_the_rest_of_the_library_behind_it() {
 
     assert_eq!(harness.engine.heard(), vec!["one"]);
     assert!(
-        !harness.listed().is_empty(),
-        "choosing a track is choosing a starting point"
+        harness.listed().is_empty(),
+        "the queue is the listener's own list, and nobody put anything in it"
     );
 
     let view = harness.queue.view();
-    assert!(view.has_next);
+    assert_eq!(view.pending, 0);
+    assert!(view.has_next, "the library carries on behind it");
     assert!(!view.has_previous, "nothing played before it");
 }
 
 #[test]
-fn a_track_that_runs_out_starts_the_next_one() {
+fn a_track_that_runs_out_starts_the_next_one_in_the_library() {
     let harness = harness();
     harness
         .queue
         .play_from_library(harness.tracks[0])
         .expect("played");
 
-    let next = harness.listed().first().cloned().expect("something queued");
-
     harness.engine.finish();
     harness.queue.poll().expect("polled");
 
+    // Listings are ordered by title — four, one, three, two — so what follows
+    // "one" is "three", and it follows without ever having been queued.
     assert_eq!(
         harness.engine.heard(),
-        vec!["one".to_owned(), next.clone()],
-        "the queue advanced on its own"
+        vec!["one", "three"],
+        "the library carried on by itself"
     );
+    assert!(harness.listed().is_empty(), "and the queue stayed empty");
     assert!(harness.queue.view().has_previous);
+}
+
+#[test]
+fn clearing_the_queue_leaves_the_music_playing() {
+    let harness = harness();
+    harness
+        .queue
+        .play_from_library(harness.tracks[0])
+        .expect("played");
+    harness.queue.enqueue(harness.tracks[3]).expect("queued");
+    harness.queue.enqueue(harness.tracks[2]).expect("queued");
+
+    harness.queue.clear().expect("cleared");
+
+    assert!(harness.listed().is_empty(), "the list went");
+    assert_eq!(harness.engine.heard(), vec!["one"], "the music did not");
+    assert!(
+        harness
+            .engine
+            .loaded
+            .lock()
+            .expect("not poisoned")
+            .is_some(),
+        "the track that was playing is still loaded"
+    );
+
+    // And what was playing is still part of the library, so the library still
+    // carries on behind it.
+    harness.engine.finish();
+    harness.queue.poll().expect("polled");
+    assert_eq!(harness.engine.heard(), vec!["one", "three"]);
 }
 
 #[test]
@@ -368,13 +415,18 @@ fn the_queue_stops_at_the_end_unless_repeat_says_otherwise() {
         .play_from_library(harness.tracks[0])
         .expect("played");
 
-    // Four tracks: three advances empty the queue, the fourth stops.
-    for _ in 0..4 {
+    // Starting at "one" leaves three rows below it: two advances reach the
+    // bottom of the library, and the third has nowhere to go.
+    for _ in 0..3 {
         harness.engine.finish();
         harness.queue.poll().expect("polled");
     }
 
-    assert_eq!(harness.engine.heard().len(), 4, "each track played once");
+    assert_eq!(
+        harness.engine.heard(),
+        vec!["one", "three", "two"],
+        "it played to the bottom of the list and stopped there"
+    );
     assert!(
         harness
             .engine
@@ -453,24 +505,25 @@ fn previous_restarts_the_track_until_it_is_early_enough_to_go_back() {
 }
 
 #[test]
-fn a_manually_queued_track_plays_before_the_continuation() {
+fn a_manually_queued_track_plays_before_the_library_carries_on() {
     let harness = harness();
     harness
         .queue
         .play_from_library(harness.tracks[0])
         .expect("played");
 
-    // The last track in library order, so it would otherwise play last.
+    // "three" is what the library would have played next. "four" is what was
+    // asked for, and being asked for is what puts it first.
     harness.queue.enqueue(harness.tracks[3]).expect("queued");
-    assert_eq!(
-        harness.listed().first().map(String::as_str),
-        Some("four"),
-        "the manual queue is at the front"
-    );
+    assert_eq!(harness.listed(), vec!["four"]);
 
     harness.engine.finish();
     harness.queue.poll().expect("polled");
     assert_eq!(harness.engine.heard(), vec!["one", "four"]);
+    assert!(
+        harness.listed().is_empty(),
+        "and it left the queue when it started"
+    );
 }
 
 #[test]
@@ -480,9 +533,12 @@ fn an_entry_can_be_taken_out_of_the_queue_by_where_it_is_shown() {
         .queue
         .play_from_library(harness.tracks[0])
         .expect("played");
+    for track in &harness.tracks[1..4] {
+        harness.queue.enqueue(*track).expect("queued");
+    }
 
     let waiting = harness.listed();
-    assert_eq!(waiting.len(), 3, "the rest of the library follows");
+    assert_eq!(waiting.len(), 3, "three tracks queued by hand");
 
     harness.queue.remove_at(1).expect("removed");
 
@@ -501,9 +557,15 @@ fn an_entry_can_be_taken_out_of_the_queue_by_where_it_is_shown() {
 #[test]
 fn removing_counts_the_manual_queue_first_because_that_is_how_it_is_drawn() {
     let harness = harness();
+
+    // A playlist is the one continuation the queue holds itself, so this is
+    // where the two lanes can be told apart.
+    let library = SqliteTrackRepository::new(harness.db.pool().clone())
+        .summaries_for_profile(harness.profile_id)
+        .expect("a library");
     harness
         .queue
-        .play_from_library(harness.tracks[0])
+        .play_playlist(PlaylistId::new(), &library, harness.tracks[0])
         .expect("played");
     harness.queue.enqueue(harness.tracks[3]).expect("queued");
 
@@ -526,6 +588,9 @@ fn choosing_a_row_in_the_queue_jumps_to_it_and_keeps_the_rest() {
         .queue
         .play_from_library(harness.tracks[0])
         .expect("played");
+    for track in &harness.tracks[1..4] {
+        harness.queue.enqueue(*track).expect("queued");
+    }
 
     let waiting = harness.listed();
     assert_eq!(waiting.len(), 3);
@@ -566,29 +631,52 @@ fn removing_a_position_that_is_not_there_says_so() {
 }
 
 #[test]
-fn shuffle_reorders_what_is_still_to_play_and_is_remembered() {
+fn shuffle_plays_the_library_in_some_order_without_repeating_itself() {
     let harness = harness();
     harness
         .queue
         .play_from_library(harness.tracks[0])
         .expect("played");
-
-    let ordered = harness.listed();
     harness.queue.toggle_shuffle().expect("shuffled");
     assert!(harness.queue.view().shuffle);
 
-    let shuffled = harness.listed();
-    let mut sorted = shuffled.clone();
-    sorted.sort();
-    let mut expected = ordered.clone();
-    expected.sort();
-    assert_eq!(sorted, expected, "the same tracks, in some order");
+    for _ in 0..3 {
+        harness.engine.finish();
+        harness.queue.poll().expect("polled");
+        assert!(
+            harness.listed().is_empty(),
+            "shuffle fills nothing in either"
+        );
+    }
 
-    harness.queue.toggle_shuffle().expect("unshuffled");
+    let mut heard = harness.engine.heard();
+    assert_eq!(heard.len(), 4, "every track had a turn");
+    assert_eq!(heard[0], "one", "starting where it was told to");
+    heard.sort();
     assert_eq!(
-        harness.listed(),
-        ordered,
-        "turning it off restores library order"
+        heard,
+        vec!["four", "one", "three", "two"],
+        "and none of them twice"
+    );
+}
+
+#[test]
+fn shuffle_does_not_jump_the_queue() {
+    let harness = harness();
+    harness
+        .queue
+        .play_from_library(harness.tracks[0])
+        .expect("played");
+    harness.queue.toggle_shuffle().expect("shuffled");
+    harness.queue.enqueue(harness.tracks[3]).expect("queued");
+
+    harness.engine.finish();
+    harness.queue.poll().expect("polled");
+
+    assert_eq!(
+        harness.engine.heard(),
+        vec!["one", "four"],
+        "what was asked for plays next; chance governs only the rest"
     );
 }
 
@@ -601,6 +689,7 @@ fn the_queue_is_still_there_after_a_restart() {
         .expect("played");
     harness.queue.cycle_repeat().expect("repeat all");
     harness.queue.enqueue(harness.tracks[3]).expect("queued");
+    harness.queue.enqueue(harness.tracks[2]).expect("queued");
     harness.engine.finish();
     harness.queue.poll().expect("polled");
 
@@ -658,8 +747,6 @@ fn a_join_moves_the_queue_on_without_starting_anything() {
         .expect("played");
     harness.queue.poll().expect("polled");
 
-    let following = harness.listed().first().cloned().expect("something queued");
-
     // The engine plays the join out by itself. Nothing stops, so the state the
     // old end-of-track check watches for never happens.
     harness.engine.hand_over();
@@ -667,8 +754,8 @@ fn a_join_moves_the_queue_on_without_starting_anything() {
 
     assert_eq!(
         harness.engine.heard(),
-        vec!["one".to_owned(), following],
-        "the second track is what is playing"
+        vec!["one", "three"],
+        "the queue moved to the track the engine had already opened"
     );
     assert_eq!(
         harness.engine.loads.load(Ordering::Relaxed),
@@ -678,6 +765,35 @@ fn a_join_moves_the_queue_on_without_starting_anything() {
     assert!(
         harness.queue.view().has_previous,
         "the track that handed over is history"
+    );
+}
+
+#[test]
+fn a_track_queued_after_the_join_was_opened_still_plays_next() {
+    let harness = harness();
+    harness
+        .queue
+        .play_from_library(harness.tracks[0])
+        .expect("played");
+    harness.queue.poll().expect("polled");
+    assert_eq!(
+        harness.engine.armed_name().as_deref(),
+        Some("three"),
+        "the library's own successor was opened ahead of itself"
+    );
+
+    // Half way through the track the listener asks for something else. What was
+    // decoded is no longer what follows, and the engine has to be told.
+    harness.queue.enqueue(harness.tracks[3]).expect("queued");
+    harness.queue.poll().expect("polled");
+    assert_eq!(harness.engine.armed_name().as_deref(), Some("four"));
+
+    harness.engine.hand_over();
+    harness.queue.poll().expect("polled");
+    assert_eq!(
+        harness.engine.heard(),
+        vec!["one", "four"],
+        "what the engine played is what the queue says played"
     );
 }
 

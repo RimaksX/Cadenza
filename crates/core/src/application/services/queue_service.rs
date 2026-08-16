@@ -18,11 +18,13 @@ use uuid::Uuid;
 use crate::application::context::AppContext;
 use crate::application::view_state::QueueView;
 use crate::domain::ids::{MediaFileId, PlaylistId};
-use crate::domain::policies::playback_policy::{PreviousAction, previous_action, transition_for};
+use crate::domain::policies::playback_policy::{
+    PreviousAction, next_in_library, previous_action, transition_for,
+};
 use crate::domain::policies::shuffle_policy;
 use crate::domain::ports::event_bus::DomainEvent;
 use crate::domain::ports::repositories::{QueueRepositoryPort, TrackRepositoryPort};
-use crate::domain::queue::{Queue, QueueEntry, QueueOrigin, RepeatMode};
+use crate::domain::queue::{Queue, QueueEntry, QueueOrigin};
 use crate::domain::track::TrackSummary;
 use crate::domain::value_objects::PlaybackPosition;
 use crate::{CoreError, Result};
@@ -47,6 +49,20 @@ pub struct QueueService {
     queue: RwLock<Queue>,
     /// How many joins the engine had made the last time anybody looked.
     seen_advances: AtomicU64,
+    /// What the library plays after the track in it, worked out once.
+    ///
+    /// Kept for two reasons. It is asked for on every tick while nothing is
+    /// armed, and listing a library four times a second is a database kept busy
+    /// saying the same thing. And under shuffle the answer is a throw of the
+    /// dice: asking twice would arm one track and move the queue to another.
+    next_up: RwLock<Option<(QueueEntry, Option<QueueEntry>)>>,
+    /// The entry the engine was last told to open.
+    ///
+    /// The engine knows *that* something is armed and this knows *what*, which
+    /// is what lets a queue changed mid-track replace it: a track queued by
+    /// hand thirty seconds before the end has to be the one that plays next,
+    /// not the one that was decoded before it was asked for.
+    armed: RwLock<Option<QueueEntry>>,
 }
 
 impl QueueService {
@@ -64,7 +80,16 @@ impl QueueService {
         // saved; the placeholder is replaced the moment one starts playing.
         let profile_id = context.active_profile();
         let restored = profile_id.and_then(|id| ports.queue.load(id).ok().flatten());
-        let queue = restored.unwrap_or_else(|| Queue::new(profile_id.unwrap_or_default()));
+        let mut queue = restored.unwrap_or_else(|| Queue::new(profile_id.unwrap_or_default()));
+
+        // A queue saved before the library stopped being written into it still
+        // has the whole library in the continuation lane. Library entries do not
+        // belong there any more — what follows a library track is worked out
+        // when it is asked for — so they go, and the manual queue, which is the
+        // part somebody actually wrote, comes back untouched.
+        queue
+            .upcoming
+            .retain(|entry| !matches!(entry.origin, QueueOrigin::Library));
 
         Self {
             context,
@@ -72,13 +97,17 @@ impl QueueService {
             ports,
             queue: RwLock::new(queue),
             seen_advances: AtomicU64::new(0),
+            next_up: RwLock::new(None),
+            armed: RwLock::new(None),
         }
     }
 
-    /// Starts a track from the library, with the rest of the library behind it.
+    /// Starts a track from the library, and lets the library carry on behind it.
     ///
-    /// Choosing a row is choosing a starting point, not a single track: the
-    /// continuation is what makes "next" mean anything at all.
+    /// Nothing is queued by this: the queue holds what the listener chose to
+    /// hear next, and the rest of the library is not that — it is simply what
+    /// comes after, which [`next_in_library`] can work out whenever it is asked
+    /// (MASTER_ISSUES 45). Anything already queued by hand still plays first.
     pub fn play_from_library(&self, media_file_id: MediaFileId) -> Result<()> {
         let profile_id = self.context.require_active_profile()?;
         let library = self.ports.tracks.summaries_for_profile(profile_id)?;
@@ -90,17 +119,17 @@ impl QueueService {
             return Err(CoreError::not_found("track", media_file_id));
         }
 
-        let shuffle = self.with_queue(|queue| queue.shuffle);
-        let continuation = self.continuation(&library, media_file_id, shuffle);
-
         self.write_queue(|queue| {
             queue.profile_id = profile_id;
+            // An empty continuation also ends a playlist that was playing: the
+            // listener pointed somewhere else, and the rest of that list is no
+            // longer what follows.
             queue.start(
                 QueueEntry {
                     media_file_id,
                     origin: QueueOrigin::Library,
                 },
-                continuation,
+                Vec::new(),
             );
         });
 
@@ -229,12 +258,97 @@ impl QueueService {
         Ok(())
     }
 
-    /// Moves to the next track, or stops when the queue runs out.
+    /// Moves to the next track, or stops when there is nothing left to play.
     pub fn next(&self) -> Result<()> {
-        match self.write_queue(Queue::advance) {
+        match self.step()? {
             Some(_) => self.play_current(),
             None => self.playback.stop(),
         }
+    }
+
+    /// Moves on by one: to what was queued, or to what the library holds next.
+    ///
+    /// The queue is asked first because it is the listener's own list, and the
+    /// library is only what happens in the absence of one.
+    fn step(&self) -> Result<Option<QueueEntry>> {
+        if self.with_queue(|queue| queue.following().is_some()) {
+            return Ok(self.write_queue(Queue::advance));
+        }
+
+        match self.library_successor()? {
+            Some(next) => {
+                self.write_queue(|queue| queue.move_to(next));
+                Ok(Some(next))
+            }
+            // Nothing queued and nothing after it: `advance` is what puts the
+            // finished track into history on the way to stopping.
+            None => Ok(self.write_queue(Queue::advance)),
+        }
+    }
+
+    /// The track that follows the one playing, without moving to it.
+    fn successor(&self) -> Result<Option<QueueEntry>> {
+        match self.with_queue(Queue::following) {
+            Some(queued) => Ok(Some(queued)),
+            None => self.library_successor(),
+        }
+    }
+
+    /// What the library plays after the current track.
+    ///
+    /// Only library playback continues by itself: a playlist that has run out
+    /// has said everything it had to say, and what follows it is nothing.
+    fn library_successor(&self) -> Result<Option<QueueEntry>> {
+        let Some(current) = self.with_queue(|queue| queue.current) else {
+            return Ok(None);
+        };
+        if !matches!(current.origin, QueueOrigin::Library) {
+            return Ok(None);
+        }
+
+        if let Some((track, next)) = self.remembered_successor()
+            && track == current
+        {
+            return Ok(next);
+        }
+
+        let profile_id = self.context.require_active_profile()?;
+        let library: Vec<MediaFileId> = self
+            .ports
+            .tracks
+            .summaries_for_profile(profile_id)?
+            .iter()
+            .map(|summary| summary.media_file_id)
+            .collect();
+
+        let (played, shuffle, repeat) = self.with_queue(|queue| {
+            let played: Vec<MediaFileId> = queue
+                .history
+                .iter()
+                .map(|entry| entry.media_file_id)
+                .collect();
+            (played, queue.shuffle, queue.repeat)
+        });
+
+        let next = next_in_library(
+            &library,
+            current.media_file_id,
+            &played,
+            shuffle,
+            repeat,
+            seed(),
+        )
+        .map(|media_file_id| QueueEntry {
+            media_file_id,
+            origin: QueueOrigin::Library,
+        });
+
+        *self.next_up.write().unwrap_or_else(|err| err.into_inner()) = Some((current, next));
+        Ok(next)
+    }
+
+    fn remembered_successor(&self) -> Option<(QueueEntry, Option<QueueEntry>)> {
+        *self.next_up.read().unwrap_or_else(|err| err.into_inner())
     }
 
     /// Restarts the current track, or goes back to the previous one.
@@ -265,30 +379,19 @@ impl QueueService {
         Ok(())
     }
 
-    /// Turns shuffle on or off, rebuilding what is still to play.
+    /// Turns shuffle on or off.
     ///
-    /// Turning it on reorders the continuation that is already queued rather
-    /// than the whole library: the listener asked for these tracks in some
-    /// order, and shuffle is a statement about the order, not the selection.
-    /// Turning it off restores library order from wherever playback has got to.
+    /// What it governs is what plays *after* what is queued: with the queue
+    /// empty, the library comes at random rather than in order. The manual
+    /// queue is never touched — those tracks were put in an order by hand, and
+    /// shuffle is not an instruction to undo that.
+    ///
+    /// A playlist's remaining tracks are reordered where they stand, because
+    /// they are the continuation and shuffle is a statement about the order of
+    /// one. Turning it off cannot put them back: the playlist's order is the
+    /// playlist's, and it comes back the next time the playlist is started.
     pub fn toggle_shuffle(&self) -> Result<()> {
         let shuffle = !self.with_queue(|queue| queue.shuffle);
-        let current = self.with_queue(|queue| queue.current);
-
-        // Only library playback has an order to restore here. A playlist's order
-        // is the playlist's, and this service has no playlist to ask — so
-        // turning shuffle off part way through one keeps the tracks it has and
-        // records the flag, and the order comes back the next time the playlist
-        // is started.
-        let restores_order =
-            !shuffle && current.is_some_and(|entry| matches!(entry.origin, QueueOrigin::Library));
-
-        let ordered = if restores_order {
-            let profile_id = self.context.require_active_profile()?;
-            Some(self.ports.tracks.summaries_for_profile(profile_id)?)
-        } else {
-            None
-        };
 
         self.write_queue(|queue| {
             queue.shuffle = shuffle;
@@ -297,8 +400,6 @@ impl QueueService {
                 let mut pool: Vec<QueueEntry> = queue.upcoming.iter().copied().collect();
                 shuffle_policy::shuffle(&mut pool, seed());
                 queue.upcoming = pool.into();
-            } else if let (Some(library), Some(entry)) = (&ordered, current) {
-                queue.upcoming = rotate(library, entry.media_file_id, QueueOrigin::Library).into();
             }
         });
 
@@ -350,7 +451,7 @@ impl QueueService {
         }
 
         for _ in seen..advances {
-            self.write_queue(Queue::advance);
+            self.step()?;
         }
 
         if let Some(entry) = self.with_queue(|queue| queue.current) {
@@ -369,33 +470,50 @@ impl QueueService {
     /// to, and a playlist does not start fading out because the next thing was
     /// queued by hand.
     fn arm_next(&self) -> Result<()> {
-        if self.playback.armed() {
-            return Ok(());
-        }
-
-        // Asked before the settings are: with nothing playing there is nothing
-        // to arm, and a window opened before anybody has chosen a profile has
-        // no settings to read either.
+        // With nothing playing there is nothing to arm, and a window opened
+        // before anybody has chosen a profile has no settings to read either.
         let Some(current) = self.with_queue(|queue| queue.current) else {
             return Ok(());
         };
-        let Some(following) = self.with_queue(Queue::following) else {
+
+        // Asked before the successor is: working out what follows may cost a
+        // listing, and a listener who has turned preloading off is not going to
+        // be given one four times a second for nothing.
+        let settings = self.playback.settings()?;
+        if !settings.preload_next {
+            return Ok(());
+        }
+
+        let Some(following) = self.successor()? else {
             return Ok(());
         };
 
-        let settings = self.playback.settings()?;
-        if !settings.preload_next {
+        // Already open, and still the right track. Asking every tick costs one
+        // atomic read and one lock, and cannot be forgotten: the engine drops
+        // what it had armed whenever the ground moves under it — a seek, a new
+        // track loaded — and only the engine knows when that was.
+        if self.playback.armed() && self.armed_entry() == Some(following) {
             return Ok(());
         }
 
         // A file that will not open is not a reason to interrupt what is
         // playing. It stays unarmed, the track ends the ordinary way, and the
         // failure is reported then — by the load that also fails.
-        let _ = self.playback.preload(
-            following.media_file_id,
-            transition_for(current.origin, &settings),
-        );
+        if self
+            .playback
+            .preload(
+                following.media_file_id,
+                transition_for(current.origin, &settings),
+            )
+            .is_ok()
+        {
+            *self.armed.write().unwrap_or_else(|err| err.into_inner()) = Some(following);
+        }
         Ok(())
+    }
+
+    fn armed_entry(&self) -> Option<QueueEntry> {
+        *self.armed.read().unwrap_or_else(|err| err.into_inner())
     }
 
     /// What the transport buttons need to draw themselves.
@@ -408,11 +526,13 @@ impl QueueService {
             shuffle: queue.shuffle,
             pending: queue.pending_len(),
             has_previous: !queue.history.is_empty(),
-            // Repeat always has somewhere to go: the last track of a repeating
-            // list is followed by the first, and a greyed-out next button on it
-            // would say otherwise.
-            has_next: queue.peek_next().is_some()
-                || (queue.repeat != RepeatMode::Off && queue.current.is_some()),
+            // Anything playing has somewhere to go: the library follows it, and
+            // repeat sends the last track of a list back to the first. The one
+            // case this overstates — the bottom of the library with repeat off
+            // — costs a press that stops the music, which is what the button
+            // would have done there anyway. Finding out for certain means
+            // listing the library, and this runs on every tick.
+            has_next: queue.peek_next().is_some() || queue.current.is_some(),
         })
     }
 
@@ -446,15 +566,21 @@ impl QueueService {
             .collect())
     }
 
-    /// Empties the queue and stops.
+    /// Empties what is waiting, and leaves what is playing alone.
+    ///
+    /// Clearing is a statement about the list, not about the music. The track
+    /// that is playing is not in the list — it left the queue when it started —
+    /// so there is nothing here to stop, and the library carries on behind it
+    /// exactly as it would have if the queue had always been empty.
     pub fn clear(&self) -> Result<()> {
-        let profile_id = self.write_queue(|queue| {
-            let profile_id = queue.profile_id;
-            *queue = Queue::new(profile_id);
-            profile_id
+        self.write_queue(|queue| {
+            queue.manual.clear();
+            queue.upcoming.clear();
         });
-        self.ports.queue.clear(profile_id)?;
-        self.playback.stop()
+
+        self.persist();
+        self.announce();
+        Ok(())
     }
 
     /// Starts whatever the queue now points at.
@@ -479,20 +605,6 @@ impl QueueService {
         Ok(())
     }
 
-    /// The rest of the library after the chosen track.
-    fn continuation(
-        &self,
-        library: &[TrackSummary],
-        from: MediaFileId,
-        shuffle: bool,
-    ) -> Vec<QueueEntry> {
-        let mut entries = rotate(library, from, QueueOrigin::Library);
-        if shuffle {
-            shuffle_policy::shuffle(&mut entries, seed());
-        }
-        entries
-    }
-
     fn persist(&self) {
         let queue = self.queue.read().unwrap_or_else(|err| err.into_inner());
 
@@ -510,6 +622,11 @@ impl QueueService {
     }
 
     fn announce(&self) {
+        // Any change to the queue can change what follows, so the remembered
+        // answer goes with it. A library that changes under a playing track is
+        // not covered: that one is seen by the track after next, which is the
+        // price of not listing the library on every tick.
+        *self.next_up.write().unwrap_or_else(|err| err.into_inner()) = None;
         self.context.events.publish(DomainEvent::QueueChanged);
     }
 

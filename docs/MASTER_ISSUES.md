@@ -734,3 +734,57 @@ command.
 
 The rule in one line: *pointing at a folder is a statement about everything in
 it, and it is newer than an older statement about one file.*
+
+## 45. The queue filled itself, and emptying it stopped the music
+
+Playing a row from the library put the whole rest of the library into the queue
+behind it. It made "next" mean something, and it made everything else mean
+nothing: the queue showed hundreds of tracks nobody queued, clearing it stopped
+playback outright — the current track was one of its entries — and shuffle
+reordered that whole pile, so the two or three tracks a listener had actually
+asked for were lost in it.
+
+PROJECT_MASTER 2.3 describes a manual queue and an automatic continuation as
+two lanes and never says the continuation must be *stored*. Storing it was the
+mistake. The owner stated the rule plainly: the queue is filled by a person,
+and an empty queue means the library simply plays on.
+
+**Chosen:**
+
+- **Nothing is queued by playing a track.** `play_from_library` starts the
+  track and leaves both lanes as they were, so anything queued by hand still
+  plays first.
+- **What follows a library track is worked out, not remembered.**
+  `playback_policy::next_in_library` answers it from the library listing: the
+  next row in order, or — under shuffle — a track that has not had its turn
+  yet, which is 9.2's first hard rule enforced against the play history instead
+  of against a materialised pool.
+- **Clearing empties the lanes and touches nothing else.** The track that is
+  playing left the queue when it started; clearing is a statement about the
+  list, not about the music.
+- **Shuffle is about what comes after what was asked for.** The manual queue is
+  never reordered — those tracks were put in an order by hand. A playlist's
+  remaining tracks still are: they are the continuation, and that is the thing
+  shuffle governs.
+
+Two consequences worth naming. Repeat off now **stops at the bottom of the
+library** instead of wrapping round to the top, which is what "stop once the
+queue is exhausted" has to mean when the queue is a library — repeat all still
+wraps. And `has_next` says yes whenever something is playing: knowing better
+means listing the library, and that view is rebuilt four times a second.
+
+The queue is now the only place in Cadenza that answers *what did you ask for*,
+and the library answers *what comes after*. They are different questions and
+they were being kept in the same list.
+
+### What was armed had to be able to change
+
+Making the queue a short human list exposed an older fault. The engine is
+handed the following track seconds before it is needed, and the queue then had
+no idea *which* track that was — so a track queued at the last moment was shown
+as playing while the engine played the one it had already decoded.
+
+The service now remembers what it armed and re-arms whenever what follows is no
+longer that. The cost is a second decode setup on a queue edit, and one place
+where it is imperfect: an edit made *during* a fade cannot recall audio already
+mixed into the ring.
