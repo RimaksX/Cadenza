@@ -11,7 +11,7 @@ use std::sync::{Arc, Mutex};
 
 use cadenza_core::Result;
 use cadenza_core::application::services::{
-    PlaybackPorts, PlaybackService, QueuePorts, QueueService,
+    PlaybackPorts, PlaybackService, QueuePorts, QueueService, RadioPorts, RadioService,
 };
 use cadenza_core::application::{AppContext, ProfileService};
 use cadenza_core::domain::eq::EqSetting;
@@ -24,14 +24,16 @@ use cadenza_core::domain::ports::repositories::{
     MediaFileRepositoryPort, SettingsRepositoryPort, TrackRepositoryPort,
 };
 use cadenza_core::domain::queue::RepeatMode;
+use cadenza_core::domain::radio::MIN_BATCH_SIZE;
 use cadenza_core::domain::settings::{CROSSFADE_ENABLED_KEY, CrossfadeDuration, SettingValue};
 use cadenza_core::domain::track::{Track, TrackFeatures};
 use cadenza_core::domain::value_objects::{
     Bpm, DurationMs, Mode, MusicalKey, PlaybackPosition, Timestamp, Volume,
 };
 use cadenza_infra::db::repositories::{
-    SqliteMediaFileRepository, SqliteProfileRepository, SqliteQueueRepository,
-    SqliteSettingsRepository, SqliteTrackFeaturesRepository, SqliteTrackRepository,
+    SqliteMediaFileRepository, SqliteMoodRepository, SqliteProfileRepository,
+    SqliteQueueRepository, SqliteRadioRepository, SqliteSettingsRepository,
+    SqliteTrackFeaturesRepository, SqliteTrackRepository,
 };
 use cadenza_infra::events::InProcessEventBus;
 use cadenza_testkit::{TempDb, TestClock};
@@ -241,6 +243,15 @@ fn harness() -> Harness {
 
 /// The queue and the device under it, as one run of the application builds them.
 fn services(db: &TempDb, profile_id: ProfileId) -> (QueueService, Arc<FakeEngine>) {
+    let (queue, engine, _radio) = services_with_radio(db, profile_id);
+    (queue, engine)
+}
+
+/// The same, with the station the application wires behind it.
+fn services_with_radio(
+    db: &TempDb,
+    profile_id: ProfileId,
+) -> (QueueService, Arc<FakeEngine>, Arc<RadioService>) {
     let context = Arc::new(AppContext::new(
         Arc::new(TestClock::default()),
         Arc::new(InProcessEventBus::new()),
@@ -261,6 +272,16 @@ fn services(db: &TempDb, profile_id: ProfileId) -> (QueueService, Arc<FakeEngine
         },
     ));
 
+    let radio = Arc::new(RadioService::new(
+        Arc::clone(&context),
+        RadioPorts {
+            radio: Arc::new(SqliteRadioRepository::new(db.pool().clone())),
+            moods: Arc::new(SqliteMoodRepository::new(db.pool().clone())),
+            tracks: Arc::clone(&track_repo) as _,
+            features: Arc::new(SqliteTrackFeaturesRepository::new(db.pool().clone())),
+        },
+    ));
+
     let queue = QueueService::new(
         context,
         playback,
@@ -268,11 +289,11 @@ fn services(db: &TempDb, profile_id: ProfileId) -> (QueueService, Arc<FakeEngine
             queue: Arc::new(SqliteQueueRepository::new(db.pool().clone())),
             tracks: track_repo as _,
             features: Arc::new(SqliteTrackFeaturesRepository::new(db.pool().clone())),
-            radio: None,
+            radio: Some(Arc::clone(&radio)),
         },
     );
 
-    (queue, engine)
+    (queue, engine, radio)
 }
 
 fn catalogued(name: &str) -> MediaFile {
@@ -958,4 +979,41 @@ fn shuffle_still_works_when_nothing_has_been_analysed() {
         vec!["four", "one", "three", "two"],
         "and none of them twice"
     );
+}
+
+#[test]
+fn playing_a_track_ends_the_station() {
+    let harness = harness();
+    let (queue, engine, radio) = services_with_radio(&harness.db, harness.profile_id);
+
+    let workout = radio
+        .moods()
+        .expect("moods")
+        .into_iter()
+        .find(|mood| mood.name == "Workout")
+        .expect("a built-in mood");
+
+    let session = radio.start(workout.id, None).expect("a station");
+    let batch = radio.next_batch(MIN_BATCH_SIZE).expect("a batch");
+    queue.play_radio(session.id, &batch).expect("playing");
+    assert!(radio.session().is_some(), "the station is on");
+
+    // What the listener did: went to the library and put something on.
+    queue
+        .play_from_library(harness.tracks[0])
+        .expect("their own choice");
+
+    assert!(
+        radio.session().is_none(),
+        "choosing a track is how a listener says they are done with the station"
+    );
+    assert_eq!(engine.heard().last().map(String::as_str), Some("one"));
+
+    // And the tick that follows must not ask the station it just ended for
+    // more, however low the lane it left behind has run.
+    for _ in 0..4 {
+        queue
+            .poll()
+            .expect("polled without asking a station that ended");
+    }
 }

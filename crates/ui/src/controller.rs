@@ -447,6 +447,7 @@ impl Controller {
                 .play_playlist(playlist_id, &tracks, media_file_id)
         });
         self.refresh_queue();
+        self.refresh_radio();
     }
 
     /// Advances when the current track has run out.
@@ -471,6 +472,10 @@ impl Controller {
             self.services.queue.play_from_library(media_file_id)
         });
         self.refresh_queue();
+        // Choosing a track ends the station, so the radio screen is now saying
+        // something that is no longer true — that a mood is playing, and that
+        // there is something to give a verdict about.
+        self.refresh_radio();
     }
 
     /// Puts a track at the end of the manual queue.
