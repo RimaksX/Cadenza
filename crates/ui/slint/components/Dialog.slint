@@ -23,12 +23,18 @@ export component TextButton inherits Rectangle {
     /// whose widths follow their labels is a column with a ragged edge, and a
     /// ragged edge is noise with no meaning in it.
     in property <length> fixed-width;
+    /// A button that is there but cannot be pressed yet — the action exists,
+    /// the conditions for it do not. Shown rather than hidden so the page does
+    /// not change shape under the hand.
+    in property <bool> enabled: true;
 
     callback pressed();
 
-    property <color> tone: root.destructive
-        ? Theme.danger
-        : (root.primary || root.selected ? Theme.ink-0 : Theme.ink-2);
+    property <color> tone: !root.enabled
+        ? Theme.ink-mute
+        : (root.destructive
+            ? Theme.danger
+            : (root.primary || root.selected ? Theme.ink-0 : Theme.ink-2));
 
     // Whole, even pixels: a button whose width is fractional is placed by its
     // layout at a fractional x, and every letter of its label is then
@@ -39,24 +45,29 @@ export component TextButton inherits Rectangle {
     height: 34px;
     border-radius: Theme.radius;
     border-width: 1px;
-    border-color: root.selected
-        ? Theme.line
-        : (touch.has-hover
-            ? (root.destructive ? Theme.danger.with-alpha(0.5) : Theme.line)
-            : Theme.line-soft);
+    border-color: !root.enabled
+        ? Theme.line-soft
+        : (root.selected
+            ? Theme.line
+            : (touch.has-hover
+                ? (root.destructive ? Theme.danger.with-alpha(0.5) : Theme.line)
+                : Theme.line-soft));
     // Three states, not two. A control that looks the same held down as it
     // does under the pointer gives nothing back at the moment of the press,
     // which is the moment somebody is asking whether it worked.
-    background: touch.pressed
+    background: !root.enabled
+        ? transparent
+        : (touch.pressed
         ? (root.destructive ? Theme.danger.with-alpha(0.22) : Theme.bg-3)
         : (root.selected
             ? Theme.bg-2
             : (touch.has-hover
                 ? (root.destructive ? Theme.danger.with-alpha(0.12) : Theme.bg-2)
-                : transparent));
+                : transparent)));
     animate background, border-color { duration: 120ms; }
 
     touch := TouchArea {
+        enabled: root.enabled;
         mouse-cursor: pointer;
         clicked => {
             root.pressed();

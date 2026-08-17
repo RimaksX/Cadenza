@@ -205,13 +205,13 @@ export component Sidebar inherits Rectangle {
                     root.select("queue");
                 }
             }
-            // Radio waits for the milestone that gives it a screen. Shown
-            // rather than hidden so the shape of the application is legible,
-            // and disabled rather than clickable so it cannot lie.
             NavItem {
                 label: "Radio";
                 glyph: @image-url("../../../../resources/ui/icons/radio.svg");
-                enabled: false;
+                selected: root.section == "radio";
+                chosen => {
+                    root.select("radio");
+                }
             }
 
             // A group of its own. The equaliser is not somewhere the music is

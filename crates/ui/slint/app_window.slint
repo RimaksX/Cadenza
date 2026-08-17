@@ -17,6 +17,7 @@ import { PlaylistCardData } from "views/PlaylistsView.slint";
 import { MenuItemData } from "components/RowMenu.slint";
 import { EqPresetData, EqBandData } from "views/EqualiserView.slint";
 import { FolderRowData } from "views/SettingsView.slint";
+import { MoodRowData } from "views/RadioView.slint";
 
 // Re-exported so the controller can set the palette. A global's input is set
 // from the native side; markup may read it but never assign to it, which is
@@ -66,6 +67,11 @@ export component AppWindow inherits Window {
     in property <[FolderRowData]> folders;
     in property <string> suggested-folder;
     in property <string> settings-summary;
+
+    // Radio.
+    in property <[MoodRowData]> moods;
+    in property <string> radio-mood;
+    in property <string> radio-summary;
     in property <bool> eq-advanced;
     in property <float> eq-bass;
     in property <float> eq-mid;
@@ -141,6 +147,9 @@ export component AppWindow inherits Window {
     callback use-suggested-folder();
     callback remove-folder(string);
     callback scan-now();
+    callback start-radio(string);
+    callback stop-radio();
+    callback judge-radio(bool);
     callback widen-eq-band(int, float);
     callback pick-eq-preset(string);
     callback save-eq-preset(string);
@@ -185,6 +194,9 @@ export component AppWindow inherits Window {
         folders: root.folders;
         suggested-folder: root.suggested-folder;
         settings-summary: root.settings-summary;
+        moods: root.moods;
+        radio-mood: root.radio-mood;
+        radio-summary: root.radio-summary;
         eq-advanced: root.eq-advanced;
         eq-bass: root.eq-bass;
         eq-mid: root.eq-mid;
@@ -324,6 +336,15 @@ export component AppWindow inherits Window {
         }
         remove-folder(id) => {
             root.remove-folder(id);
+        }
+        start-radio(id) => {
+            root.start-radio(id);
+        }
+        stop-radio => {
+            root.stop-radio();
+        }
+        judge-radio(like) => {
+            root.judge-radio(like);
         }
         scan-now => {
             root.scan-now();

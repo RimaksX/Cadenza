@@ -1,0 +1,259 @@
+import { Theme } from "../theme/tokens.slint";
+import { TextButton } from "../components/Dialog.slint";
+
+// One mood the listener can start a station from.
+export struct MoodRowData {
+    id: string,
+    name: string,
+    /// What it asks for, in a few words: "125-175 bpm, loud".
+    asks: string,
+}
+
+// A heading over a group, the same rule-to-the-edge the sidebar and the
+// settings screen use.
+component SectionLabel inherits Rectangle {
+    in property <string> text;
+
+    height: 26px;
+
+    HorizontalLayout {
+        y: round((parent.height - 18px) / 1px / 2) * 1px;
+        height: 18px;
+        spacing: Theme.space-2;
+
+        VerticalLayout {
+            alignment: center;
+
+            Text {
+                text: root.text;
+                font-family: Theme.mono;
+                font-size: Theme.text-label;
+                height: 18px;
+                vertical-alignment: center;
+                letter-spacing: Theme.label-spacing;
+                color: Theme.ink-mute;
+            }
+        }
+
+        Rectangle {
+            y: 8px;
+            height: 1px;
+            background: Theme.line-soft;
+        }
+    }
+}
+
+// One mood: its name, and what it is asking the library for.
+component MoodCard inherits Rectangle {
+    in property <MoodRowData> data;
+    in property <bool> playing;
+
+    callback chosen();
+
+    height: 76px;
+    border-width: 1px;
+    border-color: root.playing ? Theme.ink-0 : Theme.line-soft;
+    background: touch.has-hover ? Theme.bg-2 : Theme.bg-1;
+
+    touch := TouchArea {
+        clicked => {
+            root.chosen();
+        }
+    }
+
+    VerticalLayout {
+        x: Theme.space-4;
+        y: round((parent.height - 48px) / 1px / 2) * 1px;
+        width: parent.width - Theme.space-4 * 2;
+        height: 48px;
+        spacing: 2px;
+
+        Text {
+            text: root.data.name;
+            font-family: Theme.serif;
+            font-size: Theme.text-title;
+            height: 28px;
+            vertical-alignment: center;
+            color: Theme.ink-0;
+            overflow: elide;
+        }
+
+        Text {
+            text: root.data.asks;
+            font-family: Theme.mono;
+            font-size: Theme.text-label;
+            height: 18px;
+            vertical-alignment: center;
+            letter-spacing: Theme.label-spacing;
+            color: Theme.ink-mute;
+            overflow: elide;
+        }
+    }
+}
+
+// Choosing a mood and telling the station what it got wrong.
+export component RadioView inherits Rectangle {
+    in property <[MoodRowData]> moods;
+    /// The mood playing now, empty when nothing is.
+    in property <string> playing-mood;
+    in property <string> summary;
+    /// What the station is playing, for the verdict buttons to name.
+    in property <string> now-title;
+
+    /// Named for what it does rather than "start": `start` is also the value
+    /// `alignment` takes, and a callback of that name shadows it everywhere
+    /// below.
+    callback listen(string);
+    callback stop();
+    /// True to say more like this, false for less.
+    callback judge(bool);
+
+    background: Theme.bg-0;
+
+    VerticalLayout {
+        VerticalLayout {
+            vertical-stretch: 0;
+            padding-left: Theme.page-inset;
+            padding-right: Theme.page-inset;
+            padding-top: Theme.space-6;
+            padding-bottom: Theme.space-5;
+            spacing: Theme.space-2;
+
+            Text {
+                text: "BUILT FROM YOUR OWN LIBRARY";
+                font-family: Theme.mono;
+                font-size: Theme.text-label;
+                height: 18px;
+                vertical-alignment: center;
+                letter-spacing: Theme.label-spacing;
+                color: Theme.ink-mute;
+            }
+
+            Text {
+                text: "Radio";
+                font-family: Theme.serif;
+                font-size: Theme.text-display;
+                height: 54px;
+                vertical-alignment: bottom;
+                color: Theme.ink-0;
+            }
+
+            Text {
+                text: root.summary;
+                font-family: Theme.mono;
+                font-size: Theme.text-label;
+                height: 18px;
+                vertical-alignment: center;
+                letter-spacing: Theme.number-spacing;
+                color: Theme.ink-2;
+            }
+        }
+
+        HorizontalLayout {
+            vertical-stretch: 1;
+            padding-left: Theme.page-inset;
+            padding-right: Theme.page-inset;
+            padding-bottom: Theme.space-5;
+            spacing: Theme.space-6;
+
+            VerticalLayout {
+                horizontal-stretch: 1;
+                spacing: Theme.space-2;
+
+                SectionLabel {
+                    text: "A MOOD TO START FROM";
+                }
+
+                Flickable {
+                    vertical-stretch: 1;
+                    viewport-height: moods-column.preferred-height;
+
+                    moods-column := VerticalLayout {
+                        spacing: Theme.space-2;
+
+                        for mood in root.moods: MoodCard {
+                            data: mood;
+                            playing: root.playing-mood == mood.name;
+                            chosen => {
+                                root.listen(mood.id);
+                            }
+                        }
+                    }
+                }
+            }
+
+            // What can be said to a station while it plays.
+            VerticalLayout {
+                width: 320px;
+                spacing: Theme.space-5;
+
+                VerticalLayout {
+                    spacing: Theme.space-2;
+
+                    SectionLabel {
+                        text: "WHAT IS PLAYING";
+                    }
+
+                    Text {
+                        text: root.now-title == "" ? "nothing yet" : root.now-title;
+                        font-family: Theme.sans;
+                        font-size: Theme.text-body;
+                        height: 44px;
+                        vertical-alignment: center;
+                        wrap: word-wrap;
+                        color: root.now-title == "" ? Theme.ink-mute : Theme.ink-0;
+                    }
+
+                    Text {
+                        text: "A verdict steers what the station offers next. It never bans a track.";
+                        font-family: Theme.sans;
+                        font-size: Theme.text-body;
+                        height: 44px;
+                        wrap: word-wrap;
+                        color: Theme.ink-mute;
+                    }
+
+                    HorizontalLayout {
+                        alignment: start;
+                        spacing: Theme.space-2;
+
+                        TextButton {
+                            label: "MORE LIKE THIS";
+                            fixed-width: 156px;
+                            enabled: root.playing-mood != "";
+                            pressed => {
+                                root.judge(true);
+                            }
+                        }
+                        TextButton {
+                            label: "LESS";
+                            fixed-width: 100px;
+                            enabled: root.playing-mood != "";
+                            destructive: true;
+                            pressed => {
+                                root.judge(false);
+                            }
+                        }
+                    }
+                }
+
+                Rectangle {
+                    vertical-stretch: 1;
+                }
+
+                HorizontalLayout {
+                    alignment: start;
+
+                    TextButton {
+                        label: "STOP THE STATION";
+                        fixed-width: 208px;
+                        enabled: root.playing-mood != "";
+                        pressed => {
+                            root.stop();
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

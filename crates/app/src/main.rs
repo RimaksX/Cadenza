@@ -211,6 +211,7 @@ fn run() -> std::result::Result<(), String> {
             playback,
             queue,
             playlists,
+            radio: Arc::clone(&radio),
             profile: active,
         });
 

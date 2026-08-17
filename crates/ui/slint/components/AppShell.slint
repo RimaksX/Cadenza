@@ -9,6 +9,7 @@ import { PlaylistsView, PlaylistCardData } from "../views/PlaylistsView.slint";
 import { PlaylistDetailView } from "../views/PlaylistDetailView.slint";
 import { EqualiserView, EqPresetData, EqBandData } from "../views/EqualiserView.slint";
 import { SettingsView, FolderRowData } from "../views/SettingsView.slint";
+import { RadioView, MoodRowData } from "../views/RadioView.slint";
 import { Dialog, PickDialog } from "Dialog.slint";
 import { MenuItemData } from "RowMenu.slint";
 
@@ -44,6 +45,11 @@ export component AppShell inherits Rectangle {
     in property <[FolderRowData]> folders;
     in property <string> suggested-folder;
     in property <string> settings-summary;
+
+    // Radio.
+    in property <[MoodRowData]> moods;
+    in property <string> radio-mood;
+    in property <string> radio-summary;
     in property <bool> eq-advanced;
     in property <float> eq-bass;
     in property <float> eq-mid;
@@ -125,6 +131,9 @@ export component AppShell inherits Rectangle {
     callback tune-eq-band(int, int);
     callback select-eq-band(int);
     callback settle-eq();
+    callback start-radio(string);
+    callback stop-radio();
+    callback judge-radio(bool);
     callback set-theme(bool);
     callback set-crossfade(bool, int);
     callback set-history(bool);
@@ -239,6 +248,23 @@ export component AppShell inherits Rectangle {
                 }
                 act(id, name, action) => {
                     root.ask(action == "rename" ? "rename-playlist" : "delete-playlist", id, name);
+                }
+            }
+
+            if root.section == "radio": RadioView {
+                moods: root.moods;
+                playing-mood: root.radio-mood;
+                summary: root.radio-summary;
+                now-title: root.now-title;
+
+                listen(id) => {
+                    root.start-radio(id);
+                }
+                stop => {
+                    root.stop-radio();
+                }
+                judge(like) => {
+                    root.judge-radio(like);
                 }
             }
 

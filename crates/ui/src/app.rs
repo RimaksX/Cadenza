@@ -140,6 +140,21 @@ fn wire(window: &AppWindow, controller: &Rc<Controller>) {
         move |id| controller.remove_from_library(&id)
     });
 
+    window.on_start_radio({
+        let controller = Rc::clone(controller);
+        move |id| controller.start_radio(id.as_str())
+    });
+
+    window.on_stop_radio({
+        let controller = Rc::clone(controller);
+        move || controller.stop_radio()
+    });
+
+    window.on_judge_radio({
+        let controller = Rc::clone(controller);
+        move |like| controller.judge_radio(like)
+    });
+
     window.on_clear_queue({
         let controller = Rc::clone(controller);
         move || controller.clear_queue()

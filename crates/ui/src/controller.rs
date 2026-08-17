@@ -8,19 +8,20 @@ use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
 use cadenza_core::domain::eq::{EqBand, EqMode};
-use cadenza_core::domain::ids::{EqPresetId, MediaFileId, PlaylistId};
+use cadenza_core::domain::ids::{EqPresetId, MediaFileId, MoodId, PlaylistId};
 use cadenza_core::domain::playback::PlaybackState;
 use cadenza_core::domain::policies::eq_policy::{MAX_BAND_HZ, MAX_BAND_Q, MIN_BAND_HZ, MIN_BAND_Q};
 use cadenza_core::domain::profile::Profile;
 use cadenza_core::domain::queue::RepeatMode;
+use cadenza_core::domain::radio::{MIN_BATCH_SIZE, RadioFeedback};
 use cadenza_core::domain::settings::CrossfadeDuration;
 use cadenza_core::domain::value_objects::theme_mode::ThemeMode;
 use cadenza_core::domain::value_objects::{DurationMs, GainDb, PlaybackPosition, Volume};
 use cadenza_core::{CoreError, Result};
 use slint::{ComponentHandle, Model, ModelRc, VecModel, Weak};
 
-use crate::view_models::{self, eq_vm, library_vm, player_vm, playlist_vm};
-use crate::{AppWindow, EqBandData, FolderRowData, Theme, UiServices};
+use crate::view_models::{self, eq_vm, library_vm, player_vm, playlist_vm, radio_vm};
+use crate::{AppWindow, EqBandData, FolderRowData, MoodRowData, Theme, UiServices};
 
 /// How many bars the player bar draws.
 ///
@@ -120,6 +121,7 @@ impl Controller {
         self.refresh_playlists();
         self.refresh_eq();
         self.refresh_settings();
+        self.refresh_radio();
         self.refresh_player();
 
         if let Some(window) = self.window.upgrade() {
@@ -507,8 +509,24 @@ impl Controller {
 
     /// Moves to the next track.
     pub fn next(&self) {
+        // Pressing next during a station is a verdict on what is playing —
+        // the weakest kind, but the one 10.5 asks radio to learn from. Recorded
+        // before the track changes, because after it there is nothing to point
+        // at. A track that ran out on its own is not a skip and does not come
+        // through here.
+        if self.services.radio.session().is_some()
+            && let Some(track) = self.services.playback.view().track
+        {
+            self.run(|| {
+                self.services
+                    .radio
+                    .feedback(track.media_file_id, RadioFeedback::Skip)
+            });
+        }
+
         self.run(|| self.services.queue.next());
         self.refresh_queue();
+        self.refresh_radio();
     }
 
     /// Restarts the track, or moves back to the previous one.
@@ -771,6 +789,84 @@ impl Controller {
     }
 
     /// Everything the settings screen draws.
+    /// Re-reads the moods and what the station is doing.
+    pub fn refresh_radio(&self) {
+        let Some(window) = self.window.upgrade() else {
+            return;
+        };
+
+        let moods = match self.services.radio.moods() {
+            Ok(moods) => moods,
+            Err(CoreError::NoActiveProfile) => Vec::new(),
+            Err(err) => {
+                self.report(&err);
+                return;
+            }
+        };
+
+        let rows: Vec<MoodRowData> = moods
+            .iter()
+            .map(|mood| MoodRowData {
+                id: mood.id.to_string().into(),
+                name: mood.name.as_str().into(),
+                asks: radio_vm::asks_for(&mood.rules).into(),
+            })
+            .collect();
+        window.set_moods(ModelRc::new(VecModel::from(rows)));
+
+        let playing = self.services.radio.mood();
+        window.set_radio_mood(
+            playing
+                .as_ref()
+                .map_or_else(String::new, |mood| mood.name.clone())
+                .into(),
+        );
+        window.set_radio_summary(
+            radio_vm::summary_line(playing.as_ref(), self.services.queue.view().pending).into(),
+        );
+    }
+
+    /// Starts a station in the chosen mood, seeded by what is playing.
+    pub fn start_radio(&self, id: &str) {
+        self.run(|| {
+            let mood_id = MoodId::parse(id)?;
+            let seed = self
+                .services
+                .playback
+                .view()
+                .track
+                .map(|track| track.media_file_id);
+
+            let session = self.services.radio.start(mood_id, seed)?;
+            let batch = self.services.radio.next_batch(MIN_BATCH_SIZE)?;
+            self.services.queue.play_radio(session.id, &batch)
+        });
+
+        self.refresh_radio();
+        self.refresh_queue();
+        self.refresh_player();
+    }
+
+    /// Ends the station. What it already queued stays: it is still music.
+    pub fn stop_radio(&self) {
+        self.services.radio.stop();
+        self.refresh_radio();
+    }
+
+    /// Tells the station what the listener thinks of what is playing.
+    pub fn judge_radio(&self, like: bool) {
+        let Some(track) = self.services.playback.view().track else {
+            return;
+        };
+
+        let verdict = if like {
+            RadioFeedback::Like
+        } else {
+            RadioFeedback::Dislike
+        };
+        self.run(|| self.services.radio.feedback(track.media_file_id, verdict));
+    }
+
     pub fn refresh_settings(&self) {
         let Some(window) = self.window.upgrade() else {
             return;
