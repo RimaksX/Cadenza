@@ -70,8 +70,29 @@ pub struct RadioSession {
     pub updated_at: Timestamp,
 }
 
+/// What each term of the ranking contributed to one pick.
+///
+/// The whole of why a track was chosen, in six numbers. Radio is a weighted sum
+/// and not a model, which means every pick can be explained — and an
+/// explanation nobody kept is an explanation nobody can check.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct PickReason {
+    /// How well it fitted the mood.
+    pub mood: f32,
+    /// How smoothly it followed what came before.
+    pub transition: f32,
+    /// What the listener has said about it before.
+    pub preference: f32,
+    /// How long since they last heard it.
+    pub freshness: f32,
+    /// Whether it was docked for repeating an artist.
+    pub repeats_artist: bool,
+    /// What it scored in the end.
+    pub score: f32,
+}
+
 /// One track the radio chose, with the reasoning behind it.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct RadioSessionItem {
     /// Stable identifier.
     pub id: RadioSessionItemId,
@@ -86,7 +107,10 @@ pub struct RadioSessionItem {
     /// Kept because the selection is a weighted formula rather than a model: a
     /// pick can always be explained, and that is worth preserving for debugging
     /// and for showing the listener (PROJECT_MASTER ADR 0004).
-    pub reason_json: Option<String>,
+    ///
+    /// Typed rather than the JSON the column holds — the adapter owns the
+    /// encoding, as it does everywhere else.
+    pub reason: Option<PickReason>,
     /// When it was queued.
     pub created_at: Timestamp,
 }

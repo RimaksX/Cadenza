@@ -908,3 +908,39 @@ million comparisons to answer one question.
 `playback_policy::next_in_library` is now order only. What shuffle plays next
 has different inputs and a different rule, and one function pretending to answer
 both took a `shuffle: bool` and did two unrelated things underneath it.
+
+## 49. M13: what radio measures when there is no history to measure
+
+The ranking of 10.4 has a freshness term, and freshness means "how long since
+you heard this". Nothing writes listening history yet — `PlayEventRepositoryPort`
+has no adapter, because recording and purging listens is M14's — so the term
+had a name and no source.
+
+Three ways out, and only one of them honest. A no-op adapter would make the
+term silently constant while looking implemented. Dropping the term would mean
+re-opening the formula later. What it does instead is measure **how long since
+radio itself last offered the track**, which every station has recorded since
+the first one: `radio_session_items.created_at`, grouped by file. For somebody
+listening to radio that is the same question — a track offered an hour ago
+should not come straight back — and when M14 starts writing history the source
+can widen without the formula moving.
+
+Two smaller decisions worth writing down.
+
+**A verdict is about a pick, not a tally.** Pressing dislike twice on the same
+offered track says one thing twice; the row is updated, not appended, and the
+weight that reaches the ranking is one dislike. Accumulation happens across
+*offers* — a track disliked in three different sessions is disliked three times
+— which is the difference between an opinion and a click count. A test asserted
+otherwise and was wrong.
+
+**Feedback is not a ban.** A disliked track keeps its place among the
+candidates and simply scores the bottom of the preference term. Banning is what
+the no-repeat rule does within a session; a preference that could ban would
+make one irritated press permanent.
+
+The batch is generated one pick at a time rather than by sorting once and
+taking the top eight. Each pick becomes the *previous* track for the next
+transition score, and joins the artist window the diversity term reads — so a
+batch is a sequence that was reasoned about rather than a set that happened to
+rank well.

@@ -18,7 +18,7 @@ use uuid::Uuid;
 
 use crate::application::context::AppContext;
 use crate::application::view_state::QueueView;
-use crate::domain::ids::{MediaFileId, PlaylistId};
+use crate::domain::ids::{MediaFileId, PlaylistId, RadioSessionId};
 use crate::domain::media_file::FileState;
 use crate::domain::policies::playback_policy::{
     PreviousAction, next_in_library, previous_action, transition_for,
@@ -30,6 +30,7 @@ use crate::domain::ports::repositories::{
     QueueRepositoryPort, TrackFeaturesRepositoryPort, TrackRepositoryPort,
 };
 use crate::domain::queue::{Queue, QueueEntry, QueueOrigin, RepeatMode};
+use crate::domain::radio::{MIN_BATCH_SIZE, REFILL_THRESHOLD};
 use crate::domain::track::{TrackFeatures, TrackSummary};
 use crate::domain::value_objects::PlaybackPosition;
 use crate::{CoreError, Result};
@@ -46,6 +47,12 @@ pub struct QueuePorts {
     /// 9.3). A library nobody has analysed yet still shuffles: every candidate
     /// simply scores the same.
     pub features: Arc<dyn TrackFeaturesRepositoryPort>,
+    /// The station, when there is one to keep topped up.
+    ///
+    /// Optional because the queue is older than radio and works without it: a
+    /// command line that lists tracks has no station, and neither has a test
+    /// about repeat modes.
+    pub radio: Option<Arc<super::RadioService>>,
 }
 
 /// The playback queue and the transport commands that move through it.
@@ -515,6 +522,10 @@ impl QueueService {
     pub fn poll(&self) -> Result<bool> {
         let mut changed = self.catch_up()?;
 
+        // Before anything decides there is nowhere to go: a station that has
+        // run low tops itself up, which is what makes radio endless (10.5).
+        changed |= self.refill_radio()?;
+
         let view = self.playback.view();
         // Stopped with a track still loaded is the one state that only
         // end-of-track produces: pausing reports paused, and stopping unloads.
@@ -532,6 +543,94 @@ impl QueueService {
         self.arm_next()?;
 
         Ok(changed)
+    }
+
+    /// Starts a station: its first batch becomes the continuation.
+    ///
+    /// The manual queue survives, because it outranks radio (PROJECT_MASTER
+    /// 10.5) — a track queued by hand plays before whatever the station chose.
+    pub fn play_radio(&self, session_id: RadioSessionId, batch: &[MediaFileId]) -> Result<()> {
+        let profile_id = self.context.require_active_profile()?;
+        let Some((first, rest)) = batch.split_first() else {
+            return Err(CoreError::invalid(
+                "radio",
+                "the station found nothing to play",
+            ));
+        };
+
+        let origin = QueueOrigin::Radio(session_id);
+        self.write_queue(|queue| {
+            queue.profile_id = profile_id;
+            queue.start(
+                QueueEntry {
+                    media_file_id: *first,
+                    origin,
+                },
+                rest.iter()
+                    .map(|media_file_id| QueueEntry {
+                        media_file_id: *media_file_id,
+                        origin,
+                    })
+                    .collect(),
+            );
+        });
+
+        self.play_current()
+    }
+
+    /// Tops the station up before it runs dry.
+    ///
+    /// Asked on every tick and answered by two reads in the ordinary case. The
+    /// threshold is what keeps generation off the transition: refilling at the
+    /// last track would put a database query and a scoring pass exactly where
+    /// the next track is supposed to start.
+    fn refill_radio(&self) -> Result<bool> {
+        let Some(radio) = self.ports.radio.as_ref() else {
+            return Ok(false);
+        };
+
+        let Some(session_id) = self.with_queue(|queue| match queue.current {
+            Some(QueueEntry {
+                origin: QueueOrigin::Radio(session_id),
+                ..
+            }) => Some(session_id),
+            _ => None,
+        }) else {
+            return Ok(false);
+        };
+
+        // Only the station's own lane counts. A listener who queued ten tracks
+        // by hand has not thereby told the station it may stop generating.
+        let waiting = self.with_queue(|queue| {
+            queue
+                .upcoming
+                .iter()
+                .filter(|entry| matches!(entry.origin, QueueOrigin::Radio(_)))
+                .count()
+        });
+        if waiting > REFILL_THRESHOLD {
+            return Ok(false);
+        }
+
+        let batch = radio.next_batch(MIN_BATCH_SIZE)?;
+        if batch.is_empty() {
+            // The library has nothing left the station has not offered. It ends
+            // when the lane empties, which is what the queue already does.
+            return Ok(false);
+        }
+
+        self.write_queue(|queue| {
+            for media_file_id in &batch {
+                queue.upcoming.push_back(QueueEntry {
+                    media_file_id: *media_file_id,
+                    origin: QueueOrigin::Radio(session_id),
+                });
+            }
+        });
+
+        self.persist();
+        self.announce();
+        Ok(true)
     }
 
     /// Brings the queue's own bookkeeping up to what the engine already played.

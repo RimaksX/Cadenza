@@ -33,7 +33,7 @@ use crate::domain::mood::MoodPreset;
 use crate::domain::playlist::{Playlist, PlaylistItem};
 use crate::domain::profile::Profile;
 use crate::domain::queue::Queue;
-use crate::domain::radio::{RadioSession, RadioSessionItem};
+use crate::domain::radio::{RadioFeedback, RadioSession, RadioSessionItem};
 use crate::domain::review::{ImportReview, ReviewState};
 use crate::domain::settings::{ProfileFolder, SettingValue};
 use crate::domain::stats::PlayEvent;
@@ -318,6 +318,34 @@ pub trait RadioRepositoryPort: Send + Sync {
     /// repeating an artist or genre too soon.
     fn recent_items(&self, session_id: RadioSessionId, limit: u32)
     -> Result<Vec<RadioSessionItem>>;
+
+    /// Records what the listener thought of a pick.
+    ///
+    /// The most recent pick of that file in that session, because a track
+    /// offered twice was judged the second time.
+    fn set_feedback(
+        &self,
+        session_id: RadioSessionId,
+        media_file_id: MediaFileId,
+        feedback: RadioFeedback,
+        now: Timestamp,
+    ) -> Result<()>;
+
+    /// When each file was last offered by any of this profile's stations.
+    ///
+    /// What the freshness term of PROJECT_MASTER 10.4 is measured against.
+    /// Listening history would be the better source and is not written yet —
+    /// that is M14's — but "how long since radio last played you this" is the
+    /// question freshness is actually asking of a station, and radio has kept
+    /// the answer since its first session (MASTER_ISSUES 49).
+    fn last_offered(&self, profile_id: ProfileId) -> Result<Vec<(MediaFileId, Timestamp)>>;
+
+    /// Every verdict a profile has given, summed per file.
+    ///
+    /// Summed rather than listed: what generation needs is "how does this
+    /// listener feel about this track", and three skips and a like is one
+    /// answer rather than four. The sign is [`RadioFeedback::weight`]'s.
+    fn preferences(&self, profile_id: ProfileId) -> Result<Vec<(MediaFileId, f32)>>;
 }
 
 /// Mood and activity presets.

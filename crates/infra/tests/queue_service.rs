@@ -268,6 +268,7 @@ fn services(db: &TempDb, profile_id: ProfileId) -> (QueueService, Arc<FakeEngine
             queue: Arc::new(SqliteQueueRepository::new(db.pool().clone())),
             tracks: track_repo as _,
             features: Arc::new(SqliteTrackFeaturesRepository::new(db.pool().clone())),
+            radio: None,
         },
     );
 

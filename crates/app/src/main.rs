@@ -18,6 +18,7 @@ use std::{env, io};
 use cadenza_core::application::services::{
     AnalysisPorts, AnalysisService, EqPorts, EqService, LibraryPorts, LibraryService,
     PlaybackPorts, PlaybackService, PlaylistPorts, PlaylistService, QueuePorts, QueueService,
+    RadioPorts, RadioService,
 };
 use cadenza_core::application::{AppContext, ProfileService};
 use cadenza_core::domain::playback::PlaybackState;
@@ -37,9 +38,9 @@ use cadenza_infra::db;
 use cadenza_infra::db::repositories::{
     SqliteAlbumRepository, SqliteAnalysisJobRepository, SqliteArtistRepository,
     SqliteEqPresetRepository, SqliteGenreRepository, SqliteImportReviewRepository,
-    SqliteMediaFileRepository, SqlitePlaylistRepository, SqliteProfileRepository,
-    SqliteQueueRepository, SqliteSettingsRepository, SqliteTrackFeaturesRepository,
-    SqliteTrackRepository,
+    SqliteMediaFileRepository, SqliteMoodRepository, SqlitePlaylistRepository,
+    SqliteProfileRepository, SqliteQueueRepository, SqliteRadioRepository,
+    SqliteSettingsRepository, SqliteTrackFeaturesRepository, SqliteTrackRepository,
 };
 use cadenza_infra::events::InProcessEventBus;
 use cadenza_infra::library::{LocalFileSystem, NotifyFileWatcher};
@@ -132,6 +133,18 @@ fn run() -> std::result::Result<(), String> {
         },
     ));
 
+    // Radio needs no audio device either: a station is a list of picks, and
+    // playing them is the queue's business.
+    let radio = Arc::new(RadioService::new(
+        Arc::clone(&context),
+        RadioPorts {
+            radio: Arc::new(SqliteRadioRepository::new(pool.clone())),
+            moods: Arc::new(SqliteMoodRepository::new(pool.clone())),
+            tracks: Arc::new(SqliteTrackRepository::new(pool.clone())),
+            features: Arc::new(SqliteTrackFeaturesRepository::new(pool.clone())),
+        },
+    ));
+
     // Before anything else: the pointer left by the previous run decides who the
     // application is running as.
     let active = profiles.restore_active().map_err(|err| err.to_string())?;
@@ -166,6 +179,7 @@ fn run() -> std::result::Result<(), String> {
                 queue: Arc::new(SqliteQueueRepository::new(pool.clone())),
                 tracks: Arc::new(SqliteTrackRepository::new(pool.clone())),
                 features: Arc::new(SqliteTrackFeaturesRepository::new(pool.clone())),
+                radio: Some(Arc::clone(&radio)),
             },
         ));
 

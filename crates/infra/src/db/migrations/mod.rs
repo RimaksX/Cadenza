@@ -30,6 +30,7 @@ mod m0014_queue;
 mod m0015_builtin_eq_presets;
 mod m0016_preset_tone_controls;
 mod m0017_builtin_moods;
+mod m0018_radio_feedback;
 
 /// One numbered schema change.
 pub struct Migration {
@@ -127,6 +128,11 @@ pub const MIGRATIONS: &[Migration] = &[
         version: 17,
         name: "builtin_moods",
         sql: m0017_builtin_moods::SQL,
+    },
+    Migration {
+        version: 18,
+        name: "radio_feedback",
+        sql: m0018_radio_feedback::SQL,
     },
 ];
 
