@@ -425,7 +425,7 @@ fn a_builtin_preset_may_not_belong_to_a_profile() {
     let err = connection
         .execute(
             "INSERT INTO mood_presets (id, profile_id, name, is_builtin, created_at, updated_at)
-             VALUES ('mood-1', 'profile-1', 'Workout', 1, ?1, ?1)",
+             VALUES ('mood-1', 'profile-1', 'Sunday morning', 1, ?1, ?1)",
             [NOW],
         )
         .expect_err("a profile-owned preset claiming to be built-in must be rejected");
@@ -434,7 +434,9 @@ fn a_builtin_preset_may_not_belong_to_a_profile() {
     connection
         .execute(
             "INSERT INTO mood_presets (id, profile_id, name, is_builtin, created_at, updated_at)
-             VALUES ('mood-2', NULL, 'Workout', 1, ?1, ?1)",
+             -- Not one of the names migration 17 ships, which the unique
+             -- index would otherwise catch before the CHECK under test.
+             VALUES ('mood-2', NULL, 'Sunday morning', 1, ?1, ?1)",
             [NOW],
         )
         .expect("a genuine built-in is fine");

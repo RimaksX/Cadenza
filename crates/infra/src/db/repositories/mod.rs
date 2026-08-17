@@ -16,6 +16,7 @@ pub mod catalog_repo;
 pub mod eq_repo;
 pub mod features_repo;
 pub mod media_file_repo;
+pub mod mood_repo;
 pub mod playlist_repo;
 pub mod profile_repo;
 pub mod queue_repo;
@@ -28,6 +29,7 @@ pub use catalog_repo::{SqliteAlbumRepository, SqliteArtistRepository, SqliteGenr
 pub use eq_repo::SqliteEqPresetRepository;
 pub use features_repo::SqliteTrackFeaturesRepository;
 pub use media_file_repo::SqliteMediaFileRepository;
+pub use mood_repo::SqliteMoodRepository;
 pub use playlist_repo::SqlitePlaylistRepository;
 pub use profile_repo::SqliteProfileRepository;
 pub use queue_repo::SqliteQueueRepository;
