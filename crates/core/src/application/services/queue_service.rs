@@ -135,6 +135,8 @@ impl QueueService {
             return Err(CoreError::not_found("track", media_file_id));
         }
 
+        self.end_station();
+
         self.write_queue(|queue| {
             queue.profile_id = profile_id;
             // An empty continuation also ends a playlist that was playing: the
@@ -169,6 +171,8 @@ impl QueueService {
         if !tracks.iter().any(|track| track.media_file_id == from) {
             return Err(CoreError::not_found("track", from));
         }
+
+        self.end_station();
 
         let origin = QueueOrigin::Playlist(playlist_id);
         let mut continuation = rotate(tracks, from, origin);
@@ -578,6 +582,18 @@ impl QueueService {
         self.play_current()
     }
 
+    /// Ends the station, because something else is playing now.
+    ///
+    /// Choosing a track or a playlist is how a listener says they are done with
+    /// radio; there is no separate way to say it and there does not need to be.
+    /// What the station already queued is left alone — it is still music, and
+    /// the listener will pass it on their way out.
+    fn end_station(&self) {
+        if let Some(radio) = self.ports.radio.as_ref() {
+            radio.stop();
+        }
+    }
+
     /// Tops the station up before it runs dry.
     ///
     /// Asked on every tick and answered by two reads in the ordinary case. The
@@ -588,6 +604,14 @@ impl QueueService {
         let Some(radio) = self.ports.radio.as_ref() else {
             return Ok(false);
         };
+
+        // Asked of the service and not only of the queue: a station that has
+        // ended still has its picks in the lane, and asking it for more would
+        // be a question with no answer — four times a second, for as long as
+        // they play.
+        if radio.session().is_none() {
+            return Ok(false);
+        }
 
         let Some(session_id) = self.with_queue(|queue| match queue.current {
             Some(QueueEntry {

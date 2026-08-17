@@ -329,3 +329,47 @@ fn feedback_about_nothing_is_not_an_error() {
             .is_ok()
     );
 }
+
+#[test]
+fn a_verdict_about_a_track_the_station_never_offered_is_not_an_error() {
+    let harness = harness();
+    harness.start("Workout");
+    harness.radio.next_batch(MIN_BATCH_SIZE).expect("a batch");
+
+    // Sleep's half of the library: a Workout station cannot have offered it.
+    // This is what pressing next on a hand-queued track during a station does,
+    // and it says nothing about the station.
+    assert!(
+        harness
+            .radio
+            .feedback(harness.slow[0], RadioFeedback::Skip)
+            .is_ok()
+    );
+
+    assert!(
+        harness
+            .picks
+            .preferences(harness.profile_id)
+            .expect("read")
+            .is_empty(),
+        "and nothing was recorded about it"
+    );
+}
+
+#[test]
+fn a_station_that_has_ended_is_not_asked_for_more() {
+    let harness = harness();
+    harness.start("Workout");
+    harness.radio.next_batch(MIN_BATCH_SIZE).expect("a batch");
+
+    harness.radio.stop();
+
+    // What the queue asks on every tick once the lane runs low. Before this was
+    // an error, it was reported to the listener four times a second for as long
+    // as the picks already queued kept playing.
+    assert!(harness.radio.session().is_none());
+    assert!(
+        harness.radio.next_batch(MIN_BATCH_SIZE).is_err(),
+        "asking a station that has ended is a question with no answer"
+    );
+}

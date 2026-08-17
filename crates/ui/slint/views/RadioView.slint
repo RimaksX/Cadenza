@@ -9,6 +9,16 @@ export struct MoodRowData {
     asks: string,
 }
 
+// A line of explanation under a group.
+component SectionNote inherits Text {
+    font-family: Theme.sans;
+    font-size: Theme.text-body;
+    height: 22px;
+    vertical-alignment: center;
+    color: Theme.ink-mute;
+    overflow: elide;
+}
+
 // A heading over a group, the same rule-to-the-edge the sidebar and the
 // settings screen use.
 component SectionLabel inherits Rectangle {
@@ -104,7 +114,6 @@ export component RadioView inherits Rectangle {
     /// `alignment` takes, and a callback of that name shadows it everywhere
     /// below.
     callback listen(string);
-    callback stop();
     /// True to say more like this, false for less.
     callback judge(bool);
 
@@ -241,17 +250,12 @@ export component RadioView inherits Rectangle {
                     vertical-stretch: 1;
                 }
 
-                HorizontalLayout {
-                    alignment: start;
-
-                    TextButton {
-                        label: "STOP THE STATION";
-                        fixed-width: 208px;
-                        enabled: root.playing-mood != "";
-                        pressed => {
-                            root.stop();
-                        }
-                    }
+                // Nothing here ends the station. Playing a track, a playlist or
+                // another mood is how a listener says they are done with it,
+                // and a button that only repeated one of those would be a
+                // fourth way to do a thing there are already three ways to do.
+                SectionNote {
+                    text: "Playing anything else ends the station.";
                 }
             }
         }

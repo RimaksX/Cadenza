@@ -132,7 +132,6 @@ export component AppShell inherits Rectangle {
     callback select-eq-band(int);
     callback settle-eq();
     callback start-radio(string);
-    callback stop-radio();
     callback judge-radio(bool);
     callback set-theme(bool);
     callback set-crossfade(bool, int);
@@ -259,9 +258,6 @@ export component AppShell inherits Rectangle {
 
                 listen(id) => {
                     root.start-radio(id);
-                }
-                stop => {
-                    root.stop-radio();
                 }
                 judge(like) => {
                     root.judge-radio(like);

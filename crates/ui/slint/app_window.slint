@@ -148,7 +148,6 @@ export component AppWindow inherits Window {
     callback remove-folder(string);
     callback scan-now();
     callback start-radio(string);
-    callback stop-radio();
     callback judge-radio(bool);
     callback widen-eq-band(int, float);
     callback pick-eq-preset(string);
@@ -339,9 +338,6 @@ export component AppWindow inherits Window {
         }
         start-radio(id) => {
             root.start-radio(id);
-        }
-        stop-radio => {
-            root.stop-radio();
         }
         judge-radio(like) => {
             root.judge-radio(like);

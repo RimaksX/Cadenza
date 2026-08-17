@@ -847,12 +847,6 @@ impl Controller {
         self.refresh_player();
     }
 
-    /// Ends the station. What it already queued stays: it is still music.
-    pub fn stop_radio(&self) {
-        self.services.radio.stop();
-        self.refresh_radio();
-    }
-
     /// Tells the station what the listener thinks of what is playing.
     pub fn judge_radio(&self, like: bool) {
         let Some(track) = self.services.playback.view().track else {

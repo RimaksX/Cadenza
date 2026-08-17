@@ -944,3 +944,33 @@ taking the top eight. Each pick becomes the *previous* track for the next
 transition score, and joins the artist window the diversity term reads — so a
 batch is a sequence that was reasoned about rather than a set that happened to
 rank well.
+
+## 50. "Stop the station" was a fourth way to do a thing with three ways already
+
+The radio screen shipped with a STOP THE STATION button, and the owner asked
+what it was for: a mood can be switched and a track can be played, so what does
+stopping add? Nothing — and looking properly turned up two faults it had
+introduced.
+
+**It stopped the generation and not the music.** What the station had already
+queued kept playing, so the button did not do what it said.
+
+**A station that had ended was still being asked for more.** `refill_radio`
+looked at the *queue* to decide whether radio was playing, and the queue still
+held the picks. Once the lane ran low it called `next_batch` on a service with
+no live session, which is an error — reported to the listener four times a
+second for as long as those picks played.
+
+**A skip on a hand-queued track was an error too.** With a station live, next
+recorded a verdict against whatever was playing; if the station had never
+offered that file, the update matched no row and failed. Skipping your own
+choice is not a statement about the station.
+
+**Chosen:** a station ends when something else plays. `play_from_library` and
+`play_playlist` end it, which is what a listener means by choosing them; the
+refill asks the service rather than the queue whether a station is live; and a
+verdict about a track the station never offered is a no-op rather than a
+failure. The button is gone, replaced by one line of text saying so.
+
+The rule in one line: *a control that repeats what three other actions already
+do is not a shortcut, it is a fourth thing to keep working.*

@@ -230,6 +230,20 @@ impl RadioService {
             return Ok(());
         };
 
+        // Nor is a verdict about a track this station never offered. That
+        // happens whenever a listener presses next on something they queued by
+        // hand while a station is running: they are skipping their own choice,
+        // not the station's.
+        let offered = self
+            .ports
+            .radio
+            .recent_items(session.id, u32::MAX)?
+            .into_iter()
+            .any(|item| item.media_file_id == media_file_id);
+        if !offered {
+            return Ok(());
+        }
+
         self.ports
             .radio
             .set_feedback(session.id, media_file_id, verdict, self.context.now())

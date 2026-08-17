@@ -145,11 +145,6 @@ fn wire(window: &AppWindow, controller: &Rc<Controller>) {
         move |id| controller.start_radio(id.as_str())
     });
 
-    window.on_stop_radio({
-        let controller = Rc::clone(controller);
-        move || controller.stop_radio()
-    });
-
     window.on_judge_radio({
         let controller = Rc::clone(controller);
         move |like| controller.judge_radio(like)
