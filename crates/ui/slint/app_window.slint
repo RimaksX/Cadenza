@@ -147,6 +147,7 @@ export component AppWindow inherits Window {
     callback use-suggested-folder();
     callback remove-folder(string);
     callback scan-now();
+    callback showing(string);
     callback start-radio(string);
     callback judge-radio(bool);
     callback widen-eq-band(int, float);
@@ -335,6 +336,9 @@ export component AppWindow inherits Window {
         }
         remove-folder(id) => {
             root.remove-folder(id);
+        }
+        showing(name) => {
+            root.showing(name);
         }
         start-radio(id) => {
             root.start-radio(id);

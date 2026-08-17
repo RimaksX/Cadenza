@@ -794,6 +794,26 @@ impl Controller {
     }
 
     /// Everything the settings screen draws.
+    /// Re-reads a screen the listener has just moved to.
+    ///
+    /// A page is drawn from a service at the moment something asks it to be,
+    /// and between one visit and the next the service may have moved on
+    /// without the page being told — a station ends because a track was
+    /// played, a folder is scanned, a preset is renamed. Asking on arrival
+    /// costs one query on a keypress and closes the whole class rather than
+    /// the one case somebody happened to notice.
+    pub fn showing(&self, section: &str) {
+        match section {
+            "radio" => self.refresh_radio(),
+            "settings" => self.refresh_settings(),
+            "queue" => self.refresh_queue(),
+            "playlists" => self.refresh_playlists(),
+            "equaliser" => self.refresh_eq(),
+            "library" => self.refresh_library(),
+            _ => {}
+        }
+    }
+
     /// Re-reads the moods and what the station is doing.
     pub fn refresh_radio(&self) {
         let Some(window) = self.window.upgrade() else {

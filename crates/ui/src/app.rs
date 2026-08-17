@@ -140,6 +140,11 @@ fn wire(window: &AppWindow, controller: &Rc<Controller>) {
         move |id| controller.remove_from_library(&id)
     });
 
+    window.on_showing({
+        let controller = Rc::clone(controller);
+        move |name| controller.showing(name.as_str())
+    });
+
     window.on_start_radio({
         let controller = Rc::clone(controller);
         move |id| controller.start_radio(id.as_str())

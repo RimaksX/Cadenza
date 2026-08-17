@@ -131,6 +131,9 @@ export component AppShell inherits Rectangle {
     callback tune-eq-band(int, int);
     callback select-eq-band(int);
     callback settle-eq();
+    /// The listener moved to a screen, which is that screen's cue to re-read
+    /// what it shows.
+    callback showing(string);
     callback start-radio(string);
     callback judge-radio(bool);
     callback set-theme(bool);
@@ -181,12 +184,16 @@ export component AppShell inherits Rectangle {
                 section: root.section;
                 select(name) => {
                     root.section = name;
+                    root.showing(name);
                 }
             }
 
-            // Which screen is showing is the interface's own state: nothing
-            // outside the window changes when the listener looks at the queue,
-            // so nothing outside the window needs to be told.
+            // Which screen is showing is the interface's own state, and moving
+            // between them changes nothing outside the window. What it does
+            // change is whether what a screen last drew is still true: a page
+            // built from a service reads that service when it was last asked
+            // to, not when it is looked at. So the move is announced, and the
+            // screen being opened re-reads what it draws.
             if root.section == "library": LibraryView {
                 searchable: true;
                 tracks: root.tracks;
