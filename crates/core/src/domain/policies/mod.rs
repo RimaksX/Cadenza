@@ -10,6 +10,7 @@
 //! shuffle selection of section 9.4 — expose their hard constraints here and
 //! gain their scoring in M12 and M13.
 
+pub mod analysis_policy;
 pub mod duplicate_policy;
 pub mod eq_policy;
 pub mod history_policy;

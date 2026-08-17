@@ -16,8 +16,8 @@ use std::sync::Arc;
 use std::{env, io};
 
 use cadenza_core::application::services::{
-    EqPorts, EqService, LibraryPorts, LibraryService, PlaybackPorts, PlaybackService,
-    PlaylistPorts, PlaylistService, QueuePorts, QueueService,
+    AnalysisPorts, AnalysisService, EqPorts, EqService, LibraryPorts, LibraryService,
+    PlaybackPorts, PlaybackService, PlaylistPorts, PlaylistService, QueuePorts, QueueService,
 };
 use cadenza_core::application::{AppContext, ProfileService};
 use cadenza_core::domain::playback::PlaybackState;
@@ -31,18 +31,20 @@ use cadenza_core::domain::settings::{
 use cadenza_core::domain::value_objects::theme_mode::ThemeMode;
 use cadenza_core::domain::value_objects::{DurationMs, PlaybackPosition, Volume};
 use cadenza_core::{CoreError, Result};
+use cadenza_infra::analysis::{AnalysisWorker, DspFeatureExtractor};
 use cadenza_infra::audio::{CpalAudioEngine, SymphoniaDecoder};
 use cadenza_infra::db;
 use cadenza_infra::db::repositories::{
-    SqliteAlbumRepository, SqliteArtistRepository, SqliteEqPresetRepository, SqliteGenreRepository,
-    SqliteImportReviewRepository, SqliteMediaFileRepository, SqlitePlaylistRepository,
-    SqliteProfileRepository, SqliteQueueRepository, SqliteSettingsRepository,
+    SqliteAlbumRepository, SqliteAnalysisJobRepository, SqliteArtistRepository,
+    SqliteEqPresetRepository, SqliteGenreRepository, SqliteImportReviewRepository,
+    SqliteMediaFileRepository, SqlitePlaylistRepository, SqliteProfileRepository,
+    SqliteQueueRepository, SqliteSettingsRepository, SqliteTrackFeaturesRepository,
     SqliteTrackRepository,
 };
 use cadenza_infra::events::InProcessEventBus;
 use cadenza_infra::library::{LocalFileSystem, NotifyFileWatcher};
 use cadenza_infra::metadata::{FileArtworkCache, LoftyMetadataReader};
-use cadenza_infra::system::{AppPaths, SystemClock, SystemFolderPicker};
+use cadenza_infra::system::{AppPaths, SystemClock, SystemFolderPicker, WindowsPriority};
 
 use cli::{Command, PlaylistCommand};
 
@@ -118,6 +120,18 @@ fn run() -> std::result::Result<(), String> {
         },
     ));
 
+    // Analysis needs no profile and no audio device: what a recording sounds
+    // like is a fact about the file, and every listener shares it.
+    let analysis = Arc::new(AnalysisService::new(
+        Arc::clone(&context),
+        AnalysisPorts {
+            jobs: Arc::new(SqliteAnalysisJobRepository::new(pool.clone())),
+            features: Arc::new(SqliteTrackFeaturesRepository::new(pool.clone())),
+            media_files: Arc::new(SqliteMediaFileRepository::new(pool.clone())),
+            extractor: Arc::new(DspFeatureExtractor::new(Arc::new(SystemClock))),
+        },
+    ));
+
     // Before anything else: the pointer left by the previous run decides who the
     // application is running as.
     let active = profiles.restore_active().map_err(|err| err.to_string())?;
@@ -162,7 +176,20 @@ fn run() -> std::result::Result<(), String> {
             },
         ));
 
-        return cadenza_ui::run(cadenza_ui::UiServices {
+        // Analysis runs for as long as the window is open and stops with it.
+        // Nothing waits for it: a listener who opens Cadenza to hear something
+        // hears it now, and the library learns what it sounds like behind them
+        // (PROJECT_MASTER 2.11).
+        let mut analyser = AnalysisWorker::start(
+            Arc::clone(&analysis),
+            Arc::new(WindowsPriority),
+            Arc::new({
+                let engine = Arc::clone(&engine);
+                move || engine.state() == PlaybackState::Playing
+            }),
+        );
+
+        let outcome = cadenza_ui::run(cadenza_ui::UiServices {
             profiles: Arc::clone(&profiles),
             library: Arc::clone(&library),
             eq,
@@ -170,12 +197,18 @@ fn run() -> std::result::Result<(), String> {
             queue,
             playlists,
             profile: active,
-        })
-        .map_err(|err| err.to_string());
+        });
+
+        // Before the pool goes: the worker holds a connection, and a thread
+        // still decoding while the process exits is a file left open.
+        analyser.stop();
+        return outcome.map_err(|err| err.to_string());
     }
 
-    dispatch(&command, &context, &profiles, &library, &playlists, active)
-        .map_err(|err| err.to_string())
+    dispatch(
+        &command, &context, &profiles, &library, &playlists, &analysis, active,
+    )
+    .map_err(|err| err.to_string())
 }
 
 /// Watches the library folders until the listener stops it.
@@ -321,12 +354,14 @@ fn report(engine: &CpalAudioEngine) {
     );
 }
 
+#[allow(clippy::too_many_arguments)]
 fn dispatch(
     command: &Command,
     context: &AppContext,
     profiles: &ProfileService,
     library: &LibraryService,
     playlists: &PlaylistService,
+    analysis: &AnalysisService,
     active: Option<Profile>,
 ) -> Result<()> {
     match command {
@@ -353,6 +388,8 @@ fn dispatch(
         }
 
         Command::Playlist(action) => playlist(action, library, playlists)?,
+
+        Command::Analyze { limit } => analyze(analysis, *limit)?,
 
         Command::Status => report_status(profiles, active.as_ref())?,
 
@@ -698,6 +735,72 @@ fn report_status(profiles: &ProfileService, active: Option<&Profile>) -> Result<
         println!("  {marker} {}", profile.name);
     }
 
+    Ok(())
+}
+
+/// Works through the analysis queue, saying what each file turned out to be.
+///
+/// The same steps the background worker takes, without the resting between
+/// them: this is where the numbers can be looked at, and where the cost of
+/// producing them can be timed.
+fn analyze(analysis: &AnalysisService, limit: Option<usize>) -> Result<()> {
+    let queued = analysis.top_up()?;
+    let progress = analysis.progress()?;
+
+    if progress.is_settled() && queued == 0 {
+        println!(
+            "nothing to analyse — {} file(s) already done by {}",
+            progress.analysed,
+            analysis.extractor_version()
+        );
+        return Ok(());
+    }
+
+    let wanted = limit.unwrap_or(usize::MAX);
+    let started = std::time::Instant::now();
+    let mut done = 0usize;
+
+    while done < wanted {
+        let at = std::time::Instant::now();
+        let Some(media_file_id) = analysis.run_next()? else {
+            // The batch is finished; there may be more of the library behind it.
+            if analysis.top_up()? == 0 {
+                break;
+            }
+            continue;
+        };
+        done += 1;
+
+        match analysis.features(media_file_id)? {
+            Some(features) => println!(
+                "  {:>5.1}s  {:>7}  {:>7}  energy {:.2}  dance {:.2}  bright {:.2}",
+                at.elapsed().as_secs_f32(),
+                features
+                    .bpm
+                    .map_or_else(|| "-".to_owned(), |bpm| format!("{:.0} bpm", bpm.as_f32())),
+                features
+                    .key
+                    .map_or_else(|| "-".to_owned(), |key| key.to_string()),
+                features.energy,
+                features.danceability,
+                features.spectral_centroid,
+            ),
+            // Analysed and no features: the file was claimed, tried and failed,
+            // which the job now carries as an error and an attempt.
+            None => println!(
+                "  {:>5.1}s  could not be analysed",
+                at.elapsed().as_secs_f32()
+            ),
+        }
+    }
+
+    let after = analysis.progress()?;
+    println!(
+        "{done} file(s) in {:.1}s — {} analysed, {} still waiting",
+        started.elapsed().as_secs_f32(),
+        after.analysed,
+        after.pending
+    );
     Ok(())
 }
 

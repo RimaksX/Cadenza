@@ -37,7 +37,7 @@ use crate::domain::radio::{RadioSession, RadioSessionItem};
 use crate::domain::review::{ImportReview, ReviewState};
 use crate::domain::settings::{ProfileFolder, SettingValue};
 use crate::domain::stats::PlayEvent;
-use crate::domain::track::{Track, TrackSummary};
+use crate::domain::track::{Track, TrackFeatures, TrackSummary};
 use crate::domain::value_objects::Timestamp;
 
 /// Listener profiles.
@@ -375,6 +375,41 @@ pub trait AnalysisJobRepositoryPort: Send + Sync {
 
     /// How much work is outstanding, for the progress indicator.
     fn pending_count(&self) -> Result<u64>;
+
+    /// Queues feature extraction for files that still need it, and says how
+    /// many it queued.
+    ///
+    /// A file needs it when it has no features from `extractor_version` and has
+    /// not already spent its attempts failing. Both halves matter: without the
+    /// first the worker would redo the whole library on every start, and
+    /// without the second a file that cannot be decoded would be picked up for
+    /// ever (PROJECT_MASTER M11, "повторный анализ не происходит").
+    ///
+    /// One call rather than a listing the caller loops over, because "which
+    /// files still need this" is a question about rows the database can answer
+    /// without sending five thousand identifiers across the boundary to be
+    /// filtered and sent back.
+    fn enqueue_missing_features(
+        &self,
+        extractor_version: &str,
+        limit: usize,
+        now: Timestamp,
+    ) -> Result<u64>;
+}
+
+/// What analysis learned about a file.
+///
+/// Global rather than per-profile: the numbers describe the recording, and two
+/// listeners sharing a file share what it sounds like.
+pub trait TrackFeaturesRepositoryPort: Send + Sync {
+    /// One file's features, if they have been extracted.
+    fn get(&self, media_file_id: MediaFileId) -> Result<Option<TrackFeatures>>;
+
+    /// Inserts or replaces a file's features.
+    fn save(&self, features: &TrackFeatures) -> Result<()>;
+
+    /// How many files carry features from this extractor.
+    fn count_for_extractor(&self, extractor_version: &str) -> Result<u64>;
 }
 
 /// Files awaiting an import decision.

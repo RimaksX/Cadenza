@@ -821,3 +821,54 @@ after it.
 
 The rule in one line: *a decoder that has finished is not a track that has
 finished, and only the second one is worth telling anybody about.*
+
+## 47. M11: the decisions analysis needed and the master did not make
+
+Six things had to be settled to build DSP analysis. None of them contradicts
+PROJECT_MASTER; all of them are absent from it.
+
+**The table was already there.** `track_features` has existed since migration 3
+— written when the catalogue was, because it describes a file rather than a
+listener. M11 therefore adds no migration at all. (I wrote one first; the first
+test run refused it, which is what an append-only schema with a real test is
+for.) The `scale` column of 7.1 was settled back then too: it and `mode` name
+the same major/minor property, and only `mode` is stored.
+
+**Nothing could reach the table.** Section 4.4 lists `AnalysisJobRepositoryPort`
+and no repository for the features themselves, so `TrackFeaturesRepositoryPort`
+is new: get, save, and count for one extractor version.
+
+**Which files still need analysing is asked in SQL.** A file needs it when it
+carries no features from the running extractor *and* has not already spent its
+attempts failing. The second half is what stops a broken file being picked up
+for ever; the first is the whole of "повторный анализ не происходит".
+
+**How much of a track.** Ninety seconds from the middle, mixed to mono at
+22 050 Hz. Intros fade in and endings fade out, and neither describes the song.
+Measured on real files: **151 ms each**, which is thirteen minutes of one core
+for five thousand tracks — an hour at the background share. Nobody waits for it
+and nobody is meant to notice it.
+
+**How the CPU budget is kept.** Not by thread priority. `SetThreadPriority` is
+a Win32 call and reaching it means `unsafe` or a dependency taken for one
+function; `WindowsPriority` is therefore the no-op its port explicitly allows,
+and the promise of 2.11 is kept by `analysis_policy` instead — the worker rests
+four times as long as it works while music plays, twice as long when nothing
+is. A share of the clock is a promise that does not depend on a scheduler
+agreeing with it, and it can be tested, which a priority cannot.
+
+**Valence is a heuristic and says so.** Tempo is a period and loudness is an
+amplitude, but musical positivity is a judgement. What is computed is the
+correlation a listener would recognise — major, brisk and bright feels happier
+— weighted from the key, the tempo and the brightness. 12.1 forbids the trained
+model that would do better, and an empty column would leave M13 treating every
+track alike, so the honest answer is a documented approximation rather than
+either.
+
+Two smaller notes. `AnalysisKind::Metadata` and `::Hash` still have no
+producer: M4 read tags and hashed files inline, and only `Features` is queued.
+And autocorrelation cannot tell a tempo from half of it — a steady beat
+correlates just as well with every second beat — so the choice is weighted by
+a bell over the logarithm of the tempo, centred at 120. A real 70 or 170 still
+wins on its own evidence; an artefact of doubling does not. The click-track
+test caught this by reading 120 BPM as 60.

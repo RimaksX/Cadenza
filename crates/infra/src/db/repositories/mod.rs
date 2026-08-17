@@ -11,8 +11,10 @@
 //! M3, the catalogue and the library in M4, playlists and the queue in M7,
 //! equaliser presets in M9.
 
+pub mod analysis_repo;
 pub mod catalog_repo;
 pub mod eq_repo;
+pub mod features_repo;
 pub mod media_file_repo;
 pub mod playlist_repo;
 pub mod profile_repo;
@@ -21,8 +23,10 @@ pub mod review_repo;
 pub mod settings_repo;
 pub mod track_repo;
 
+pub use analysis_repo::SqliteAnalysisJobRepository;
 pub use catalog_repo::{SqliteAlbumRepository, SqliteArtistRepository, SqliteGenreRepository};
 pub use eq_repo::SqliteEqPresetRepository;
+pub use features_repo::SqliteTrackFeaturesRepository;
 pub use media_file_repo::SqliteMediaFileRepository;
 pub use playlist_repo::SqlitePlaylistRepository;
 pub use profile_repo::SqliteProfileRepository;

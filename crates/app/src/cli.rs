@@ -66,6 +66,12 @@ pub enum Command {
     Playlist(PlaylistCommand),
     /// List files waiting for an import decision.
     Reviews,
+    /// Analyse files that have not been analysed yet.
+    Analyze {
+        /// How many files to work through. `None` means until there are none
+        /// left.
+        limit: Option<usize>,
+    },
     /// Watch the folders and import changes as they happen.
     Watch,
     /// Play a file, with pause, seek and volume from the keyboard.
@@ -147,6 +153,7 @@ USAGE:
     cadenza genre <n> <genre>...     set the genres of track n, this profile only
     cadenza genre <n> --reset        restore the genres the file itself carries
     cadenza reviews                  list files waiting for a decision
+    cadenza analyze [n]              work out tempo, key and energy for n files
 
     cadenza playlists                list the playlists
     cadenza playlist show <name>     list what is in one
@@ -195,6 +202,16 @@ pub fn parse<I: IntoIterator<Item = String>>(args: I) -> Result<Command, String>
         "scan" => Command::Scan,
         "tracks" => Command::Tracks,
         "reviews" => Command::Reviews,
+        "analyze" => Command::Analyze {
+            limit: match args.next() {
+                None => None,
+                Some(value) => Some(
+                    value
+                        .parse()
+                        .map_err(|_| format!("analyze needs a number of files, not {value:?}"))?,
+                ),
+            },
+        },
         "playlists" => Command::Playlists,
         "playlist" => Command::Playlist(parse_playlist(&mut args)?),
         "watch" => Command::Watch,
