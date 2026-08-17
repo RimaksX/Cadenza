@@ -872,3 +872,39 @@ correlates just as well with every second beat — so the choice is weighted by
 a bell over the logarithm of the tempo, centred at 120. A real 70 or 170 still
 wins on its own evidence; an artefact of doubling does not. The click-track
 test caught this by reading 120 BPM as 60.
+
+## 48. M12: what "smarter than random" is allowed to cost
+
+The formula was already written down — 9.3's weighted sum has been in
+`transition_policy` since M1 — so M12 is about the three decisions around it.
+
+**Whose turn it is comes before what sounds best.** The round is what has not
+been heard; the artist cooldown vetoes inside it; only then does the score
+decide. A rule that the score could overrule would not be a rule, and 9.2 calls
+these hard.
+
+**The cooldown counts names, not identifiers.** `artist_on_cooldown` took an
+`ArtistId`, which nothing in a listing carries: `TrackSummary` has a name
+because a name is what gets drawn. Resolving thousands of rows to identifiers to
+compare things a listener compares by ear would be work for its own sake. Two
+different artists sharing a name are treated as one, which is also what the
+listener would think.
+
+**The best handful, not the best.** PROJECT_MASTER 9.4 says top 10–20 and a
+weighted draw; both halves matter. Always playing the closest match turns five
+thousand tracks into forty, and 9.1 asks in the same breath for shuffle to keep
+feeling like shuffle. With features that differ sharply the best transition wins
+about seven draws in ten — which is the number the test asserts around, because
+asserting it wins *every* time would be asserting the opposite of the
+requirement.
+
+Two consequences worth stating. An unanalysed track scores neutral rather than
+zero, so a half-analysed library plays all of itself instead of only the half it
+knows about — which matters because analysis is deliberately slow. And the
+features are read once per track change and indexed by identifier: the obvious
+loop is a scan per candidate, which on five thousand tracks is twenty-five
+million comparisons to answer one question.
+
+`playback_policy::next_in_library` is now order only. What shuffle plays next
+has different inputs and a different rule, and one function pretending to answer
+both took a `shuffle: bool` and did two unrelated things underneath it.

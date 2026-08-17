@@ -1,11 +1,29 @@
-//! Constraints on what smart shuffle is allowed to play next.
+//! What smart shuffle is allowed to play next, and which of those it picks.
 //!
-//! The hard rules of PROJECT_MASTER 9.2 live here and are enforced from M7's
-//! basic shuffle onwards. The scoring and weighted selection of 9.4 arrive in
-//! M12 and reuse [`super::transition_policy::transition_score`].
+//! The hard rules of PROJECT_MASTER 9.2 have lived here since M7. M12 adds the
+//! choice itself (9.4): score every candidate against what is playing, keep the
+//! best handful, and pick from those at random. Three sentences and a great deal
+//! rides on each of them —
+//!
+//! - **score**, so that one track follows another musically rather than by
+//!   accident. The formula is 9.3's and lives in
+//!   [`super::transition_policy::transition_score`].
+//! - **keep the best handful** rather than the single best, because always
+//!   playing the closest match makes a library of five thousand tracks sound
+//!   like a library of forty.
+//! - **at random**, weighted, because 9.1 asks for shuffle to keep feeling like
+//!   shuffle. A deterministic "best next track" is a playlist somebody else
+//!   wrote.
+//!
+//! Everything here is pure. The seed and the features arrive as arguments, which
+//! is what lets an ordering nobody can hear be tested by somebody who cannot
+//! hear it either.
 
-use crate::domain::ids::ArtistId;
+use crate::domain::ids::MediaFileId;
 use crate::domain::media_file::FileState;
+use crate::domain::track::TrackFeatures;
+
+use super::transition_policy::transition_score;
 
 /// How many recently played tracks an artist is barred from reappearing within.
 ///
@@ -48,10 +66,9 @@ pub fn shuffle<T>(pool: &mut [T], seed: u64) {
 ///
 /// Tracks with no known artist never block each other: an unanalysed library
 /// would otherwise be one giant cooldown group and shuffle would refuse to move.
-pub fn artist_on_cooldown(
-    candidate: Option<ArtistId>,
-    recently_played: &[Option<ArtistId>],
-) -> bool {
+/// By name rather than by identifier: what a listener notices is the same name
+/// three times running, and a name is what every listing already carries.
+pub fn artist_on_cooldown(candidate: Option<&str>, recently_played: &[Option<&str>]) -> bool {
     let Some(candidate) = candidate else {
         return false;
     };
@@ -69,19 +86,135 @@ pub fn artist_on_cooldown(
 pub fn is_eligible(
     file_state: FileState,
     already_played: bool,
-    candidate_artist: Option<ArtistId>,
-    recently_played_artists: &[Option<ArtistId>],
+    candidate_artist: Option<&str>,
+    recently_played_artists: &[Option<&str>],
 ) -> bool {
     file_state.is_playable()
         && !already_played
         && !artist_on_cooldown(candidate_artist, recently_played_artists)
 }
 
+/// One track shuffle may choose, and everything the choice needs to know.
+///
+/// Borrowed rather than owned: the caller has just read a listing and a table of
+/// features, and copying five thousand of each to ask one question would be
+/// work nobody hears.
+#[derive(Debug, Clone, Copy)]
+pub struct Candidate<'a> {
+    /// The file that would play.
+    pub media_file_id: MediaFileId,
+    /// Whether the file is still there and readable.
+    pub file_state: FileState,
+    /// Who made it, as the listing shows it.
+    pub artist: Option<&'a str>,
+    /// What it sounds like, when it has been analysed.
+    pub features: Option<&'a TrackFeatures>,
+}
+
+/// Chooses what plays after `current` from `candidates`.
+///
+/// The whole of PROJECT_MASTER 9.4. `recently_played_artists` is the tail of
+/// what has played, most recent last; `candidates` must already exclude what
+/// has been heard this round, which is 9.2's first rule and the caller's to
+/// enforce because only the caller knows what the round is.
+///
+/// Returns `None` only when there is nothing playable at all. A cooldown that
+/// nobody can satisfy is relaxed rather than obeyed: a library of one artist
+/// must still shuffle, and refusing to move is a worse answer than playing them
+/// twice.
+pub fn choose_next(
+    current: Option<&TrackFeatures>,
+    candidates: &[Candidate<'_>],
+    recently_played_artists: &[Option<&str>],
+    seed: u64,
+) -> Option<MediaFileId> {
+    let playable = |candidate: &&Candidate<'_>| candidate.file_state.is_playable();
+
+    let mut eligible: Vec<&Candidate<'_>> = candidates
+        .iter()
+        .filter(playable)
+        .filter(|candidate| !artist_on_cooldown(candidate.artist, recently_played_artists))
+        .collect();
+
+    if eligible.is_empty() {
+        eligible = candidates.iter().filter(playable).collect();
+    }
+    if eligible.is_empty() {
+        return None;
+    }
+
+    // Nothing to score against — the first track of a session, or a current
+    // track nobody has analysed yet. Chance alone is the honest answer, and it
+    // is also what M7 did.
+    let Some(current) = current else {
+        return pick(&eligible, &vec![1.0; eligible.len()], seed);
+    };
+
+    let mut scored: Vec<(f32, &Candidate<'_>)> = eligible
+        .into_iter()
+        .map(|candidate| {
+            let score = match candidate.features {
+                Some(features) => transition_score(current, features),
+                // An unanalysed track is neither favoured nor blacklisted: it
+                // sits mid-table and gets its turn, which is what keeps a
+                // half-analysed library from playing only its analysed half.
+                None => super::NEUTRAL_SCORE,
+            };
+            (score, candidate)
+        })
+        .collect();
+
+    // Descending, then the best handful. `total_cmp` rather than `partial_cmp`
+    // because a NaN in a sort comparator is a panic waiting for the one library
+    // that has one.
+    scored.sort_by(|left, right| right.0.total_cmp(&left.0));
+    scored.truncate(CANDIDATE_POOL_SIZE);
+
+    let pool: Vec<&Candidate<'_>> = scored.iter().map(|(_, candidate)| *candidate).collect();
+    let weights: Vec<f32> = scored.iter().map(|(score, _)| *score).collect();
+    pick(&pool, &weights, seed)
+}
+
+/// A weighted draw from `pool`.
+///
+/// Weighted rather than uniform so that a better transition is likelier without
+/// being certain. Falls back to a uniform draw when every weight is zero, which
+/// happens when nothing scores at all — an unanalysed library, mostly.
+fn pick(pool: &[&Candidate<'_>], weights: &[f32], seed: u64) -> Option<MediaFileId> {
+    if pool.is_empty() {
+        return None;
+    }
+
+    let total: f32 = weights.iter().filter(|weight| weight.is_finite()).sum();
+    if total <= 0.0 {
+        let index = (seed % pool.len() as u64) as usize;
+        return pool.get(index).map(|candidate| candidate.media_file_id);
+    }
+
+    // A point along the line made of the weights laid end to end.
+    let target = (seed % 1_000_000) as f32 / 1_000_000.0 * total;
+    let mut running = 0.0;
+    for (candidate, weight) in pool.iter().zip(weights) {
+        running += weight.max(0.0);
+        if running >= target {
+            return Some(candidate.media_file_id);
+        }
+    }
+
+    // Only reachable through floating-point drift at the very end of the line.
+    pool.last().map(|candidate| candidate.media_file_id)
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{ARTIST_COOLDOWN, artist_on_cooldown, is_eligible, shuffle};
-    use crate::domain::ids::ArtistId;
+    use super::{
+        ARTIST_COOLDOWN, CANDIDATE_POOL_SIZE, Candidate, artist_on_cooldown, choose_next,
+        is_eligible, shuffle,
+    };
+    use crate::domain::ids::MediaFileId;
     use crate::domain::media_file::FileState;
+    use crate::domain::track::TrackFeatures;
+    use crate::domain::value_objects::{Bpm, Mode, MusicalKey, Timestamp};
 
     #[test]
     fn shuffling_keeps_every_track_exactly_once() {
@@ -133,19 +266,20 @@ mod tests {
 
     #[test]
     fn an_artist_just_played_is_on_cooldown() {
-        let artist = ArtistId::new();
-        let history = vec![Some(ArtistId::new()), Some(artist)];
-        assert!(artist_on_cooldown(Some(artist), &history));
+        let history = vec![Some("Someone Else"), Some("Portishead")];
+        assert!(artist_on_cooldown(Some("Portishead"), &history));
     }
 
     #[test]
     fn the_cooldown_expires_after_enough_other_tracks() {
-        let artist = ArtistId::new();
-        let mut history = vec![Some(artist)];
-        for _ in 0..ARTIST_COOLDOWN {
-            history.push(Some(ArtistId::new()));
+        let mut history = vec![Some("Portishead")];
+        for name in ["Massive Attack", "Tricky", "Morcheeba", "Lamb"]
+            .into_iter()
+            .take(ARTIST_COOLDOWN)
+        {
+            history.push(Some(name));
         }
-        assert!(!artist_on_cooldown(Some(artist), &history));
+        assert!(!artist_on_cooldown(Some("Portishead"), &history));
     }
 
     #[test]
@@ -159,13 +293,13 @@ mod tests {
 
     #[test]
     fn an_empty_history_blocks_nothing() {
-        assert!(!artist_on_cooldown(Some(ArtistId::new()), &[]));
+        assert!(!artist_on_cooldown(Some("Portishead"), &[]));
     }
 
     #[test]
     fn every_hard_rule_can_veto_a_candidate() {
-        let artist = ArtistId::new();
-        let clean_history = vec![Some(ArtistId::new())];
+        let artist = "Portishead";
+        let clean_history = vec![Some("Massive Attack")];
 
         assert!(is_eligible(
             FileState::Available,
@@ -190,5 +324,182 @@ mod tests {
             !is_eligible(FileState::Available, false, Some(artist), &[Some(artist)]),
             "the artist cooldown applies"
         );
+    }
+
+    /// Features that differ only in the ways the score looks at.
+    fn features(bpm: f32, energy: f32) -> TrackFeatures {
+        TrackFeatures {
+            media_file_id: MediaFileId::new(),
+            bpm: Some(Bpm::new(bpm).expect("in range")),
+            bpm_confidence: 1.0,
+            key: Some(MusicalKey::new(0, Mode::Major).expect("C major")),
+            energy,
+            loudness: 0.5,
+            spectral_centroid: 0.5,
+            spectral_rolloff: 0.5,
+            danceability: 0.5,
+            valence: 0.5,
+            tempo_stability: 1.0,
+            dynamic_range: 0.5,
+            extractor_version: "test".to_owned(),
+            analyzed_at: Timestamp::UNIX_EPOCH,
+        }
+    }
+
+    fn candidate<'a>(artist: Option<&'a str>, features: &'a TrackFeatures) -> Candidate<'a> {
+        Candidate {
+            media_file_id: features.media_file_id,
+            file_state: FileState::Available,
+            artist,
+            features: Some(features),
+        }
+    }
+
+    #[test]
+    fn the_track_that_follows_best_is_the_one_most_often_chosen() {
+        let current = features(120.0, 0.6);
+        let close = features(122.0, 0.62);
+        let distant = features(190.0, 0.05);
+        let pool = [candidate(None, &close), candidate(None, &distant)];
+
+        // Over many draws rather than one: the pick is weighted, not decided,
+        // and a test that demanded the best every time would be testing for a
+        // behaviour 9.1 explicitly rules out.
+        let mut chose_close = 0;
+        for seed in 0..200u64 {
+            if choose_next(Some(&current), &pool, &[], seed * 7_919) == Some(close.media_file_id) {
+                chose_close += 1;
+            }
+        }
+
+        assert!(
+            chose_close > 120,
+            "the smooth transition should win most of the time, won {chose_close} of 200"
+        );
+        assert!(
+            chose_close < 200,
+            "but not every time — shuffle has to keep feeling like shuffle"
+        );
+    }
+
+    #[test]
+    fn an_artist_inside_the_cooldown_is_passed_over() {
+        let current = features(120.0, 0.6);
+        let theirs = features(121.0, 0.6);
+        let someone_else = features(180.0, 0.1);
+        let pool = [
+            candidate(Some("Portishead"), &theirs),
+            candidate(Some("Autechre"), &someone_else),
+        ];
+
+        // The better transition is the one on cooldown, so this is the rule
+        // overruling the score rather than agreeing with it.
+        for seed in 0..20u64 {
+            assert_eq!(
+                choose_next(Some(&current), &pool, &[Some("Portishead")], seed * 104_729),
+                Some(someone_else.media_file_id)
+            );
+        }
+    }
+
+    #[test]
+    fn a_cooldown_nobody_can_satisfy_is_relaxed_rather_than_obeyed() {
+        let current = features(120.0, 0.6);
+        let only = features(121.0, 0.6);
+        let pool = [candidate(Some("Portishead"), &only)];
+
+        assert_eq!(
+            choose_next(Some(&current), &pool, &[Some("Portishead")], 1),
+            Some(only.media_file_id),
+            "a library of one artist must still shuffle"
+        );
+    }
+
+    #[test]
+    fn a_file_that_is_not_there_is_never_chosen() {
+        let current = features(120.0, 0.6);
+        let missing = features(120.0, 0.6);
+        let present = features(190.0, 0.05);
+
+        let pool = [
+            Candidate {
+                media_file_id: missing.media_file_id,
+                file_state: FileState::Missing,
+                artist: None,
+                features: Some(&missing),
+            },
+            candidate(None, &present),
+        ];
+
+        for seed in 0..20u64 {
+            assert_eq!(
+                choose_next(Some(&current), &pool, &[], seed * 65_537),
+                Some(present.media_file_id)
+            );
+        }
+    }
+
+    #[test]
+    fn an_unanalysed_library_still_shuffles() {
+        let tracks: Vec<TrackFeatures> = (0..5).map(|_| features(120.0, 0.5)).collect();
+        let pool: Vec<Candidate<'_>> = tracks
+            .iter()
+            .map(|track| Candidate {
+                media_file_id: track.media_file_id,
+                file_state: FileState::Available,
+                artist: None,
+                features: None,
+            })
+            .collect();
+
+        let mut seen = std::collections::BTreeSet::new();
+        for seed in 0..200u64 {
+            let chosen = choose_next(None, &pool, &[], seed * 7_919).expect("something to play");
+            seen.insert(chosen);
+        }
+
+        assert_eq!(seen.len(), 5, "every track was reachable");
+    }
+
+    #[test]
+    fn nothing_playable_means_nothing_to_play() {
+        assert_eq!(choose_next(None, &[], &[], 1), None);
+
+        let gone = features(120.0, 0.5);
+        let pool = [Candidate {
+            media_file_id: gone.media_file_id,
+            file_state: FileState::Missing,
+            artist: None,
+            features: Some(&gone),
+        }];
+        assert_eq!(choose_next(None, &pool, &[], 1), None);
+    }
+
+    #[test]
+    fn the_pool_the_pick_draws_from_is_bounded() {
+        // Two hundred candidates, all worse than the first fifteen. If the pick
+        // drew from everything, the tail would show up.
+        let current = features(120.0, 0.5);
+        let good: Vec<TrackFeatures> = (0..CANDIDATE_POOL_SIZE)
+            .map(|_| features(120.0, 0.5))
+            .collect();
+        let bad: Vec<TrackFeatures> = (0..200).map(|_| features(200.0, 0.0)).collect();
+
+        let pool: Vec<Candidate<'_>> = good
+            .iter()
+            .chain(bad.iter())
+            .map(|track| candidate(None, track))
+            .collect();
+
+        let allowed: std::collections::BTreeSet<_> =
+            good.iter().map(|track| track.media_file_id).collect();
+
+        for seed in 0..200u64 {
+            let chosen = choose_next(Some(&current), &pool, &[], seed * 7_919).expect("a track");
+            assert!(
+                allowed.contains(&chosen),
+                "the pick reached past the top {CANDIDATE_POOL_SIZE}"
+            );
+        }
     }
 }

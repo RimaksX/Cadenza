@@ -108,6 +108,21 @@ impl TrackFeaturesRepositoryPort for SqliteTrackFeaturesRepository {
             .map_err(db_error_in("counting analysed files"))
             .map(|count| count.max(0) as u64)
     }
+
+    fn list_all(&self) -> Result<Vec<TrackFeatures>> {
+        let connection = self.pool.get()?;
+        let mut statement = connection
+            .prepare(&format!("SELECT {COLUMNS} FROM track_features"))
+            .map_err(db_error_in("listing track features"))?;
+
+        let rows = statement
+            .query_map([], FeaturesRow::read)
+            .map_err(db_error_in("listing track features"))?
+            .collect::<rusqlite::Result<Vec<_>>>()
+            .map_err(db_error_in("listing track features"))?;
+
+        rows.into_iter().map(FeaturesRow::into_domain).collect()
+    }
 }
 
 /// One row of `track_features`, in the column types SQLite hands back.

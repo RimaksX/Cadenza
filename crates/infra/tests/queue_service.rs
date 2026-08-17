@@ -4,6 +4,7 @@
 //! thing a test cannot have. What is under test is the order tracks start in
 //! and what survives a restart, neither of which needs a speaker.
 
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
@@ -18,16 +19,19 @@ use cadenza_core::domain::ids::{MediaFileId, PlaylistId, ProfileId};
 use cadenza_core::domain::media_file::{AudioFormat, AudioProperties, FileState, MediaFile};
 use cadenza_core::domain::playback::{PlaybackState, TransitionProfile};
 use cadenza_core::domain::ports::audio_engine::AudioEnginePort;
+use cadenza_core::domain::ports::repositories::TrackFeaturesRepositoryPort;
 use cadenza_core::domain::ports::repositories::{
     MediaFileRepositoryPort, SettingsRepositoryPort, TrackRepositoryPort,
 };
 use cadenza_core::domain::queue::RepeatMode;
 use cadenza_core::domain::settings::{CROSSFADE_ENABLED_KEY, CrossfadeDuration, SettingValue};
-use cadenza_core::domain::track::Track;
-use cadenza_core::domain::value_objects::{DurationMs, PlaybackPosition, Timestamp, Volume};
+use cadenza_core::domain::track::{Track, TrackFeatures};
+use cadenza_core::domain::value_objects::{
+    Bpm, DurationMs, Mode, MusicalKey, PlaybackPosition, Timestamp, Volume,
+};
 use cadenza_infra::db::repositories::{
     SqliteMediaFileRepository, SqliteProfileRepository, SqliteQueueRepository,
-    SqliteSettingsRepository, SqliteTrackRepository,
+    SqliteSettingsRepository, SqliteTrackFeaturesRepository, SqliteTrackRepository,
 };
 use cadenza_infra::events::InProcessEventBus;
 use cadenza_testkit::{TempDb, TestClock};
@@ -263,6 +267,7 @@ fn services(db: &TempDb, profile_id: ProfileId) -> (QueueService, Arc<FakeEngine
         QueuePorts {
             queue: Arc::new(SqliteQueueRepository::new(db.pool().clone())),
             tracks: track_repo as _,
+            features: Arc::new(SqliteTrackFeaturesRepository::new(db.pool().clone())),
         },
     );
 
@@ -836,5 +841,120 @@ fn the_transition_follows_what_is_playing_rather_than_the_switch_alone() {
         harness.engine.armed_transition(),
         Some(TransitionProfile::Gapless),
         "a playlist is continuous material and stays gapless"
+    );
+}
+
+/// Features for one file: a tempo and an energy, and neutral everything else.
+fn analysed(media_file_id: MediaFileId, bpm: f32, energy: f32, key: (u8, Mode)) -> TrackFeatures {
+    TrackFeatures {
+        media_file_id,
+        bpm: Some(Bpm::new(bpm).expect("in range")),
+        bpm_confidence: 1.0,
+        key: Some(MusicalKey::new(key.0, key.1).expect("a key")),
+        energy,
+        loudness: 0.5,
+        spectral_centroid: 0.5,
+        spectral_rolloff: 0.5,
+        danceability: 0.5,
+        valence: energy,
+        tempo_stability: 1.0,
+        dynamic_range: 0.5,
+        extractor_version: "test".to_owned(),
+        analyzed_at: Timestamp::from_millis(0),
+    }
+}
+
+/// One round: a fresh library, features, shuffle on, and one track played out.
+///
+/// A fresh one each time because the round is what has *not* been heard, and a
+/// library of four is exhausted after two tracks. Twenty draws from the same
+/// harness would be one real draw and nineteen forced ones.
+fn who_follows_the_first_track() -> String {
+    let harness = harness();
+    let features = SqliteTrackFeaturesRepository::new(harness.db.pool().clone());
+
+    // "one" is what plays, and "three" is beside it in every term the score
+    // looks at. The other two are as far away as it can put them: the wrong
+    // tempo, the wrong end of the energy range, and a key a tritone off in the
+    // other mode.
+    features
+        .save(&analysed(harness.tracks[0], 120.0, 0.6, (0, Mode::Major)))
+        .expect("saved");
+    features
+        .save(&analysed(harness.tracks[2], 122.0, 0.62, (0, Mode::Major)))
+        .expect("saved");
+    features
+        .save(&analysed(harness.tracks[1], 200.0, 0.0, (6, Mode::Minor)))
+        .expect("saved");
+    features
+        .save(&analysed(harness.tracks[3], 45.0, 1.0, (6, Mode::Minor)))
+        .expect("saved");
+
+    harness.queue.toggle_shuffle().expect("shuffled");
+    harness
+        .queue
+        .play_from_library(harness.tracks[0])
+        .expect("played");
+    harness.engine.finish();
+    harness.queue.poll().expect("polled");
+
+    harness
+        .engine
+        .heard()
+        .last()
+        .cloned()
+        .expect("something followed")
+}
+
+#[test]
+fn shuffle_prefers_the_track_that_follows_best_without_insisting_on_it() {
+    // Counted rather than asserted per draw. The pick is weighted, not decided:
+    // with these features the good transition takes about seven draws in ten,
+    // and a test that demanded it every time would be testing for the very
+    // behaviour PROJECT_MASTER 9.1 rules out. What is stable — and what the
+    // milestone is actually about — is which one wins most often.
+    let mut counts: BTreeMap<String, usize> = BTreeMap::new();
+    for _ in 0..40 {
+        *counts.entry(who_follows_the_first_track()).or_default() += 1;
+    }
+
+    let close = counts.get("three").copied().unwrap_or_default();
+    let others: usize = counts
+        .iter()
+        .filter(|(name, _)| name.as_str() != "three")
+        .map(|(_, count)| *count)
+        .sum();
+
+    assert!(
+        close > others,
+        "the smooth transition should win more often than everything else          together: {counts:?}"
+    );
+    assert!(
+        others > 0,
+        "but never winning would mean shuffle had stopped being shuffle: {counts:?}"
+    );
+}
+
+#[test]
+fn shuffle_still_works_when_nothing_has_been_analysed() {
+    let harness = harness();
+    harness.queue.toggle_shuffle().expect("shuffled");
+    harness
+        .queue
+        .play_from_library(harness.tracks[0])
+        .expect("played");
+
+    for _ in 0..3 {
+        harness.engine.finish();
+        harness.queue.poll().expect("polled");
+    }
+
+    let mut heard = harness.engine.heard();
+    assert_eq!(heard.len(), 4, "every track had a turn");
+    heard.sort();
+    assert_eq!(
+        heard,
+        vec!["four", "one", "three", "two"],
+        "and none of them twice"
     );
 }

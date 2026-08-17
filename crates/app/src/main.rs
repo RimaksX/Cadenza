@@ -165,6 +165,7 @@ fn run() -> std::result::Result<(), String> {
             QueuePorts {
                 queue: Arc::new(SqliteQueueRepository::new(pool.clone())),
                 tracks: Arc::new(SqliteTrackRepository::new(pool.clone())),
+                features: Arc::new(SqliteTrackFeaturesRepository::new(pool.clone())),
             },
         ));
 

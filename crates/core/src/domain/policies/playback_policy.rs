@@ -58,24 +58,14 @@ pub const fn transition_for(origin: QueueOrigin, settings: &PlaybackSettings) ->
 /// that merely come after. `None` means the round is over — the bottom of the
 /// list with repeat off, or a library that has nothing else to offer.
 ///
-/// `played` is what has already been heard, which is what stops shuffle
-/// playing a track twice before the rest have had a turn (PROJECT_MASTER 9.2's
-/// first hard rule). In library order it says nothing: the order is the order.
-/// The other two hard rules — the artist cooldown and unplayable files — arrive
-/// with the scoring of M12; a listing already excludes what is not in the
-/// library.
+/// Order only. What *shuffle* plays next is a different question with different
+/// inputs — what has been heard, who made it, what it sounds like — and it is
+/// answered by [`super::shuffle_policy::choose_next`].
 pub fn next_in_library(
     library: &[MediaFileId],
     current: MediaFileId,
-    played: &[MediaFileId],
-    shuffle: bool,
     repeat: RepeatMode,
-    seed: u64,
 ) -> Option<MediaFileId> {
-    if shuffle {
-        return next_at_random(library, current, played, repeat, seed);
-    }
-
     let position = library.iter().position(|id| *id == current)?;
     match library.get(position + 1) {
         Some(next) => Some(*next),
@@ -85,43 +75,6 @@ pub fn next_in_library(
         None if repeat == RepeatMode::All => library.first().copied(),
         None => None,
     }
-}
-
-/// One track drawn from what has not been heard yet.
-fn next_at_random(
-    library: &[MediaFileId],
-    current: MediaFileId,
-    played: &[MediaFileId],
-    repeat: RepeatMode,
-    seed: u64,
-) -> Option<MediaFileId> {
-    let mut pool: Vec<MediaFileId> = library
-        .iter()
-        .copied()
-        .filter(|id| *id != current && !played.contains(id))
-        .collect();
-
-    if pool.is_empty() {
-        // Everything has had its turn: repeat all begins the round again, and
-        // repeat off stops where ordered playback would stop.
-        if repeat != RepeatMode::All {
-            return None;
-        }
-        pool = library
-            .iter()
-            .copied()
-            .filter(|id| *id != current)
-            .collect();
-        // A library of one is still a library, and repeat all still repeats it.
-        if pool.is_empty() {
-            return Some(current);
-        }
-    }
-
-    // The modulo is biased by about one part in 2^58 for any library a listener
-    // will ever have, which is not a musical problem — the same trade
-    // `shuffle_policy::shuffle` makes.
-    pool.get((seed % pool.len() as u64) as usize).copied()
 }
 
 #[cfg(test)]
@@ -211,7 +164,7 @@ mod tests {
     fn the_library_carries_on_from_the_row_that_is_playing() {
         let library = library(3);
         assert_eq!(
-            next_in_library(&library, library[0], &[], false, RepeatMode::Off, 1),
+            next_in_library(&library, library[0], RepeatMode::Off),
             Some(library[1])
         );
     }
@@ -222,12 +175,12 @@ mod tests {
         let last = library[2];
 
         assert_eq!(
-            next_in_library(&library, last, &[], false, RepeatMode::Off, 1),
+            next_in_library(&library, last, RepeatMode::Off),
             None,
             "nothing follows the last row"
         );
         assert_eq!(
-            next_in_library(&library, last, &[], false, RepeatMode::All, 1),
+            next_in_library(&library, last, RepeatMode::All),
             Some(library[0]),
             "repeat all goes back to the top"
         );
@@ -237,63 +190,8 @@ mod tests {
     fn a_track_that_is_no_longer_in_the_library_has_nothing_after_it() {
         let library = library(3);
         assert_eq!(
-            next_in_library(&library, MediaFileId::new(), &[], false, RepeatMode::Off, 7),
+            next_in_library(&library, MediaFileId::new(), RepeatMode::Off),
             None
-        );
-    }
-
-    #[test]
-    fn shuffle_gives_every_track_a_turn_before_any_gets_a_second() {
-        let library = library(8);
-        let mut played = vec![library[0]];
-        let mut current = library[0];
-
-        for step in 1..8u64 {
-            let next = next_in_library(
-                &library,
-                current,
-                &played,
-                true,
-                RepeatMode::Off,
-                step.wrapping_mul(0x9e37_79b9_7f4a_7c15),
-            )
-            .expect("the library has more to offer");
-
-            assert!(!played.contains(&next), "nothing played twice");
-            played.push(next);
-            current = next;
-        }
-
-        assert_eq!(played.len(), 8, "the whole library had a turn");
-        assert_eq!(
-            next_in_library(&library, current, &played, true, RepeatMode::Off, 3),
-            None,
-            "and then it stops"
-        );
-    }
-
-    #[test]
-    fn an_exhausted_shuffle_starts_again_under_repeat_all() {
-        let library = library(4);
-        let played = library.clone();
-        let next = next_in_library(&library, library[3], &played, true, RepeatMode::All, 11)
-            .expect("the round begins again");
-
-        assert!(library.contains(&next));
-        assert_ne!(next, library[3], "but not the track that is playing");
-    }
-
-    #[test]
-    fn a_library_of_one_repeats_itself_when_asked_to() {
-        let library = library(1);
-        assert_eq!(
-            next_in_library(&library, library[0], &library, true, RepeatMode::All, 5),
-            Some(library[0])
-        );
-        assert_eq!(
-            next_in_library(&library, library[0], &library, true, RepeatMode::Off, 5),
-            None,
-            "and stops when it is not"
         );
     }
 }

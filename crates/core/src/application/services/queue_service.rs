@@ -10,6 +10,7 @@
 //! across the boundary without putting half the rule in the interface, which is
 //! the layer least allowed to hold one.
 
+use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, RwLock};
 
@@ -18,14 +19,18 @@ use uuid::Uuid;
 use crate::application::context::AppContext;
 use crate::application::view_state::QueueView;
 use crate::domain::ids::{MediaFileId, PlaylistId};
+use crate::domain::media_file::FileState;
 use crate::domain::policies::playback_policy::{
     PreviousAction, next_in_library, previous_action, transition_for,
 };
 use crate::domain::policies::shuffle_policy;
+use crate::domain::policies::shuffle_policy::{ARTIST_COOLDOWN, Candidate};
 use crate::domain::ports::event_bus::DomainEvent;
-use crate::domain::ports::repositories::{QueueRepositoryPort, TrackRepositoryPort};
-use crate::domain::queue::{Queue, QueueEntry, QueueOrigin};
-use crate::domain::track::TrackSummary;
+use crate::domain::ports::repositories::{
+    QueueRepositoryPort, TrackFeaturesRepositoryPort, TrackRepositoryPort,
+};
+use crate::domain::queue::{Queue, QueueEntry, QueueOrigin, RepeatMode};
+use crate::domain::track::{TrackFeatures, TrackSummary};
 use crate::domain::value_objects::PlaybackPosition;
 use crate::{CoreError, Result};
 
@@ -37,6 +42,10 @@ pub struct QueuePorts {
     pub queue: Arc<dyn QueueRepositoryPort>,
     /// The library, which is the pool the continuation is built from.
     pub tracks: Arc<dyn TrackRepositoryPort>,
+    /// What the library sounds like, for shuffle to choose by (PROJECT_MASTER
+    /// 9.3). A library nobody has analysed yet still shuffles: every candidate
+    /// simply scores the same.
+    pub features: Arc<dyn TrackFeaturesRepositoryPort>,
 }
 
 /// The playback queue and the transport commands that move through it.
@@ -313,13 +322,7 @@ impl QueueService {
         }
 
         let profile_id = self.context.require_active_profile()?;
-        let library: Vec<MediaFileId> = self
-            .ports
-            .tracks
-            .summaries_for_profile(profile_id)?
-            .iter()
-            .map(|summary| summary.media_file_id)
-            .collect();
+        let library = self.ports.tracks.summaries_for_profile(profile_id)?;
 
         let (played, shuffle, repeat) = self.with_queue(|queue| {
             let played: Vec<MediaFileId> = queue
@@ -330,21 +333,115 @@ impl QueueService {
             (played, queue.shuffle, queue.repeat)
         });
 
-        let next = next_in_library(
-            &library,
-            current.media_file_id,
-            &played,
-            shuffle,
-            repeat,
-            seed(),
-        )
-        .map(|media_file_id| QueueEntry {
+        let chosen = if shuffle {
+            self.shuffled_successor(&library, current.media_file_id, &played, repeat)?
+        } else {
+            let order: Vec<MediaFileId> = library
+                .iter()
+                .map(|summary| summary.media_file_id)
+                .collect();
+            next_in_library(&order, current.media_file_id, repeat)
+        };
+
+        let next = chosen.map(|media_file_id| QueueEntry {
             media_file_id,
             origin: QueueOrigin::Library,
         });
 
         *self.next_up.write().unwrap_or_else(|err| err.into_inner()) = Some((current, next));
         Ok(next)
+    }
+
+    /// What shuffle picks out of the library.
+    ///
+    /// The round is what has not been heard yet; when it empties, repeat all
+    /// begins another and repeat off stops — the fourth hard rule of
+    /// PROJECT_MASTER 9.2. Which of the round's tracks plays is
+    /// [`shuffle_policy::choose_next`]'s decision and not this service's: it
+    /// scores every candidate against what is playing, keeps the best handful
+    /// and draws from those, which is 9.4.
+    fn shuffled_successor(
+        &self,
+        library: &[TrackSummary],
+        current: MediaFileId,
+        played: &[MediaFileId],
+        repeat: RepeatMode,
+    ) -> Result<Option<MediaFileId>> {
+        // Sets rather than scans: this runs over the whole library, and a
+        // session's history is as long as the session. Two linear passes
+        // instead of a product of two lists that both grow.
+        let heard: HashSet<MediaFileId> = played.iter().copied().collect();
+
+        let unheard: Vec<&TrackSummary> = library
+            .iter()
+            .filter(|summary| {
+                summary.media_file_id != current && !heard.contains(&summary.media_file_id)
+            })
+            .collect();
+
+        let round: Vec<&TrackSummary> = if unheard.is_empty() {
+            if repeat != RepeatMode::All {
+                return Ok(None);
+            }
+            // Everything has had a turn. A new round is the whole library —
+            // except what is playing, unless that is all there is.
+            let again: Vec<&TrackSummary> = library
+                .iter()
+                .filter(|summary| summary.media_file_id != current)
+                .collect();
+            if again.is_empty() {
+                library.iter().collect()
+            } else {
+                again
+            }
+        } else {
+            unheard
+        };
+
+        // Read once for the whole round rather than per candidate. Only files
+        // that have been analysed appear here; the rest score neutrally and
+        // still get their turn.
+        let features = self.ports.features.list_all()?;
+        let analysed: HashMap<MediaFileId, &TrackFeatures> = features
+            .iter()
+            .map(|row| (row.media_file_id, row))
+            .collect();
+        let find = |id: MediaFileId| analysed.get(&id).copied();
+
+        let candidates: Vec<Candidate<'_>> = round
+            .iter()
+            .map(|summary| Candidate {
+                media_file_id: summary.media_file_id,
+                // A listing already excludes what has left the library. What it
+                // cannot see is a file that has gone missing since, and that is
+                // the scanner's business rather than the queue's.
+                file_state: FileState::Available,
+                artist: summary.artist.as_deref(),
+                features: find(summary.media_file_id),
+            })
+            .collect();
+
+        // The last few artists, most recent last, which is the order the
+        // cooldown reads them in.
+        let recent: Vec<Option<&str>> = played
+            .iter()
+            .rev()
+            .take(ARTIST_COOLDOWN)
+            .rev()
+            .map(|id| {
+                library
+                    .iter()
+                    .find(|summary| summary.media_file_id == *id)
+                    .and_then(|summary| summary.artist.as_deref())
+            })
+            .collect();
+
+        Ok(shuffle_policy::choose_next(
+            find(current),
+            &candidates,
+            &recent,
+            seed(),
+        ))
     }
 
     fn remembered_successor(&self) -> Option<(QueueEntry, Option<QueueEntry>)> {

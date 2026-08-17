@@ -158,10 +158,6 @@ pub trait TrackRepositoryPort: Send + Sync {
     fn restore(&self, profile_id: ProfileId, media_file_id: MediaFileId) -> Result<()>;
 }
 
-// Reading and writing `track_features` belongs here too, but arrives in M11 with
-// the analysis that produces the values. Declaring it now would mean an adapter
-// mapping fourteen columns that nothing writes and nothing reads.
-
 /// The global artist catalogue.
 pub trait ArtistRepositoryPort: Send + Sync {
     /// One artist.
@@ -410,6 +406,15 @@ pub trait TrackFeaturesRepositoryPort: Send + Sync {
 
     /// How many files carry features from this extractor.
     fn count_for_extractor(&self, extractor_version: &str) -> Result<u64>;
+
+    /// Every file's features.
+    ///
+    /// The whole table rather than a query per candidate: smart shuffle scores
+    /// what it could play against what is playing, and that is a question about
+    /// the library rather than about one track. A library of five thousand is a
+    /// few hundred kilobytes read once per track change, which is cheaper than
+    /// five thousand round trips and far cheaper than getting it wrong.
+    fn list_all(&self) -> Result<Vec<TrackFeatures>>;
 }
 
 /// Files awaiting an import decision.
