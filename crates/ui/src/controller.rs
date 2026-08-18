@@ -20,8 +20,8 @@ use cadenza_core::domain::value_objects::{DurationMs, GainDb, PlaybackPosition, 
 use cadenza_core::{CoreError, Result};
 use slint::{ComponentHandle, Model, ModelRc, VecModel, Weak};
 
-use crate::view_models::{self, eq_vm, library_vm, player_vm, playlist_vm, radio_vm};
-use crate::{AppWindow, EqBandData, FolderRowData, MoodRowData, Theme, UiServices};
+use crate::view_models::{self, eq_vm, library_vm, player_vm, playlist_vm, radio_vm, stats_vm};
+use crate::{AppWindow, EqBandData, FolderRowData, MoodRowData, Theme, TopTrackData, UiServices};
 
 /// How many bars the player bar draws.
 ///
@@ -122,6 +122,7 @@ impl Controller {
         self.refresh_eq();
         self.refresh_settings();
         self.refresh_radio();
+        self.refresh_listening();
         self.refresh_player();
 
         if let Some(window) = self.window.upgrade() {
@@ -794,6 +795,42 @@ impl Controller {
     }
 
     /// Everything the settings screen draws.
+    /// Re-reads the month of listening.
+    pub fn refresh_listening(&self) {
+        let Some(window) = self.window.upgrade() else {
+            return;
+        };
+
+        let report = match self.services.stats.report() {
+            Ok(report) => report,
+            Err(CoreError::NoActiveProfile) => return,
+            Err(err) => {
+                self.report(&err);
+                return;
+            }
+        };
+
+        window.set_listening_kept(report.keeping);
+        window.set_listening_summary(stats_vm::summary_line(&report).into());
+        window.set_listening_heard(stats_vm::heard(report.summary.listened).into());
+        window.set_listening_listens(report.summary.completed.to_string().into());
+        window.set_listening_tracks(report.summary.tracks.to_string().into());
+        window.set_listening_skip_rate(stats_vm::skip_rate(&report).into());
+
+        let rows: Vec<TopTrackData> = report
+            .top
+            .iter()
+            .enumerate()
+            .map(|(index, (track, count))| TopTrackData {
+                rank: format!("{}", index + 1).into(),
+                title: track.title.as_str().into(),
+                subtitle: track.artist.clone().unwrap_or_default().into(),
+                plays: stats_vm::plays(*count).into(),
+            })
+            .collect();
+        window.set_top_tracks(ModelRc::new(VecModel::from(rows)));
+    }
+
     /// Re-reads a screen the listener has just moved to.
     ///
     /// A page is drawn from a service at the moment something asks it to be,
@@ -804,6 +841,7 @@ impl Controller {
     /// the one case somebody happened to notice.
     pub fn showing(&self, section: &str) {
         match section {
+            "listening" => self.refresh_listening(),
             "radio" => self.refresh_radio(),
             "settings" => self.refresh_settings(),
             "queue" => self.refresh_queue(),

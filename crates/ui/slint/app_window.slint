@@ -18,6 +18,7 @@ import { MenuItemData } from "components/RowMenu.slint";
 import { EqPresetData, EqBandData } from "views/EqualiserView.slint";
 import { FolderRowData } from "views/SettingsView.slint";
 import { MoodRowData } from "views/RadioView.slint";
+import { TopTrackData } from "views/ListeningView.slint";
 
 // Re-exported so the controller can set the palette. A global's input is set
 // from the native side; markup may read it but never assign to it, which is
@@ -70,6 +71,13 @@ export component AppWindow inherits Window {
 
     // Radio.
     in property <[MoodRowData]> moods;
+    in property <[TopTrackData]> top-tracks;
+    in property <string> listening-summary;
+    in property <string> listening-heard;
+    in property <string> listening-listens;
+    in property <string> listening-tracks;
+    in property <string> listening-skip-rate;
+    in property <bool> listening-kept;
     in property <string> radio-mood;
     in property <string> radio-summary;
     in property <bool> eq-advanced;
@@ -195,6 +203,13 @@ export component AppWindow inherits Window {
         suggested-folder: root.suggested-folder;
         settings-summary: root.settings-summary;
         moods: root.moods;
+        top-tracks: root.top-tracks;
+        listening-summary: root.listening-summary;
+        listening-heard: root.listening-heard;
+        listening-listens: root.listening-listens;
+        listening-tracks: root.listening-tracks;
+        listening-skip-rate: root.listening-skip-rate;
+        listening-kept: root.listening-kept;
         radio-mood: root.radio-mood;
         radio-summary: root.radio-summary;
         eq-advanced: root.eq-advanced;

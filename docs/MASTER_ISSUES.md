@@ -1004,3 +1004,32 @@ behind it, in the same way the settings screen had none (`MASTER_ISSUES` 42).
 M15 is the final *design* and M16 is packaging, so neither is a home for a
 feature. They are recorded here to be scheduled deliberately rather than
 discovered during packaging.
+
+## 52. Every page is drawn at the size of its own content
+
+The listening screen came up a third of the width of the window, with four
+figures squeezed into a corner and their labels elided to "HE…" and "SK…". The
+markup was right; the assumption behind it was not.
+
+**Pages in this shell are laid out at their preferred size, and the ones built
+so far fill the window by accident.** A track list is as wide as its columns.
+The settings screen has a 320-pixel column in it. The equaliser has eight
+faders. This page is four short numbers and a heading, so it asked for the room
+four short numbers need — and the window, which sizes itself to its content at
+startup, came up shorter with it.
+
+Neither `horizontal-stretch` on the instance in `AppShell` nor on the
+component's own root changed anything; both were tried and both were removed
+again rather than left in as decoration. What worked is a floor: `min-width` and
+`min-height` on the page, which is the honest statement — *this screen needs at
+least this much room to be a screen*.
+
+Three renders were identical before the cause was found, which was itself
+worth noticing: two structural rewrites that changed nothing are evidence about
+the model, not about the markup. The third render, forced after touching
+`build.rs`, ruled out a stale build and left only the assumption standing.
+
+What remains is cosmetic and known: at a window wider than the floor, the page
+does not spread into the extra room. Making pages fill is a change to how the
+shell places them, which is M15's — the final design — rather than something to
+improvise underneath a milestone about statistics.

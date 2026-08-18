@@ -7,7 +7,7 @@
 use cadenza_core::Result;
 use cadenza_core::domain::ids::{MediaFileId, PlayEventId, ProfileId, RadioSessionId};
 use cadenza_core::domain::ports::repositories::{PlayEventRepositoryPort, StatsRepositoryPort};
-use cadenza_core::domain::stats::{PlayEvent, PlayOutcome, PlaySource};
+use cadenza_core::domain::stats::{ListeningSummary, PlayEvent, PlayOutcome, PlaySource};
 use cadenza_core::domain::value_objects::{DurationMs, Timestamp};
 use cadenza_core::{CoreError, Result as CoreResult};
 use rusqlite::Row;
@@ -119,6 +119,31 @@ impl PlayEventRepositoryPort for SqliteHistoryRepository {
 }
 
 impl StatsRepositoryPort for SqliteHistoryRepository {
+    fn summary(&self, profile_id: ProfileId, since: Timestamp) -> Result<ListeningSummary> {
+        let connection = self.pool.get()?;
+        connection
+            .query_row(
+                "SELECT COUNT(*),
+                        COALESCE(SUM(completed), 0),
+                        COALESCE(SUM(skipped), 0),
+                        COUNT(DISTINCT media_file_id),
+                        COALESCE(SUM(played_ms), 0)
+                   FROM play_events
+                  WHERE profile_id = ?1 AND started_at >= ?2",
+                rusqlite::params![profile_id.to_string(), since.as_millis()],
+                |row| {
+                    Ok(ListeningSummary {
+                        started: row.get::<_, i64>(0)?.max(0) as u32,
+                        completed: row.get::<_, i64>(1)?.max(0) as u32,
+                        skipped: row.get::<_, i64>(2)?.max(0) as u32,
+                        tracks: row.get::<_, i64>(3)?.max(0) as u32,
+                        listened: DurationMs::from_millis(row.get::<_, i64>(4)?.max(0) as u64),
+                    })
+                },
+            )
+            .map_err(db_error_in("summing up a month of listening"))
+    }
+
     fn top_tracks(
         &self,
         profile_id: ProfileId,

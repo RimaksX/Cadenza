@@ -206,6 +206,14 @@ export component Sidebar inherits Rectangle {
                 }
             }
             NavItem {
+                label: "Listening";
+                glyph: @image-url("../../../../resources/ui/icons/analytics.svg");
+                selected: root.section == "listening";
+                chosen => {
+                    root.select("listening");
+                }
+            }
+            NavItem {
                 label: "Radio";
                 glyph: @image-url("../../../../resources/ui/icons/radio.svg");
                 selected: root.section == "radio";

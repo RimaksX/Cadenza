@@ -36,7 +36,7 @@ use crate::domain::queue::Queue;
 use crate::domain::radio::{RadioFeedback, RadioSession, RadioSessionItem};
 use crate::domain::review::{ImportReview, ReviewState};
 use crate::domain::settings::{ProfileFolder, SettingValue};
-use crate::domain::stats::PlayEvent;
+use crate::domain::stats::{ListeningSummary, PlayEvent};
 use crate::domain::track::{Track, TrackFeatures, TrackSummary};
 use crate::domain::value_objects::Timestamp;
 
@@ -294,6 +294,9 @@ pub trait PlayEventRepositoryPort: Send + Sync {
 /// read them arrive in M14. Only the query radio needs before then is declared
 /// here.
 pub trait StatsRepositoryPort: Send + Sync {
+    /// Everything the dashboard says in one row.
+    fn summary(&self, profile_id: ProfileId, since: Timestamp) -> Result<ListeningSummary>;
+
     /// Most-played files in a window, as `(file, play count)`, highest first.
     fn top_tracks(
         &self,

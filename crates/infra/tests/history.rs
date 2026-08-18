@@ -33,6 +33,8 @@ use fake_engine::FakeEngine;
 const TRACK: DurationMs = DurationMs::from_secs(180);
 
 struct Harness {
+    context: Arc<AppContext>,
+    pool: cadenza_infra::db::SqlitePool,
     playback: PlaybackService,
     history: SqliteHistoryRepository,
     engine: Arc<FakeEngine>,
@@ -117,6 +119,8 @@ fn harness() -> Harness {
     );
 
     Harness {
+        context: Arc::clone(&context),
+        pool: db.pool().clone(),
         history: SqliteHistoryRepository::new(db.pool().clone()),
         playback,
         engine,
@@ -287,5 +291,80 @@ fn switching_history_off_can_forget_what_was_already_written() {
         .purge_all(harness.profile_id)
         .expect("forgotten");
     assert_eq!(removed, 1);
+    assert!(harness.listens().is_empty());
+}
+
+#[test]
+fn a_month_of_listening_adds_up() {
+    use cadenza_core::application::services::{StatsPorts, StatsService};
+
+    let harness = harness();
+
+    // Two tracks played through, one of them twice; one abandoned early.
+    harness.hear(0, 175);
+    harness.hear(0, 175);
+    harness.hear(1, 170);
+    harness.hear(1, 4);
+    harness.playback.stop().expect("stopped");
+
+    let stats = StatsService::new(
+        Arc::clone(&harness.context),
+        StatsPorts {
+            history: Arc::new(SqliteHistoryRepository::new(harness.pool.clone())),
+            stats: Arc::new(SqliteHistoryRepository::new(harness.pool.clone())),
+            tracks: Arc::new(SqliteTrackRepository::new(harness.pool.clone())),
+        },
+    );
+
+    let report = stats.report().expect("a report");
+    assert!(report.keeping, "this profile is keeping history");
+    assert_eq!(report.summary.started, 4);
+    assert_eq!(report.summary.completed, 3);
+    assert_eq!(report.summary.skipped, 1);
+    assert_eq!(report.summary.tracks, 2, "two distinct files");
+    assert!((report.summary.skip_rate() - 0.25).abs() < 1e-6);
+
+    // 175 + 175 + 170 + 4 seconds.
+    assert_eq!(report.summary.listened, DurationMs::from_secs(524));
+
+    assert_eq!(
+        report
+            .top
+            .first()
+            .map(|(track, plays)| (track.title.as_str(), *plays)),
+        Some(("one", 2)),
+        "the one played through twice leads"
+    );
+}
+
+#[test]
+fn a_listener_who_keeps_no_history_is_told_so_rather_than_shown_zeroes() {
+    use cadenza_core::application::services::{StatsPorts, StatsService};
+
+    let harness = harness();
+    harness.hear(0, 175);
+    harness.playback.stop().expect("stopped");
+
+    harness
+        .profiles
+        .set_history_enabled(harness.profile_id, false)
+        .expect("history off");
+
+    let stats = StatsService::new(
+        Arc::clone(&harness.context),
+        StatsPorts {
+            history: Arc::new(SqliteHistoryRepository::new(harness.pool.clone())),
+            stats: Arc::new(SqliteHistoryRepository::new(harness.pool.clone())),
+            tracks: Arc::new(SqliteTrackRepository::new(harness.pool.clone())),
+        },
+    );
+
+    assert!(
+        !stats.report().expect("a report").keeping,
+        "an empty page and a page that is empty on purpose are different things"
+    );
+
+    // And turning it off can take what was already written with it.
+    assert_eq!(stats.forget(harness.profile_id).expect("forgotten"), 1);
     assert!(harness.listens().is_empty());
 }

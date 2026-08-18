@@ -18,7 +18,7 @@ use std::{env, io};
 use cadenza_core::application::services::{
     AnalysisPorts, AnalysisService, EqPorts, EqService, LibraryPorts, LibraryService,
     PlaybackPorts, PlaybackService, PlaylistPorts, PlaylistService, QueuePorts, QueueService,
-    RadioPorts, RadioService,
+    RadioPorts, RadioService, StatsPorts, StatsService,
 };
 use cadenza_core::application::{AppContext, ProfileService};
 use cadenza_core::domain::playback::PlaybackState;
@@ -146,6 +146,25 @@ fn run() -> std::result::Result<(), String> {
         },
     ));
 
+    // Statistics and the retention that bounds them.
+    let stats = Arc::new(StatsService::new(
+        Arc::clone(&context),
+        StatsPorts {
+            history: Arc::new(SqliteHistoryRepository::new(pool.clone())),
+            stats: Arc::new(SqliteHistoryRepository::new(pool.clone())),
+            tracks: Arc::new(SqliteTrackRepository::new(pool.clone())),
+        },
+    ));
+
+    // Thirty days is a promise about what is on the disk, so it is kept on the
+    // way in rather than when somebody opens a screen. A failure here is not a
+    // reason to refuse to start: the listener came to play music.
+    if let Ok(removed) = stats.purge_expired()
+        && removed > 0
+    {
+        println!("cleared {removed} listening event(s) older than thirty days");
+    }
+
     // Before anything else: the pointer left by the previous run decides who the
     // application is running as.
     let active = profiles.restore_active().map_err(|err| err.to_string())?;
@@ -214,6 +233,7 @@ fn run() -> std::result::Result<(), String> {
             queue,
             playlists,
             radio: Arc::clone(&radio),
+            stats: Arc::clone(&stats),
             profile: active,
         });
 
@@ -224,7 +244,7 @@ fn run() -> std::result::Result<(), String> {
     }
 
     dispatch(
-        &command, &context, &profiles, &library, &playlists, &analysis, active,
+        &command, &context, &profiles, &library, &playlists, &analysis, &stats, active,
     )
     .map_err(|err| err.to_string())
 }
@@ -380,6 +400,7 @@ fn dispatch(
     library: &LibraryService,
     playlists: &PlaylistService,
     analysis: &AnalysisService,
+    stats: &StatsService,
     active: Option<Profile>,
 ) -> Result<()> {
     match command {
@@ -408,6 +429,8 @@ fn dispatch(
         Command::Playlist(action) => playlist(action, library, playlists)?,
 
         Command::Analyze { limit } => analyze(analysis, *limit)?,
+
+        Command::Stats => report_listening(stats)?,
 
         Command::Status => report_status(profiles, active.as_ref())?,
 
@@ -819,6 +842,49 @@ fn analyze(analysis: &AnalysisService, limit: Option<usize>) -> Result<()> {
         after.analysed,
         after.pending
     );
+    Ok(())
+}
+
+/// Prints the month the listener has had.
+fn report_listening(stats: &StatsService) -> Result<()> {
+    let report = stats.report()?;
+
+    if !report.keeping {
+        println!("history is off for this profile — nothing is being recorded");
+        println!("turn it on with: cadenza history on");
+        return Ok(());
+    }
+
+    let summary = report.summary;
+    if summary.started == 0 {
+        println!("nothing played in the last {} days", report.days);
+        return Ok(());
+    }
+
+    let minutes = summary.listened.as_millis() / 60_000;
+    println!(
+        "the last {} days: {} listen(s) of {} track(s), {} minute(s) heard",
+        report.days, summary.started, summary.tracks, minutes
+    );
+    println!(
+        "  {} played through, {} skipped early ({:.0}%)",
+        summary.completed,
+        summary.skipped,
+        summary.skip_rate() * 100.0
+    );
+
+    if report.top.is_empty() {
+        return Ok(());
+    }
+
+    println!(
+        "
+played through most:"
+    );
+    for (track, plays) in &report.top {
+        let noun = if *plays == 1 { "time" } else { "times" };
+        println!("  {plays:>3} {noun}  {}", track.title);
+    }
     Ok(())
 }
 

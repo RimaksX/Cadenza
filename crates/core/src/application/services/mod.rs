@@ -17,6 +17,7 @@ pub mod playlist_service;
 pub mod profile_service;
 pub mod queue_service;
 pub mod radio_service;
+pub mod stats_service;
 
 pub use analysis_service::{AnalysisPorts, AnalysisProgress, AnalysisService};
 pub use eq_service::{EqPorts, EqService};
@@ -26,3 +27,4 @@ pub use playlist_service::{PlaylistPorts, PlaylistService, PlaylistSummary};
 pub use profile_service::ProfileService;
 pub use queue_service::{QueuePorts, QueueService};
 pub use radio_service::{RadioPorts, RadioService};
+pub use stats_service::{ListeningReport, StatsPorts, StatsService};

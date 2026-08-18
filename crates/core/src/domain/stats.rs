@@ -76,6 +76,38 @@ impl PlayOutcome {
     }
 }
 
+/// What a profile listened to over a window of days.
+///
+/// Counted by the database rather than assembled from events: a month of
+/// listening is thousands of rows, and reading them all to add them up is a
+/// query pretending to be a loop.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct ListeningSummary {
+    /// Listens that began, however they ended.
+    pub started: u32,
+    /// Listens that got past the halfway mark.
+    pub completed: u32,
+    /// Listens abandoned inside the skip window.
+    pub skipped: u32,
+    /// Distinct files heard.
+    pub tracks: u32,
+    /// Audio actually heard, summed.
+    pub listened: DurationMs,
+}
+
+impl ListeningSummary {
+    /// The share of listens that were abandoned early, `0.0..=1.0`.
+    ///
+    /// Zero for a listener who has played nothing: no starts means no skips,
+    /// and a rate of nothing over nothing is not one.
+    pub fn skip_rate(&self) -> f32 {
+        if self.started == 0 {
+            return 0.0;
+        }
+        self.skipped as f32 / self.started as f32
+    }
+}
+
 /// One listen, recorded only when the profile has history enabled.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PlayEvent {

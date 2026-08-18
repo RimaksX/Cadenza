@@ -10,6 +10,7 @@ import { PlaylistDetailView } from "../views/PlaylistDetailView.slint";
 import { EqualiserView, EqPresetData, EqBandData } from "../views/EqualiserView.slint";
 import { SettingsView, FolderRowData } from "../views/SettingsView.slint";
 import { RadioView, MoodRowData } from "../views/RadioView.slint";
+import { ListeningView, TopTrackData } from "../views/ListeningView.slint";
 import { Dialog, PickDialog } from "Dialog.slint";
 import { MenuItemData } from "RowMenu.slint";
 
@@ -48,6 +49,15 @@ export component AppShell inherits Rectangle {
 
     // Radio.
     in property <[MoodRowData]> moods;
+
+    // Listening.
+    in property <[TopTrackData]> top-tracks;
+    in property <string> listening-summary;
+    in property <string> listening-heard;
+    in property <string> listening-listens;
+    in property <string> listening-tracks;
+    in property <string> listening-skip-rate;
+    in property <bool> listening-kept;
     in property <string> radio-mood;
     in property <string> radio-summary;
     in property <bool> eq-advanced;
@@ -255,6 +265,16 @@ export component AppShell inherits Rectangle {
                 act(id, name, action) => {
                     root.ask(action == "rename" ? "rename-playlist" : "delete-playlist", id, name);
                 }
+            }
+
+            if root.section == "listening": ListeningView {
+                top: root.top-tracks;
+                summary: root.listening-summary;
+                heard: root.listening-heard;
+                listens: root.listening-listens;
+                tracks: root.listening-tracks;
+                skip-rate: root.listening-skip-rate;
+                keeping: root.listening-kept;
             }
 
             if root.section == "radio": RadioView {
