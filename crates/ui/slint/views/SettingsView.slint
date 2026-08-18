@@ -261,13 +261,16 @@ export component SettingsView inherits Rectangle {
             // Scrolls, because this column grows with the number of listeners
             // and a decision below the bottom of the window is a decision
             // nobody can make.
-            Flickable {
+            VerticalLayout {
                 width: 320px;
-                viewport-height: choices.preferred-height;
 
-                choices := VerticalLayout {
-                    alignment: start;
-                    spacing: Theme.space-5;
+                scroller := Flickable {
+                    vertical-stretch: 1;
+                    viewport-height: choices.preferred-height;
+
+                    choices := VerticalLayout {
+                        alignment: start;
+                        spacing: Theme.space-5;
 
                 VerticalLayout {
                     spacing: Theme.space-2;
@@ -414,6 +417,18 @@ export component SettingsView inherits Rectangle {
                     }
                 }
 
+                    }
+                }
+
+                // The same hairline the preset list uses: there while there is
+                // more below it, gone when the column ends where the window
+                // does. A column that simply stops at the edge looks like a
+                // column that has finished.
+                Rectangle {
+                    height: 1px;
+                    background: scroller.viewport-height + scroller.viewport-y > scroller.height
+                        ? Theme.line-soft
+                        : transparent;
                 }
             }
 
