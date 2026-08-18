@@ -31,9 +31,9 @@ use cadenza_core::domain::value_objects::{
     Bpm, DurationMs, Mode, MusicalKey, PlaybackPosition, Timestamp, Volume,
 };
 use cadenza_infra::db::repositories::{
-    SqliteMediaFileRepository, SqliteMoodRepository, SqliteProfileRepository,
-    SqliteQueueRepository, SqliteRadioRepository, SqliteSettingsRepository,
-    SqliteTrackFeaturesRepository, SqliteTrackRepository,
+    SqliteHistoryRepository, SqliteMediaFileRepository, SqliteMoodRepository,
+    SqliteProfileRepository, SqliteQueueRepository, SqliteRadioRepository,
+    SqliteSettingsRepository, SqliteTrackFeaturesRepository, SqliteTrackRepository,
 };
 use cadenza_infra::events::InProcessEventBus;
 use cadenza_testkit::{TempDb, TestClock};
@@ -269,6 +269,7 @@ fn services_with_radio(
             engine: Arc::clone(&engine) as _,
             media_files: Arc::new(SqliteMediaFileRepository::new(db.pool().clone())),
             tracks: Arc::clone(&track_repo) as _,
+            history: Arc::new(SqliteHistoryRepository::new(db.pool().clone())),
         },
     ));
 

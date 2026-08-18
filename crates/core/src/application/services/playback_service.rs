@@ -9,17 +9,21 @@ use std::sync::{Arc, RwLock};
 
 use crate::application::context::AppContext;
 use crate::application::view_state::PlayerView;
-use crate::domain::ids::{MediaFileId, ProfileId};
+use crate::domain::ids::{MediaFileId, PlayEventId, ProfileId};
 use crate::domain::playback::{PlaybackState, TransitionProfile};
+use crate::domain::policies::history_policy::{classify, should_record};
 use crate::domain::ports::audio_engine::AudioEnginePort;
 use crate::domain::ports::event_bus::DomainEvent;
-use crate::domain::ports::repositories::{MediaFileRepositoryPort, TrackRepositoryPort};
+use crate::domain::ports::repositories::{
+    MediaFileRepositoryPort, PlayEventRepositoryPort, TrackRepositoryPort,
+};
 use crate::domain::settings::{
     CROSSFADE_ENABLED_KEY, CROSSFADE_MS_KEY, CrossfadeDuration, PRELOAD_NEXT_KEY, PlaybackSettings,
     SettingValue,
 };
+use crate::domain::stats::{PlayEvent, PlaySource};
 use crate::domain::track::TrackSummary;
-use crate::domain::value_objects::{DurationMs, PlaybackPosition, Volume};
+use crate::domain::value_objects::{DurationMs, PlaybackPosition, Timestamp, Volume};
 use crate::{CoreError, Result};
 
 /// Everything playback talks to.
@@ -30,6 +34,19 @@ pub struct PlaybackPorts {
     pub media_files: Arc<dyn MediaFileRepositoryPort>,
     /// Per-profile library membership, for what to show while it plays.
     pub tracks: Arc<dyn TrackRepositoryPort>,
+    /// Where a listen is written down, when the listener allows it
+    /// (PROJECT_MASTER 2.6).
+    pub history: Arc<dyn PlayEventRepositoryPort>,
+}
+
+/// A listen that has started and not yet been written down.
+struct Listen {
+    profile_id: ProfileId,
+    media_file_id: MediaFileId,
+    source: PlaySource,
+    /// The track's length, copied because the row will outlive the file.
+    duration: DurationMs,
+    started_at: Timestamp,
 }
 
 /// Transport control and the player's view state.
@@ -43,6 +60,13 @@ pub struct PlaybackService {
     /// muted. Mute has to remember what to go back to (PROJECT_MASTER 2.3).
     volume: RwLock<Volume>,
     muted: RwLock<bool>,
+    /// The listen in progress, if history is being kept.
+    ///
+    /// Opened when a track starts and closed when it is replaced, stopped or
+    /// handed over from. Held here because this is the only place that knows
+    /// when a track *became* the one playing — the queue knows what should play
+    /// next, which is a different moment.
+    listening: RwLock<Option<Listen>>,
     /// The active profile's playback preferences, and whose they are.
     ///
     /// Cached because the queue asks for them four times a second, and three
@@ -62,6 +86,7 @@ impl PlaybackService {
             volume: RwLock::new(Volume::default()),
             muted: RwLock::new(false),
             settings: RwLock::new(None),
+            listening: RwLock::new(None),
         }
     }
 
@@ -116,7 +141,7 @@ impl PlaybackService {
     /// The counterpart to [`Self::play_track`], and deliberately not it: the
     /// audio is already playing. Loading it again would flush the ring and put
     /// a hole in the middle of the join that was the whole point.
-    pub fn adopt(&self, media_file_id: MediaFileId) -> Result<()> {
+    pub fn adopt(&self, media_file_id: MediaFileId, source: PlaySource) -> Result<()> {
         let profile_id = self.context.require_active_profile()?;
         let summary = self
             .ports
@@ -124,6 +149,13 @@ impl PlaybackService {
             .summary(profile_id, media_file_id)?
             .ok_or_else(|| CoreError::not_found("track", media_file_id))?;
 
+        // A join happens because the outgoing track ran out, so it was heard to
+        // its end. Its position cannot be asked for any more — the engine is
+        // already reporting the new track.
+        let heard = self.listened_duration();
+        self.close_listen(heard);
+
+        self.open_listen(&summary, source);
         self.write_loaded(Some(summary));
         self.announce();
         Ok(())
@@ -211,8 +243,12 @@ impl PlaybackService {
     }
 
     /// Loads a track from the active profile's library and starts it.
-    pub fn play_track(&self, media_file_id: MediaFileId) -> Result<()> {
+    pub fn play_track(&self, media_file_id: MediaFileId, source: PlaySource) -> Result<()> {
         let profile_id = self.context.require_active_profile()?;
+
+        // Before the engine loads anything: loading resets the position, and
+        // the position is how much of the outgoing track was heard.
+        self.close_listen(self.ports.engine.position().elapsed());
 
         // The listing and the file are two different questions: a row can exist
         // for a file that has since been deleted from disk.
@@ -239,6 +275,7 @@ impl PlaybackService {
         self.ports.engine.load(&media_file.path)?;
         self.ports.engine.play()?;
 
+        self.open_listen(&summary, source);
         self.write_loaded(Some(summary));
         self.announce();
         Ok(())
@@ -270,7 +307,12 @@ impl PlaybackService {
             // Nothing loaded, or the track ran out. Starting it again from the
             // top is what pressing play on a finished track should do.
             PlaybackState::Stopped => match self.loaded_id() {
-                Some(media_file_id) => self.play_track(media_file_id),
+                // The source of a replay is the source of what is loaded, and
+                // by this point that is no longer known — the listen it came
+                // with has been written down. Library is the honest default:
+                // the listener pressed play on a track, which is what the
+                // library listing does.
+                Some(media_file_id) => self.play_track(media_file_id, PlaySource::Library),
                 None => Err(CoreError::Audio("nothing is loaded to play".into())),
             },
         }
@@ -278,6 +320,8 @@ impl PlaybackService {
 
     /// Stops and unloads.
     pub fn stop(&self) -> Result<()> {
+        self.close_listen(self.ports.engine.position().elapsed());
+
         self.ports.engine.stop()?;
         self.write_loaded(None);
         self.announce();
@@ -351,6 +395,80 @@ impl PlaybackService {
             .map(|summary| summary.media_file_id)
     }
 
+    /// Starts counting a listen, if this profile keeps history.
+    ///
+    /// Asked of the profile every time rather than cached: turning history off
+    /// is a decision that must take effect at once, and a cached "yes" would
+    /// keep writing for as long as the window stayed open
+    /// (PROJECT_MASTER 1.4, 2.6).
+    fn open_listen(&self, summary: &TrackSummary, source: PlaySource) {
+        let keeping = self
+            .context
+            .active_profile()
+            .and_then(|id| self.context.profiles.get(id).ok().flatten())
+            .filter(should_record);
+
+        *self
+            .listening
+            .write()
+            .unwrap_or_else(|err| err.into_inner()) = keeping.map(|profile| Listen {
+            profile_id: profile.id,
+            media_file_id: summary.media_file_id,
+            source,
+            duration: summary.duration,
+            started_at: self.context.now(),
+        });
+    }
+
+    /// Writes down the listen that has just ended, if one was open.
+    ///
+    /// A failure to record is not a failure to play: the listener is listening,
+    /// and a database that will not take a row about it has not stopped them.
+    fn close_listen(&self, played: DurationMs) {
+        let Some(listen) = self
+            .listening
+            .write()
+            .unwrap_or_else(|err| err.into_inner())
+            .take()
+        else {
+            return;
+        };
+
+        // Never more than the track is long. A listener who seeks backwards and
+        // hears a chorus twice has still heard one track's worth of it, and a
+        // completion rate above one would be arithmetic nobody could explain.
+        let played = played.min(listen.duration);
+
+        let event = PlayEvent {
+            id: PlayEventId::new(),
+            profile_id: listen.profile_id,
+            media_file_id: listen.media_file_id,
+            source: listen.source,
+            // Which station is the queue's knowledge, not this service's. The
+            // column stays empty until something needs per-session totals.
+            radio_session_id: None,
+            started_at: listen.started_at,
+            ended_at: Some(self.context.now()),
+            played,
+            duration: listen.duration,
+            outcome: classify(played, listen.duration),
+        };
+
+        let _ = self.ports.history.append(&event);
+    }
+
+    /// How long the track that is ending was heard for.
+    ///
+    /// Used where the engine has already moved on and cannot be asked: a join
+    /// happens because the track ran out, so it was heard to its end.
+    fn listened_duration(&self) -> DurationMs {
+        self.listening
+            .read()
+            .unwrap_or_else(|err| err.into_inner())
+            .as_ref()
+            .map_or(DurationMs::ZERO, |listen| listen.duration)
+    }
+
     fn write_loaded(&self, summary: Option<TrackSummary>) {
         *self.loaded.write().unwrap_or_else(|err| err.into_inner()) = summary;
     }
@@ -376,10 +494,12 @@ mod tests {
     use crate::domain::ports::clock::ClockPort;
     use crate::domain::ports::event_bus::{DomainEvent, EventBusPort, EventHandler};
     use crate::domain::ports::repositories::{
-        MediaFileRepositoryPort, ProfileRepositoryPort, SettingsRepositoryPort, TrackRepositoryPort,
+        MediaFileRepositoryPort, PlayEventRepositoryPort, ProfileRepositoryPort,
+        SettingsRepositoryPort, TrackRepositoryPort,
     };
     use crate::domain::profile::Profile;
     use crate::domain::settings::{ProfileFolder, SettingValue};
+    use crate::domain::stats::{PlayEvent, PlaySource};
     use crate::domain::track::{Track, TrackSummary};
     use crate::domain::value_objects::{DurationMs, PlaybackPosition, Timestamp, Volume};
 
@@ -639,16 +759,42 @@ mod tests {
                         duration: DurationMs::from_secs(300),
                     },
                 }),
+                history: Arc::new(NoHistory),
             },
         );
 
         (service, engine, media_file_id)
     }
 
+    /// History that goes nowhere. These tests are about the transport, and the
+    /// profile behind them has none anyway — `NoProfiles` answers nothing, so
+    /// no listen is ever opened.
+    struct NoHistory;
+
+    impl PlayEventRepositoryPort for NoHistory {
+        fn append(&self, _event: &PlayEvent) -> Result<()> {
+            Ok(())
+        }
+        fn recent(
+            &self,
+            _profile_id: ProfileId,
+            _since: Timestamp,
+            _limit: u32,
+        ) -> Result<Vec<PlayEvent>> {
+            Ok(Vec::new())
+        }
+        fn purge_before(&self, _profile_id: ProfileId, _cutoff: Timestamp) -> Result<u64> {
+            Ok(0)
+        }
+        fn purge_all(&self, _profile_id: ProfileId) -> Result<u64> {
+            Ok(0)
+        }
+    }
+
     #[test]
     fn playing_a_track_loads_the_file_and_starts_it() {
         let (service, engine, id) = service(FileState::Available);
-        service.play_track(id).expect("played");
+        service.play_track(id, PlaySource::Library).expect("played");
 
         assert_eq!(
             engine.loaded.lock().expect("not poisoned").as_deref(),
@@ -666,7 +812,7 @@ mod tests {
         let (service, engine, id) = service(FileState::Missing);
 
         let message = service
-            .play_track(id)
+            .play_track(id, PlaySource::Library)
             .expect_err("not playable")
             .to_string();
         assert!(message.contains("mysterons.flac"), "got {message}");
@@ -679,7 +825,7 @@ mod tests {
     #[test]
     fn one_button_pauses_and_resumes() {
         let (service, _engine, id) = service(FileState::Available);
-        service.play_track(id).expect("played");
+        service.play_track(id, PlaySource::Library).expect("played");
 
         service.toggle().expect("paused");
         assert_eq!(service.view().state, PlaybackState::Paused);
@@ -691,7 +837,7 @@ mod tests {
     #[test]
     fn pressing_play_on_a_finished_track_starts_it_again() {
         let (service, engine, id) = service(FileState::Available);
-        service.play_track(id).expect("played");
+        service.play_track(id, PlaySource::Library).expect("played");
 
         // What the engine reports once a track has run out and been unloaded by
         // the listener, while the service still remembers what it was.
@@ -711,7 +857,7 @@ mod tests {
     #[test]
     fn muting_silences_the_output_without_forgetting_the_level() {
         let (service, engine, id) = service(FileState::Available);
-        service.play_track(id).expect("played");
+        service.play_track(id, PlaySource::Library).expect("played");
 
         let chosen = Volume::new(0.4).expect("in range");
         service.set_volume(chosen).expect("set");
@@ -733,7 +879,7 @@ mod tests {
     #[test]
     fn reaching_for_the_volume_unmutes() {
         let (service, _engine, id) = service(FileState::Available);
-        service.play_track(id).expect("played");
+        service.play_track(id, PlaySource::Library).expect("played");
         service.toggle_mute().expect("muted");
 
         service
@@ -746,7 +892,7 @@ mod tests {
     #[test]
     fn stopping_forgets_the_track() {
         let (service, _engine, id) = service(FileState::Available);
-        service.play_track(id).expect("played");
+        service.play_track(id, PlaySource::Library).expect("played");
         service.stop().expect("stopped");
 
         let view = service.view();

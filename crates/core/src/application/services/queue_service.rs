@@ -31,6 +31,7 @@ use crate::domain::ports::repositories::{
 };
 use crate::domain::queue::{Queue, QueueEntry, QueueOrigin, RepeatMode};
 use crate::domain::radio::{MIN_BATCH_SIZE, REFILL_THRESHOLD};
+use crate::domain::stats::PlaySource;
 use crate::domain::track::{TrackFeatures, TrackSummary};
 use crate::domain::value_objects::PlaybackPosition;
 use crate::{CoreError, Result};
@@ -675,7 +676,8 @@ impl QueueService {
         }
 
         if let Some(entry) = self.with_queue(|queue| queue.current) {
-            self.playback.adopt(entry.media_file_id)?;
+            self.playback
+                .adopt(entry.media_file_id, source_of(entry.origin))?;
         }
         self.persist();
         self.announce();
@@ -809,7 +811,9 @@ impl QueueService {
             return self.playback.stop();
         };
 
-        let played = self.playback.play_track(entry.media_file_id);
+        let played = self
+            .playback
+            .play_track(entry.media_file_id, source_of(entry.origin));
 
         // A file that will not play must not stall the queue: the listener
         // pressed next, and stopping on a missing file would mean pressing it
@@ -856,6 +860,20 @@ impl QueueService {
 
     fn write_queue<T>(&self, change: impl FnOnce(&mut Queue) -> T) -> T {
         change(&mut self.queue.write().unwrap_or_else(|err| err.into_inner()))
+    }
+}
+
+/// What the history calls the place a track came from.
+///
+/// [`PlaySource::Manual`] has no origin of its own: a track queued by hand
+/// carries the origin of wherever it was queued *from*, which is the library.
+/// Telling the two apart would mean remembering which lane an entry came out
+/// of, and nothing counts them separately yet.
+const fn source_of(origin: QueueOrigin) -> PlaySource {
+    match origin {
+        QueueOrigin::Library => PlaySource::Library,
+        QueueOrigin::Playlist(_) => PlaySource::Playlist,
+        QueueOrigin::Radio(_) => PlaySource::Radio,
     }
 }
 

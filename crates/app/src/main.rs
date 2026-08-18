@@ -37,10 +37,11 @@ use cadenza_infra::audio::{CpalAudioEngine, SymphoniaDecoder};
 use cadenza_infra::db;
 use cadenza_infra::db::repositories::{
     SqliteAlbumRepository, SqliteAnalysisJobRepository, SqliteArtistRepository,
-    SqliteEqPresetRepository, SqliteGenreRepository, SqliteImportReviewRepository,
-    SqliteMediaFileRepository, SqliteMoodRepository, SqlitePlaylistRepository,
-    SqliteProfileRepository, SqliteQueueRepository, SqliteRadioRepository,
-    SqliteSettingsRepository, SqliteTrackFeaturesRepository, SqliteTrackRepository,
+    SqliteEqPresetRepository, SqliteGenreRepository, SqliteHistoryRepository,
+    SqliteImportReviewRepository, SqliteMediaFileRepository, SqliteMoodRepository,
+    SqlitePlaylistRepository, SqliteProfileRepository, SqliteQueueRepository,
+    SqliteRadioRepository, SqliteSettingsRepository, SqliteTrackFeaturesRepository,
+    SqliteTrackRepository,
 };
 use cadenza_infra::events::InProcessEventBus;
 use cadenza_infra::library::{LocalFileSystem, NotifyFileWatcher};
@@ -167,6 +168,7 @@ fn run() -> std::result::Result<(), String> {
                 engine: Arc::clone(&engine),
                 media_files: Arc::new(SqliteMediaFileRepository::new(pool.clone())),
                 tracks: Arc::new(SqliteTrackRepository::new(pool.clone())),
+                history: Arc::new(SqliteHistoryRepository::new(pool.clone())),
             },
         ));
 
