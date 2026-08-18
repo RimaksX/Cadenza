@@ -119,6 +119,35 @@ impl QueueService {
         }
     }
 
+    /// Loads the active profile's queue, dropping whoever else's was held.
+    ///
+    /// The third of PROJECT_MASTER 2.5's switching steps, for the one piece of
+    /// state that does not carry its owner with it. The equaliser and the
+    /// playback settings cache the profile alongside the value and notice a
+    /// switch by themselves; a queue is a queue, and the only thing that says
+    /// whose it is, is which profile was active when it was read.
+    ///
+    /// Nothing is saved here: the outgoing queue was written after the change
+    /// that last touched it, which is what `persist` is for.
+    pub fn reload(&self) {
+        let profile_id = self.context.active_profile();
+        let restored = profile_id.and_then(|id| self.ports.queue.load(id).ok().flatten());
+        let mut queue = restored.unwrap_or_else(|| Queue::new(profile_id.unwrap_or_default()));
+        queue
+            .upcoming
+            .retain(|entry| !matches!(entry.origin, QueueOrigin::Library));
+
+        *self.queue.write().unwrap_or_else(|err| err.into_inner()) = queue;
+
+        // Everything remembered about the queue that just left belonged to it.
+        *self.next_up.write().unwrap_or_else(|err| err.into_inner()) = None;
+        *self.armed.write().unwrap_or_else(|err| err.into_inner()) = None;
+        self.seen_advances
+            .store(self.playback.advances(), Ordering::Relaxed);
+
+        self.announce();
+    }
+
     /// Starts a track from the library, and lets the library carry on behind it.
     ///
     /// Nothing is queued by this: the queue holds what the listener chose to

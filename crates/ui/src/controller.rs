@@ -8,7 +8,7 @@ use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
 use cadenza_core::domain::eq::{EqBand, EqMode};
-use cadenza_core::domain::ids::{EqPresetId, MediaFileId, MoodId, PlaylistId};
+use cadenza_core::domain::ids::{EqPresetId, MediaFileId, MoodId, PlaylistId, ProfileId};
 use cadenza_core::domain::playback::PlaybackState;
 use cadenza_core::domain::policies::eq_policy::{MAX_BAND_HZ, MAX_BAND_Q, MIN_BAND_HZ, MIN_BAND_Q};
 use cadenza_core::domain::profile::Profile;
@@ -20,8 +20,13 @@ use cadenza_core::domain::value_objects::{DurationMs, GainDb, PlaybackPosition, 
 use cadenza_core::{CoreError, Result};
 use slint::{ComponentHandle, Model, ModelRc, VecModel, Weak};
 
-use crate::view_models::{self, eq_vm, library_vm, player_vm, playlist_vm, radio_vm, stats_vm};
-use crate::{AppWindow, EqBandData, FolderRowData, MoodRowData, Theme, TopTrackData, UiServices};
+use crate::view_models::{
+    self, eq_vm, library_vm, player_vm, playlist_vm, profile_vm, radio_vm, stats_vm,
+};
+use crate::{
+    AppWindow, EqBandData, FolderRowData, MoodRowData, ProfileRowData, Theme, TopTrackData,
+    UiServices,
+};
 
 /// How many bars the player bar draws.
 ///
@@ -795,6 +800,45 @@ impl Controller {
     }
 
     /// Everything the settings screen draws.
+    /// Switches to another listener.
+    ///
+    /// PROJECT_MASTER 2.5 states this as three steps in order — playback stops,
+    /// the outgoing profile's state is saved, the incoming one's is loaded —
+    /// and the order is the whole of it: a queue reloaded before playback stops
+    /// would be the new listener's queue with the old listener's track playing
+    /// out of it.
+    ///
+    /// Sequenced here because this is where all three services meet. Each step
+    /// is the service's own: stopping is playback's, saving is what the queue
+    /// does after every change it makes, and loading is `reload`.
+    pub fn switch_profile(&self, id: &str) {
+        self.run(|| {
+            let profile_id = ProfileId::parse(id)?;
+            self.services.playback.stop()?;
+
+            let profile = self.services.profiles.switch_to(profile_id)?;
+            self.services.queue.reload();
+            self.services.radio.stop();
+
+            *self.profile.borrow_mut() = Some(profile);
+            Ok(())
+        });
+
+        self.refresh_all();
+    }
+
+    /// Adds a listener and hands the application over to them.
+    ///
+    /// Switching straight away because that is what somebody who has just made
+    /// one wants: a profile nobody is using is a row in a table.
+    pub fn create_profile(&self, name: &str) {
+        let created = self.services.profiles.create(name);
+        match created {
+            Ok(profile) => self.switch_profile(&profile.id.to_string()),
+            Err(err) => self.report(&err),
+        }
+    }
+
     /// Re-reads the month of listening.
     pub fn refresh_listening(&self) {
         let Some(window) = self.window.upgrade() else {
@@ -850,6 +894,28 @@ impl Controller {
             "library" => self.refresh_library(),
             _ => {}
         }
+    }
+
+    /// Re-reads who is listening and who else could be.
+    fn refresh_profiles_list(&self) {
+        let Some(window) = self.window.upgrade() else {
+            return;
+        };
+        let Ok(profiles) = self.services.profiles.list() else {
+            return;
+        };
+
+        let active = self.profile.borrow().as_ref().map(|profile| profile.id);
+        let rows: Vec<ProfileRowData> = profiles
+            .iter()
+            .map(|profile| ProfileRowData {
+                id: profile.id.to_string().into(),
+                name: profile.name.as_str().into(),
+                note: profile_vm::note(profile).into(),
+                active: Some(profile.id) == active,
+            })
+            .collect();
+        window.set_profiles(ModelRc::new(VecModel::from(rows)));
     }
 
     /// Re-reads the moods and what the station is doing.
@@ -925,6 +991,8 @@ impl Controller {
     }
 
     pub fn refresh_settings(&self) {
+        self.refresh_profiles_list();
+
         let Some(window) = self.window.upgrade() else {
             return;
         };

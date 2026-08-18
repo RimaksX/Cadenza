@@ -12,6 +12,7 @@ pub mod eq_vm;
 pub mod library_vm;
 pub mod player_vm;
 pub mod playlist_vm;
+pub mod profile_vm;
 pub mod radio_vm;
 pub mod stats_vm;
 

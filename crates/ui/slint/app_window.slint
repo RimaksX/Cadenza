@@ -16,7 +16,7 @@ import { TrackRowData } from "components/TrackRow.slint";
 import { PlaylistCardData } from "views/PlaylistsView.slint";
 import { MenuItemData } from "components/RowMenu.slint";
 import { EqPresetData, EqBandData } from "views/EqualiserView.slint";
-import { FolderRowData } from "views/SettingsView.slint";
+import { FolderRowData, ProfileRowData } from "views/SettingsView.slint";
 import { MoodRowData } from "views/RadioView.slint";
 import { TopTrackData } from "views/ListeningView.slint";
 
@@ -66,6 +66,7 @@ export component AppWindow inherits Window {
     in property <int> crossfade-seconds;
     in property <bool> history-on;
     in property <[FolderRowData]> folders;
+    in property <[ProfileRowData]> profiles;
     in property <string> suggested-folder;
     in property <string> settings-summary;
 
@@ -156,6 +157,8 @@ export component AppWindow inherits Window {
     callback remove-folder(string);
     callback scan-now();
     callback showing(string);
+    callback switch-profile(string);
+    callback create-profile(string);
     callback start-radio(string);
     callback judge-radio(bool);
     callback widen-eq-band(int, float);
@@ -207,6 +210,7 @@ export component AppWindow inherits Window {
         crossfade-seconds: root.crossfade-seconds;
         history-on: root.history-on;
         folders: root.folders;
+        profiles: root.profiles;
         suggested-folder: root.suggested-folder;
         settings-summary: root.settings-summary;
         moods: root.moods;
@@ -361,6 +365,12 @@ export component AppWindow inherits Window {
         }
         showing(name) => {
             root.showing(name);
+        }
+        switch-profile(id) => {
+            root.switch-profile(id);
+        }
+        create-profile(name) => {
+            root.create-profile(name);
         }
         start-radio(id) => {
             root.start-radio(id);

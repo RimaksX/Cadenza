@@ -145,6 +145,16 @@ fn wire(window: &AppWindow, controller: &Rc<Controller>) {
         move |name| controller.showing(name.as_str())
     });
 
+    window.on_switch_profile({
+        let controller = Rc::clone(controller);
+        move |id| controller.switch_profile(id.as_str())
+    });
+
+    window.on_create_profile({
+        let controller = Rc::clone(controller);
+        move |name| controller.create_profile(name.as_str())
+    });
+
     window.on_start_radio({
         let controller = Rc::clone(controller);
         move |id| controller.start_radio(id.as_str())

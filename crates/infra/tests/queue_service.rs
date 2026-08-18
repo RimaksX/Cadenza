@@ -191,6 +191,10 @@ impl AudioEnginePort for FakeEngine {
 
 /// A profile with a four-track library, wired the way the application wires it.
 struct Harness {
+    /// The one context everything shares, as the application has it: the active
+    /// profile is a single cell, and a service reading a different copy of it
+    /// would never notice a switch.
+    context: Arc<AppContext>,
     queue: QueueService,
     engine: Arc<FakeEngine>,
     profile_id: ProfileId,
@@ -230,9 +234,10 @@ fn harness() -> Harness {
         })
         .collect();
 
-    let (queue, engine) = services(&db, profile.id);
+    let (queue, engine, _radio, context) = services_with_radio(&db, profile.id);
 
     Harness {
+        context,
         db,
         queue,
         engine,
@@ -243,7 +248,7 @@ fn harness() -> Harness {
 
 /// The queue and the device under it, as one run of the application builds them.
 fn services(db: &TempDb, profile_id: ProfileId) -> (QueueService, Arc<FakeEngine>) {
-    let (queue, engine, _radio) = services_with_radio(db, profile_id);
+    let (queue, engine, _radio, _context) = services_with_radio(db, profile_id);
     (queue, engine)
 }
 
@@ -251,7 +256,12 @@ fn services(db: &TempDb, profile_id: ProfileId) -> (QueueService, Arc<FakeEngine
 fn services_with_radio(
     db: &TempDb,
     profile_id: ProfileId,
-) -> (QueueService, Arc<FakeEngine>, Arc<RadioService>) {
+) -> (
+    QueueService,
+    Arc<FakeEngine>,
+    Arc<RadioService>,
+    Arc<AppContext>,
+) {
     let context = Arc::new(AppContext::new(
         Arc::new(TestClock::default()),
         Arc::new(InProcessEventBus::new()),
@@ -284,7 +294,7 @@ fn services_with_radio(
     ));
 
     let queue = QueueService::new(
-        context,
+        Arc::clone(&context),
         playback,
         QueuePorts {
             queue: Arc::new(SqliteQueueRepository::new(db.pool().clone())),
@@ -294,7 +304,7 @@ fn services_with_radio(
         },
     );
 
-    (queue, engine, radio)
+    (queue, engine, radio, context)
 }
 
 fn catalogued(name: &str) -> MediaFile {
@@ -985,7 +995,7 @@ fn shuffle_still_works_when_nothing_has_been_analysed() {
 #[test]
 fn playing_a_track_ends_the_station() {
     let harness = harness();
-    let (queue, engine, radio) = services_with_radio(&harness.db, harness.profile_id);
+    let (queue, engine, radio, _context) = services_with_radio(&harness.db, harness.profile_id);
 
     let workout = radio
         .moods()
@@ -1017,4 +1027,44 @@ fn playing_a_track_ends_the_station() {
             .poll()
             .expect("polled without asking a station that ended");
     }
+}
+
+#[test]
+fn switching_listener_puts_the_other_ones_queue_away() {
+    let harness = harness();
+    // The same context the queue reads, because the active profile is one cell
+    // and this test is about noticing that it moved.
+    let profiles = ProfileService::new(Arc::clone(&harness.context));
+
+    // Sasha queues two tracks by hand and starts one.
+    harness
+        .queue
+        .play_from_library(harness.tracks[0])
+        .expect("played");
+    harness.queue.enqueue(harness.tracks[3]).expect("queued");
+    harness.queue.enqueue(harness.tracks[2]).expect("queued");
+    assert_eq!(harness.listed(), vec!["four", "three"]);
+
+    // Somebody else takes over. Stopping playback is the first of 2.5's three
+    // steps and belongs to the transport; what is under test here is the third
+    // — that the queue that comes back is the one belonging to whoever is now
+    // listening.
+    let other = profiles.create("Alex").expect("a second listener");
+    profiles.switch_to(other.id).expect("switched");
+    harness.queue.reload();
+
+    assert!(
+        harness.listed().is_empty(),
+        "Alex has never queued anything: {:?}",
+        harness.listed()
+    );
+    assert_eq!(harness.queue.view().pending, 0);
+    assert!(!harness.queue.view().has_previous, "nor played anything");
+
+    // And back again: what Sasha left is still hers.
+    profiles
+        .switch_to(harness.profile_id)
+        .expect("switched back");
+    harness.queue.reload();
+    assert_eq!(harness.listed(), vec!["four", "three"]);
 }

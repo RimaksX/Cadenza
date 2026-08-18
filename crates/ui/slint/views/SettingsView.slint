@@ -2,6 +2,15 @@ import { ListView } from "std-widgets.slint";
 import { Theme } from "../theme/tokens.slint";
 import { TextButton } from "../components/Dialog.slint";
 
+// One listener this copy of Cadenza knows about.
+export struct ProfileRowData {
+    id: string,
+    name: string,
+    /// What this profile has of its own, in a few words.
+    note: string,
+    active: bool,
+}
+
 // One folder the library watches, as the view model hands it over.
 export struct FolderRowData {
     id: string,
@@ -118,6 +127,67 @@ component FolderRow inherits Rectangle {
     }
 }
 
+// One listener: their name, and the one thing to do about them.
+component ProfileRow inherits Rectangle {
+    in property <ProfileRowData> data;
+
+    callback chosen();
+
+    height: 46px;
+
+    HorizontalLayout {
+        y: round((parent.height - 40px) / 1px / 2) * 1px;
+        height: 40px;
+        spacing: Theme.space-4;
+
+        VerticalLayout {
+            alignment: center;
+            horizontal-stretch: 1;
+            spacing: 2px;
+
+            Text {
+                text: root.data.name;
+                font-family: Theme.sans;
+                font-size: Theme.text-body;
+                height: 22px;
+                vertical-alignment: center;
+                color: root.data.active ? Theme.ink-0 : Theme.ink-2;
+                overflow: elide;
+            }
+            Text {
+                text: root.data.note;
+                font-family: Theme.mono;
+                font-size: Theme.text-label;
+                height: 18px;
+                vertical-alignment: center;
+                letter-spacing: Theme.label-spacing;
+                color: Theme.ink-mute;
+                overflow: elide;
+            }
+        }
+
+        VerticalLayout {
+            alignment: center;
+
+            TextButton {
+                label: root.data.active ? "LISTENING" : "SWITCH";
+                fixed-width: 116px;
+                selected: root.data.active;
+                enabled: !root.data.active;
+                pressed => {
+                    root.chosen();
+                }
+            }
+        }
+    }
+
+    Rectangle {
+        y: parent.height - 1px;
+        height: 1px;
+        background: Theme.line-soft;
+    }
+}
+
 // Everything about this copy of Cadenza that is the listener's to decide.
 export component SettingsView inherits Rectangle {
     in property <bool> dark;
@@ -125,10 +195,13 @@ export component SettingsView inherits Rectangle {
     in property <int> crossfade-seconds;
     in property <bool> history-on;
     in property <[FolderRowData]> folders;
+    in property <[ProfileRowData]> profiles;
     /// Where this machine keeps music, for somebody with nowhere to point at.
     in property <string> suggested;
     in property <string> summary;
 
+    callback switch-profile(string);
+    callback new-profile();
     callback set-theme(bool);
     callback set-crossfade(bool, int);
     callback set-history(bool);
@@ -185,10 +258,46 @@ export component SettingsView inherits Rectangle {
             padding-bottom: Theme.space-5;
             spacing: Theme.space-6;
 
-            // The three decisions that fit in a line each.
-            VerticalLayout {
+            // Scrolls, because this column grows with the number of listeners
+            // and a decision below the bottom of the window is a decision
+            // nobody can make.
+            Flickable {
                 width: 320px;
-                spacing: Theme.space-5;
+                viewport-height: choices.preferred-height;
+
+                choices := VerticalLayout {
+                    alignment: start;
+                    spacing: Theme.space-5;
+
+                VerticalLayout {
+                    spacing: Theme.space-2;
+
+                    SectionLabel {
+                        text: "WHO IS LISTENING";
+                    }
+                    SectionNote {
+                        text: "Each has their own library and queue.";
+                    }
+
+                    for profile in root.profiles: ProfileRow {
+                        data: profile;
+                        chosen => {
+                            root.switch-profile(profile.id);
+                        }
+                    }
+
+                    HorizontalLayout {
+                        alignment: start;
+
+                        TextButton {
+                            label: "NEW LISTENER…";
+                            fixed-width: 208px;
+                            pressed => {
+                                root.new-profile();
+                            }
+                        }
+                    }
+                }
 
                 VerticalLayout {
                     spacing: Theme.space-2;
@@ -305,8 +414,6 @@ export component SettingsView inherits Rectangle {
                     }
                 }
 
-                Rectangle {
-                    vertical-stretch: 1;
                 }
             }
 
