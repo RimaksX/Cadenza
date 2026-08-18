@@ -974,3 +974,33 @@ failure. The button is gone, replaced by one line of text saying so.
 
 The rule in one line: *a control that repeats what three other actions already
 do is not a shortcut, it is a fourth thing to keep working.*
+
+## 51. Three requirements no milestone was ever asked to build
+
+Checking M0–M13 against their definitions of done, all fourteen pass. Checking
+the same code against section 2 turns up three things the requirements ask for
+and no milestone's task list mentions, so nothing has built them:
+
+**Editing a track's title, artist or album in the interface** (2.1: "локальные
+переопределения в БД"). The storage is ready and has been since M4 —
+`profile_tracks` holds a per-profile title and artist, which is exactly the
+local override the requirement describes — and genres can already be corrected
+from the command line. What is missing is `LibraryService::edit_track` and a
+way in.
+
+**Showing a duplicate to the listener as a warning** (2.1). `import_review`,
+its repository, its policy and `cadenza reviews` all exist; the four choices
+the requirement lists — keep, add anyway, remove the existing one, edit the
+metadata — have no screen to be offered on. A duplicate is currently detected,
+recorded, and never mentioned to anybody using the window.
+
+**Switching profiles in the interface** (2.5, whose three switching rules are
+already implemented in `ProfileService`). The settings screen changes the
+theme, the crossfade, the history switch and the folders of the profile that
+is active; it cannot change which one that is.
+
+None of the three is a defect: every one is a requirement with no milestone
+behind it, in the same way the settings screen had none (`MASTER_ISSUES` 42).
+M15 is the final *design* and M16 is packaging, so neither is a home for a
+feature. They are recorded here to be scheduled deliberately rather than
+discovered during packaging.
