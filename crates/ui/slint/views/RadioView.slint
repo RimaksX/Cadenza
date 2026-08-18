@@ -1,5 +1,6 @@
 import { Theme } from "../theme/tokens.slint";
 import { TextButton } from "../components/Dialog.slint";
+import { ScrollFade } from "../components/ScrollFade.slint";
 
 // One mood the listener can start a station from.
 export struct MoodRowData {
@@ -173,20 +174,34 @@ export component RadioView inherits Rectangle {
                     text: "A MOOD TO START FROM";
                 }
 
-                Flickable {
+                // A rectangle rather than a layout, so the fade stands over the
+                // last card instead of pushing it up.
+                Rectangle {
                     vertical-stretch: 1;
-                    viewport-height: moods-column.preferred-height;
 
-                    moods-column := VerticalLayout {
-                        spacing: Theme.space-2;
+                    moods := Flickable {
+                        width: parent.width;
+                        height: parent.height;
+                        viewport-height: moods-column.preferred-height;
 
-                        for mood in root.moods: MoodCard {
-                            data: mood;
-                            playing: root.playing-mood == mood.name;
-                            chosen => {
-                                root.listen(mood.id);
+                        moods-column := VerticalLayout {
+                            width: parent.width;
+                            spacing: Theme.space-2;
+
+                            for mood in root.moods: MoodCard {
+                                data: mood;
+                                playing: root.playing-mood == mood.name;
+                                chosen => {
+                                    root.listen(mood.id);
+                                }
                             }
                         }
+                    }
+
+                    ScrollFade {
+                        y: parent.height - self.height;
+                        width: parent.width;
+                        more: moods.viewport-height + moods.viewport-y > moods.height;
                     }
                 }
             }

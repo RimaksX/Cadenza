@@ -1,6 +1,7 @@
 import { ListView } from "std-widgets.slint";
 import { Theme } from "../theme/tokens.slint";
 import { TextButton } from "../components/Dialog.slint";
+import { ScrollFade } from "../components/ScrollFade.slint";
 
 // One listener this copy of Cadenza knows about.
 export struct ProfileRowData {
@@ -261,14 +262,18 @@ export component SettingsView inherits Rectangle {
             // Scrolls, because this column grows with the number of listeners
             // and a decision below the bottom of the window is a decision
             // nobody can make.
-            VerticalLayout {
+            // A plain rectangle rather than a layout, so the fade can stand over
+            // the bottom of the column instead of taking a row beneath it.
+            Rectangle {
                 width: 320px;
 
                 scroller := Flickable {
-                    vertical-stretch: 1;
+                    width: parent.width;
+                    height: parent.height;
                     viewport-height: choices.preferred-height;
 
                     choices := VerticalLayout {
+                        width: parent.width;
                         alignment: start;
                         spacing: Theme.space-5;
 
@@ -420,15 +425,10 @@ export component SettingsView inherits Rectangle {
                     }
                 }
 
-                // The same hairline the preset list uses: there while there is
-                // more below it, gone when the column ends where the window
-                // does. A column that simply stops at the edge looks like a
-                // column that has finished.
-                Rectangle {
-                    height: 1px;
-                    background: scroller.viewport-height + scroller.viewport-y > scroller.height
-                        ? Theme.line-soft
-                        : transparent;
+                ScrollFade {
+                    y: parent.height - self.height;
+                    width: parent.width;
+                    more: scroller.viewport-height + scroller.viewport-y > scroller.height;
                 }
             }
 

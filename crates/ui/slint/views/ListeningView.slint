@@ -1,4 +1,5 @@
 import { Theme } from "../theme/tokens.slint";
+import { ScrollFade } from "../components/ScrollFade.slint";
 
 // One track and how often it was played through.
 export struct TopTrackData {
@@ -278,16 +279,31 @@ export component ListeningView inherits Rectangle {
                     }
                 }
 
-                Flickable {
+                // The standings are a list beside the figures rather than the
+                // page itself, so they fade where they continue — the same
+                // sentence the moods and the presets say.
+                Rectangle {
                     vertical-stretch: 1;
-                    viewport-height: rows.preferred-height;
 
-                    rows := VerticalLayout {
-                        alignment: start;
+                    standings := Flickable {
+                        width: parent.width;
+                        height: parent.height;
+                        viewport-height: rows.preferred-height;
 
-                        for track in root.top: TopRow {
-                            data: track;
+                        rows := VerticalLayout {
+                            width: parent.width;
+                            alignment: start;
+
+                            for track in root.top: TopRow {
+                                data: track;
+                            }
                         }
+                    }
+
+                    ScrollFade {
+                        y: parent.height - self.height;
+                        width: parent.width;
+                        more: standings.viewport-height + standings.viewport-y > standings.height;
                     }
                 }
             }

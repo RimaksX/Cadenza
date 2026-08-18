@@ -1,0 +1,43 @@
+import { Theme } from "../theme/tokens.slint";
+
+// What a list that continues past its bottom edge looks like.
+//
+// A hairline was tried first and read as a rule under a finished column rather
+// than as a promise of more — a line is how this interface ends things, so it
+// cannot also be how it continues them. Content that fades out is unambiguous:
+// nothing in a page ends by dissolving, so something that dissolves is being
+// cut off.
+//
+// Placed over the bottom of a scrolling area rather than under it, and only
+// where the list is a *secondary* one — moods, presets, a column of settings.
+// The library and the queue are the page rather than a part of it; a page
+// fading at the bottom would say the music runs out there.
+export component ScrollFade inherits Rectangle {
+    /// Whether there is anything below the fold to fade towards.
+    in property <bool> more;
+    /// What the fade resolves into. The ground the list is standing on, which
+    /// is the page for every use so far — a gradient into the wrong colour is a
+    /// grey smear rather than an edge.
+    in property <color> ground: Theme.bg-0;
+
+    // Deep enough to be read as a gradient rather than as a shadow, shallow
+    // enough that it never covers a whole row. Two rows of a settings column
+    // is about right, and it is an even number of pixels like everything else
+    // here.
+    height: 48px;
+
+    // From nothing to the ground, so the last visible line of text goes with
+    // it. `transparent` rather than the ground at zero alpha: some renderers
+    // interpolate through black, and a gradient that darkens before it fades is
+    // a bruise across the bottom of the list.
+    background: @linear-gradient(180deg, transparent 0%, root.ground 100%);
+
+    // Faded in rather than switched on, so that scrolling to the end of a list
+    // does not end with something blinking out. A transition, not a running
+    // animation: it costs frames while it moves and nothing afterwards.
+    opacity: root.more ? 1.0 : 0.0;
+    animate opacity {
+        duration: 160ms;
+        easing: ease-out;
+    }
+}
