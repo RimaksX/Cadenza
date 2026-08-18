@@ -1046,13 +1046,22 @@ impl Controller {
             return;
         };
 
+        // Playing is not enough. PROJECT_MASTER 2.9 asks for the work to stop
+        // when the window is away as well, and a minimised window is the case
+        // where every frame drawn is a frame nobody can see — the tap, the
+        // transform and the repaint all paid for an audience of none.
         let playing = self.services.playback.view().state == PlaybackState::Playing;
-        if playing != self.visualising.get() {
-            self.visualising.set(playing);
-            self.services.playback.set_visualising(playing);
-            if !playing {
+        let watching = playing && !window.window().is_minimized();
+
+        if watching != self.visualising.get() {
+            self.visualising.set(watching);
+            self.services.playback.set_visualising(watching);
+            if !watching {
                 window.set_spectrum(ModelRc::from(Rc::clone(&self.spectrum)));
             }
+        }
+        if !watching {
+            return;
         }
 
         let mut bars = [0.0_f32; SPECTRUM_BARS];
