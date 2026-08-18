@@ -150,10 +150,13 @@ def main():
     original = None
     if arguments.section:
         original = io.open(SHELL, encoding="utf-8").read()
-        patched = SECTION.sub(
+        patched, changed = SECTION.subn(
             lambda m: m.group(1) + arguments.section + m.group(3), original, count=1
         )
-        if patched == original:
+        # Counted rather than compared: asking for the page that is already the
+        # default rewrites it to itself, and a file that came back identical is
+        # not a file that could not be found.
+        if not changed:
             sys.exit("could not find the shell's default section to change")
         io.open(SHELL, "w", encoding="utf-8", newline="\n").write(patched)
 

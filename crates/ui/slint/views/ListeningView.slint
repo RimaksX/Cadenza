@@ -13,8 +13,12 @@ component Figure inherits Rectangle {
     in property <string> value;
     in property <string> label;
 
+    // Wide enough for the longest thing it holds — "SKIPPED" under "2h 05m" —
+    // and stated here rather than left to the layout, which is how every other
+    // control in this interface is sized. A row of four is what gives the page
+    // a width worth opening at.
+    width: 176px;
     height: 86px;
-    horizontal-stretch: 1;
     border-width: 1px;
     border-color: Theme.line-soft;
     background: Theme.bg-1;
@@ -143,17 +147,7 @@ export component ListeningView inherits Rectangle {
 
     background: Theme.bg-0;
 
-    // Every page here is laid out at its preferred size, and every other one
-    // fills the window by accident: a track list is as wide as its columns, the
-    // settings screen has a 320px column in it. This page is four short numbers
-    // and a heading, so it asked for a third of the window and got it. A floor
-    // under the page is what says otherwise.
-    min-width: 760px;
-    min-height: 440px;
-
     VerticalLayout {
-        width: root.width;
-        height: root.height;
 
         VerticalLayout {
             vertical-stretch: 0;
@@ -234,6 +228,7 @@ export component ListeningView inherits Rectangle {
 
             HorizontalLayout {
                 vertical-stretch: 0;
+                alignment: start;
                 spacing: Theme.space-2;
 
                 Figure {

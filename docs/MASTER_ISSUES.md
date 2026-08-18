@@ -1005,31 +1005,38 @@ M15 is the final *design* and M16 is packaging, so neither is a home for a
 feature. They are recorded here to be scheduled deliberately rather than
 discovered during packaging.
 
-## 52. Every page is drawn at the size of its own content
+## 52. A page that had no widths, and a shell that was never given the window
 
-The listening screen came up a third of the width of the window, with four
-figures squeezed into a corner and their labels elided to "HE…" and "SK…". The
-markup was right; the assumption behind it was not.
+The listening screen came up a third of the width of the window, its four
+figures squeezed into a corner with their labels elided to "HE…" and "SK…", and
+a band of bare window under the player bar. Two faults, and the first one I
+"fixed" twice before understanding it.
 
-**Pages in this shell are laid out at their preferred size, and the ones built
-so far fill the window by accident.** A track list is as wide as its columns.
-The settings screen has a 320-pixel column in it. The equaliser has eight
-faders. This page is four short numbers and a heading, so it asked for the room
-four short numbers need — and the window, which sizes itself to its content at
-startup, came up shorter with it.
+**The page never said how wide its parts were.** Every other screen here states
+the width of the things that have one — the settings screen has a 320-pixel
+column and buttons at 100 and 148, a track row has a 240-pixel artist column
+and lets the title take what is left. Those pages fill the window because their
+parts add up to something, not because anything stretches them. The figures had
+no width at all, so the page asked for the room four short numbers need and got
+exactly that. A figure is a control; it is 176 pixels wide, which is what
+"SKIPPED" under "2h 05m" needs, and the row of four now gives the page a width
+worth opening at.
 
-Neither `horizontal-stretch` on the instance in `AppShell` nor on the
-component's own root changed anything; both were tried and both were removed
-again rather than left in as decoration. What worked is a floor: `min-width` and
-`min-height` on the page, which is the honest statement — *this screen needs at
-least this much room to be a screen*.
+Before understanding that I tried `horizontal-stretch` on the instance, on the
+component root, and a `min-width` floor under the whole page. The first two did
+nothing and were removed rather than left in as decoration; the floor worked and
+was a crutch — it made the page a fixed size instead of giving its contents a
+size, which is the same mistake one level up. The owner said so, and was right.
 
-Three renders were identical before the cause was found, which was itself
-worth noticing: two structural rewrites that changed nothing are evidence about
-the model, not about the markup. The third render, forced after touching
-`build.rs`, ruled out a stale build and left only the assumption standing.
+**And underneath it, `AppShell` was placed in the window with no size at all**,
+so it took its *preferred* size — the size of whichever page was showing. Every
+page shorter than the window left a strip of nothing beneath it. It had been
+there since M6, invisible for the same reason as the first fault: until this
+milestone, every page happened to be big. The shell is now given `root.width`
+and `root.height`.
 
-What remains is cosmetic and known: at a window wider than the floor, the page
-does not spread into the extra room. Making pages fill is a change to how the
-shell places them, which is M15's — the final design — rather than something to
-improvise underneath a milestone about statistics.
+One thing worth keeping from the wrong turns: three renders in a row came back
+identical after two structural rewrites. Two changes that change nothing are
+evidence about the model, not the markup — and the fourth render, forced after
+touching `build.rs`, ruled out a stale build and left the assumption as the only
+suspect standing.

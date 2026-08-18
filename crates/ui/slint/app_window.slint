@@ -165,7 +165,14 @@ export component AppWindow inherits Window {
     callback delete-eq-preset(string);
     callback reset-eq();
 
+    // Given the window rather than asked what it would like. A child placed in
+    // a Window with no size takes its preferred one, so the shell was as big as
+    // whichever page was showing — which left a band of bare window under the
+    // player bar on any page whose content was shorter than the window, and the
+    // page itself sitting in a corner of it.
     AppShell {
+        width: root.width;
+        height: root.height;
         maximized: root.maximized;
         minimize => {
             root.minimize();
