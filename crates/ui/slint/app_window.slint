@@ -53,15 +53,15 @@ export component AppWindow inherits Window {
     no-frame: true;
     default-font-family: Theme.sans;
     default-font-size: Theme.text-body;
-    preferred-width: 1180px;
-    preferred-height: 760px;
+    preferred-width: Theme.px(1180);
+    preferred-height: Theme.px(760);
     // Measured rather than hoped for. The old floor of 880 by 560 was never
     // rendered at: the search field hung off the right edge and the player bar
     // was pushed out of the bottom of the window entirely. What the interface
     // actually needs is this, and it is stated here so that nobody can drag the
     // window somewhere it does not work (MASTER_ISSUES 64).
-    min-width: 1000px;
-    min-height: 720px;
+    min-width: Theme.px(1000);
+    min-height: Theme.px(720);
 
     // Down: what to draw.
     /// True while files from outside are being held over the window.
@@ -491,7 +491,7 @@ export component AppWindow inherits Window {
             y: Theme.space-6;
             width: root.width - Theme.space-6 * 2;
             height: root.height - Theme.space-6 * 2;
-            border-width: 2px;
+            border-width: Theme.px(2);
             border-color: Theme.ink-2;
             border-radius: Theme.radius;
             background: transparent;
@@ -505,7 +505,7 @@ export component AppWindow inherits Window {
                 text: "Let go to add this to your library";
                 font-family: Theme.serif;
                 font-size: Theme.text-display;
-                height: 56px;
+                height: Theme.px(56);
                 horizontal-alignment: center;
                 vertical-alignment: center;
                 color: Theme.ink-0;
@@ -515,7 +515,7 @@ export component AppWindow inherits Window {
                 text: "A FOLDER JOINS THE LIBRARY · A TRACK IS TAKEN WHERE IT LIES";
                 font-family: Theme.mono;
                 font-size: Theme.text-label;
-                height: 18px;
+                height: Theme.px(18);
                 horizontal-alignment: center;
                 vertical-alignment: center;
                 letter-spacing: Theme.label-spacing;

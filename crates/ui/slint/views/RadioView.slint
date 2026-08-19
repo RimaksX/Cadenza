@@ -14,7 +14,7 @@ export struct MoodRowData {
 component SectionNote inherits Text {
     font-family: Theme.sans;
     font-size: Theme.text-body;
-    height: 22px;
+    height: Theme.px(22);
     vertical-alignment: center;
     color: Theme.ink-mute;
     overflow: elide;
@@ -25,11 +25,11 @@ component SectionNote inherits Text {
 component SectionLabel inherits Rectangle {
     in property <string> text;
 
-    height: 26px;
+    height: Theme.px(26);
 
     HorizontalLayout {
-        y: round((parent.height - 18px) / 1px / 2) * 1px;
-        height: 18px;
+        y: round((parent.height - Theme.px(18)) / 1px / 2) * 1px;
+        height: Theme.px(18);
         spacing: Theme.space-2;
 
         VerticalLayout {
@@ -39,7 +39,7 @@ component SectionLabel inherits Rectangle {
                 text: root.text;
                 font-family: Theme.mono;
                 font-size: Theme.text-label;
-                height: 18px;
+                height: Theme.px(18);
                 vertical-alignment: center;
                 letter-spacing: Theme.label-spacing;
                 color: Theme.ink-mute;
@@ -47,7 +47,7 @@ component SectionLabel inherits Rectangle {
         }
 
         Rectangle {
-            y: 8px;
+            y: Theme.px(8);
             height: 1px;
             background: Theme.line-soft;
         }
@@ -61,7 +61,7 @@ component MoodCard inherits Rectangle {
 
     callback chosen();
 
-    height: 76px;
+    height: Theme.px(76);
     border-width: 1px;
     border-color: root.playing ? Theme.ink-0 : Theme.line-soft;
     background: touch.has-hover ? Theme.bg-2 : Theme.bg-1;
@@ -74,16 +74,16 @@ component MoodCard inherits Rectangle {
 
     VerticalLayout {
         x: Theme.space-4;
-        y: round((parent.height - 48px) / 1px / 2) * 1px;
+        y: round((parent.height - Theme.px(48)) / 1px / 2) * 1px;
         width: parent.width - Theme.space-4 * 2;
-        height: 48px;
-        spacing: 2px;
+        height: Theme.px(48);
+        spacing: Theme.px(2);
 
         Text {
             text: root.data.name;
             font-family: Theme.serif;
             font-size: Theme.text-title;
-            height: 34px;
+            height: Theme.px(34);
             vertical-alignment: center;
             color: Theme.ink-0;
             overflow: elide;
@@ -93,7 +93,7 @@ component MoodCard inherits Rectangle {
             text: root.data.asks;
             font-family: Theme.mono;
             font-size: Theme.text-label;
-            height: 18px;
+            height: Theme.px(18);
             vertical-alignment: center;
             letter-spacing: Theme.label-spacing;
             color: Theme.ink-mute;
@@ -133,7 +133,7 @@ export component RadioView inherits Rectangle {
                 text: "BUILT FROM YOUR OWN LIBRARY";
                 font-family: Theme.mono;
                 font-size: Theme.text-label;
-                height: 18px;
+                height: Theme.px(18);
                 vertical-alignment: center;
                 letter-spacing: Theme.label-spacing;
                 color: Theme.ink-mute;
@@ -143,7 +143,7 @@ export component RadioView inherits Rectangle {
                 text: "Radio";
                 font-family: Theme.serif;
                 font-size: Theme.text-display;
-                height: 56px;
+                height: Theme.px(56);
                 vertical-alignment: bottom;
                 color: Theme.ink-0;
             }
@@ -152,7 +152,7 @@ export component RadioView inherits Rectangle {
                 text: root.summary;
                 font-family: Theme.mono;
                 font-size: Theme.text-label;
-                height: 18px;
+                height: Theme.px(18);
                 vertical-alignment: center;
                 letter-spacing: Theme.number-spacing;
                 color: Theme.ink-2;
@@ -208,7 +208,7 @@ export component RadioView inherits Rectangle {
 
             // What can be said to a station while it plays.
             VerticalLayout {
-                width: 320px;
+                width: Theme.px(320);
                 spacing: Theme.space-5;
 
                 VerticalLayout {
@@ -222,7 +222,7 @@ export component RadioView inherits Rectangle {
                         text: root.now-title == "" ? "nothing yet" : root.now-title;
                         font-family: Theme.sans;
                         font-size: Theme.text-body;
-                        height: 44px;
+                        height: Theme.px(44);
                         vertical-alignment: center;
                         wrap: word-wrap;
                         color: root.now-title == "" ? Theme.ink-mute : Theme.ink-0;
@@ -232,7 +232,7 @@ export component RadioView inherits Rectangle {
                         text: "A verdict steers what the station offers next. It never bans a track.";
                         font-family: Theme.sans;
                         font-size: Theme.text-body;
-                        height: 44px;
+                        height: Theme.px(44);
                         wrap: word-wrap;
                         color: Theme.ink-mute;
                     }
@@ -243,7 +243,7 @@ export component RadioView inherits Rectangle {
 
                         TextButton {
                             label: "MORE LIKE THIS";
-                            fixed-width: 156px;
+                            fixed-width: Theme.px(156);
                             enabled: root.playing-mood != "";
                             pressed => {
                                 root.judge(true);
@@ -251,7 +251,7 @@ export component RadioView inherits Rectangle {
                         }
                         TextButton {
                             label: "LESS";
-                            fixed-width: 100px;
+                            fixed-width: Theme.px(100);
                             enabled: root.playing-mood != "";
                             destructive: true;
                             pressed => {

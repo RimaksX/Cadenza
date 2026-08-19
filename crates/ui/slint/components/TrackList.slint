@@ -10,7 +10,7 @@ import { Field } from "Field.slint";
 component ColumnLabel inherits Text {
     font-family: Theme.mono;
     font-size: Theme.text-label;
-    height: 18px;
+    height: Theme.px(18);
     letter-spacing: Theme.label-spacing;
     color: Theme.ink-mute;
     overflow: elide;
@@ -83,7 +83,7 @@ export component TrackList inherits Rectangle {
                 text: root.eyebrow;
                 font-family: Theme.mono;
                 font-size: Theme.text-label;
-                height: 18px;
+                height: Theme.px(18);
                 vertical-alignment: center;
                 letter-spacing: Theme.label-spacing;
                 color: Theme.ink-mute;
@@ -108,7 +108,7 @@ export component TrackList inherits Rectangle {
                         text: "← " + root.back-label;
                         font-family: Theme.mono;
                         font-size: Theme.text-label;
-                        height: 18px;
+                        height: Theme.px(18);
                         vertical-alignment: center;
                         letter-spacing: Theme.label-spacing;
                         color: back-touch.has-hover ? Theme.ink-0 : Theme.ink-mute;
@@ -135,7 +135,7 @@ export component TrackList inherits Rectangle {
                         text: root.heading;
                         font-family: Theme.serif;
                         font-size: Theme.text-display;
-                        height: 56px;
+                        height: Theme.px(56);
                         color: Theme.ink-0;
                         vertical-alignment: bottom;
                         overflow: elide;
@@ -143,10 +143,10 @@ export component TrackList inherits Rectangle {
                 }
 
                 // Bottom-aligned, so the field sits on the heading's own line
-                // rather than floating against the middle of a 36px title.
+                // rather than floating against the middle of a Theme.px(36) title.
                 VerticalLayout {
                     alignment: end;
-                    padding-bottom: 4px;
+                    padding-bottom: Theme.px(4);
 
                     // Built whether or not this page searches, because the
                     // alias above names it: an element inside a condition is
@@ -157,13 +157,13 @@ export component TrackList inherits Rectangle {
                     // as a hairline rectangle — a bare underline here read as a
                     // different family of object.
                     // Collapses in both directions where the page does not
-                    // search. Left at its full height it was an invisible 34px
+                    // search. Left at its full height it was an invisible Theme.px(34)
                     // standing above the page's own button, the head grew by
                     // that much, and the heading — centred in a taller row —
                     // sat nine pixels lower on the queue than on the library.
                     Rectangle {
-                        width: root.searchable ? 280px : 0px;
-                        height: root.searchable ? 34px : 0px;
+                        width: root.searchable ? Theme.px(280) : 0px;
+                        height: root.searchable ? Theme.px(34) : 0px;
                         clip: true;
                         border-radius: Theme.radius;
                         border-width: 1px;
@@ -184,7 +184,7 @@ export component TrackList inherits Rectangle {
 
                         Image {
                             source: @image-url("../../../../resources/ui/icons/search.svg");
-                            width: 14px;
+                            width: Theme.px(14);
                             height: self.width;
                             x: Theme.space-3;
                             y: round((parent.height - self.height) / 1px / 2) * 1px;
@@ -193,8 +193,8 @@ export component TrackList inherits Rectangle {
                         }
 
                         search := Field {
-                            x: 38px;
-                            width: parent.width - 38px - Theme.space-3;
+                            x: Theme.px(38);
+                            width: parent.width - Theme.px(38) - Theme.space-3;
                             height: parent.height;
                             underlined: false;
                             placeholder: "Search";
@@ -219,7 +219,7 @@ export component TrackList inherits Rectangle {
                 text: root.summary;
                 font-family: Theme.mono;
                 font-size: Theme.text-label;
-                height: 18px;
+                height: Theme.px(18);
                 vertical-alignment: center;
                 letter-spacing: Theme.number-spacing;
                 color: Theme.ink-2;
@@ -267,7 +267,7 @@ export component TrackList inherits Rectangle {
                 // with the menu itself, so the queue's header still sits over
                 // the queue's rows.
                 ColumnLabel {
-                    width: root.queued ? 0px : 32px;
+                    width: root.queued ? 0px : Theme.px(32);
                     text: "";
                 }
             }
@@ -298,7 +298,7 @@ export component TrackList inherits Rectangle {
                     text: root.empty-title;
                     font-family: Theme.serif;
                     font-size: Theme.text-display;
-                    height: 56px;
+                    height: Theme.px(56);
                     vertical-alignment: center;
                     color: Theme.ink-2;
                     horizontal-alignment: center;

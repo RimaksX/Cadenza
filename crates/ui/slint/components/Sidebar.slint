@@ -18,7 +18,7 @@ component NavItem inherits Rectangle {
         ? Theme.ink-disabled
         : (root.selected ? Theme.ink-0 : (touch.has-hover ? Theme.ink-1 : Theme.ink-2));
 
-    height: 32px;
+    height: Theme.px(32);
     background: root.selected ? Theme.bg-1 : transparent;
     border-radius: Theme.radius;
 
@@ -39,7 +39,7 @@ component NavItem inherits Rectangle {
 
             Image {
                 source: root.glyph;
-                width: 16px;
+                width: Theme.px(16);
                 height: self.width;
                 image-fit: contain;
                 colorize: root.tone;
@@ -57,7 +57,7 @@ component NavItem inherits Rectangle {
                 text: root.label;
                 font-family: Theme.sans;
                 font-size: Theme.text-body;
-                height: 22px;
+                height: Theme.px(22);
                 color: root.tone;
                 animate color { duration: 120ms; }
                 vertical-alignment: center;
@@ -73,11 +73,11 @@ component NavLabel inherits Rectangle {
     // on the words' own middle, and a layout that centres it in the padded box
     // puts it below them — which is why one group's line hung low and the next
     // one's, with different padding above it, rode high.
-    height: 26px;
+    height: Theme.px(26);
 
     HorizontalLayout {
-        y: round((parent.height - 18px) / 2px) * 2px;
-        height: 18px;
+        y: round((parent.height - Theme.px(18)) / Theme.px(2)) * Theme.px(2);
+        height: Theme.px(18);
         padding-left: Theme.space-3;
         padding-right: Theme.space-3;
         spacing: Theme.space-2;
@@ -92,7 +92,7 @@ component NavLabel inherits Rectangle {
                 text: root.text;
                 font-family: Theme.mono;
                 font-size: Theme.text-label;
-                height: 18px;
+                height: Theme.px(18);
                 letter-spacing: Theme.label-spacing;
                 color: Theme.ink-mute;
                 vertical-alignment: center;
@@ -104,7 +104,7 @@ component NavLabel inherits Rectangle {
         // middle: half of eighteen is nine, and nine is where a capital's waist
         // is.
         Rectangle {
-            y: 8px;
+            y: Theme.px(8);
             height: 1px;
             background: Theme.line-soft;
         }
@@ -148,7 +148,7 @@ export component Sidebar inherits Rectangle {
         VerticalLayout {
             padding-left: Theme.space-5;
             padding-right: Theme.space-5;
-            spacing: 2px;
+            spacing: Theme.px(2);
 
             // Title rather than display, though it is the application's own
             // name: display belongs to whatever the listener is looking at, and
@@ -158,7 +158,7 @@ export component Sidebar inherits Rectangle {
                 text: "Cadenza";
                 font-family: Theme.serif;
                 font-size: Theme.text-title;
-                height: 34px;
+                height: Theme.px(34);
                 vertical-alignment: center;
                 color: Theme.ink-0;
             }
@@ -166,7 +166,7 @@ export component Sidebar inherits Rectangle {
                 text: "LOCAL PLAYER";
                 font-family: Theme.mono;
                 font-size: Theme.text-label;
-                height: 18px;
+                height: Theme.px(18);
                 vertical-alignment: center;
                 letter-spacing: Theme.label-spacing;
                 color: Theme.ink-mute;
@@ -176,7 +176,7 @@ export component Sidebar inherits Rectangle {
         VerticalLayout {
             padding-left: Theme.space-3;
             padding-right: Theme.space-3;
-            spacing: 2px;
+            spacing: Theme.px(2);
 
             NavLabel {
                 text: "COLLECTION";
@@ -240,7 +240,7 @@ export component Sidebar inherits Rectangle {
             // is how this sidebar says so.
             NavLabel {
                 text: "SETUP";
-                height: 42px;
+                height: Theme.px(42);
             }
             NavItem {
                 label: "Equaliser";
@@ -293,9 +293,9 @@ export component Sidebar inherits Rectangle {
                         alignment: center;
 
                         Rectangle {
-                            width: 28px;
-                            height: 28px;
-                            border-radius: 14px;
+                            width: Theme.px(28);
+                            height: Theme.px(28);
+                            border-radius: Theme.px(14);
                             background: @linear-gradient(135deg, Theme.bg-3, Theme.bg-1);
                             border-width: 1px;
                             border-color: Theme.line;
@@ -305,7 +305,7 @@ export component Sidebar inherits Rectangle {
                                 font-family: Theme.serif;
                                 font-italic: true;
                                 font-size: Theme.text-body;
-                                height: 22px;
+                                height: Theme.px(22);
                                 color: Theme.ink-1;
                                 horizontal-alignment: center;
                                 vertical-alignment: center;
@@ -315,14 +315,14 @@ export component Sidebar inherits Rectangle {
 
                     VerticalLayout {
                         alignment: center;
-                        spacing: 2px;
+                        spacing: Theme.px(2);
                         horizontal-stretch: 1;
 
                         Text {
                             text: root.profile-name;
                             font-family: Theme.sans;
                             font-size: Theme.text-body;
-                            height: 22px;
+                            height: Theme.px(22);
                             vertical-alignment: center;
                             color: Theme.ink-1;
                             overflow: elide;
@@ -331,7 +331,7 @@ export component Sidebar inherits Rectangle {
                             text: "ACTIVE PROFILE";
                             font-family: Theme.mono;
                             font-size: Theme.text-label;
-                            height: 18px;
+                            height: Theme.px(18);
                             vertical-alignment: center;
                             letter-spacing: Theme.label-spacing;
                             color: Theme.ink-mute;

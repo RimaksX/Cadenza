@@ -35,6 +35,15 @@ fractional whatever number is asked for.
 of markup. Each check exists because the defect it names shipped once and had to
 be found by eye.
 
+**And it is why the interface scales in its lengths rather than in its
+renderer.** Every length in the markup is written as `Theme.px(n)`: the design
+value multiplied by the size the listener chose and snapped back onto an even
+whole pixel. A renderer told to draw at 125 per cent instead puts a one-pixel
+hairline on a pixel and a quarter and every stem between two columns, which is
+what a magnifying glass looks like ([MASTER_ISSUES 65](../MASTER_ISSUES.md)).
+Type goes through `Theme.type-size(n)` and lands on a whole pixel rather than an
+even one, because a glyph has no border to blur and nothing centred inside it.
+
 ## Type
 
 Three faces, three jobs.

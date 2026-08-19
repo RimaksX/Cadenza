@@ -16,8 +16,8 @@ component WindowButton inherits Rectangle {
     // A number, not `100%`: a child sized from its parent inside a layout whose
     // height is derived from its children is a circular constraint, and Slint
     // resolves it by giving the bar the whole window.
-    width: 46px;
-    height: 40px;
+    width: Theme.px(46);
+    height: Theme.px(40);
     background: touch.has-hover
         ? (root.danger ? #c42b1c : Theme.bg-3)
         : transparent;
@@ -31,37 +31,37 @@ component WindowButton inherits Rectangle {
 
     // Minimise: one line.
     if root.kind == "minimize": Rectangle {
-        width: 10px;
+        width: Theme.px(10);
         height: 1px;
         background: Theme.ink-2;
     }
 
     // Maximise: a square. Restore: a square with another behind it.
     if root.kind == "maximize" && !root.restore: Rectangle {
-        width: 10px;
-        height: 10px;
+        width: Theme.px(10);
+        height: Theme.px(10);
         border-width: 1px;
         border-color: Theme.ink-2;
         background: transparent;
     }
     if root.kind == "maximize" && root.restore: Rectangle {
-        width: 12px;
-        height: 12px;
+        width: Theme.px(12);
+        height: Theme.px(12);
         background: transparent;
 
         Rectangle {
-            x: 2px;
+            x: Theme.px(2);
             y: 0px;
-            width: 10px;
-            height: 10px;
+            width: Theme.px(10);
+            height: Theme.px(10);
             border-width: 1px;
             border-color: Theme.ink-2;
         }
         Rectangle {
             x: 0px;
-            y: 3px;
-            width: 10px;
-            height: 10px;
+            y: Theme.px(3);
+            width: Theme.px(10);
+            height: Theme.px(10);
             border-width: 1px;
             border-color: Theme.ink-2;
             background: Theme.bg-1;
@@ -72,8 +72,8 @@ component WindowButton inherits Rectangle {
     // square and exactly centred whatever the font does, and rather than two
     // rotated rectangles, which Slint does not rotate.
     if root.kind == "close": Path {
-        width: 10px;
-        height: 10px;
+        width: Theme.px(10);
+        height: Theme.px(10);
         viewbox-width: 10;
         viewbox-height: 10;
         commands: "M 0 0 L 10 10 M 10 0 L 0 10";
@@ -97,7 +97,7 @@ export component TitleBar inherits Rectangle {
     // Deltas in logical pixels since the press began.
     callback drag(length, length);
 
-    height: 40px;
+    height: Theme.px(40);
     background: Theme.bg-1;
 
     Rectangle {
@@ -122,7 +122,7 @@ export component TitleBar inherits Rectangle {
     HorizontalLayout {
         // Deliberately empty. The wordmark is already at the top of the sidebar
         // and the section is already the heading of the page under it; a third
-        // copy in a 40px strip could only be set small enough to be squinted at.
+        // copy in a Theme.px(40) strip could only be set small enough to be squinted at.
         // What is left is what the strip is for: somewhere to grab, and the
         // controls.
         Rectangle {

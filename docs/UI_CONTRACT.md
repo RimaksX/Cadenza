@@ -58,9 +58,10 @@ Two are still missing, and they are the whole of what M15 has left
   what 2.10 asks for.
 
 Scaling is delivered: four steps in the settings screen, kept per profile, and
-applied when the window is next made — the toolkit will not change it on a
-window that already exists (finding 64). The window's own floor is 1000 by 720,
-which is what the layout was measured to need.
+applied at once, because the size lives in the lengths rather than in the
+renderer (findings 64 and 65). The window's own floor is 1000 by 720 at 100 per
+cent and scales with the choice, which is what the layout was measured to
+need.
 
 ## Where a component may look
 

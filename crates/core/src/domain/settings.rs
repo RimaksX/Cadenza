@@ -192,26 +192,15 @@ pub const PRELOAD_NEXT_KEY: &str = "playback.preload_next";
 /// Where the interface scale is kept, per profile.
 pub const UI_SCALE_KEY: &str = "ui.scale";
 
-/// Where the display's own scale is remembered, for the whole machine.
-///
-/// Not a preference and not per profile: it is what Windows says this screen
-/// is, and it is written down because the interface scale replaces it rather
-/// than multiplying it. Somebody on a 150 per cent display who picks 110 per
-/// cent means "a tenth larger than my screen already draws", not "smaller than
-/// everything else on it".
-pub const DISPLAY_SCALE_KEY: &str = "ui.display_scale";
-
 /// How large the interface is drawn, as a percentage of its design size.
 ///
-/// PROJECT_MASTER 2.10 asks for interface scaling and 2.10 also fixes the
-/// layout, which together mean exactly this: everything gets bigger or smaller
-/// together and nothing moves anywhere else. What the window loses at 125 per
-/// cent is room, in the same way a smaller monitor would take it away.
+/// PROJECT_MASTER 2.10 asks for interface scaling and, in the same section,
+/// for a fixed layout — which together mean exactly this: every length grows
+/// or shrinks together and nothing moves anywhere else.
 ///
 /// Steps rather than a slider. Four sizes is a choice somebody makes once; a
-/// continuous control is a thing to fiddle with, and every value between the
-/// steps costs a fractional pixel in an interface whose whole geometry is even
-/// numbers.
+/// continuous control is a thing to fiddle with, and the value between two
+/// steps buys nothing an interface built on whole pixels can spend.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct InterfaceScale(u16);
 
@@ -240,7 +229,7 @@ impl InterfaceScale {
         self.0
     }
 
-    /// What the window multiplies its own scale by.
+    /// What every length in the interface is multiplied by.
     #[must_use]
     pub fn factor(self) -> f32 {
         f32::from(self.0) / 100.0

@@ -459,7 +459,7 @@ export component AppShell inherits Rectangle {
         // and the line lay across the progress bar. A message stays until the
         // next command succeeds, so it cannot be allowed to sit on a control.
         if root.message != "": Rectangle {
-            height: 30px;
+            height: Theme.px(30);
             background: Theme.bg-1;
 
             Rectangle {
@@ -472,7 +472,7 @@ export component AppShell inherits Rectangle {
                 x: Theme.space-5;
                 width: parent.width - 2 * Theme.space-5;
                 y: round((parent.height - self.height) / 1px / 2) * 1px;
-                height: 18px;
+                height: Theme.px(18);
                 text: root.message;
                 font-family: Theme.mono;
                 font-size: Theme.text-label;

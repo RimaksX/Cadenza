@@ -66,14 +66,14 @@ component DialArm inherits Rectangle {
             + " L " + (root.centre-x + root.reach * root.unit-x) / 1px
             + " " + (root.centre-y + root.reach * root.unit-y) / 1px;
         stroke: Theme.line-soft;
-        stroke-width: 2px;
+        stroke-width: Theme.px(2);
     }
 
     // The handle.
     Rectangle {
         x: root.handle-x - self.width / 2;
         y: root.handle-y - self.height / 2;
-        width: touch.pressed ? 22px : 18px;
+        width: touch.pressed ? Theme.px(22) : Theme.px(18);
         height: self.width;
         border-radius: self.width / 2;
         background: touch.has-hover || touch.pressed ? Theme.ink-0 : Theme.ink-1;
@@ -81,10 +81,10 @@ component DialArm inherits Rectangle {
     }
 
     touch := TouchArea {
-        x: root.handle-x - 22px;
-        y: root.handle-y - 22px;
-        width: 44px;
-        height: 44px;
+        x: root.handle-x - Theme.px(22);
+        y: root.handle-y - Theme.px(22);
+        width: Theme.px(44);
+        height: Theme.px(44);
         mouse-cursor: pointer;
 
         // Where the pointer is on the dial, whatever this target has done in
@@ -116,16 +116,16 @@ component DialArm inherits Rectangle {
     // The name and the number, at the far end of the arm where the handle is
     // heading rather than where it happens to be.
     VerticalLayout {
-        x: root.centre-x + (root.reach + 26px) * root.unit-x - self.width / 2;
-        y: root.centre-y + (root.reach + 26px) * root.unit-y - self.height / 2;
+        x: root.centre-x + (root.reach + Theme.px(26)) * root.unit-x - self.width / 2;
+        y: root.centre-y + (root.reach + Theme.px(26)) * root.unit-y - self.height / 2;
         alignment: center;
-        spacing: 2px;
+        spacing: Theme.px(2);
 
         Text {
             text: root.label;
             font-family: Theme.mono;
             font-size: Theme.text-label;
-            height: 18px;
+            height: Theme.px(18);
             vertical-alignment: center;
             horizontal-alignment: center;
             letter-spacing: Theme.label-spacing;
@@ -137,7 +137,7 @@ component DialArm inherits Rectangle {
                 : "" + round(root.value * 10) / 10);
             font-family: Theme.mono;
             font-size: Theme.text-body;
-            height: 22px;
+            height: Theme.px(22);
             vertical-alignment: center;
             horizontal-alignment: center;
             letter-spacing: Theme.number-spacing;
@@ -161,13 +161,13 @@ component ToneDial inherits Rectangle {
     property <length> centre-x: root.width / 2;
     property <length> centre-y: root.height / 2;
     // Room at the edge for the labels, which sit outside the reach.
-    property <length> reach: root.side / 2 - 56px;
+    property <length> reach: root.side / 2 - Theme.px(56);
 
     // The ring the arms end on: the outer edge of every control, drawn once.
     Rectangle {
         x: root.centre-x - root.reach - 1px;
         y: root.centre-y - root.reach - 1px;
-        width: 2 * root.reach + 2px;
+        width: 2 * root.reach + Theme.px(2);
         height: self.width;
         border-radius: self.width / 2;
         border-width: 1px;
@@ -263,7 +263,7 @@ component Fader inherits Rectangle {
     // Always the same width, whatever its numbers read. A column sized by its
     // label is a column that changes width when the value does, and a bank of
     // them shuffles under the hand as it is being used.
-    width: 64px;
+    width: Theme.px(64);
 
     VerticalLayout {
         spacing: Theme.space-2;
@@ -272,7 +272,7 @@ component Fader inherits Rectangle {
             text: root.gain;
             font-family: Theme.mono;
             font-size: Theme.text-label;
-            height: 18px;
+            height: Theme.px(18);
             vertical-alignment: center;
             horizontal-alignment: center;
             letter-spacing: Theme.number-spacing;
@@ -286,7 +286,7 @@ component Fader inherits Rectangle {
             // The line this band runs on.
             Rectangle {
                 x: round((parent.width - self.width) / 1px / 2) * 1px;
-                width: 2px;
+                width: Theme.px(2);
                 background: Theme.line-soft;
             }
 
@@ -296,7 +296,7 @@ component Fader inherits Rectangle {
             Rectangle {
                 x: round((parent.width - self.width) / 1px / 2) * 1px;
                 y: round((parent.height - self.height) / 1px / 2) * 1px;
-                width: 16px;
+                width: Theme.px(16);
                 height: 1px;
                 background: Theme.line;
             }
@@ -306,7 +306,7 @@ component Fader inherits Rectangle {
             Rectangle {
                 x: round((parent.width - self.width) / 1px / 2) * 1px;
                 y: min(parent.height * root.value, parent.height / 2);
-                width: 2px;
+                width: Theme.px(2);
                 height: abs(parent.height * root.value - parent.height / 2);
                 background: root.selected ? Theme.ink-0 : Theme.ink-2;
                 animate background { duration: 120ms; }
@@ -315,7 +315,7 @@ component Fader inherits Rectangle {
             Rectangle {
                 x: round((parent.width - self.width) / 1px / 2) * 1px;
                 y: round((parent.height * root.value - self.height / 2) / 1px) * 1px;
-                width: touch.pressed ? 20px : (root.selected ? 18px : 15px);
+                width: touch.pressed ? Theme.px(20) : (root.selected ? Theme.px(18) : Theme.px(15));
                 height: self.width;
                 border-radius: self.width / 2;
                 background: root.selected || touch.has-hover ? Theme.ink-0 : Theme.ink-1;
@@ -328,7 +328,7 @@ component Fader inherits Rectangle {
             // slide out from under the hand.
             touch := TouchArea {
                 x: round((parent.width - self.width) / 1px / 2) * 1px;
-                width: 44px;
+                width: Theme.px(44);
                 mouse-cursor: pointer;
 
                 pointer-event(event) => {
@@ -355,7 +355,7 @@ component Fader inherits Rectangle {
             text: root.frequency;
             font-family: Theme.mono;
             font-size: Theme.text-label;
-            height: 18px;
+            height: Theme.px(18);
             vertical-alignment: center;
             horizontal-alignment: center;
             letter-spacing: Theme.number-spacing;
@@ -367,13 +367,13 @@ component Fader inherits Rectangle {
         // chooses, but pressing a fader is how a fader is moved — and choosing
         // which band to retune should not retune the one you were listening to.
         Rectangle {
-            height: 32px;
+            height: Theme.px(32);
 
             Image {
                 source: root.selected
                     ? @image-url("../../../../resources/ui/icons/circle-dot.svg")
                     : @image-url("../../../../resources/ui/icons/circle.svg");
-                width: 14px;
+                width: Theme.px(14);
                 height: self.width;
                 x: round((parent.width - self.width) / 1px / 2) * 1px;
                 y: round((parent.height - self.height) / 1px / 2) * 1px;
@@ -385,7 +385,7 @@ component Fader inherits Rectangle {
 
             dot := TouchArea {
                 x: round((parent.width - self.width) / 1px / 2) * 1px;
-                width: 32px;
+                width: Theme.px(32);
                 mouse-cursor: pointer;
                 clicked => {
                     root.chosen();
@@ -446,11 +446,11 @@ component PresetRow inherits Rectangle {
     // exactly. Six pixels over and the last of them is clipped and the rule
     // beneath is lit, which says "there is another sound below" about six
     // pixels of a button.
-    height: 40px;
+    height: Theme.px(40);
     // The column's own width. It was eight narrower while there was a scroll
     // bar to leave room for, which left the list standing four pixels to the
     // left of the two controls centred under it.
-    width: 208px;
+    width: Theme.px(208);
 
     // Full width, every row of them. Reserving a column for the mark made the
     // nine that shipped end short of the two controls under them, which is a
@@ -472,8 +472,8 @@ component PresetRow inherits Rectangle {
     Rectangle {
         x: parent.width - self.width - 1px;
         y: round((parent.height - self.height) / 1px / 2) * 1px;
-        width: 32px;
-        height: 32px;
+        width: Theme.px(32);
+        height: Theme.px(32);
         border-radius: Theme.radius;
         background: dots.has-hover ? Theme.bg-3 : transparent;
         opacity: root.data.editable ? 1.0 : 0.0;
@@ -481,7 +481,7 @@ component PresetRow inherits Rectangle {
 
         Image {
             source: @image-url("../../../../resources/ui/icons/dots-vertical.svg");
-            width: 18px;
+            width: Theme.px(18);
             height: self.width;
             x: round((parent.width - self.width) / 1px / 2) * 1px;
             y: round((parent.height - self.height) / 1px / 2) * 1px;
@@ -499,8 +499,8 @@ component PresetRow inherits Rectangle {
 
         // Opens to the left: this is the right edge of the page.
         menu := RowMenu {
-            x: 32px - self.width;
-            y: 32px;
+            x: Theme.px(32) - self.width;
+            y: Theme.px(32);
             items: [
                 { action: "rename", label: "Rename…" },
                 { action: "delete", label: "Delete this sound", destructive: true },
@@ -560,7 +560,7 @@ export component EqualiserView inherits Rectangle {
                 text: "YOUR SOUND";
                 font-family: Theme.mono;
                 font-size: Theme.text-label;
-                height: 18px;
+                height: Theme.px(18);
                 vertical-alignment: center;
                 letter-spacing: Theme.label-spacing;
                 color: Theme.ink-mute;
@@ -577,7 +577,7 @@ export component EqualiserView inherits Rectangle {
                         text: "Equaliser";
                         font-family: Theme.serif;
                         font-size: Theme.text-display;
-                        height: 56px;
+                        height: Theme.px(56);
                         vertical-alignment: bottom;
                         color: Theme.ink-0;
                     }
@@ -589,7 +589,7 @@ export component EqualiserView inherits Rectangle {
                 // a control that needs explaining.
                 VerticalLayout {
                     alignment: end;
-                    padding-bottom: 4px;
+                    padding-bottom: Theme.px(4);
 
                     HorizontalLayout {
                         alignment: end;
@@ -597,7 +597,7 @@ export component EqualiserView inherits Rectangle {
 
                         TextButton {
                             label: "SIMPLE";
-                            fixed-width: 128px;
+                            fixed-width: Theme.px(128);
                             selected: !root.advanced;
                             pressed => {
                                 root.set-mode(false);
@@ -605,7 +605,7 @@ export component EqualiserView inherits Rectangle {
                         }
                         TextButton {
                             label: "ADVANCED";
-                            fixed-width: 128px;
+                            fixed-width: Theme.px(128);
                             selected: root.advanced;
                             pressed => {
                                 root.set-mode(true);
@@ -615,8 +615,8 @@ export component EqualiserView inherits Rectangle {
                         // The only icon-only control on the page, and the only
                         // one whose meaning is a shape everybody already knows.
                         Rectangle {
-                            width: 34px;
-                            height: 34px;
+                            width: Theme.px(34);
+                            height: Theme.px(34);
                             border-radius: Theme.radius;
                             border-width: 1px;
                             border-color: help.has-hover ? Theme.line : Theme.line-soft;
@@ -627,7 +627,7 @@ export component EqualiserView inherits Rectangle {
 
                             Image {
                                 source: @image-url("../../../../resources/ui/icons/circle-question-mark.svg");
-                                width: 16px;
+                                width: Theme.px(16);
                                 height: self.width;
                                 x: round((parent.width - self.width) / 1px / 2) * 1px;
                                 y: round((parent.height - self.height) / 1px / 2) * 1px;
@@ -650,7 +650,7 @@ export component EqualiserView inherits Rectangle {
                 text: root.summary;
                 font-family: Theme.mono;
                 font-size: Theme.text-label;
-                height: 18px;
+                height: Theme.px(18);
                 vertical-alignment: center;
                 letter-spacing: Theme.number-spacing;
                 color: Theme.ink-2;
@@ -706,13 +706,13 @@ export component EqualiserView inherits Rectangle {
                     spacing: Theme.space-2;
 
                     VerticalLayout {
-                        spacing: 2px;
+                        spacing: Theme.px(2);
 
                         Text {
                             text: "BAND";
                             font-family: Theme.mono;
                             font-size: Theme.text-label;
-                            height: 18px;
+                            height: Theme.px(18);
                             vertical-alignment: center;
                             horizontal-alignment: center;
                             letter-spacing: Theme.label-spacing;
@@ -723,7 +723,7 @@ export component EqualiserView inherits Rectangle {
                                 + " · " + root.selected-gain + " dB";
                             font-family: Theme.mono;
                             font-size: Theme.text-body;
-                            height: 22px;
+                            height: Theme.px(22);
                             vertical-alignment: center;
                             horizontal-alignment: center;
                             letter-spacing: Theme.number-spacing;
@@ -737,28 +737,28 @@ export component EqualiserView inherits Rectangle {
 
                         TextButton {
                             label: "LOWER";
-                            fixed-width: 98px;
+                            fixed-width: Theme.px(98);
                             pressed => {
                                 root.tune-band(root.selected, -1);
                             }
                         }
                         TextButton {
                             label: "HIGHER";
-                            fixed-width: 98px;
+                            fixed-width: Theme.px(98);
                             pressed => {
                                 root.tune-band(root.selected, 1);
                             }
                         }
                         TextButton {
                             label: "WIDER";
-                            fixed-width: 98px;
+                            fixed-width: Theme.px(98);
                             pressed => {
                                 root.widen-band(root.selected, -0.3);
                             }
                         }
                         TextButton {
                             label: "NARROWER";
-                            fixed-width: 98px;
+                            fixed-width: Theme.px(98);
                             pressed => {
                                 root.widen-band(root.selected, 0.3);
                             }
@@ -770,14 +770,14 @@ export component EqualiserView inherits Rectangle {
             // The presets, in the column the reference puts them in — two
             // abreast, under the control, in reach without scrolling.
             VerticalLayout {
-                width: 208px;
+                width: Theme.px(208);
                 spacing: Theme.space-2;
 
                 Text {
                     text: "PRESETS";
                     font-family: Theme.mono;
                     font-size: Theme.text-label;
-                    height: 18px;
+                    height: Theme.px(18);
                     vertical-alignment: center;
                     letter-spacing: Theme.label-spacing;
                     color: Theme.ink-mute;
@@ -824,7 +824,7 @@ export component EqualiserView inherits Rectangle {
 
                     TextButton {
                         label: "SAVE AS…";
-                        fixed-width: 100px;
+                        fixed-width: Theme.px(100);
                         primary: true;
                         pressed => {
                             root.save-preset();
@@ -832,7 +832,7 @@ export component EqualiserView inherits Rectangle {
                     }
                     TextButton {
                         label: "RESET";
-                        fixed-width: 100px;
+                        fixed-width: Theme.px(100);
                         pressed => {
                             root.reset-eq();
                         }

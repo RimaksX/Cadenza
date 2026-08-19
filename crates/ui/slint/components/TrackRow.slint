@@ -90,7 +90,7 @@ export component TrackRow inherits Rectangle {
                 text: root.data.position;
                 font-family: Theme.mono;
                 font-size: Theme.text-label;
-                height: 18px;
+                height: Theme.px(18);
                 letter-spacing: Theme.number-spacing;
                 color: root.playing ? Theme.ink-0 : Theme.ink-mute;
                 vertical-alignment: center;
@@ -104,7 +104,7 @@ export component TrackRow inherits Rectangle {
             // heights and the row twitches under the pointer.
             if root.hovered: Image {
                 source: @image-url("../../../../resources/ui/icons/play.svg");
-                width: 14px;
+                width: Theme.px(14);
                 height: self.width;
                 x: parent.width - self.width;
                 y: round((parent.height - self.height) / 1px / 2) * 1px;
@@ -132,7 +132,7 @@ export component TrackRow inherits Rectangle {
                 text: root.data.title;
                 font-family: Theme.serif;
                 font-size: Theme.text-title;
-                height: 34px;
+                height: Theme.px(34);
                 color: Theme.ink-0;
                 vertical-alignment: center;
                 horizontal-alignment: left;
@@ -149,7 +149,7 @@ export component TrackRow inherits Rectangle {
                 text: root.data.artist;
                 font-family: Theme.sans;
                 font-size: Theme.text-body;
-                height: 22px;
+                height: Theme.px(22);
                 color: Theme.ink-2;
                 vertical-alignment: center;
                 horizontal-alignment: left;
@@ -168,7 +168,7 @@ export component TrackRow inherits Rectangle {
                 font-family: Theme.serif;
                 font-italic: true;
                 font-size: Theme.text-body;
-                height: 22px;
+                height: Theme.px(22);
                 color: Theme.ink-mute;
                 vertical-alignment: center;
                 horizontal-alignment: left;
@@ -188,7 +188,7 @@ export component TrackRow inherits Rectangle {
                 text: root.data.duration;
                 font-family: Theme.mono;
                 font-size: Theme.text-label;
-                height: 18px;
+                height: Theme.px(18);
                 letter-spacing: Theme.number-spacing;
                 color: Theme.ink-mute;
                 vertical-alignment: center;
@@ -215,7 +215,7 @@ export component TrackRow inherits Rectangle {
                     : (hover-queue.has-hover ? Theme.ink-0 : Theme.ink-2);
 
                 width: parent.width;
-                height: 26px;
+                height: Theme.px(26);
                 y: round((parent.height - self.height) / 1px / 2) * 1px;
                 border-radius: Theme.radius;
                 border-width: 1px;
@@ -234,7 +234,7 @@ export component TrackRow inherits Rectangle {
 
                 HorizontalLayout {
                     alignment: center;
-                    spacing: 6px;
+                    spacing: Theme.px(6);
 
                     VerticalLayout {
                         alignment: center;
@@ -243,7 +243,7 @@ export component TrackRow inherits Rectangle {
                             source: root.queued
                                 ? @image-url("../../../../resources/ui/icons/trash.svg")
                                 : @image-url("../../../../resources/ui/icons/queue.svg");
-                            width: 12px;
+                            width: Theme.px(12);
                             height: self.width;
                             colorize: pill.accent;
                             animate colorize { duration: 120ms; }
@@ -257,7 +257,7 @@ export component TrackRow inherits Rectangle {
                             text: root.queued ? "REMOVE" : "QUEUE";
                             font-family: Theme.mono;
                             font-size: Theme.text-label;
-                            height: 18px;
+                            height: Theme.px(18);
                             letter-spacing: Theme.label-spacing;
                             color: pill.accent;
                             vertical-alignment: center;
@@ -283,12 +283,12 @@ export component TrackRow inherits Rectangle {
         // the two columns beside it already say something at rest and this one
         // has nothing to say until it is needed.
         Rectangle {
-            width: root.has-menu ? 32px : 0px;
+            width: root.has-menu ? Theme.px(32) : 0px;
             clip: true;
 
             Rectangle {
-                width: 32px;
-                height: 32px;
+                width: Theme.px(32);
+                height: Theme.px(32);
                 y: round((parent.height - self.height) / 1px / 2) * 1px;
                 border-radius: Theme.radius;
                 background: dots.has-hover ? Theme.bg-3 : transparent;
@@ -299,7 +299,7 @@ export component TrackRow inherits Rectangle {
                 // and a mark stacked upright asks for less of its width.
                 Image {
                     source: @image-url("../../../../resources/ui/icons/dots-vertical.svg");
-                    width: 18px;
+                    width: Theme.px(18);
                     height: self.width;
                     x: round((parent.width - self.width) / 1px / 2) * 1px;
                     y: round((parent.height - self.height) / 1px / 2) * 1px;
@@ -319,8 +319,8 @@ export component TrackRow inherits Rectangle {
             // Opens to the left and below: this is the last column of the row,
             // and the rows below it are what the menu has to cover.
             menu := RowMenu {
-                x: 32px - self.width;
-                y: 32px;
+                x: Theme.px(32) - self.width;
+                y: Theme.px(32);
                 // Each list is its own typed property: a conditional between
                 // two literals leaves the compiler holding two anonymous
                 // structs and nowhere to say what they are.

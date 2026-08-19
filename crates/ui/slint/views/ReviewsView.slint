@@ -21,7 +21,7 @@ component ReviewCard inherits Rectangle {
 
     callback decided(string);
 
-    height: root.data.duplicate ? 188px : 148px;
+    height: root.data.duplicate ? Theme.px(188) : Theme.px(148);
     border-width: 1px;
     border-color: Theme.line-soft;
     background: Theme.bg-1;
@@ -34,7 +34,7 @@ component ReviewCard inherits Rectangle {
             text: root.data.reason;
             font-family: Theme.mono;
             font-size: Theme.text-label;
-            height: 18px;
+            height: Theme.px(18);
             vertical-alignment: center;
             letter-spacing: Theme.label-spacing;
             color: Theme.ink-mute;
@@ -44,7 +44,7 @@ component ReviewCard inherits Rectangle {
             text: root.data.path;
             font-family: Theme.sans;
             font-size: Theme.text-body;
-            height: 22px;
+            height: Theme.px(22);
             vertical-alignment: center;
             color: Theme.ink-0;
             overflow: elide;
@@ -54,7 +54,7 @@ component ReviewCard inherits Rectangle {
             text: root.data.existing;
             font-family: Theme.sans;
             font-size: Theme.text-body;
-            height: 22px;
+            height: Theme.px(22);
             vertical-alignment: center;
             color: Theme.ink-2;
             overflow: elide;
@@ -70,21 +70,21 @@ component ReviewCard inherits Rectangle {
 
             TextButton {
                 label: "KEEP MINE";
-                fixed-width: 132px;
+                fixed-width: Theme.px(132);
                 pressed => {
                     root.decided("keep");
                 }
             }
             TextButton {
                 label: "ADD ANYWAY";
-                fixed-width: 132px;
+                fixed-width: Theme.px(132);
                 pressed => {
                     root.decided("add");
                 }
             }
             if root.data.duplicate: TextButton {
                 label: "REPLACE MINE";
-                fixed-width: 148px;
+                fixed-width: Theme.px(148);
                 destructive: true;
                 pressed => {
                     root.decided("replace");
@@ -116,7 +116,7 @@ export component ReviewsView inherits Rectangle {
                 text: "HELD BACK RATHER THAN IMPORTED";
                 font-family: Theme.mono;
                 font-size: Theme.text-label;
-                height: 18px;
+                height: Theme.px(18);
                 vertical-alignment: center;
                 letter-spacing: Theme.label-spacing;
                 color: Theme.ink-mute;
@@ -126,7 +126,7 @@ export component ReviewsView inherits Rectangle {
                 text: "Decisions";
                 font-family: Theme.serif;
                 font-size: Theme.text-display;
-                height: 56px;
+                height: Theme.px(56);
                 vertical-alignment: bottom;
                 color: Theme.ink-0;
             }
@@ -135,7 +135,7 @@ export component ReviewsView inherits Rectangle {
                 text: root.summary;
                 font-family: Theme.mono;
                 font-size: Theme.text-label;
-                height: 18px;
+                height: Theme.px(18);
                 vertical-alignment: center;
                 letter-spacing: Theme.number-spacing;
                 color: Theme.ink-2;
@@ -157,7 +157,7 @@ export component ReviewsView inherits Rectangle {
                     text: "Nothing to decide";
                     font-family: Theme.serif;
                     font-size: Theme.text-title;
-                    height: 34px;
+                    height: Theme.px(34);
                     vertical-alignment: center;
                     color: Theme.ink-2;
                 }
@@ -166,7 +166,7 @@ export component ReviewsView inherits Rectangle {
                     text: "Cadenza never drops a file quietly. A copy of something you already have, or a file it could not read, waits here until you say what should happen to it.";
                     font-family: Theme.sans;
                     font-size: Theme.text-body;
-                    height: 44px;
+                    height: Theme.px(44);
                     wrap: word-wrap;
                     color: Theme.ink-mute;
                 }

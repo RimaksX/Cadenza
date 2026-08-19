@@ -20,12 +20,12 @@ component TransportButton inherits Rectangle {
     // its top edge — which is what put the small buttons above the play
     // button's axis. The width still hugs what it draws, or the gaps between
     // icons grow by the difference and the group reads as scattered.
-    width: root.primary ? 40px : 28px;
-    height: 40px;
+    width: root.primary ? Theme.px(40) : Theme.px(28);
+    height: Theme.px(40);
 
     // The circle is a child, centred in that square.
     Rectangle {
-        width: root.primary ? 40px : 28px;
+        width: root.primary ? Theme.px(40) : Theme.px(28);
         height: self.width;
         x: round((parent.width - self.width) / 1px / 2) * 1px;
         y: round((parent.height - self.height) / 1px / 2) * 1px;
@@ -50,7 +50,7 @@ component TransportButton inherits Rectangle {
 
     Image {
         source: root.glyph;
-        width: root.primary ? 16px : (root.quiet ? 14px : 16px);
+        width: root.primary ? Theme.px(16) : (root.quiet ? Theme.px(14) : Theme.px(16));
         height: self.width;
         x: round((parent.width - self.width) / 1px / 2) * 1px;
         y: round((parent.height - self.height) / 1px / 2) * 1px;
@@ -69,7 +69,7 @@ component TransportButton inherits Rectangle {
 
 // A line that reports a fraction, and can be dragged by it.
 //
-// The line itself is 2px; the target around it is 14px, because a 2px line is
+// The line itself is Theme.px(2); the target around it is Theme.px(14), because a Theme.px(2) line is
 // a thing you aim at rather than a thing you use. The knob appears on hover
 // and is what the hand goes for — but the whole target drags, whether the
 // press landed on the knob or not.
@@ -94,7 +94,7 @@ component Scrubber inherits Rectangle {
         ? root.held
         : max(0, min(1, root.progress));
 
-    height: 14px;
+    height: Theme.px(14);
 
     touch := TouchArea {
         enabled: root.enabled;
@@ -130,7 +130,7 @@ component Scrubber inherits Rectangle {
     }
 
     Rectangle {
-        height: 2px;
+        height: Theme.px(2);
         y: round((parent.height - self.height) / 1px / 2) * 1px;
         background: Theme.line;
 
@@ -145,7 +145,7 @@ component Scrubber inherits Rectangle {
     // Hidden rather than absent, so it can fade. It is drawn last, over the
     // line, and it is not a target of its own: the touch area under it is.
     Rectangle {
-        width: touch.pressed ? 12px : 10px;
+        width: touch.pressed ? Theme.px(12) : Theme.px(10);
         height: self.width;
         border-radius: self.width / 2;
         x: played.width - self.width / 2;
@@ -203,7 +203,7 @@ export component PlayerBar inherits Rectangle {
         // What is playing. A fixed width, so the transport in the middle stays
         // in the middle whatever the title is.
         HorizontalLayout {
-            width: 260px;
+            width: Theme.px(260);
             spacing: Theme.space-3;
             alignment: start;
 
@@ -214,8 +214,8 @@ export component PlayerBar inherits Rectangle {
                 // Until then it holds a letter — and, while there is sound, what
                 // that sound is made of.
                 Rectangle {
-                    width: 56px;
-                    height: 56px;
+                    width: Theme.px(56);
+                    height: Theme.px(56);
                     background: Theme.bg-2;
                     border-width: 1px;
                     border-color: Theme.line-soft;
@@ -236,7 +236,7 @@ export component PlayerBar inherits Rectangle {
                         font-family: Theme.serif;
                         font-italic: true;
                         font-size: Theme.text-title;
-                        height: 34px;
+                        height: Theme.px(34);
                         color: Theme.ink-1;
                         horizontal-alignment: center;
                         vertical-alignment: center;
@@ -249,10 +249,10 @@ export component PlayerBar inherits Rectangle {
                     // the two are the same idea seen from opposite ends, one
                     // asking for a sound and one showing it.
                     for level[index] in root.spectrum: Rectangle {
-                        x: 4px + index * 6px;
-                        y: parent.height - self.height - 4px;
-                        width: 4px;
-                        height: max(2px, 46px * level);
+                        x: Theme.px(4) + index * Theme.px(6);
+                        y: parent.height - self.height - Theme.px(4);
+                        width: Theme.px(4);
+                        height: max(Theme.px(2), Theme.px(46) * level);
                         background: Theme.ink-2;
                         opacity: root.playing ? 1.0 : 0.0;
                         animate opacity { duration: 300ms; }
@@ -267,11 +267,11 @@ export component PlayerBar inherits Rectangle {
             // same face everywhere else in the window.
             VerticalLayout {
                 alignment: center;
-                spacing: 4px;
+                spacing: Theme.px(4);
                 horizontal-stretch: 1;
 
                 Text {
-                    height: 34px;
+                    height: Theme.px(34);
                     text: root.loaded ? root.title : "Nothing playing";
                     font-family: Theme.serif;
                     font-size: Theme.text-title;
@@ -281,7 +281,7 @@ export component PlayerBar inherits Rectangle {
                 // Artist and album on one line, in the same mono capitals the
                 // column labels use: it is a caption, not a name.
                 if root.subtitle != "": Text {
-                    height: 18px;
+                    height: Theme.px(18);
                     text: root.subtitle;
                     font-family: Theme.mono;
                     font-size: Theme.text-label;
@@ -365,13 +365,13 @@ export component PlayerBar inherits Rectangle {
 
                 VerticalLayout {
                     alignment: center;
-                    width: 48px;
+                    width: Theme.px(48);
 
                     Text {
                         text: root.position;
                         font-family: Theme.mono;
                         font-size: Theme.text-label;
-                        height: 18px;
+                        height: Theme.px(18);
                         letter-spacing: Theme.number-spacing;
                         color: Theme.ink-mute;
                         vertical-alignment: center;
@@ -395,13 +395,13 @@ export component PlayerBar inherits Rectangle {
 
                 VerticalLayout {
                     alignment: center;
-                    width: 48px;
+                    width: Theme.px(48);
 
                     Text {
                         text: root.duration;
                         font-family: Theme.mono;
                         font-size: Theme.text-label;
-                        height: 18px;
+                        height: Theme.px(18);
                         letter-spacing: Theme.number-spacing;
                         color: Theme.ink-mute;
                         vertical-alignment: center;
@@ -413,7 +413,7 @@ export component PlayerBar inherits Rectangle {
         // Level. Fixed width to match the left block, so the middle is centred
         // on the window rather than on what is left over.
         HorizontalLayout {
-            width: 260px;
+            width: Theme.px(260);
             alignment: end;
             spacing: Theme.space-3;
 
@@ -432,7 +432,7 @@ export component PlayerBar inherits Rectangle {
             }
 
             VerticalLayout {
-                width: 120px;
+                width: Theme.px(120);
                 alignment: center;
 
                 Scrubber {

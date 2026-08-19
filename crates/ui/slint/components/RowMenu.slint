@@ -18,7 +18,7 @@ component MenuRow inherits Rectangle {
 
     callback chosen();
 
-    height: 34px;
+    height: Theme.px(34);
 
     touch := TouchArea {
         mouse-cursor: pointer;
@@ -31,10 +31,10 @@ component MenuRow inherits Rectangle {
     // runs into the menu's own border and reads as the menu having moved; a
     // shape inside it reads as one item in a list of them.
     Rectangle {
-        x: 6px;
-        y: 2px;
-        width: parent.width - 12px;
-        height: parent.height - 4px;
+        x: Theme.px(6);
+        y: Theme.px(2);
+        width: parent.width - Theme.px(12);
+        height: parent.height - Theme.px(4);
         border-radius: Theme.radius;
         background: touch.has-hover ? Theme.bg-3 : transparent;
         animate background { duration: 90ms; }
@@ -45,12 +45,12 @@ component MenuRow inherits Rectangle {
     // out sitting at visibly different heights — which is what "the type is
     // jumping" turns out to be.
     Text {
-        x: 16px;
+        x: Theme.px(16);
         y: round((parent.height - self.height) / 1px / 2) * 1px;
         text: root.data.label;
         font-family: Theme.sans;
         font-size: Theme.text-body;
-        height: 22px;
+        height: Theme.px(22);
         vertical-alignment: center;
         color: root.data.destructive
             ? Theme.danger
@@ -70,7 +70,7 @@ export component RowMenu inherits PopupWindow {
     callback chosen(string);
 
     close-policy: PopupClosePolicy.close-on-click-outside;
-    width: 220px;
+    width: Theme.px(220);
     height: layout.preferred-height;
 
     Rectangle {
@@ -84,14 +84,14 @@ export component RowMenu inherits PopupWindow {
             padding-bottom: Theme.space-2;
 
             for item in root.items: Rectangle {
-                height: item.action == "" ? 9px : 34px;
+                height: item.action == "" ? Theme.px(9) : Theme.px(34);
 
                 // A separator is an item with nothing to do: one hairline, and
                 // it stops where the highlights stop rather than at the border.
                 if item.action == "": Rectangle {
-                    x: 6px;
-                    y: 4px;
-                    width: parent.width - 12px;
+                    x: Theme.px(6);
+                    y: Theme.px(4);
+                    width: parent.width - Theme.px(12);
                     height: 1px;
                     background: Theme.line-soft;
                 }

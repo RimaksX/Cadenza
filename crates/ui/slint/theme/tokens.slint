@@ -25,6 +25,40 @@ export global Theme {
     // Set from Rust out of the active profile's `theme` column.
     in property <bool> dark: true;
 
+    // How large the interface is drawn, as a multiplier of the design size.
+    // Set from Rust out of the profile's chosen size.
+    //
+    // The scaling happens *here*, in the lengths, rather than in the renderer.
+    // A renderer told to draw at 1.25 puts every one-pixel line on a pixel and
+    // a quarter and every 14-pixel stem between two columns, and the result is
+    // soft — which is what a magnifying glass looks like and is exactly what
+    // this interface must not (MASTER_ISSUES 65). Scaled here, every length
+    // lands on a whole pixel again before anything is drawn.
+    in property <float> scale: 1.0;
+
+    /// A design length at the size in force, snapped back to an even pixel.
+    ///
+    /// Even because that is this interface's first rule: half of what it does
+    /// is centre one thing inside another, and an odd parent puts its child on
+    /// a half pixel.
+    public pure function px(value: float) -> length {
+        max(2px, round(value * root.scale / 2) * 2px)
+    }
+
+    /// A length that may stay fractional: letter spacing, which accumulates
+    /// across a word and is not a thing anything is centred inside.
+    public pure function fine(value: float) -> length {
+        value * root.scale * 1px
+    }
+
+    /// A type size at the size in force, snapped to a whole pixel.
+    ///
+    /// Whole rather than even: a glyph has no border to blur and no child to
+    /// centre, and rounding type to even steps would throw away half the scale.
+    public pure function type-size(value: float) -> length {
+        max(1px, round(value * root.scale) * 1px)
+    }
+
     out property <color> bg-0: dark ? DarkPalette.bg-0 : LightPalette.bg-0;
     out property <color> bg-1: dark ? DarkPalette.bg-1 : LightPalette.bg-1;
     out property <color> bg-2: dark ? DarkPalette.bg-2 : LightPalette.bg-2;
@@ -65,53 +99,65 @@ export global Theme {
     // seventh size is a seventh thing for the eye to sort. Emphasis comes from
     // the face and the ink instead: serif for names, mono for numbers, and four
     // steps of grey.
-    out property <length> text-display: 40px;
-    out property <length> text-title: 24px;
-    out property <length> text-body: 14px;
-    out property <length> text-label: 12px;
+    out property <length> text-display: root.type-size(40);
+    out property <length> text-title: root.type-size(24);
+    out property <length> text-body: root.type-size(14);
+    out property <length> text-label: root.type-size(12);
 
     // Spacing, in one series, so nothing lands between two steps.
-    out property <length> space-1: 4px;
-    out property <length> space-2: 8px;
-    out property <length> space-3: 12px;
-    out property <length> space-4: 16px;
-    out property <length> space-5: 24px;
-    out property <length> space-6: 32px;
+    out property <length> space-1: root.px(4);
+    out property <length> space-2: root.px(8);
+    out property <length> space-3: root.px(12);
+    out property <length> space-4: root.px(16);
+    out property <length> space-5: root.px(24);
+    out property <length> space-6: root.px(32);
 
-    out property <length> radius: 4px;
-    out property <length> sidebar-width: 240px;
-    out property <length> player-height: 92px;
+    out property <length> radius: root.px(4);
+    out property <length> sidebar-width: root.px(240);
+    out property <length> player-height: root.px(92);
 
     // A listing is inset from the window edge rather than run to it. The
     // separators are then the width of the content, not of the screen, which is
     // what stops a long list reading as a spreadsheet.
-    out property <length> page-inset: 56px;
+    out property <length> page-inset: root.px(56);
+
+    // The boxes a line of type stands in, one per size.
+    //
+    // Stated here rather than in every view, because a box has to grow with the
+    // type it holds: a 24-pixel title in a 34-pixel box is right, and the same
+    // title at 30 pixels in the same box is a line Slint drops rather than
+    // clips. Four numbers, and the two-line one prose needs.
+    out property <length> line-display: root.px(56);
+    out property <length> line-title: root.px(34);
+    out property <length> line-body: root.px(22);
+    out property <length> line-body-2: root.px(44);
+    out property <length> line-label: root.px(18);
 
     // Track list geometry, all of it from one grid: a number, the names, a time.
-    out property <length> column-gap: 20px;
-    out property <length> number-column: 40px;
-    out property <length> album-column: 180px;
+    out property <length> column-gap: root.px(20);
+    out property <length> number-column: root.px(40);
+    out property <length> album-column: root.px(180);
     // Wide enough for the control that replaces the length under the pointer,
     // not just for the length: `12:34` needs 44px and "QUEUE" with its icon
     // needs ninety. The duration stays right-aligned, so the extra width falls
     // where nothing is drawn.
-    out property <length> time-column: 96px;
-    out property <length> row-padding: 14px;
+    out property <length> time-column: root.px(96);
+    out property <length> row-padding: root.px(14);
     // Tall enough for the title's own line box, not merely for its font size:
     // the serif asks for about 1.21 times the size and the sans for 1.37, and a
     // row that leaves less does not clip the line — it drops it entirely.
-    out property <length> row-height: 62px;
+    out property <length> row-height: root.px(62);
 
     // The number column is right-aligned inside its own width, which leaves the
     // digits standing away from the left edge of the list. The time column has
     // nothing after it to do the same job, so it is given the gap directly —
     // otherwise it ends flush against the edge and the row looks cut off.
-    out property <length> row-end-inset: 16px;
+    out property <length> row-end-inset: root.px(16);
 
     // Mono capitals are set wide: at label size and in upper case they crowd
     // each other, and a caption is read as a shape before it is read as words.
-    out property <length> label-spacing: 2px;
+    out property <length> label-spacing: root.fine(2);
     // Digits get a hair of the same treatment, so a column of times reads as a
     // column rather than as a word.
-    out property <length> number-spacing: 0.5px;
+    out property <length> number-spacing: root.fine(0.5);
 }

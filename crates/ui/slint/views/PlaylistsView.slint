@@ -64,7 +64,7 @@ export component PlaylistCard inherits Rectangle {
             Rectangle {
                 width: 100%;
                 height: 100%;
-                y: root.hovered ? -4px : 0;
+                y: root.hovered ? -Theme.px(4) : 0;
                 background: @linear-gradient(150deg, Theme.bg-2 0%, Theme.bg-1 55%, Theme.bg-0 100%);
                 border-width: 1px;
                 border-color: root.hovered ? Theme.line : Theme.line-soft;
@@ -83,7 +83,7 @@ export component PlaylistCard inherits Rectangle {
                 }
 
                 if !root.data.has-cover: VerticalLayout {
-                padding: 20px;
+                padding: Theme.px(20);
 
                 HorizontalLayout {
                     VerticalLayout {
@@ -94,7 +94,7 @@ export component PlaylistCard inherits Rectangle {
                             text: "PLAYLIST";
                             font-family: Theme.mono;
                             font-size: Theme.text-label;
-                            height: 18px;
+                            height: Theme.px(18);
                             vertical-alignment: center;
                             letter-spacing: Theme.label-spacing;
                             color: Theme.ink-mute;
@@ -110,7 +110,7 @@ export component PlaylistCard inherits Rectangle {
                             text: root.data.position;
                             font-family: Theme.mono;
                             font-size: Theme.text-label;
-                            height: 18px;
+                            height: Theme.px(18);
                             vertical-alignment: center;
                             letter-spacing: Theme.label-spacing;
                             color: Theme.ink-mute;
@@ -138,7 +138,7 @@ export component PlaylistCard inherits Rectangle {
                     text: root.data.maker;
                     font-family: Theme.mono;
                     font-size: Theme.text-label;
-                    height: 18px;
+                    height: Theme.px(18);
                     vertical-alignment: center;
                     letter-spacing: Theme.label-spacing;
                     color: Theme.ink-2;
@@ -154,10 +154,10 @@ export component PlaylistCard inherits Rectangle {
                 // named in the condition that would have created it, and an
                 // element cannot decide whether to exist by asking itself.
                 Rectangle {
-                    x: parent.width - self.width - 12px;
-                    y: 12px;
-                    width: 32px;
-                    height: 32px;
+                    x: parent.width - self.width - Theme.px(12);
+                    y: Theme.px(12);
+                    width: Theme.px(32);
+                    height: Theme.px(32);
                     border-radius: Theme.radius;
                     background: dots.has-hover ? Theme.bg-3 : transparent;
                     opacity: root.hovered ? 1.0 : 0.0;
@@ -167,7 +167,7 @@ export component PlaylistCard inherits Rectangle {
                     // the mark sits in a corner of its own.
                     Image {
                         source: @image-url("../../../../resources/ui/icons/dots.svg");
-                        width: 18px;
+                        width: Theme.px(18);
                         height: self.width;
                         x: round((parent.width - self.width) / 1px / 2) * 1px;
                         y: round((parent.height - self.height) / 1px / 2) * 1px;
@@ -190,8 +190,8 @@ export component PlaylistCard inherits Rectangle {
                     // right edge of a tile that may itself be at the right edge
                     // of the window.
                     menu := RowMenu {
-                        x: 32px - self.width;
-                        y: 32px;
+                        x: Theme.px(32) - self.width;
+                        y: Theme.px(32);
                         property <[MenuItemData]> without-cover: [
                             { action: "rename", label: "Rename…" },
                             { action: "cover", label: "Choose a cover…" },
@@ -217,10 +217,10 @@ export component PlaylistCard inherits Rectangle {
                 // same one the player bar uses for the button you reach for
                 // without looking, and it means the same thing here.
                 Rectangle {
-                    x: parent.width - self.width - 16px;
-                    y: parent.height - self.height - 16px;
-                    width: 44px;
-                    height: 44px;
+                    x: parent.width - self.width - Theme.px(16);
+                    y: parent.height - self.height - Theme.px(16);
+                    width: Theme.px(44);
+                    height: Theme.px(44);
                     border-radius: self.width / 2;
                     background: start.has-hover ? Theme.ink-1 : Theme.ink-0;
                     opacity: root.hovered ? 1.0 : 0.0;
@@ -228,7 +228,7 @@ export component PlaylistCard inherits Rectangle {
 
                     Image {
                         source: @image-url("../../../../resources/ui/icons/play.svg");
-                        width: 16px;
+                        width: Theme.px(16);
                         height: self.width;
                         x: (parent.width - self.width) / 2 + 1px;
                         y: round((parent.height - self.height) / 1px / 2) * 1px;
@@ -249,14 +249,14 @@ export component PlaylistCard inherits Rectangle {
         // The caption. It does not move with the square: the tile lifts, the
         // words stay where they were read.
         VerticalLayout {
-            spacing: 4px;
+            spacing: Theme.px(4);
             vertical-stretch: 0;
 
             Text {
                 text: root.data.name;
                 font-family: Theme.serif;
                 font-size: Theme.text-title;
-                height: 34px;
+                height: Theme.px(34);
                 vertical-alignment: center;
                 color: root.hovered ? Theme.ink-0 : Theme.ink-1;
                 overflow: elide;
@@ -267,7 +267,7 @@ export component PlaylistCard inherits Rectangle {
                 text: root.data.meta;
                 font-family: Theme.mono;
                 font-size: Theme.text-label;
-                height: 18px;
+                height: Theme.px(18);
                 vertical-alignment: center;
                 letter-spacing: Theme.label-spacing;
                 color: Theme.ink-mute;
@@ -293,19 +293,19 @@ export component PlaylistsView inherits Rectangle {
 
     // A tile stops being a tile below this: the name inside it is set large,
     // and a square too small to hold two words of it is a grey box.
-    property <length> min-tile: 220px;
+    property <length> min-tile: Theme.px(220);
     property <length> gap-x: Theme.space-6;
-    property <length> gap-y: 40px;
+    property <length> gap-y: Theme.px(40);
     // The square, plus the caption under it and the space between: twelve for
     // the gap, thirty for the name, four between the two lines, eighteen for
     // the size. Counted rather than estimated — at forty-eight the caption
     // overflowed its own card by sixteen pixels into the gap below, and the
     // rows stood that much closer together than the grid said they did.
-    property <length> caption-height: 64px;
+    property <length> caption-height: Theme.px(64);
     // Room above the first row for the lift on hover. A scroll view clips at
     // its own edge, so without this the top row rises straight through it and
     // loses its border to the crop.
-    property <length> headroom: 6px;
+    property <length> headroom: Theme.px(6);
 
     property <length> available: self.width - 2 * Theme.page-inset;
     property <int> columns: max(1, min(5, floor((root.available + root.gap-x) / (root.min-tile + root.gap-x))));
@@ -331,7 +331,7 @@ export component PlaylistsView inherits Rectangle {
                 text: "YOUR LISTS";
                 font-family: Theme.mono;
                 font-size: Theme.text-label;
-                height: 18px;
+                height: Theme.px(18);
                 vertical-alignment: center;
                 letter-spacing: Theme.label-spacing;
                 color: Theme.ink-mute;
@@ -350,7 +350,7 @@ export component PlaylistsView inherits Rectangle {
                         text: "Playlists";
                         font-family: Theme.serif;
                         font-size: Theme.text-display;
-                        height: 56px;
+                        height: Theme.px(56);
                         vertical-alignment: center;
                         color: Theme.ink-0;
                     }
@@ -373,7 +373,7 @@ export component PlaylistsView inherits Rectangle {
                 text: root.summary;
                 font-family: Theme.mono;
                 font-size: Theme.text-label;
-                height: 18px;
+                height: Theme.px(18);
                 vertical-alignment: center;
                 letter-spacing: Theme.number-spacing;
                 color: Theme.ink-2;
@@ -394,7 +394,7 @@ export component PlaylistsView inherits Rectangle {
                     text: "No lists yet";
                     font-family: Theme.serif;
                     font-size: Theme.text-display;
-                    height: 56px;
+                    height: Theme.px(56);
                     vertical-alignment: center;
                     color: Theme.ink-2;
                     horizontal-alignment: center;

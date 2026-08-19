@@ -29,7 +29,6 @@ use cadenza_core::domain::ports::event_bus::EventBusPort;
 use cadenza_core::domain::ports::file_watcher::FileWatcherPort;
 use cadenza_core::domain::ports::log::{LogLevel, LogPort, NoLog};
 use cadenza_core::domain::profile::Profile;
-use cadenza_core::domain::settings::InterfaceScale;
 use cadenza_core::domain::settings::{
     CROSSFADE_ENABLED_KEY, CROSSFADE_MS_KEY, CrossfadeDuration, SettingValue,
 };
@@ -50,9 +49,7 @@ use cadenza_infra::db::repositories::{
 use cadenza_infra::events::InProcessEventBus;
 use cadenza_infra::library::{LocalFileSystem, NotifyFileWatcher};
 use cadenza_infra::metadata::{FileArtworkCache, LoftyMetadataReader};
-use cadenza_infra::system::{
-    AppPaths, FileLog, SystemClock, SystemFolderPicker, WindowsPriority, interface_scale,
-};
+use cadenza_infra::system::{AppPaths, FileLog, SystemClock, SystemFolderPicker, WindowsPriority};
 
 use cli::{Command, PlaylistCommand};
 
@@ -305,20 +302,6 @@ fn run() -> std::result::Result<(), String> {
                 }
             }));
             library.watch_folders().map_err(|err| err.to_string())?;
-        }
-
-        // Before the window toolkit is touched, because that is the only
-        // moment it reads this. The display's own scale is multiplied in rather
-        // than replaced: 110 per cent on a screen already drawing at 150 means
-        // a tenth larger than everything else on it, not smaller.
-        if let Some(profile) = active.as_ref() {
-            let chosen = profiles
-                .interface_scale(profile.id)
-                .map_err(|err| err.to_string())?;
-            if chosen != InterfaceScale::DEFAULT {
-                let display = profiles.display_scale().map_err(|err| err.to_string())?;
-                interface_scale::force(display * chosen.factor());
-            }
         }
 
         let outcome = cadenza_ui::run(cadenza_ui::UiServices {

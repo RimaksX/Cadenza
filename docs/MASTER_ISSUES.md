@@ -1582,3 +1582,50 @@ holding it had a stated `viewport-height` and no `viewport-width`, so it took
 the width of the widest thing in it and cut off what fell past the column edge —
 which is why half of "SWITCH" and "LISTENING" were missing. Stated, and the
 column fits again.
+
+## 65. Scaling belongs in the lengths, not in the renderer
+
+The owner turned the size up and said it looked like a magnifying glass rather
+than a larger interface. Measured rather than argued: nothing was being
+stretched — glyphs were rasterised at the new size and the icons re-rendered —
+but everything was being drawn at *fractional* pixels. A 16-pixel icon became
+20 and its one-pixel stroke became one and a quarter, spread across two
+columns; 14-pixel type became 17.5, so every stem landed between two. Nothing
+in this stack hints, so a stem between two columns is a stem drawn twice at half
+strength (`MASTER_ISSUES` 60 is the same defect at 100 per cent).
+
+This interface is built on even whole pixels and one-pixel hairlines. That
+survives an integer scale and nothing else.
+
+**Chosen:** the scale goes into the lengths. `Theme.scale` multiplies every
+design value and `Theme.px()` snaps the result back onto an even whole pixel;
+`Theme.type-size()` snaps type onto a whole one — even steps would throw away
+half the scale, and a glyph has no border to blur or child to centre. Letter
+spacing goes through `Theme.fine()`, which does not snap at all, because it
+accumulates across a word rather than aligning to anything.
+
+Every length literal in the markup — five hundred and some, in seventeen files —
+now goes through that function. The sweep was mechanical and its proof is
+mechanical too: the window rendered at 100 per cent is **byte for byte the image
+it was before the change**. One-pixel hairlines were left as literals: a
+hairline is a hairline at any size, and rounding it to an even number would
+double it.
+
+Three consequences, all of them wanted:
+
+- **It is live.** The window is not remade, it is re-measured, so a size chosen
+  in the settings screen appears immediately. The previous attempt had to say
+  "at the next start", because the toolkit will not change the scale of a window
+  that already exists (`MASTER_ISSUES` 64) — that whole route is gone, and with
+  it an `unsafe` block and the environment variable it wrote.
+- **The window's own floor and preferred size scale with it**, which is right:
+  at 125 per cent the same interface needs a quarter more room.
+- **The audit reads the new form**, because a rule that stops seeing what it
+  measures stops being a rule. It takes the design value out of `Theme.px(n)`
+  and applies the same evenness and line-box checks it always did.
+
+What this does *not* fix: the icons are line drawings whose strokes are
+fractions of their own viewbox, so at 125 per cent a stroke is still 1.25
+pixels. Whole-pixel geometry cannot round what is inside an SVG. Redrawing them
+on a grid that lands whole at every step is the fix, and it is a design job
+rather than a layout one.

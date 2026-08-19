@@ -66,9 +66,6 @@ pub fn run(services: UiServices) -> Result<()> {
     }));
 
     let controller = Rc::new(Controller::new(services, window.as_weak()));
-    // Before anything is drawn at a scale of our own choosing, so that what the
-    // display asked for is still what the window is reporting.
-    controller.note_display_scale(window.window().scale_factor());
     controller.refresh_all();
 
     wire(&window, &controller);

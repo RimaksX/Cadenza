@@ -18,7 +18,7 @@ export component Field inherits Rectangle {
     /// Every keystroke. What a search field needs; a name field ignores it.
     callback edited(string);
 
-    height: 40px;
+    height: Theme.px(40);
     forward-focus: input;
 
     // Clicking anywhere on the field, including the empty part after the text,
@@ -38,7 +38,7 @@ export component Field inherits Rectangle {
         // The gap is for the hairline underneath. Where there is no hairline —
         // a field inside a box that draws its own — the text belongs in the
         // middle of the box instead of pushed off it.
-        padding-bottom: root.underlined ? 8px : 0px;
+        padding-bottom: root.underlined ? Theme.px(8) : 0px;
 
         // The placeholder is a second Text under the input rather than a
         // property of it: the built-in input has none, and a caption drawn in
@@ -52,7 +52,7 @@ export component Field inherits Rectangle {
             // field around it is even, so an odd box leaves an odd remainder
             // and the layout centres it on half a pixel — which is the
             // staircase, one letter at a time.
-            height: ceil(input.preferred-height / 2px) * 2px;
+            height: ceil(input.preferred-height / Theme.px(2)) * Theme.px(2);
 
             // Sits exactly where the first typed character will, which is the
             // whole point of it: a hint centred over a left-aligned field is a

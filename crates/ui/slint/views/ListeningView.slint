@@ -18,24 +18,24 @@ component Figure inherits Rectangle {
     // and stated here rather than left to the layout, which is how every other
     // control in this interface is sized. A row of four is what gives the page
     // a width worth opening at.
-    width: 176px;
-    height: 86px;
+    width: Theme.px(176);
+    height: Theme.px(86);
     border-width: 1px;
     border-color: Theme.line-soft;
     background: Theme.bg-1;
 
     VerticalLayout {
         x: Theme.space-4;
-        y: round((parent.height - 70px) / 1px / 2) * 1px;
+        y: round((parent.height - Theme.px(70)) / 1px / 2) * 1px;
         width: parent.width - Theme.space-4 * 2;
-        height: 70px;
-        spacing: 2px;
+        height: Theme.px(70);
+        spacing: Theme.px(2);
 
         Text {
             text: root.value;
             font-family: Theme.serif;
             font-size: Theme.text-display;
-            height: 56px;
+            height: Theme.px(56);
             vertical-alignment: center;
             color: Theme.ink-0;
             overflow: elide;
@@ -45,7 +45,7 @@ component Figure inherits Rectangle {
             text: root.label;
             font-family: Theme.mono;
             font-size: Theme.text-label;
-            height: 18px;
+            height: Theme.px(18);
             vertical-alignment: center;
             letter-spacing: Theme.label-spacing;
             color: Theme.ink-mute;
@@ -58,22 +58,22 @@ component Figure inherits Rectangle {
 component TopRow inherits Rectangle {
     in property <TopTrackData> data;
 
-    height: 46px;
+    height: Theme.px(46);
 
     HorizontalLayout {
-        y: round((parent.height - 22px) / 1px / 2) * 1px;
-        height: 22px;
+        y: round((parent.height - Theme.px(22)) / 1px / 2) * 1px;
+        height: Theme.px(22);
         spacing: Theme.space-4;
 
         VerticalLayout {
-            width: 34px;
+            width: Theme.px(34);
             alignment: center;
 
             Text {
                 text: root.data.rank;
                 font-family: Theme.mono;
                 font-size: Theme.text-label;
-                height: 22px;
+                height: Theme.px(22);
                 horizontal-alignment: right;
                 vertical-alignment: center;
                 letter-spacing: Theme.number-spacing;
@@ -89,7 +89,7 @@ component TopRow inherits Rectangle {
                 text: root.data.title;
                 font-family: Theme.sans;
                 font-size: Theme.text-body;
-                height: 22px;
+                height: Theme.px(22);
                 vertical-alignment: center;
                 color: Theme.ink-0;
                 overflow: elide;
@@ -97,14 +97,14 @@ component TopRow inherits Rectangle {
         }
 
         VerticalLayout {
-            width: 240px;
+            width: Theme.px(240);
             alignment: center;
 
             Text {
                 text: root.data.subtitle;
                 font-family: Theme.sans;
                 font-size: Theme.text-body;
-                height: 22px;
+                height: Theme.px(22);
                 vertical-alignment: center;
                 color: Theme.ink-2;
                 overflow: elide;
@@ -112,14 +112,14 @@ component TopRow inherits Rectangle {
         }
 
         VerticalLayout {
-            width: 92px;
+            width: Theme.px(92);
             alignment: center;
 
             Text {
                 text: root.data.plays;
                 font-family: Theme.mono;
                 font-size: Theme.text-label;
-                height: 22px;
+                height: Theme.px(22);
                 horizontal-alignment: right;
                 vertical-alignment: center;
                 letter-spacing: Theme.number-spacing;
@@ -162,7 +162,7 @@ export component ListeningView inherits Rectangle {
                 text: "THE LAST THIRTY DAYS";
                 font-family: Theme.mono;
                 font-size: Theme.text-label;
-                height: 18px;
+                height: Theme.px(18);
                 vertical-alignment: center;
                 letter-spacing: Theme.label-spacing;
                 color: Theme.ink-mute;
@@ -172,7 +172,7 @@ export component ListeningView inherits Rectangle {
                 text: "Listening";
                 font-family: Theme.serif;
                 font-size: Theme.text-display;
-                height: 56px;
+                height: Theme.px(56);
                 vertical-alignment: bottom;
                 color: Theme.ink-0;
             }
@@ -181,7 +181,7 @@ export component ListeningView inherits Rectangle {
                 text: root.summary;
                 font-family: Theme.mono;
                 font-size: Theme.text-label;
-                height: 18px;
+                height: Theme.px(18);
                 vertical-alignment: center;
                 letter-spacing: Theme.number-spacing;
                 color: Theme.ink-2;
@@ -208,7 +208,7 @@ export component ListeningView inherits Rectangle {
                 text: "Nothing is being kept";
                 font-family: Theme.serif;
                 font-size: Theme.text-title;
-                height: 34px;
+                height: Theme.px(34);
                 vertical-alignment: center;
                 color: Theme.ink-2;
             }
@@ -217,7 +217,7 @@ export component ListeningView inherits Rectangle {
                 text: "History is off for this profile, so nothing you play is written down. Turn it on in Settings and this page fills up as you listen.";
                 font-family: Theme.sans;
                 font-size: Theme.text-body;
-                height: 44px;
+                height: Theme.px(44);
                 wrap: word-wrap;
                 color: Theme.ink-mute;
             }
@@ -255,7 +255,7 @@ export component ListeningView inherits Rectangle {
                 spacing: Theme.space-2;
 
                 HorizontalLayout {
-                    height: 26px;
+                    height: Theme.px(26);
                     spacing: Theme.space-2;
 
                     VerticalLayout {
@@ -265,7 +265,7 @@ export component ListeningView inherits Rectangle {
                             text: "PLAYED THROUGH MOST";
                             font-family: Theme.mono;
                             font-size: Theme.text-label;
-                            height: 18px;
+                            height: Theme.px(18);
                             vertical-alignment: center;
                             letter-spacing: Theme.label-spacing;
                             color: Theme.ink-mute;
@@ -273,7 +273,7 @@ export component ListeningView inherits Rectangle {
                     }
 
                     Rectangle {
-                        y: 8px;
+                        y: Theme.px(8);
                         height: 1px;
                         background: Theme.line-soft;
                     }

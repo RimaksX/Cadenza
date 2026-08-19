@@ -41,8 +41,8 @@ export component TextButton inherits Rectangle {
     // rasterised from half a pixel out.
     width: root.fixed-width > 0
         ? root.fixed-width
-        : round((label.preferred-width + 2 * Theme.space-4) / 2px) * 2px;
-    height: 34px;
+        : round((label.preferred-width + 2 * Theme.space-4) / Theme.px(2)) * Theme.px(2);
+    height: Theme.px(34);
     border-radius: Theme.radius;
     border-width: 1px;
     border-color: !root.enabled
@@ -88,9 +88,9 @@ export component TextButton inherits Rectangle {
         // An even height, so centring it in an even button is whole arithmetic.
         // Left to ask for its own, a line of type wants something fractional
         // and the letters come out at different heights.
-        y: round((root.height - 18px) / 1px / 2) * 1px;
+        y: round((root.height - Theme.px(18)) / 1px / 2) * 1px;
         width: root.width;
-        height: 18px;
+        height: Theme.px(18);
         text: root.label;
         font-family: Theme.mono;
         font-size: Theme.text-label;
@@ -153,7 +153,7 @@ export component Dialog inherits Rectangle {
     card := Rectangle {
         // Wider where the dialog explains: a paragraph at 440 is a column of
         // six words, and seven of them is a wall.
-        width: root.informs ? 560px : 440px;
+        width: root.informs ? Theme.px(560) : Theme.px(440);
         height: layout.preferred-height;
         // Whole pixels. A card centred on a window of odd height lands on
         // half a pixel, every glyph inside it is then snapped to the pixel
@@ -193,7 +193,7 @@ export component Dialog inherits Rectangle {
             // element inside an `if` is out of scope everywhere else, and both
             // the alias above and the confirm button below need to reach it.
             Rectangle {
-                height: root.asks-for-text ? 40px : 0px;
+                height: root.asks-for-text ? Theme.px(40) : 0px;
                 clip: true;
 
                 field := Field {
@@ -266,11 +266,11 @@ export component PickDialog inherits Rectangle {
     // A row of the list, and how many of them the card will show before the
     // rest have to be scrolled to. Six because the card must still hold its
     // title, its buttons and its own padding inside a small window.
-    property <length> option-height: 52px;
+    property <length> option-height: Theme.px(52);
     property <int> shown-options: 6;
 
     Rectangle {
-        width: 440px;
+        width: Theme.px(440);
         // The card is as tall as what it holds. It used to be capped instead,
         // and a seventh playlist pushed the buttons out through the bottom
         // edge — the list scrolls now, so the height cannot run away.
@@ -353,7 +353,7 @@ export component PickDialog inherits Rectangle {
                             text: option.label;
                             font-family: Theme.serif;
                             font-size: Theme.text-title;
-                            height: 34px;
+                            height: Theme.px(34);
                             vertical-alignment: center;
                             color: option-touch.has-hover ? Theme.ink-0 : Theme.ink-1;
                             overflow: elide;
@@ -368,7 +368,7 @@ export component PickDialog inherits Rectangle {
                             text: option.meta;
                             font-family: Theme.mono;
                             font-size: Theme.text-label;
-                            height: 18px;
+                            height: Theme.px(18);
                             vertical-alignment: center;
                             letter-spacing: Theme.label-spacing;
                             color: Theme.ink-mute;
@@ -444,7 +444,7 @@ export component EditTrackDialog inherits Rectangle {
     }
 
     card := Rectangle {
-        width: 440px;
+        width: Theme.px(440);
         height: layout.preferred-height;
         x: round((parent.width - self.width) / 1px / 2) * 1px;
         y: round((parent.height - self.height) / 1px / 2) * 1px;
@@ -482,7 +482,7 @@ export component EditTrackDialog inherits Rectangle {
                     text: "TITLE";
                     font-family: Theme.mono;
                     font-size: Theme.text-label;
-                    height: 18px;
+                    height: Theme.px(18);
                     vertical-alignment: center;
                     letter-spacing: Theme.label-spacing;
                     color: Theme.ink-mute;
@@ -498,7 +498,7 @@ export component EditTrackDialog inherits Rectangle {
                     text: "ARTIST";
                     font-family: Theme.mono;
                     font-size: Theme.text-label;
-                    height: 18px;
+                    height: Theme.px(18);
                     vertical-alignment: center;
                     letter-spacing: Theme.label-spacing;
                     color: Theme.ink-mute;
@@ -514,7 +514,7 @@ export component EditTrackDialog inherits Rectangle {
                     text: "ALBUM";
                     font-family: Theme.mono;
                     font-size: Theme.text-label;
-                    height: 18px;
+                    height: Theme.px(18);
                     vertical-alignment: center;
                     letter-spacing: Theme.label-spacing;
                     color: Theme.ink-mute;

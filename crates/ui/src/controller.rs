@@ -77,11 +77,6 @@ pub struct Controller {
     /// Whose cover the player bar is showing, so it is read from disk when the
     /// track changes rather than four times a second.
     showing_cover: RefCell<String>,
-    /// The scale the operating system asked for, before anybody chose one.
-    ///
-    /// Captured once, because asking the window afterwards returns whatever we
-    /// last told it — and a listener who picks 110% twice would then get 121%.
-    base_scale: Cell<f32>,
     /// The playlist whose page is open, if one is.
     ///
     /// Held because playing a track from a playlist has to say which playlist:
@@ -123,7 +118,6 @@ impl Controller {
             profile,
             query: RefCell::new(String::new()),
             showing_cover: RefCell::new(String::new()),
-            base_scale: Cell::new(1.0),
             open_playlist: RefCell::new(None),
             eq_bands: Rc::new(VecModel::default()),
             spectrum: Rc::new(VecModel::from(vec![0.0; SPECTRUM_BARS])),
@@ -1067,22 +1061,15 @@ impl Controller {
         window.set_now_cover(cover);
     }
 
-    /// Remembers what scale this display asked for.
+    /// Draws the interface at the size this listener chose.
     ///
-    /// Called once, before anything has been drawn at a scale of our choosing.
-    pub fn note_display_scale(&self, scale: f32) {
-        self.base_scale.set(scale);
-    }
-
-    /// Shows which size is chosen, and remembers what the display asks for.
+    /// The scale goes into the *lengths*, through `Theme.scale`, rather than
+    /// into the renderer. A renderer told to draw at 1.25 puts every hairline
+    /// on a pixel and a quarter and every stem between two columns, which is
+    /// what a magnifying glass looks like; the lengths are rounded back onto
+    /// whole pixels before anything is drawn (`MASTER_ISSUES` 65).
     ///
-    /// The size itself is applied where a window is *made* rather than here —
-    /// the toolkit accepts a scale set on a live window and then overwrites it
-    /// when the window is shown, which was measured twice (`MASTER_ISSUES` 64).
-    ///
-    /// The display's own scale is written down only while nothing is
-    /// overriding it, which is exactly when the chosen size is 100 per cent:
-    /// with an override in force, what the window reports is that override.
+    /// Which also makes it live. The window is not remade, it is re-measured.
     pub fn refresh_interface_scale(&self) {
         let Some(window) = self.window.upgrade() else {
             return;
@@ -1090,13 +1077,7 @@ impl Controller {
 
         let scale = self.chosen_scale();
         window.set_ui_scale(i32::from(scale.percent()));
-
-        if scale == InterfaceScale::DEFAULT {
-            let _ = self
-                .services
-                .profiles
-                .note_display_scale(self.base_scale.get());
-        }
+        window.global::<Theme>().set_scale(scale.factor());
     }
 
     /// How large this listener has asked for the interface to be drawn.
@@ -1109,7 +1090,7 @@ impl Controller {
             .unwrap_or_default()
     }
 
-    /// Chooses how large the interface is drawn, from the next start.
+    /// Chooses how large the interface is drawn, and draws it that way now.
     pub fn set_interface_scale(&self, percent: i32) {
         let Some(profile) = self.profile.borrow().as_ref().map(|profile| profile.id) else {
             return;
@@ -1120,12 +1101,6 @@ impl Controller {
             self.services.profiles.set_interface_scale(profile, scale)
         });
         self.refresh_interface_scale();
-
-        // Said rather than implied. A control that appears to do nothing is
-        // worse than one that says when it will.
-        if let Some(window) = self.window.upgrade() {
-            window.set_message("the new size is drawn when Cadenza next starts".into());
-        }
     }
 
     /// Whether something from outside is being held over the window.

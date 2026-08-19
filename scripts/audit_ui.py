@@ -50,7 +50,8 @@ def scale():
     return {
         "Theme.%s" % name: float(size)
         for name, size in re.findall(
-            r"out property <length> (text-[\w-]+):\s*([\d.]+)px", source
+            r"out property <length> (text-[\w-]+):\s*(?:root\.type-size\()?([\d.]+)",
+            source,
         )
     }
 
@@ -69,6 +70,23 @@ def size_of(expression):
     return float(literal.group(1)) if literal else SIZES.get(expression)
 
 
+def design_length(expression):
+    """The length as designed, whatever form it is written in.
+
+    Every length in the markup goes through `Theme.px()` so that it can be
+    scaled and snapped back onto a whole pixel (MASTER_ISSUES 65). The rules
+    below are about the *design* value inside that call — the number somebody
+    chose — so this reads it out of either form and reports nothing for an
+    expression it cannot measure.
+    """
+    expression = expression.strip()
+    literal = re.fullmatch(r"(\d+)px", expression)
+    if literal:
+        return int(literal.group(1))
+    scaled = re.fullmatch(r"Theme\.px\((\d+)\)", expression)
+    return int(scaled.group(1)) if scaled else None
+
+
 def audit(path):
     findings = []
     stack, text = [], None
@@ -81,10 +99,12 @@ def audit(path):
             findings.append((number, "halved without rounding"))
 
         for match in re.finditer(
-            r"\b(width|height|padding[\w-]*|spacing|border-radius):\s*(\d+)px", statement
+            r"\b(width|height|padding[\w-]*|spacing|border-radius):\s*"
+            r"(\d+px|Theme\.px\(\d+\))",
+            statement,
         ):
-            value = int(match.group(2))
-            if value % 2 and value != 1:
+            value = design_length(match.group(2))
+            if value is not None and value % 2 and value != 1:
                 findings.append((number, "odd length %dpx" % value))
 
         if re.search(r"\bText \{", statement):
@@ -121,11 +141,11 @@ def audit(path):
             if stack and stack[-1] == "text" and text:
                 size, box = text["size"], text["box"]
                 if size and box:
-                    fixed = re.search(r"height:\s*(\d+)px", box)
-                    if fixed and int(fixed.group(1)) < size * MINIMUM_LINE:
+                    fixed = design_length(box.split(":", 1)[1].rstrip(";"))
+                    if fixed is not None and fixed < size * MINIMUM_LINE:
                         findings.append(
-                            (text["line"], "box %spx too small for %spx type"
-                             % (fixed.group(1), size))
+                            (text["line"], "box %dpx too small for %spx type"
+                             % (fixed, size))
                         )
                 if size and not box and not text["wraps"]:
                     findings.append((text["line"], "no line box for %spx type" % size))
