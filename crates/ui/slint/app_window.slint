@@ -23,6 +23,7 @@ import "../../../resources/ui/fonts/Manrope/CadenzaSans-Regular.ttf";
 import "../../../resources/ui/fonts/JetBrains_Mono/CadenzaMono-Regular.ttf";
 
 import { Theme } from "theme/tokens.slint";
+import { Transfer } from "components/Transfer.slint";
 import { AppShell } from "components/AppShell.slint";
 import { TrackRowData } from "components/TrackRow.slint";
 import { PlaylistCardData } from "views/PlaylistsView.slint";
@@ -135,7 +136,10 @@ export component AppWindow inherits Window {
     in property <float> volume: 1.0;
     in property <string> message;
     in property <[float]> spectrum;
-    in property <bool> maximized;
+    // Named apart from the window's own `maximized`, which 1.17 added and
+    // which this would otherwise shadow. Ours says what the title bar should
+    // draw; the window's says what the window is.
+    in property <bool> window-maximized;
     in property <bool> shuffle;
     in property <bool> repeating;
     in property <bool> repeat-one;
@@ -212,7 +216,7 @@ export component AppWindow inherits Window {
     AppShell {
         width: root.width;
         height: root.height;
-        maximized: root.maximized;
+        maximized: root.window-maximized;
         minimize => {
             root.minimize();
         }
@@ -537,3 +541,6 @@ export component AppWindow inherits Window {
         }
     }
 }
+
+// The payload global, so Rust can implement its two callbacks.
+export { Transfer }

@@ -1658,3 +1658,47 @@ coordinates, or an icon size the 24-grid divides into wholly — 12 or 24 rather
 than 16. Both are design decisions rather than layout ones, and neither survives
 a fractional scale anyway: at 125 per cent a 16-pixel icon is 20, and nothing
 authored for 16 lands whole there.
+
+## 67. Slint 1.17, and the last requirement of 2.10
+
+The owner chose the upgrade over leaving the requirement unbuilt. What it cost
+and what it bought, both measured.
+
+**The upgrade.** `slint`, `slint-build` and `i-slint-backend-winit` to 1.17, and
+the workspace's minimum toolchain from 1.85 to 1.92. Every screen was rendered
+before and after and compared pixel by pixel: between one and seven per cent of
+pixels differ on each, all of it inside text, and no line, control or column
+moved. The equaliser — the most geometric screen there is, with eight faders,
+their handles and a curve — is identical in placement.
+
+Two things the new version says out loud and the old one did not: our
+`maximized` property shadows a builtin of that name on `Window`, so ours is
+`window-maximized` now; and a `let` chain the old clippy accepted is now a
+collapsible `if`.
+
+**And what it makes possible.** `DragArea` and `DropArea` are stable, so a track
+can be carried to the queue. Three things worth writing down about how:
+
+- **The payload is opaque to the markup.** In 1.13 it was a mime type and a
+  string; in 1.17 it is a `data-transfer` built and read in the host language.
+  So there is a `Transfer` global with two callbacks — one that makes a payload
+  out of a track id, one that takes what was dropped — and the markup merely
+  carries it between them. A global rather than a chain through four
+  components: the two ends are a row deep inside a list and an entry in the
+  sidebar, and everything in between would otherwise have to know about a
+  gesture it takes no part in.
+- **Copy, not move.** Carrying a track to the queue leaves it in the library,
+  which is where it lives.
+- **The queue is the only destination**, because it is the only one on screen
+  while a track is: the library is one page and the playlists are another
+  (`MASTER_ISSUES` 58). It lights and outlines itself while a track is over it,
+  the way a chosen page lights, and colour alone would have said "this is where
+  you are" instead.
+
+A press still reaches the row underneath, so a click still plays; a vertical
+drag still scrolls the list, because a flickable claims a direction it can
+actually scroll and this one cannot scroll sideways. Down the list is reading,
+across it is carrying.
+
+What no test covers: the gesture itself, which needs a pointer. It is checked by
+doing it.

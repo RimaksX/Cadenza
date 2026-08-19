@@ -1,6 +1,7 @@
 import { ListView } from "std-widgets.slint";
 import { Theme } from "../theme/tokens.slint";
 import { TrackRow, TrackRowData } from "TrackRow.slint";
+import { Transfer } from "Transfer.slint";
 import { TextButton } from "Dialog.slint";
 import { Field } from "Field.slint";
 
@@ -323,7 +324,24 @@ export component TrackList inherits Rectangle {
             padding-right: Theme.page-inset;
 
             ListView {
-                for entry[index] in root.tracks: TrackRow {
+                // Wrapped rather than made part of the row, because what a row
+                // is stays one question and where it can be carried is another.
+                //
+                // A press still reaches the row underneath — a drag area takes
+                // the pointer only once it has moved past a threshold — so a
+                // click still plays. The list scrolls on a vertical drag and
+                // never claims a horizontal one, which is how both gestures fit
+                // in the same place: down the list is reading, across it is
+                // carrying.
+                for entry[index] in root.tracks: DragArea {
+                    height: Theme.row-height;
+                    data: Transfer.of-track(entry.id);
+                    // Copied, not moved: carrying a track to the queue leaves it
+                    // in the library, which is where it lives.
+                    allow-copy: true;
+
+                    TrackRow {
+                    width: parent.width;
                     data: entry;
                     playing: entry.id == root.playing-id;
                     queued: root.queued;
@@ -346,6 +364,7 @@ export component TrackList inherits Rectangle {
                     }
                     acted(action) => {
                         root.act(index, entry.id, action);
+                    }
                     }
                 }
             }

@@ -12,16 +12,18 @@ repository.workspace = true
 [dependencies]
 cadenza-core.workspace = true
 
-# The interface (PROJECT_MASTER 3.2). Pinned to 1.13 rather than the newest
-# release: 1.17 requires rustc 1.92 and would raise the workspace's minimum
-# toolchain for no feature this milestone needs.
-slint = "1.13"
+# The interface (PROJECT_MASTER 3.2). 1.17 rather than 1.13, and deliberately:
+# `DragArea` and `DropArea` are experimental in 1.13 — the compiler removes them
+# from its own type register unless an environment variable is set, and says in
+# as many words that they are not for production. They are stable in 1.17, which
+# is what makes the last requirement of 2.10 buildable (MASTER_ISSUES 58, 67).
+slint = "1.17"
 
 # The same backend Slint would have chosen, asked for by name so that a handler
 # can be hung on its event loop. Files dragged from the desktop arrive as winit
 # events that Slint itself does not look at (MASTER_ISSUES 57); this is the
 # published seam for reaching them, and it costs no `unsafe` and no Win32.
-i-slint-backend-winit = "1.13"
+i-slint-backend-winit = "1.17"
 
 [build-dependencies]
-slint-build = "1.13"
+slint-build = "1.17"

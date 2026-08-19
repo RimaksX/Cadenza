@@ -10,7 +10,7 @@ use cadenza_core::{CoreError, Result};
 use slint::{ComponentHandle, Timer, TimerMode};
 
 use crate::controller::Controller;
-use crate::{AppWindow, UiServices};
+use crate::{AppWindow, Transfer, UiServices};
 
 /// How often the position and transport state are re-read.
 ///
@@ -180,6 +180,27 @@ fn wire(window: &AppWindow, controller: &Rc<Controller>) {
     window.on_remove_from_playlist({
         let controller = Rc::clone(controller);
         move |position| controller.remove_from_playlist(position)
+    });
+
+    // What a dragged row carries, and what the queue does with it. The payload
+    // is opaque to the markup by design: it is built here and read here, and
+    // merely carried between the two.
+    window.global::<Transfer>().on_of_track(|id| {
+        let mut payload = slint::DataTransfer::default();
+        payload.set_plain_text(id);
+        payload
+    });
+
+    window.global::<Transfer>().on_dropped_on_queue({
+        let controller = Rc::clone(controller);
+        move |payload| {
+            // Anything else that reaches this window — a file from the desktop,
+            // say — is not a track of ours and is passed over rather than
+            // guessed at.
+            if let Ok(id) = payload.plain_text() {
+                controller.enqueue(&id);
+            }
+        }
     });
 
     window.on_set_ui_scale({
@@ -425,7 +446,7 @@ fn wire_window_controls(window: &AppWindow) {
             if let Some(window) = handle.upgrade() {
                 let maximized = !window.window().is_maximized();
                 window.window().set_maximized(maximized);
-                window.set_maximized(maximized);
+                window.set_window_maximized(maximized);
             }
         }
     });
@@ -451,7 +472,7 @@ fn wire_window_controls(window: &AppWindow) {
             // every other window on the platform does.
             if window.window().is_maximized() {
                 window.window().set_maximized(false);
-                window.set_maximized(false);
+                window.set_window_maximized(false);
                 return;
             }
 

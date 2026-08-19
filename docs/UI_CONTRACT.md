@@ -52,10 +52,12 @@ choice comes back on the next run — and so is the fixed layout.
 Two are still missing, and they are the whole of what M15 has left
 ([MASTER_ISSUES 53](MASTER_ISSUES.md)):
 
-- **Drag-and-drop of tracks** does not exist. The only dragging in the window
-  moves the window itself, an equaliser dial and the playhead. Tracks reach a
-  playlist or the queue through the row menu instead, which works and is not
-  what 2.10 asks for.
+Drag-and-drop of tracks is delivered: a row can be carried to the queue, which
+lights and outlines itself while a track is over it. The payload is opaque to
+the markup — built and read in Rust, carried by a `Transfer` global — and the
+gesture is a copy, because a track carried to the queue stays in the library
+(finding 67). The queue is the only destination there is, for the reason in
+finding 58: a track and a playlist are never on screen together.
 
 Scaling is delivered: four steps in the settings screen, kept per profile, and
 applied at once, because the size lives in the lengths rather than in the

@@ -1,0 +1,14 @@
+// What is carried when something in this window is dragged somewhere else in it.
+//
+// The payload is a `data-transfer`, which the toolkit treats as opaque: it is
+// built and read in Rust and merely carried by the markup. A global rather than
+// a chain of callbacks through four components, because the two ends are a row
+// deep inside a list and an entry in the sidebar, and everything between them
+// would otherwise have to know about a gesture it takes no part in.
+export global Transfer {
+    /// The payload for one track, by its identifier.
+    pure callback of-track(string) -> data-transfer;
+
+    /// What was let go of over the queue.
+    callback dropped-on-queue(data-transfer);
+}

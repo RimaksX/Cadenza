@@ -1,4 +1,5 @@
 import { Theme } from "../theme/tokens.slint";
+import { Transfer } from "Transfer.slint";
 
 // One line of navigation.
 //
@@ -10,17 +11,41 @@ component NavItem inherits Rectangle {
     in property <image> glyph;
     in property <bool> selected;
     in property <bool> enabled: true;
+    /// True where a track may be let go of, which is the queue and nowhere else.
+    in property <bool> takes-tracks;
 
     callback chosen();
+    /// A track was dropped here.
+    callback taken();
 
     // The colour every part of the row shares, worked out once.
     property <color> tone: !root.enabled
         ? Theme.ink-disabled
-        : (root.selected ? Theme.ink-0 : (touch.has-hover ? Theme.ink-1 : Theme.ink-2));
+        : (root.selected || target.has-drag
+            ? Theme.ink-0
+            : (touch.has-hover ? Theme.ink-1 : Theme.ink-2));
 
     height: Theme.px(32);
-    background: root.selected ? Theme.bg-1 : transparent;
+    // A destination under a carried track lights the way a chosen one does, and
+    // outlines itself as well: colour alone would say "this is the page you are
+    // on", which it is not.
+    background: root.selected || target.has-drag ? Theme.bg-1 : transparent;
     border-radius: Theme.radius;
+    border-width: target.has-drag ? Theme.px(2) : 0px;
+    border-color: Theme.ink-2;
+    animate background { duration: 120ms; }
+
+    target := DropArea {
+        enabled: root.takes-tracks;
+        can-drop(event) => {
+            return DragAction.copy;
+        }
+        dropped(event) => {
+            Transfer.dropped-on-queue(event.data);
+            root.taken();
+            return DragAction.copy;
+        }
+    }
 
     touch := TouchArea {
         enabled: root.enabled;
@@ -203,6 +228,9 @@ export component Sidebar inherits Rectangle {
                 label: "Queue";
                 glyph: @image-url("../../../../resources/ui/icons/queue.svg");
                 selected: root.section == "queue";
+                // The one destination that is always on screen while a track
+                // is, which is what makes it the one worth dragging to.
+                takes-tracks: true;
                 chosen => {
                     root.select("queue");
                 }
