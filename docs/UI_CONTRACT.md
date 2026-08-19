@@ -52,12 +52,15 @@ choice comes back on the next run — and so is the fixed layout.
 Two are still missing, and they are the whole of what M15 has left
 ([MASTER_ISSUES 53](MASTER_ISSUES.md)):
 
-- **Scaling** follows the system DPI and has no setting of its own, although
-  there has been a settings screen to put one on since before M14.
 - **Drag-and-drop of tracks** does not exist. The only dragging in the window
   moves the window itself, an equaliser dial and the playhead. Tracks reach a
   playlist or the queue through the row menu instead, which works and is not
   what 2.10 asks for.
+
+Scaling is delivered: four steps in the settings screen, kept per profile, and
+applied when the window is next made — the toolkit will not change it on a
+window that already exists (finding 64). The window's own floor is 1000 by 720,
+which is what the layout was measured to need.
 
 ## Where a component may look
 

@@ -55,8 +55,13 @@ export component AppWindow inherits Window {
     default-font-size: Theme.text-body;
     preferred-width: 1180px;
     preferred-height: 760px;
-    min-width: 880px;
-    min-height: 560px;
+    // Measured rather than hoped for. The old floor of 880 by 560 was never
+    // rendered at: the search field hung off the right edge and the player bar
+    // was pushed out of the bottom of the window entirely. What the interface
+    // actually needs is this, and it is stated here so that nobody can drag the
+    // window somewhere it does not work (MASTER_ISSUES 64).
+    min-width: 1000px;
+    min-height: 720px;
 
     // Down: what to draw.
     /// True while files from outside are being held over the window.
@@ -79,6 +84,7 @@ export component AppWindow inherits Window {
     in property <bool> dark;
     in property <bool> crossfade-on;
     in property <int> crossfade-seconds;
+    in property <int> ui-scale;
     in property <bool> history-on;
     in property <[FolderRowData]> folders;
     in property <[ProfileRowData]> profiles;
@@ -177,6 +183,7 @@ export component AppWindow inherits Window {
     callback settle-eq();
     callback set-theme(bool);
     callback set-crossfade(bool, int);
+    callback set-ui-scale(int);
     callback set-history(bool);
     callback add-folder();
     callback use-suggested-folder();
@@ -237,6 +244,7 @@ export component AppWindow inherits Window {
         dark: root.dark;
         crossfade-on: root.crossfade-on;
         crossfade-seconds: root.crossfade-seconds;
+        ui-scale: root.ui-scale;
         history-on: root.history-on;
         folders: root.folders;
         profiles: root.profiles;
@@ -398,6 +406,9 @@ export component AppWindow inherits Window {
         }
         set-crossfade(on, seconds) => {
             root.set-crossfade(on, seconds);
+        }
+        set-ui-scale(percent) => {
+            root.set-ui-scale(percent);
         }
         set-history(on) => {
             root.set-history(on);

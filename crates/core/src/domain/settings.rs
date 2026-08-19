@@ -189,6 +189,70 @@ pub const CROSSFADE_MS_KEY: &str = "playback.crossfade_ms";
 /// Where the preloading switch is kept.
 pub const PRELOAD_NEXT_KEY: &str = "playback.preload_next";
 
+/// Where the interface scale is kept, per profile.
+pub const UI_SCALE_KEY: &str = "ui.scale";
+
+/// Where the display's own scale is remembered, for the whole machine.
+///
+/// Not a preference and not per profile: it is what Windows says this screen
+/// is, and it is written down because the interface scale replaces it rather
+/// than multiplying it. Somebody on a 150 per cent display who picks 110 per
+/// cent means "a tenth larger than my screen already draws", not "smaller than
+/// everything else on it".
+pub const DISPLAY_SCALE_KEY: &str = "ui.display_scale";
+
+/// How large the interface is drawn, as a percentage of its design size.
+///
+/// PROJECT_MASTER 2.10 asks for interface scaling and 2.10 also fixes the
+/// layout, which together mean exactly this: everything gets bigger or smaller
+/// together and nothing moves anywhere else. What the window loses at 125 per
+/// cent is room, in the same way a smaller monitor would take it away.
+///
+/// Steps rather than a slider. Four sizes is a choice somebody makes once; a
+/// continuous control is a thing to fiddle with, and every value between the
+/// steps costs a fractional pixel in an interface whose whole geometry is even
+/// numbers.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct InterfaceScale(u16);
+
+impl InterfaceScale {
+    /// The sizes offered, as percentages.
+    pub const STEPS: [u16; 4] = [90, 100, 110, 125];
+
+    /// The design size, and what a profile that has never chosen gets.
+    pub const DEFAULT: Self = Self(100);
+
+    /// Validates a percentage against the steps on offer.
+    pub fn new(percent: u16) -> Result<Self> {
+        if Self::STEPS.contains(&percent) {
+            Ok(Self(percent))
+        } else {
+            Err(CoreError::invalid(
+                "interface scale",
+                format!("{percent}% is not one of the sizes offered"),
+            ))
+        }
+    }
+
+    /// The percentage, for storing and for showing.
+    #[must_use]
+    pub const fn percent(self) -> u16 {
+        self.0
+    }
+
+    /// What the window multiplies its own scale by.
+    #[must_use]
+    pub fn factor(self) -> f32 {
+        f32::from(self.0) / 100.0
+    }
+}
+
+impl Default for InterfaceScale {
+    fn default() -> Self {
+        Self::DEFAULT
+    }
+}
+
 /// Per-profile playback preferences.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PlaybackSettings {

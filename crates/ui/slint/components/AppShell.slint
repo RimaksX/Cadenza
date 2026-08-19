@@ -43,6 +43,7 @@ export component AppShell inherits Rectangle {
     in property <bool> dark;
     in property <bool> crossfade-on;
     in property <int> crossfade-seconds;
+    in property <int> ui-scale;
     in property <bool> history-on;
     in property <[FolderRowData]> folders;
     in property <[ProfileRowData]> profiles;
@@ -173,6 +174,7 @@ export component AppShell inherits Rectangle {
     callback judge-radio(bool);
     callback set-theme(bool);
     callback set-crossfade(bool, int);
+    callback set-ui-scale(int);
     callback set-history(bool);
     callback add-folder();
     callback use-suggested-folder();
@@ -342,6 +344,7 @@ export component AppShell inherits Rectangle {
                 dark: root.dark;
                 crossfade-on: root.crossfade-on;
                 crossfade-seconds: root.crossfade-seconds;
+                ui-scale: root.ui-scale;
                 history-on: root.history-on;
                 folders: root.folders;
                 suggested: root.suggested-folder;
@@ -352,6 +355,9 @@ export component AppShell inherits Rectangle {
                 }
                 set-crossfade(on, seconds) => {
                     root.set-crossfade(on, seconds);
+                }
+                set-ui-scale(percent) => {
+                    root.set-ui-scale(percent);
                 }
                 set-history(on) => {
                     root.set-history(on);

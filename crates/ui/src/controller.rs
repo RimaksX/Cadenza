@@ -19,7 +19,7 @@ use cadenza_core::domain::profile::Profile;
 use cadenza_core::domain::queue::RepeatMode;
 use cadenza_core::domain::radio::{MIN_BATCH_SIZE, RadioFeedback};
 use cadenza_core::domain::review::ReviewResolution;
-use cadenza_core::domain::settings::CrossfadeDuration;
+use cadenza_core::domain::settings::{CrossfadeDuration, InterfaceScale};
 use cadenza_core::domain::value_objects::theme_mode::ThemeMode;
 use cadenza_core::domain::value_objects::{DurationMs, GainDb, PlaybackPosition, Volume};
 use cadenza_core::{CoreError, Result};
@@ -77,6 +77,11 @@ pub struct Controller {
     /// Whose cover the player bar is showing, so it is read from disk when the
     /// track changes rather than four times a second.
     showing_cover: RefCell<String>,
+    /// The scale the operating system asked for, before anybody chose one.
+    ///
+    /// Captured once, because asking the window afterwards returns whatever we
+    /// last told it — and a listener who picks 110% twice would then get 121%.
+    base_scale: Cell<f32>,
     /// The playlist whose page is open, if one is.
     ///
     /// Held because playing a track from a playlist has to say which playlist:
@@ -118,6 +123,7 @@ impl Controller {
             profile,
             query: RefCell::new(String::new()),
             showing_cover: RefCell::new(String::new()),
+            base_scale: Cell::new(1.0),
             open_playlist: RefCell::new(None),
             eq_bands: Rc::new(VecModel::default()),
             spectrum: Rc::new(VecModel::from(vec![0.0; SPECTRUM_BARS])),
@@ -130,6 +136,9 @@ impl Controller {
     /// Fills every property from scratch.
     pub fn refresh_all(&self) {
         self.refresh_profile();
+        // After the profile: which size is chosen belongs to whoever is
+        // listening.
+        self.refresh_interface_scale();
         self.refresh_library();
         self.refresh_queue();
         self.refresh_playlists();
@@ -1056,6 +1065,67 @@ impl Controller {
             .unwrap_or_default();
 
         window.set_now_cover(cover);
+    }
+
+    /// Remembers what scale this display asked for.
+    ///
+    /// Called once, before anything has been drawn at a scale of our choosing.
+    pub fn note_display_scale(&self, scale: f32) {
+        self.base_scale.set(scale);
+    }
+
+    /// Shows which size is chosen, and remembers what the display asks for.
+    ///
+    /// The size itself is applied where a window is *made* rather than here —
+    /// the toolkit accepts a scale set on a live window and then overwrites it
+    /// when the window is shown, which was measured twice (`MASTER_ISSUES` 64).
+    ///
+    /// The display's own scale is written down only while nothing is
+    /// overriding it, which is exactly when the chosen size is 100 per cent:
+    /// with an override in force, what the window reports is that override.
+    pub fn refresh_interface_scale(&self) {
+        let Some(window) = self.window.upgrade() else {
+            return;
+        };
+
+        let scale = self.chosen_scale();
+        window.set_ui_scale(i32::from(scale.percent()));
+
+        if scale == InterfaceScale::DEFAULT {
+            let _ = self
+                .services
+                .profiles
+                .note_display_scale(self.base_scale.get());
+        }
+    }
+
+    /// How large this listener has asked for the interface to be drawn.
+    fn chosen_scale(&self) -> InterfaceScale {
+        self.profile
+            .borrow()
+            .as_ref()
+            .map(|profile| profile.id)
+            .and_then(|id| self.services.profiles.interface_scale(id).ok())
+            .unwrap_or_default()
+    }
+
+    /// Chooses how large the interface is drawn, from the next start.
+    pub fn set_interface_scale(&self, percent: i32) {
+        let Some(profile) = self.profile.borrow().as_ref().map(|profile| profile.id) else {
+            return;
+        };
+
+        self.run(|| {
+            let scale = InterfaceScale::new(u16::try_from(percent).unwrap_or_default())?;
+            self.services.profiles.set_interface_scale(profile, scale)
+        });
+        self.refresh_interface_scale();
+
+        // Said rather than implied. A control that appears to do nothing is
+        // worse than one that says when it will.
+        if let Some(window) = self.window.upgrade() {
+            window.set_message("the new size is drawn when Cadenza next starts".into());
+        }
     }
 
     /// Whether something from outside is being held over the window.

@@ -66,6 +66,9 @@ pub fn run(services: UiServices) -> Result<()> {
     }));
 
     let controller = Rc::new(Controller::new(services, window.as_weak()));
+    // Before anything is drawn at a scale of our own choosing, so that what the
+    // display asked for is still what the window is reporting.
+    controller.note_display_scale(window.window().scale_factor());
     controller.refresh_all();
 
     wire(&window, &controller);
@@ -180,6 +183,11 @@ fn wire(window: &AppWindow, controller: &Rc<Controller>) {
     window.on_remove_from_playlist({
         let controller = Rc::clone(controller);
         move |position| controller.remove_from_playlist(position)
+    });
+
+    window.on_set_ui_scale({
+        let controller = Rc::clone(controller);
+        move |percent| controller.set_interface_scale(percent)
     });
 
     window.on_choose_cover({

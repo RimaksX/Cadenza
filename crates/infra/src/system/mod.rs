@@ -3,6 +3,7 @@
 pub mod clock;
 pub mod file_log;
 pub mod folder_picker;
+pub mod interface_scale;
 pub mod paths;
 pub mod windows_priority;
 

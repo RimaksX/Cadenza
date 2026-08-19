@@ -124,8 +124,12 @@ export component TrackList inherits Rectangle {
                 alignment: space-between;
                 spacing: Theme.space-5;
 
+                // The heading is what gives way when the window is narrow. It
+                // can be read short; a search field pushed off the edge cannot
+                // be used at all.
                 VerticalLayout {
                     alignment: center;
+                    horizontal-stretch: 1;
 
                     Text {
                         text: root.heading;
@@ -134,6 +138,7 @@ export component TrackList inherits Rectangle {
                         height: 56px;
                         color: Theme.ink-0;
                         vertical-alignment: bottom;
+                        overflow: elide;
                     }
                 }
 

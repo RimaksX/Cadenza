@@ -6,7 +6,7 @@ use crate::application::context::{ACTIVE_PROFILE_KEY, AppContext};
 use crate::domain::ids::ProfileId;
 use crate::domain::ports::event_bus::DomainEvent;
 use crate::domain::profile::{Profile, ProfileName};
-use crate::domain::settings::SettingValue;
+use crate::domain::settings::{DISPLAY_SCALE_KEY, InterfaceScale, SettingValue, UI_SCALE_KEY};
 use crate::domain::value_objects::ThemeMode;
 use crate::{CoreError, Result};
 
@@ -80,6 +80,64 @@ impl ProfileService {
         profile.history_enabled = enabled;
         self.context.profiles.save(&profile)?;
         Ok(profile)
+    }
+
+    /// How large this profile draws the interface.
+    ///
+    /// A stored value that is not one of the steps on offer is treated as
+    /// never having chosen: the sizes are a closed set, and a row edited by
+    /// hand is not a reason to draw the window at 400 per cent.
+    pub fn interface_scale(&self, id: ProfileId) -> Result<InterfaceScale> {
+        let stored = self.context.settings.profile_get(id, UI_SCALE_KEY)?;
+        Ok(stored
+            .and_then(|value| value.as_integer().ok())
+            .and_then(|percent| u16::try_from(percent).ok())
+            .and_then(|percent| InterfaceScale::new(percent).ok())
+            .unwrap_or_default())
+    }
+
+    /// What the display itself scales by, as last seen by a window.
+    ///
+    /// One for the machine rather than one per profile, and defaulting to 1
+    /// where nothing has been seen yet.
+    pub fn display_scale(&self) -> Result<f32> {
+        let stored = self.context.settings.app_get(DISPLAY_SCALE_KEY)?;
+        Ok(stored
+            .and_then(|value| value.as_float().ok())
+            .map(|scale| scale as f32)
+            .filter(|scale| scale.is_finite() && *scale > 0.0)
+            .unwrap_or(1.0))
+    }
+
+    /// Writes down what the display scales by.
+    ///
+    /// Only worth calling while the interface is drawing at the display's own
+    /// scale: with a chosen scale in force, what a window reports is that
+    /// choice rather than the display, and storing it would multiply the choice
+    /// by itself at the next start.
+    pub fn note_display_scale(&self, scale: f32) -> Result<()> {
+        if !scale.is_finite()
+            || scale <= 0.0
+            || (scale - self.display_scale()?).abs() < f32::EPSILON
+        {
+            return Ok(());
+        }
+
+        self.context.settings.app_set(
+            DISPLAY_SCALE_KEY,
+            &SettingValue::Float(f64::from(scale)),
+            self.context.now(),
+        )
+    }
+
+    /// Chooses how large this profile draws the interface.
+    pub fn set_interface_scale(&self, id: ProfileId, scale: InterfaceScale) -> Result<()> {
+        self.context.settings.profile_set(
+            id,
+            UI_SCALE_KEY,
+            &SettingValue::Integer(i64::from(scale.percent())),
+            self.context.now(),
+        )
     }
 
     /// Changes the appearance a profile uses.

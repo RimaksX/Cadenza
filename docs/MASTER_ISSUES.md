@@ -1530,3 +1530,55 @@ turns a pile of warnings into a session somebody can read.
 
 Verified by running the window and reading the file it wrote:
 `2026-08-19 14:40:46 INFO  Cadenza 0.1.0 started as Sasha`.
+
+## 64. Interface scaling, and three things the minimum window size was hiding
+
+The last of M15 that could be built without a decision about Slint. Four
+findings, three of them from actually rendering the window at the size it
+claims to support.
+
+**Scaling is not responsiveness.** PROJECT_MASTER 2.10 asks for both interface
+scaling *and* a fixed layout, which together mean one thing: everything gets
+bigger or smaller together and nothing moves anywhere else. The owner was asked
+and chose exactly that, plus a look at what happens at the minimum size.
+
+**A live scale does not survive.** Slint's public
+`WindowEvent::ScaleFactorChanged` is accepted and then overwritten when the
+window is shown — measured twice, once applying it before the loop started and
+once from a timer after it had. What does work is `SLINT_SCALE_FACTOR`, which
+the backend reads while building the window. So the choice is applied by the
+composition root before the toolkit is touched, and a listener who changes it
+sees it at the next start — which the settings screen says in as many words,
+because a control that appears to do nothing is worse than one that says when
+it will.
+
+`std::env::set_var` is unsafe in edition 2024, so it lives in `infra`, which is
+the only crate here without a blanket ban on it. It is called from `main`,
+before any thread of this application exists — the one place in a program where
+setting an environment variable is not a data race.
+
+**The scale replaces the display's, so the display's is multiplied in.** Picking
+110 per cent on a screen already drawing at 150 has to mean "a tenth larger than
+everything else on this screen", not "smaller than all of it". The display's own
+scale is written down each run *while nothing is overriding it*, which is
+exactly when the chosen size is 100 per cent.
+
+**And what rendering at the minimum turned up.** The floor was 880 by 560 and
+had never been drawn at:
+
+- the search field hung off the right edge, because the page heading pushed it
+  there — the heading now yields and elides, since a heading read short is still
+  read and a search field off the edge cannot be used at all;
+- the player bar was pushed out of the bottom of the window entirely;
+- and the track columns collapsed to one letter each.
+
+The floor is now 1000 by 720, which is what the interface was measured to need
+rather than what somebody hoped it would. Nothing was rearranged to make a
+smaller window work — that is the responsiveness 2.10 refuses.
+
+**One defect found on the way, older than any of this.** The settings screen's
+left column was laid out at its own *preferred* width and clipped: the flickable
+holding it had a stated `viewport-height` and no `viewport-width`, so it took
+the width of the widest thing in it and cut off what fell past the column edge —
+which is why half of "SWITCH" and "LISTENING" were missing. Stated, and the
+column fits again.

@@ -194,6 +194,8 @@ export component SettingsView inherits Rectangle {
     in property <bool> dark;
     in property <bool> crossfade-on;
     in property <int> crossfade-seconds;
+    /// How large the interface is drawn, as a percentage.
+    in property <int> ui-scale;
     in property <bool> history-on;
     in property <[FolderRowData]> folders;
     in property <[ProfileRowData]> profiles;
@@ -205,6 +207,7 @@ export component SettingsView inherits Rectangle {
     callback new-profile();
     callback set-theme(bool);
     callback set-crossfade(bool, int);
+    callback set-ui-scale(int);
     callback set-history(bool);
     callback add-folder();
     callback use-suggested();
@@ -270,6 +273,12 @@ export component SettingsView inherits Rectangle {
                 scroller := Flickable {
                     width: parent.width;
                     height: parent.height;
+                    // Stated, not inferred. Left to itself a flickable takes the
+                    // *preferred* width of what is in it, which for a column of
+                    // rows is as wide as the widest of them wants to be — so the
+                    // column laid itself out past its own edge and clipped what
+                    // fell off (MASTER_ISSUES 64).
+                    viewport-width: self.width;
                     viewport-height: choices.preferred-height;
 
                     choices := VerticalLayout {
@@ -387,6 +396,39 @@ export component SettingsView inherits Rectangle {
 
                     SectionNote {
                         text: "Seconds. Playlists and radio never fade.";
+                    }
+                }
+
+                VerticalLayout {
+                    spacing: Theme.space-2;
+
+                    SectionLabel {
+                        text: "SIZE";
+                    }
+                    SectionNote {
+                        text: "How large everything is drawn.";
+                    }
+
+                    HorizontalLayout {
+                        alignment: start;
+                        spacing: Theme.space-2;
+
+                        // Four across a column of 320, with the spacing between
+                        // them: 4 x 74 + 3 x 8 comes out exactly, where four of
+                        // the usual 100 would have pushed the last step off the
+                        // edge — which is what it did.
+                        for percent in [90, 100, 110, 125]: TextButton {
+                            label: percent + "%";
+                            fixed-width: 74px;
+                            selected: root.ui-scale == percent;
+                            pressed => {
+                                root.set-ui-scale(percent);
+                            }
+                        }
+                    }
+
+                    SectionNote {
+                        text: "Drawn at the new size when Cadenza next starts.";
                     }
                 }
 
