@@ -362,11 +362,17 @@ impl LibraryService {
     }
 
     /// Scans every enabled folder of the active profile.
+    ///
+    /// And then looks for what the scan could not: a scan only ever meets files
+    /// that exist, so a deletion made while Cadenza was closed is invisible to
+    /// it. `refresh_missing` is the pass written for that, and until now
+    /// nothing called it at all.
     pub fn scan_all(&self) -> Result<ScanReport> {
         let mut total = ScanReport::default();
         for folder in self.folders()?.iter().filter(|folder| folder.enabled) {
             total.absorb(self.scan_folder(folder)?);
         }
+        self.refresh_missing()?;
         Ok(total)
     }
 
@@ -629,6 +635,7 @@ impl LibraryService {
     pub fn synchronise(&self, folder: &ProfileFolder) -> Result<ScanReport> {
         let profile_id = self.context.require_active_profile()?;
         let mut report = self.adopt_folder(folder)?;
+        self.refresh_missing()?;
 
         let now = self.context.now();
         for summary in self.ports.tracks.summaries_for_profile(profile_id)? {
@@ -863,6 +870,19 @@ impl LibraryService {
             if self.awaiting_decision(profile_id, file.id)? {
                 return Ok(Imported::Duplicate);
             }
+
+            // Standing here is proof the file answered: something just read its
+            // size and its modification time. A row still marked missing from
+            // an earlier disappearance has to be corrected now, because nothing
+            // else on this path writes the state — which is how a file that had
+            // come back stayed unplayable through a scan, a synchronise and a
+            // folder removed and added again (MASTER_ISSUES 69).
+            if !file.state.is_playable() {
+                self.ports
+                    .media_files
+                    .set_state(file.id, FileState::Available, now)?;
+            }
+
             return self.ensure_in_library(profile_id, file, now, revive);
         }
 

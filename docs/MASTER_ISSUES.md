@@ -1781,3 +1781,40 @@ restore what it had just dropped. Only what is on disk can come back.
 
 And one thing found by rendering it: this machine already had two tracks taken
 out, months of "why is that not there" waiting in a list nobody could see.
+
+## 69. A file that came back, and the pass that nobody ran
+
+The owner hit a track that would not play: *"is missing — the library knows it
+but the file does not answer"*, with the file sitting right there on disk.
+Neither a scan, nor a synchronise, nor removing the folder and adding it again
+made any difference.
+
+Two faults, one on top of the other.
+
+**The catalogue state is written on the slow path only.** A scan that meets a
+file it already knows, unchanged since last time, takes the fast path: one stat
+and one indexed lookup, then straight to the library check. That path never
+touched `file_state`. So a row marked missing — by the watcher, which is what
+sees a file disappear, and Windows reports an ordinary copy-over as a removal
+followed by a creation — stayed marked missing through every later scan. The
+library listed the track, the catalogue said it was gone, and playback believed
+the catalogue.
+
+**And the pass written to fix exactly this had no callers.** `refresh_missing`
+walks the library, asks the disk about each file and corrects the verdict in
+both directions. Its own documentation says "running this after a scan is what
+closes that gap". Nothing ran it — not the scan, not the command line, not the
+window. It had been dead since M4.
+
+**Chosen:** both. Standing in the fast path is proof the file answered —
+something has just read its size and its modification time — so a row that still
+says missing is corrected there and then. And `scan_all` and `synchronise` end
+by running `refresh_missing`, which is the only way a deletion made while
+Cadenza was closed can be noticed at all, because a scan can only ever meet
+files that exist.
+
+Pinned by a test that fails without the first half: a file removed as the
+watcher would report it, then met again by a scan, must come back playable.
+
+Verified on the owner's own library: the offending row was `missing` before the
+fix and `ok` after one start, without anybody scanning anything by hand.

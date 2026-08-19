@@ -1190,3 +1190,53 @@ fn synchronising_brings_back_what_is_there_and_drops_what_is_not() {
     let settled = harness.library.sync_preview(&folder).expect("a plan");
     assert!(settled.is_empty(), "{settled:?}");
 }
+
+/// A file that went away and came back plays again.
+///
+/// The defect this pins down: nothing on the fast path of a scan wrote the
+/// catalogue state, and the pass that does was called by nobody — so a track
+/// whose file had returned stayed unplayable through a scan, a synchronise, and
+/// the folder removed and added again (`MASTER_ISSUES` 69).
+#[test]
+fn a_file_that_came_back_is_playable_again() {
+    let harness = harness("came-back");
+    let path = write_wav(&harness.music, "returning.wav", 1, 59);
+    harness.scan(true);
+
+    let track = harness
+        .library
+        .summaries()
+        .expect("the library")
+        .into_iter()
+        .next()
+        .expect("imported");
+
+    // What the watcher does when a file disappears — a rename, a move, a copy
+    // that replaces it — leaves the catalogue saying so.
+    harness
+        .library
+        .apply_change(&FileChange::Removed(path.clone()))
+        .expect("the removal is applied");
+    assert_eq!(
+        harness
+            .media_files
+            .get(track.media_file_id)
+            .expect("the row")
+            .expect("still catalogued")
+            .state,
+        FileState::Missing
+    );
+
+    // The file is right where it was. A scan meets it, and meeting it is proof.
+    harness.scan(true);
+    assert_eq!(
+        harness
+            .media_files
+            .get(track.media_file_id)
+            .expect("the row")
+            .expect("still catalogued")
+            .state,
+        FileState::Available,
+        "a file the scan just read cannot still be missing"
+    );
+}
