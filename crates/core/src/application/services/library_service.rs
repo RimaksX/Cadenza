@@ -67,6 +67,9 @@ pub struct LibraryPorts {
 }
 
 /// What one scan did.
+///
+/// Counts rather than a list: a scan of five thousand files that reported each
+/// one would be a report nobody reads.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct ScanReport {
     /// Files with a supported extension that were looked at.
@@ -90,6 +93,18 @@ enum Imported {
     Updated,
     Unchanged,
     Duplicate,
+}
+
+impl ScanReport {
+    /// Adds another report to this one.
+    fn absorb(&mut self, other: Self) {
+        self.seen += other.seen;
+        self.added += other.added;
+        self.updated += other.updated;
+        self.unchanged += other.unchanged;
+        self.duplicates += other.duplicates;
+        self.failed += other.failed;
+    }
 }
 
 /// Scanning and import.
@@ -207,6 +222,61 @@ impl LibraryService {
         self.adopt_folder(&folder)
     }
 
+    /// What dropping files and folders onto the window means.
+    ///
+    /// A folder is an offer of somewhere to keep looking: it joins the library
+    /// and is scanned, which is what choosing one through the chooser does. A
+    /// file is an offer of one recording, and it is taken where it lies — a
+    /// listener dragging in a single track is not asking for everything else in
+    /// the directory it happened to be in.
+    ///
+    /// Anything else — a text file, a picture, a path that vanished between the
+    /// drop and this call — is passed over in silence. A drop is a gesture with
+    /// no undo and often no aim; refusing the whole handful because one of them
+    /// was a cover image would be the wrong lesson to teach about it.
+    pub fn accept_drop(&self, paths: &[PathBuf]) -> Result<ScanReport> {
+        let profile_id = self.context.require_active_profile()?;
+        let mut total = ScanReport::default();
+
+        for path in paths {
+            let Ok(metadata) = self.ports.files.metadata(path) else {
+                continue;
+            };
+
+            if metadata.is_dir {
+                let folder = self.add_folder(path, true)?;
+                total.absorb(self.adopt_folder(&folder)?);
+                continue;
+            }
+
+            if !has_supported_extension(path) {
+                continue;
+            }
+
+            total.seen += 1;
+
+            // Revived rather than merely imported, for the same reason
+            // `adopt_folder` revives: dragging a file in is a newer decision
+            // about it than having taken it out once was.
+            match self.import_file(profile_id, path, metadata.size, metadata.modified, true) {
+                Ok(Imported::Added) => total.added += 1,
+                Ok(Imported::Updated) => total.updated += 1,
+                Ok(Imported::Unchanged) => total.unchanged += 1,
+                Ok(Imported::Duplicate) => total.duplicates += 1,
+                Err(err) => {
+                    total.failed += 1;
+                    self.record_failure(profile_id, path, &err)?;
+                }
+            }
+        }
+
+        if total.added + total.updated + total.duplicates > 0 {
+            self.context.events.publish(DomainEvent::LibraryChanged);
+        }
+
+        Ok(total)
+    }
+
     /// Stops scanning a folder. Files already imported stay in the library.
     pub fn remove_folder(&self, folder: &ProfileFolder) -> Result<()> {
         self.context.settings.delete_folder(folder)?;
@@ -220,13 +290,7 @@ impl LibraryService {
     pub fn scan_all(&self) -> Result<ScanReport> {
         let mut total = ScanReport::default();
         for folder in self.folders()?.iter().filter(|folder| folder.enabled) {
-            let report = self.scan_folder(folder)?;
-            total.seen += report.seen;
-            total.added += report.added;
-            total.updated += report.updated;
-            total.unchanged += report.unchanged;
-            total.duplicates += report.duplicates;
-            total.failed += report.failed;
+            total.absorb(self.scan_folder(folder)?);
         }
         Ok(total)
     }

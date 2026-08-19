@@ -1038,3 +1038,67 @@ fn a_folder_added_is_a_folder_watched() {
         "a folder taken out of the library is no longer watched"
     );
 }
+
+/// A track dragged onto the window is taken where it lies — the listener is
+/// offering one recording, not the directory it happened to be sitting in.
+#[test]
+fn a_file_dropped_on_the_window_is_taken_where_it_lies() {
+    let harness = harness("drop-file");
+    harness.scan(true);
+    assert!(harness.titles().is_empty());
+
+    let elsewhere = harness
+        .music
+        .parent()
+        .expect("a parent directory")
+        .join("elsewhere");
+    std::fs::create_dir_all(&elsewhere).expect("somewhere else");
+    let dropped = write_wav(&elsewhere, "dropped.wav", 1, 59);
+
+    let report = harness
+        .library
+        .accept_drop(&[dropped, elsewhere.join("cover.jpg")])
+        .expect("the drop");
+
+    assert_eq!(report.added, 1, "the track arrived");
+    assert_eq!(harness.titles(), vec!["dropped"]);
+    assert!(
+        harness.library.folders().expect("folders").len() == 1,
+        "a file adds no folder to the library"
+    );
+}
+
+/// A folder dragged onto the window is an offer of somewhere to keep looking,
+/// which is what choosing one through the chooser means.
+#[test]
+fn a_folder_dropped_on_the_window_joins_the_library() {
+    let harness = harness("drop-folder");
+
+    let more = harness
+        .music
+        .parent()
+        .expect("a parent directory")
+        .join("more-music");
+    std::fs::create_dir_all(&more).expect("another folder");
+    write_wav(&more, "inside.wav", 1, 59);
+
+    let report = harness
+        .library
+        .accept_drop(std::slice::from_ref(&more))
+        .expect("the drop");
+
+    assert_eq!(report.added, 1);
+    assert!(
+        harness
+            .library
+            .folders()
+            .expect("folders")
+            .iter()
+            .any(|folder| folder.path == more),
+        "the folder is part of the library now"
+    );
+    assert!(
+        harness.watcher.paths().contains(&more),
+        "and it is watched, like any other folder in it"
+    );
+}

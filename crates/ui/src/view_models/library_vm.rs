@@ -1,5 +1,6 @@
 //! Turning a library into rows.
 
+use cadenza_core::application::services::ScanReport;
 use cadenza_core::domain::track::TrackSummary;
 use cadenza_core::domain::value_objects::DurationMs;
 
@@ -210,5 +211,83 @@ mod tests {
     #[test]
     fn an_empty_library_says_so_rather_than_showing_a_zero() {
         assert_eq!(summary_line(&[]), "no tracks yet");
+    }
+}
+
+/// What a drop did, in the words the player bar has room for.
+///
+/// Named counts rather than a total, because the four outcomes mean different
+/// things to somebody who has just let go of a handful of files: what arrived,
+/// what was already here, and what could not be read and is therefore waiting
+/// on the decisions screen.
+pub fn taken_in(report: &ScanReport) -> String {
+    let mut said = Vec::new();
+
+    if report.added > 0 {
+        said.push(format!("{} {} added", report.added, tracks(report.added)));
+    }
+    if report.updated > 0 {
+        said.push(format!("{} re-read", report.updated));
+    }
+    let known = report.duplicates + report.unchanged;
+    if known > 0 {
+        said.push(format!("{known} already here"));
+    }
+    if report.failed > 0 {
+        said.push(format!(
+            "{} could not be read — see Decisions",
+            report.failed
+        ));
+    }
+
+    if said.is_empty() {
+        return "nothing there to add".to_owned();
+    }
+    said.join(" · ")
+}
+
+/// "track" or "tracks", so a count reads as a sentence.
+fn tracks(count: usize) -> &'static str {
+    if count == 1 { "track" } else { "tracks" }
+}
+
+#[cfg(test)]
+mod drop_tests {
+    use super::taken_in;
+    use cadenza_core::application::services::ScanReport;
+
+    #[test]
+    fn a_drop_says_what_it_did() {
+        assert_eq!(
+            taken_in(&ScanReport {
+                seen: 1,
+                added: 1,
+                ..ScanReport::default()
+            }),
+            "1 track added"
+        );
+
+        assert_eq!(
+            taken_in(&ScanReport {
+                seen: 3,
+                added: 2,
+                duplicates: 1,
+                ..ScanReport::default()
+            }),
+            "2 tracks added · 1 already here"
+        );
+
+        // Dropping something that is not music at all, or a folder with no
+        // music in it: an answer, not silence.
+        assert_eq!(taken_in(&ScanReport::default()), "nothing there to add");
+
+        assert_eq!(
+            taken_in(&ScanReport {
+                seen: 1,
+                failed: 1,
+                ..ScanReport::default()
+            }),
+            "1 could not be read — see Decisions"
+        );
     }
 }

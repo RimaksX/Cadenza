@@ -777,6 +777,7 @@ name = "cadenza-ui"
 version = "0.1.0"
 dependencies = [
  "cadenza-core",
+ "i-slint-backend-winit",
  "slint",
  "slint-build",
 ]

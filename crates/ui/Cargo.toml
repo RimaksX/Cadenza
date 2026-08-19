@@ -17,5 +17,11 @@ cadenza-core.workspace = true
 # toolchain for no feature this milestone needs.
 slint = "1.13"
 
+# The same backend Slint would have chosen, asked for by name so that a handler
+# can be hung on its event loop. Files dragged from the desktop arrive as winit
+# events that Slint itself does not look at (MASTER_ISSUES 57); this is the
+# published seam for reaching them, and it costs no `unsafe` and no Win32.
+i-slint-backend-winit = "1.13"
+
 [build-dependencies]
 slint-build = "1.13"

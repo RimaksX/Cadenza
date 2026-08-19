@@ -1222,3 +1222,61 @@ error and the window never opens if it does not. What is not verified
 automatically: a file dropped into a folder while the window is open reaching the
 list on screen, because that needs a real filesystem event delivered to a running
 window. It is checked by doing it.
+
+## 57. Files from the desktop, and the seam that made Win32 unnecessary
+
+Dropping a track onto the window did nothing, and the owner asked for it to
+stop being silent — an effect while something is being carried over the window,
+not just a result afterwards.
+
+**Why nothing happened.** Slint's own drag and drop is internal: a `DragArea`
+hands a string to a `DropArea` in the same window. A file from the desktop is a
+different thing entirely. winit reports it — `HoveredFile`, `DroppedFile`,
+`HoveredFileCancelled`, and on Windows winit implements `IDropTarget` itself —
+but `i-slint-backend-winit` never looks at those variants, in 1.13 or in 1.17.
+So the window could not know.
+
+The owner approved the expensive answer: the `windows` crate, `RegisterDragDrop`
+and the project's first `unsafe`. Reading the backend before writing any of it
+turned up a published seam that costs neither.
+`Backend::builder().with_custom_application_handler(…)` hands every winit event
+to a handler before Slint sees it, and returns whether Slint should see it at
+all. That is a supported API of a crate already in the tree — one dependency
+line, no `unsafe`, no Win32, and the same events Win32 would have delivered.
+
+**Chosen:** the seam. Recorded because permission had been given for the other
+road and was deliberately not taken: an approval to spend is not an obligation
+to.
+
+**How it reaches the window.** The handler runs inside the event loop, which is
+the worst place in the application to start a repaint from, so it does nothing
+but drop what it sees into a box. The frame timer — already running at twenty a
+second for the visualiser — reads that box. Twenty rather than the transport's
+four because this one answers a pointer: a hand holding a file over a window
+that takes a quarter of a second to admit it reaches for the title bar instead.
+
+**What a drop means** is a rule, so it lives in `LibraryService::accept_drop`. A
+folder is an offer of somewhere to keep looking: it joins the library and is
+scanned, which is exactly what choosing one through the chooser does — and it is
+watched from that moment, like any other folder in it. A file is an offer of one
+recording, taken where it lies: somebody dragging one track in is not asking for
+everything else in the directory it happened to be sitting in. Anything else — a
+cover image, a text file, a path that vanished between the drop and the call —
+is passed over in silence, because a drop is a gesture with no aim and refusing
+the whole handful over one stray file would be the wrong lesson to teach.
+
+A file is imported with `revive`, for the same reason `adopt_folder` revives:
+dragging a file in is a newer decision about it than having once taken it out.
+
+**The import runs on a thread of its own.** A dropped folder can be five
+thousand files, and hashing them on the event loop would freeze the interface
+that is meanwhile drawing a progress line for the music still playing. The
+sentence that comes back — "2 tracks added · 1 already here" — returns to the
+loop through `upgrade_in_event_loop`, because a window may only be touched from
+the thread that runs it.
+
+What is verified: the counting sentence, that a dropped file is imported where it
+lies and a dropped folder joins the library and is watched, and that the overlay
+draws — rendered by holding the source of the flag open, since a real drag needs
+a real pointer. What no test covers is a drag from Explorer reaching the window;
+that is checked by doing it.

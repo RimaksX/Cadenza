@@ -29,6 +29,7 @@ use cadenza_core::domain::profile::Profile;
 
 mod app;
 mod controller;
+mod file_drop;
 pub mod view_models;
 
 // Brings in the types generated from `slint/app_window.slint`: the window

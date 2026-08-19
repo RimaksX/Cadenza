@@ -5,7 +5,9 @@
 //! method here is a translation and a call (PROJECT_MASTER 4.3).
 
 use std::cell::{Cell, RefCell};
+use std::path::PathBuf;
 use std::rc::Rc;
+use std::sync::Arc;
 
 use cadenza_core::domain::eq::{EqBand, EqMode};
 use cadenza_core::domain::ids::{
@@ -986,6 +988,42 @@ impl Controller {
     /// played, a folder is scanned, a preset is renamed. Asking on arrival
     /// costs one query on a keypress and closes the whole class rather than
     /// the one case somebody happened to notice.
+    /// Whether something from outside is being held over the window.
+    ///
+    /// Written only when it changes: this is asked twenty times a second, and
+    /// every write to a property is a repaint of whatever reads it.
+    pub fn carrying_files(&self, carrying: bool) {
+        let Some(window) = self.window.upgrade() else {
+            return;
+        };
+        if window.get_dropping() != carrying {
+            window.set_dropping(carrying);
+        }
+    }
+
+    /// Takes in what was let go of over the window.
+    ///
+    /// On a thread of its own. A folder dropped in can be five thousand files,
+    /// and hashing them on the event loop would freeze the interface — the one
+    /// that is meanwhile drawing a progress line for the music still playing.
+    /// What comes back is a sentence in the player bar; the list itself
+    /// refreshes the way any other change behind the listener's back does.
+    pub fn accept_drop(&self, paths: Vec<PathBuf>) {
+        let library = Arc::clone(&self.services.library);
+        let window = self.window.clone();
+
+        std::thread::spawn(move || {
+            let said = match library.accept_drop(&paths) {
+                Ok(report) => library_vm::taken_in(&report),
+                Err(err) => err.to_string(),
+            };
+
+            // Back on the event loop to say so: a window may only be touched
+            // from the thread that runs it.
+            let _ = window.upgrade_in_event_loop(move |window| window.set_message(said.into()));
+        });
+    }
+
     /// Re-reads what a change nobody in this window made could have altered.
     ///
     /// Three readings rather than all nine: a file appearing or vanishing moves

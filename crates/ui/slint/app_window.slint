@@ -47,6 +47,8 @@ export component AppWindow inherits Window {
     min-height: 560px;
 
     // Down: what to draw.
+    /// True while files from outside are being held over the window.
+    in property <bool> dropping;
     in property <[TrackRowData]> tracks;
     in property <string> library-summary;
     in property <string> empty-hint;
@@ -423,6 +425,61 @@ export component AppWindow inherits Window {
         }
         reset-eq => {
             root.reset-eq();
+        }
+    }
+
+    // Over everything, including the player bar, because the window as a whole
+    // is what a file is being offered to. Drawn last so it stands above the
+    // shell rather than inside a page that could be scrolled away from it.
+    Rectangle {
+        width: root.width;
+        height: root.height;
+        background: Theme.bg-0.with-alpha(0.96);
+
+        // Faded in rather than switched on, like every other appearance here.
+        // Kept in the tree rather than made conditional so that it can be: it
+        // holds no touch area, so while it is invisible it is also untouchable.
+        opacity: root.dropping ? 1.0 : 0.0;
+        animate opacity {
+            duration: 120ms;
+            easing: ease-out;
+        }
+
+        Rectangle {
+            x: Theme.space-6;
+            y: Theme.space-6;
+            width: root.width - Theme.space-6 * 2;
+            height: root.height - Theme.space-6 * 2;
+            border-width: 2px;
+            border-color: Theme.ink-2;
+            border-radius: Theme.radius;
+            background: transparent;
+        }
+
+        VerticalLayout {
+            alignment: center;
+            spacing: Theme.space-2;
+
+            Text {
+                text: "Let go to add this to your library";
+                font-family: Theme.serif;
+                font-size: Theme.text-display;
+                height: 54px;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+                color: Theme.ink-0;
+            }
+
+            Text {
+                text: "A FOLDER JOINS THE LIBRARY · A TRACK IS TAKEN WHERE IT LIES";
+                font-family: Theme.mono;
+                font-size: Theme.text-label;
+                height: 18px;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+                letter-spacing: Theme.label-spacing;
+                color: Theme.ink-mute;
+            }
         }
     }
 

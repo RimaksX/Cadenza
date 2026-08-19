@@ -33,6 +33,11 @@ const FRAME: Duration = Duration::from_millis(50);
 
 /// Opens the window and blocks until it closes.
 pub fn run(services: UiServices) -> Result<()> {
+    // Before the window, because a platform can only be chosen while nothing has
+    // been drawn by one. This is also what puts files dropped from the desktop
+    // within reach at all.
+    let drops = crate::file_drop::install()?;
+
     let window = AppWindow::new().map_err(|err| CoreError::Invalid {
         field: "window",
         reason: format!("the interface could not be created: {err}"),
@@ -88,7 +93,20 @@ pub fn run(services: UiServices) -> Result<()> {
     let frames = Timer::default();
     frames.start(TimerMode::Repeated, FRAME, {
         let controller = Rc::clone(&controller);
-        move || controller.refresh_spectrum()
+        move || {
+            controller.refresh_spectrum();
+
+            // Twenty times a second rather than four: this one answers a
+            // pointer, and a hand holding a file over a window that takes a
+            // quarter of a second to admit it has been reaches for the
+            // title bar instead.
+            controller.carrying_files(drops.hovering());
+
+            let dropped = drops.take();
+            if !dropped.is_empty() {
+                controller.accept_drop(dropped);
+            }
+        }
     });
 
     window.run().map_err(|err| CoreError::Invalid {
