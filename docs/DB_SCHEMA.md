@@ -4,9 +4,12 @@ Normative table and column definitions: `PROJECT_MASTER.json`, section
 `7_Модель_данных`. Do not restate them here — this file records how the schema is
 applied and evolved.
 
-Status: created in M2 as twelve append-only migrations,
-`crates/infra/src/db/migrations/m0001_initial.rs` .. `m0012_review.rs`, with a
-thirteenth added in M5 and a fourteenth in M7.
+Status: eighteen append-only migrations,
+`crates/infra/src/db/migrations/m0001_initial.rs` .. `m0018_radio_feedback.rs`.
+Twelve were created in M2; the rest arrived with the milestone that needed them
+— per-profile genres in M5, `queue_state` and `queue_entries` in M7, the
+built-in equaliser presets and their tone controls in M9, the eight built-in
+moods in M13, and the verdict column on `radio_session_items` in M13.
 
 Three columns from section 7 are deliberately not created, and every instant is
 stored as an integer rather than text. The reasoning is in
@@ -33,8 +36,21 @@ against 12.1, finding 10. Section 7.2 should gain both.
   `analysis_jobs`, `app_settings`) hold physical and technical facts about files.
 - Every table containing user data carries `profile_id`. Profile data is never shared
   across profiles.
-- `play_events` and the `daily_*` aggregates are retained for 30 days when history is
-  enabled, and are not written at all when it is disabled.
+- `play_events` is retained for 30 days when history is enabled, and is not
+  written at all when it is disabled. Retention is enforced by deleting at
+  startup, for every profile, rather than by filtering queries.
+
+## Two things the schema is ready for and nobody writes
+
+`daily_track_stats`, `daily_artist_stats`, `daily_genre_stats` and
+`daily_radio_stats` exist since migration 7 and are never written: the dashboard
+counts straight out of `play_events`, which over thirty days of one listener is
+cheaper than keeping a second copy of the same facts correct (finding 54).
+
+`play_events.radio_session_id` is always `NULL`, so "how much of this station did
+I listen to" cannot be answered yet. The column and its `CHECK` are right; what
+is missing is that `QueueService` knows which station is playing and
+`PlaybackService`, which writes the event, does not.
 
 ## Storage locations
 

@@ -4,8 +4,12 @@ import { LightPalette } from "light.slint";
 // The only thing components are allowed to read.
 //
 // No component names a colour, a size or a font family of its own. That is what
-// makes the design arrive in M15 as an edit to these files rather than a sweep
-// through every view (PROJECT_MASTER 14).
+// keeps any change of look an edit to these files rather than a sweep through
+// every view (PROJECT_MASTER 14).
+//
+// This file is the normative form of the design. What it cannot carry — why a
+// number is that number — is written down in docs/design/DESIGN_PRINCIPLES.md,
+// which describes what shipped rather than briefing something to come.
 
 // One rule holds this file together beyond the values themselves: **every
 // length here is even**. Half of what the interface does is centring one thing

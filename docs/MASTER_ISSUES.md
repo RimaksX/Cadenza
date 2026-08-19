@@ -1040,3 +1040,74 @@ identical after two structural rewrites. Two changes that change nothing are
 evidence about the model, not the markup — and the fourth render, forced after
 touching `build.rs`, ruled out a stale build and left the assumption as the only
 suspect standing.
+
+## 53. The design document is not coming, because the design already happened
+
+`PROJECT_MASTER.json` names `docs/design/DESIGN_PRINCIPLES.md` as the *input* to
+M15: the owner would write the visual language down as markdown, and M15 would
+translate it into tokens. That file has been a seven-line placeholder since M0.
+
+The owner has now settled it: the design was decided screen by screen as the
+windows were built, and what is on screen is what they want. So the document is
+not an input that is late — it is a record that was written in the wrong medium.
+Every decision it would have contained was made, argued and applied already:
+four type sizes and nothing between them, three faces with three jobs, one
+spacing series, even lengths everywhere, a line box tall enough for the face in
+it, one button shape, hover that belongs to the whole object, a line where
+something ends and a fade where it continues, and a single colour in either
+palette.
+
+**Chosen:** `docs/design/DESIGN_PRINCIPLES.md` becomes the written form of the
+design that shipped rather than a brief for one that has not. It is descriptive,
+and `crates/ui/slint/theme/tokens.slint` stays normative — a value lives in one
+place, and that place is the one the compiler reads. The document explains why
+each value is what it is, which is the part a file of numbers cannot carry.
+
+**What this does to M15.** Five of its seven tasks are built and have been for
+several milestones: design tokens, the component library, the EqStar dial, the
+visualiser's style, and both themes. Two are not, and neither is cosmetic —
+both are requirements of section 2.10 in their own right:
+
+- **interface scaling**, which today follows the system DPI and has no setting,
+- **drag-and-drop of tracks inside the application**, which does not exist at
+  all: the only dragging in the interface moves the window, a dial arm and the
+  playhead.
+
+So M15 is not "done because the design is done". It is reduced to those two,
+and they are what its definition of done — "дизайн интегрирован, ничего не
+сломано" — now means. Recorded here rather than assumed, because a milestone
+quietly declared complete over two unbuilt requirements is exactly the kind of
+gap `MASTER_ISSUES` 51 was written about.
+
+Section `16_Текущий_статус` of the master still reads "M0-M5 завершены" with
+`next_step: M6`. That is the master's own field to correct and it is stale by
+nine milestones; it is left alone here and flagged to the owner.
+
+## 54. The daily rollups exist, and nothing writes them
+
+Migration 7 creates `daily_track_stats`, `daily_artist_stats`,
+`daily_genre_stats` and `daily_radio_stats` — section 7.4's aggregates — and M14
+lists "aggregates" among its tasks. M14 did not write them. Both numbers the
+dashboard shows are queried straight out of `play_events`: one row of totals and
+the ten most-played files.
+
+That was the right build and the wrong silence. A rollup is a cache of a query,
+and this query runs over at most thirty days of one listener's events — a few
+thousand rows with an index on `(profile_id, started_at)`. Maintaining four
+tables to avoid it would cost a write on every listen, a second source of truth
+about the same facts, and a repair path for when the two disagree. The
+requirement M14 actually has to meet is that statistics are collected, expire and
+can be switched off, and all three are met.
+
+**Chosen:** the tables stay created and unwritten, and it is written down here
+rather than left for somebody to discover a schema that lies about what is in
+it. They are not dropped: migrations are append-only and a table that costs
+nothing empty is not worth a migration to remove. They get written the day
+something needs an answer that cannot be counted from thirty days of events —
+per-station listening totals are the likeliest candidate, and that one is
+blocked by something else first: `play_events.radio_session_id` is never filled,
+because the queue knows which station is playing and `PlaybackService`, which
+writes the event, does not.
+
+Until then, "aggregates" in M14's task list means the aggregation, not the
+tables.

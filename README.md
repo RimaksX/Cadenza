@@ -13,7 +13,14 @@ cloud accounts, no neural networks.
 
 ## Status
 
-Milestone **M0 — scaffold** complete. See [docs/PROJECT_PLAN.md](docs/PROJECT_PLAN.md).
+Milestones **M0 – M14** complete: everything in the feature list above works, in a
+window with nine screens and two themes. **M15** has two requirements left —
+interface scaling and drag-and-drop of tracks — and **M16**, Windows packaging,
+has not started.
+
+What was actually built in each milestone is in
+[docs/PROJECT_PLAN.md](docs/PROJECT_PLAN.md); every deviation from the master file
+and the reason for it is in [docs/MASTER_ISSUES.md](docs/MASTER_ISSUES.md).
 
 ## Build
 

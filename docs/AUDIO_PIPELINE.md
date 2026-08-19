@@ -20,7 +20,8 @@ Two `TrackStream`s at once through the transition, which is what the mixer is
 for. It sits **before** the ring, on the decode thread, rather than on the
 callback — see `MASTER_ISSUES` 38 for why, and what it costs.
 
-Decoding is Symphonia, output is cpal, resampling is rubato, FFT will be rustfft.
+Decoding is Symphonia, output is cpal, resampling is rubato, FFT is rustfft —
+for the visualiser since M10 and for the analysis window since M11.
 FFmpeg is not used. The channel map is not in section 8.1 and is not optional: a
 file's layout and the device's rarely match, and mono played into one channel is
 a broken speaker as far as the listener can tell.

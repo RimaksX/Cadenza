@@ -104,3 +104,17 @@ fill whatever it is given.
 What it cannot show is everything that needs a live pointer: hover, drag, focus
 and the click itself. Those stay unverified, and are said to be rather than
 implied.
+
+## Testing something that is allowed to be wrong sometimes
+
+Smart shuffle and radio are weighted choices with noise in them, and a test that
+asserts what a weighted choice *will* do asserts more than the system promises.
+Two such tests were written and both were flaky before they were right.
+
+What holds, and is what to assert: which candidate wins **most often** over many
+draws; that a verdict reaches the ranking at all; that a rule stated as a veto
+is never violated. What does not hold: that the best candidate wins a particular
+draw, or that a dislike moves a track by a particular amount.
+
+The seed is the other half of it. Anything random takes one, so a failure can be
+replayed rather than described.

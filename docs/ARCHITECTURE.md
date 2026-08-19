@@ -36,9 +36,17 @@ rules, or contain radio/shuffle/history algorithms.
 
 No async runtime is part of the stack. rusqlite, cpal and Symphonia are blocking
 APIs, and a desktop player has no concurrency load that would justify one. Long-running
-work — scanning, hashing, feature extraction — runs on ordinary threads whose priority is
-lowered through `SystemPriorityPort`. Every port is `Send + Sync` so those threads can
-share it.
+work — scanning, hashing, feature extraction — runs on ordinary threads. Every port is
+`Send + Sync` so those threads can share it.
+
+Those threads stay out of the way by resting rather than by being demoted.
+`SystemPriorityPort` exists and its Windows implementation deliberately does
+nothing: `SetThreadPriority` needs `unsafe` or a dependency taken for one
+function, and neither buys the guarantee that 2.11 actually asks for. What keeps
+background work under about a fifth of the machine is `analysis_policy`'s duty
+cycle — the worker rests four times as long as it works. A share of the clock is
+a promise that does not depend on a scheduler agreeing with it; the port stays as
+the seam for the day the call is worth making.
 
 ## Composition
 

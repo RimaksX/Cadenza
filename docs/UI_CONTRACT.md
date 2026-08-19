@@ -4,7 +4,10 @@ Normative rules: `PROJECT_MASTER.json`, sections `2.10_UI_и_будущий_ди
 `4.3_Правила_UI`.
 
 Status: the shell landed in M6 — window, sidebar, library listing, player bar,
-two themes.
+two themes — and has since gained nine screens: library, queue, playlists, one
+playlist, equaliser, radio, listening, decisions and settings. The visual
+language they share is written down in
+[design/DESIGN_PRINCIPLES.md](design/DESIGN_PRINCIPLES.md).
 
 ## The contract
 
@@ -38,17 +41,26 @@ Native desktop only — no web, WebView, Electron or Tauri. Dark and light theme
 interface scaling, in-app drag-and-drop of tracks, and a fixed (not user-rearrangeable)
 layout.
 
-Of those, M6 delivers both themes — stored on the profile, so a listener's choice
-comes back on the next run — and the fixed layout. Scaling follows the system DPI
-and gains a setting when there is a settings screen to put it on; drag-and-drop
-needs playlists to drag into, which is M7.
+Of those, both themes are delivered — stored on the profile, so a listener's
+choice comes back on the next run — and so is the fixed layout.
+
+Two are still missing, and they are the whole of what M15 has left
+([MASTER_ISSUES 53](MASTER_ISSUES.md)):
+
+- **Scaling** follows the system DPI and has no setting of its own, although
+  there has been a settings screen to put one on since before M14.
+- **Drag-and-drop of tracks** does not exist. The only dragging in the window
+  moves the window itself, an equaliser dial and the playhead. Tracks reach a
+  playlist or the queue through the row menu instead, which works and is not
+  what 2.10 asks for.
 
 ## Where a component may look
 
 Nothing in `slint/` names a colour, a size, a font or a spacing of its own: every
 value comes from `theme/tokens.slint`, which picks between `theme/dark.slint` and
-`theme/light.slint`. That is what makes the design document of M15 an edit to
-three files rather than a sweep through every view (PROJECT_MASTER 14).
+`theme/light.slint`. That is what keeps any change of look an edit to
+three files rather than a sweep through every view (PROJECT_MASTER 14, and
+[DESIGN_INTEGRATION.md](DESIGN_INTEGRATION.md)).
 
 The palette is set from Rust — the controller reads the profile's theme and
 writes `Theme.dark`. Markup may read that global and never assign to it.
@@ -67,9 +79,11 @@ caption and a smudge:
 | `line` / `line-soft` | 1.91 / 1.40 | 1.92 / 1.40 |
 | `danger` on `bg-2` | 5.27 | 5.46 |
 
-`danger` is the only colour in either palette. It marks the one control that
-takes something away — REMOVE, on a row in the queue — and only while the
-pointer is on it. Warm rather than a signal red, so it belongs to this hue
+`danger` is the only colour in either palette. It marks a control that takes
+something away — remove from the library or from a playlist, delete a playlist
+or a preset, replace the copy you already have, tell a station you want less of
+this — and only while the pointer is on it, so the interface stays grey until
+something is about to be destroyed. Warm rather than a signal red, so it belongs to this hue
 instead of arriving from a system dialog; the light side is deeper than a
 mirror of the dark one would give, because a light red on a near-white surface
 reads as pink rather than as a warning.
