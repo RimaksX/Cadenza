@@ -1702,3 +1702,20 @@ across it is carrying.
 
 What no test covers: the gesture itself, which needs a pointer. It is checked by
 doing it.
+
+**Addendum to 67: how anybody would know the gesture is there.** A drag nobody
+tries is a drag nobody has. Two answers, and neither of them is a tip nobody
+reads:
+
+*Before.* The cursor over a row is an open hand rather than a pointing finger.
+It is the only part of an interface that can say "this can be picked up" to
+somebody who has not picked anything up yet, and it costs one property.
+
+*During.* The moment a row leaves the ground, every destination that cannot take
+it steps back to a third of its ink and the one that can stays lit. The window
+answers the question the gesture cannot ask for itself — *where can this go?* —
+while the track is still in the air and nothing has been decided. A `carrying`
+flag on the `Transfer` global carries that: the row raises it, the sidebar reads
+it, and nothing between them has to know.
+
+Rendered by holding the flag open, since a real drag needs a real pointer.

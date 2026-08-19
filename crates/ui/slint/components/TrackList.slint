@@ -336,6 +336,9 @@ export component TrackList inherits Rectangle {
                 for entry[index] in root.tracks: DragArea {
                     height: Theme.row-height;
                     data: Transfer.of-track(entry.id);
+                    changed dragging => {
+                        Transfer.carrying = self.dragging;
+                    }
                     // Copied, not moved: carrying a track to the queue leaves it
                     // in the library, which is where it lives.
                     allow-copy: true;

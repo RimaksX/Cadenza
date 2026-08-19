@@ -26,6 +26,13 @@ component NavItem inherits Rectangle {
             : (touch.has-hover ? Theme.ink-1 : Theme.ink-2));
 
     height: Theme.px(32);
+    // While something is in the air, everything that cannot take it steps back
+    // and the one thing that can stays lit. That is the whole answer to "how
+    // would anybody know this was possible": they find out by starting, before
+    // they have let go of anything.
+    opacity: Transfer.carrying && !root.takes-tracks ? 0.35 : 1.0;
+    animate opacity { duration: 120ms; }
+
     // A destination under a carried track lights the way a chosen one does, and
     // outlines itself as well: colour alone would say "this is the page you are
     // on", which it is not.

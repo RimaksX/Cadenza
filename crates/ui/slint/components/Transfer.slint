@@ -11,4 +11,12 @@ export global Transfer {
 
     /// What was let go of over the queue.
     callback dropped-on-queue(data-transfer);
+
+    /// True while a track is in the air.
+    ///
+    /// Set by whichever row is being dragged and read by everything that could
+    /// receive it — which is how the window answers the question a gesture
+    /// cannot ask for itself: *where can this go?* Everything that cannot take
+    /// it steps back, and the one thing that can is left lit.
+    in-out property <bool> carrying;
 }

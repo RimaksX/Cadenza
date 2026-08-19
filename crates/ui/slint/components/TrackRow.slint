@@ -49,6 +49,11 @@ export component TrackRow inherits Rectangle {
     animate background { duration: 120ms; }
 
     touch := TouchArea {
+        // An open hand rather than a pointing finger: this row can be pressed
+        // *and* picked up, and the cursor is the only part of the interface
+        // that can say the second one before anybody has tried it.
+        mouse-cursor: root.hovered ? MouseCursor.grab : MouseCursor.default;
+
         // One click plays. A double click is the file-manager habit, and this
         // is not a file manager: a row here has one obvious thing to do and no
         // way to announce that it takes two clicks to do it.
