@@ -47,10 +47,10 @@ against 12.1, finding 10. Section 7.2 should gain both.
 counts straight out of `play_events`, which over thirty days of one listener is
 cheaper than keeping a second copy of the same facts correct (finding 54).
 
-`play_events.radio_session_id` is always `NULL`, so "how much of this station did
-I listen to" cannot be answered yet. The column and its `CHECK` are right; what
-is missing is that `QueueService` knows which station is playing and
-`PlaybackService`, which writes the event, does not.
+`play_events.radio_session_id` is filled since finding 61: the station rides on
+`PlaySource::Radio` rather than beside it, so the `CHECK` this column shares with
+`source` is a rule the type cannot express a violation of. What is still unwritten
+is the rollup those two columns feed.
 
 ## Storage locations
 

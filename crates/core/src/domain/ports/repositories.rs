@@ -297,6 +297,13 @@ pub trait StatsRepositoryPort: Send + Sync {
     /// Everything the dashboard says in one row.
     fn summary(&self, profile_id: ProfileId, since: Timestamp) -> Result<ListeningSummary>;
 
+    /// When each file was last actually heard by this profile.
+    ///
+    /// The question radio's freshness term is really asking. It answers nothing
+    /// for a listener who keeps no history, which is correct rather than
+    /// unfortunate: a profile that records nothing has said what it wants.
+    fn last_played(&self, profile_id: ProfileId) -> Result<Vec<(MediaFileId, Timestamp)>>;
+
     /// Most-played files in a window, as `(file, play count)`, highest first.
     fn top_tracks(
         &self,
@@ -336,11 +343,11 @@ pub trait RadioRepositoryPort: Send + Sync {
 
     /// When each file was last offered by any of this profile's stations.
     ///
-    /// What the freshness term of PROJECT_MASTER 10.4 is measured against.
-    /// Listening history would be the better source and is not written yet —
-    /// that is M14's — but "how long since radio last played you this" is the
-    /// question freshness is actually asking of a station, and radio has kept
-    /// the answer since its first session (MASTER_ISSUES 49).
+    /// Half of what the freshness term of PROJECT_MASTER 10.4 is measured
+    /// against; the other half is [`StatsRepositoryPort::last_played`], and the
+    /// later of the two wins. This half is the one that works for a listener who
+    /// keeps no history at all, because a station remembers what it offered
+    /// whether or not anything is written down (MASTER_ISSUES 49, 61).
     fn last_offered(&self, profile_id: ProfileId) -> Result<Vec<(MediaFileId, Timestamp)>>;
 
     /// Every verdict a profile has given, summed per file.

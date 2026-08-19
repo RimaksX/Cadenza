@@ -161,6 +161,7 @@ fn run() -> std::result::Result<(), String> {
             moods: Arc::new(SqliteMoodRepository::new(pool.clone())),
             tracks: Arc::new(SqliteTrackRepository::new(pool.clone())),
             features: Arc::new(SqliteTrackFeaturesRepository::new(pool.clone())),
+            stats: Arc::new(SqliteHistoryRepository::new(pool.clone())),
         },
     ));
 

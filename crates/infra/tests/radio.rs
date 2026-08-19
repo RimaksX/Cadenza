@@ -7,20 +7,24 @@ use std::sync::Arc;
 
 use cadenza_core::application::services::{RadioPorts, RadioService};
 use cadenza_core::application::{AppContext, ProfileService};
+use cadenza_core::domain::ids::PlayEventId;
 use cadenza_core::domain::ids::{MediaFileId, ProfileId};
 use cadenza_core::domain::media_file::{AudioFormat, AudioProperties, FileState, MediaFile};
 use cadenza_core::domain::mood::BUILTIN_MOOD_NAMES;
+use cadenza_core::domain::ports::clock::ClockPort;
+use cadenza_core::domain::ports::repositories::PlayEventRepositoryPort;
 use cadenza_core::domain::ports::repositories::{
     MediaFileRepositoryPort, MoodRepositoryPort, RadioRepositoryPort, TrackFeaturesRepositoryPort,
     TrackRepositoryPort,
 };
-use cadenza_core::domain::radio::{MIN_BATCH_SIZE, RadioFeedback};
+use cadenza_core::domain::radio::{MAX_BATCH_SIZE, MIN_BATCH_SIZE, RadioFeedback};
+use cadenza_core::domain::stats::{PlayEvent, PlayOutcome, PlaySource};
 use cadenza_core::domain::track::{Track, TrackFeatures};
 use cadenza_core::domain::value_objects::{Bpm, DurationMs, Timestamp};
 use cadenza_infra::db::repositories::{
-    SqliteMediaFileRepository, SqliteMoodRepository, SqliteProfileRepository,
-    SqliteRadioRepository, SqliteSettingsRepository, SqliteTrackFeaturesRepository,
-    SqliteTrackRepository,
+    SqliteHistoryRepository, SqliteMediaFileRepository, SqliteMoodRepository,
+    SqliteProfileRepository, SqliteRadioRepository, SqliteSettingsRepository,
+    SqliteTrackFeaturesRepository, SqliteTrackRepository,
 };
 use cadenza_infra::events::InProcessEventBus;
 use cadenza_testkit::{TempDb, TestClock};
@@ -29,6 +33,10 @@ struct Harness {
     radio: RadioService,
     moods: SqliteMoodRepository,
     picks: SqliteRadioRepository,
+    /// What the listener has played, for the freshness term to read.
+    history: SqliteHistoryRepository,
+    /// The clock the service reads, so a listen can be dated against it.
+    clock: Arc<TestClock>,
     profile_id: ProfileId,
     /// The library, fast tracks first and slow ones after.
     fast: Vec<MediaFileId>,
@@ -42,8 +50,9 @@ const EACH: usize = 12;
 fn harness() -> Harness {
     let db = TempDb::new();
 
+    let clock = Arc::new(TestClock::default());
     let context = Arc::new(AppContext::new(
-        Arc::new(TestClock::default()),
+        Arc::clone(&clock) as _,
         Arc::new(InProcessEventBus::new()),
         Arc::new(SqliteProfileRepository::new(db.pool().clone())),
         Arc::new(SqliteSettingsRepository::new(db.pool().clone())),
@@ -131,12 +140,15 @@ fn harness() -> Harness {
             moods: Arc::new(SqliteMoodRepository::new(db.pool().clone())),
             tracks: Arc::new(SqliteTrackRepository::new(db.pool().clone())),
             features: Arc::new(SqliteTrackFeaturesRepository::new(db.pool().clone())),
+            stats: Arc::new(SqliteHistoryRepository::new(db.pool().clone())),
         },
     );
 
     Harness {
         moods: SqliteMoodRepository::new(db.pool().clone()),
         picks: SqliteRadioRepository::new(db.pool().clone()),
+        history: SqliteHistoryRepository::new(db.pool().clone()),
+        clock,
         radio,
         profile_id: profile.id,
         fast,
@@ -371,5 +383,78 @@ fn a_station_that_has_ended_is_not_asked_for_more() {
     assert!(
         harness.radio.next_batch(MIN_BATCH_SIZE).is_err(),
         "asking a station that has ended is a question with no answer"
+    );
+}
+
+/// Freshness is about the listener's ears, not about the station's memory.
+///
+/// A track played five minutes ago by hand has been heard, and the station must
+/// know that as surely as if it had offered the track itself — which is the
+/// source M13 had to make do with, because nothing wrote listening history
+/// until M14 (`MASTER_ISSUES` 61).
+#[test]
+fn a_track_the_listener_just_played_is_not_fresh_to_the_station() {
+    let harness = harness();
+    let heard = harness.fast[0];
+
+    harness
+        .history
+        .append(&PlayEvent {
+            id: PlayEventId::new(),
+            profile_id: harness.profile_id,
+            media_file_id: heard,
+            source: PlaySource::Library,
+            // Dated against the clock the service reads. Freshness is "how long
+            // ago", so a listen written at the epoch is a listen from years back
+            // — which is exactly as fresh as never having heard it.
+            started_at: harness.clock.now(),
+            ended_at: Some(harness.clock.now()),
+            played: DurationMs::from_secs(180),
+            duration: DurationMs::from_secs(180),
+            outcome: PlayOutcome::Completed,
+        })
+        .expect("the listen is written down");
+
+    harness.start("Workout");
+    // The whole shelf rather than one batch: a track that has just been heard
+    // scores below its twelve identical neighbours, so a batch of eight leaves
+    // it out — which is the feature working, and no way to read the term it was
+    // marked down by.
+    harness.radio.next_batch(MAX_BATCH_SIZE).expect("a batch");
+
+    let picks = harness
+        .picks
+        .recent_items(harness.radio.session().expect("a session").id, 100)
+        .expect("the picks");
+
+    // Asserted on the term rather than on the order, because the order is a
+    // weighted draw with noise in it and the term is not (docs/TESTING.md).
+    let mut seen = false;
+    for pick in &picks {
+        let freshness = pick.reason.expect("a reason").freshness;
+        if pick.media_file_id == heard {
+            seen = true;
+            assert!(
+                freshness < 1.0,
+                "the listen never reached the ranking: {freshness}"
+            );
+        } else {
+            assert_eq!(
+                freshness, 1.0,
+                "a track nobody has heard is as fresh as this can measure"
+            );
+        }
+    }
+    assert!(seen, "the station never offered the track that was heard");
+
+    // And it costs the track its place: nothing else was marked down, so it
+    // ranks below the twelve it is otherwise identical to.
+    let place = picks
+        .iter()
+        .position(|pick| pick.media_file_id == heard)
+        .expect("it was offered");
+    assert!(
+        place > 0,
+        "a track heard a moment ago was the first thing offered back"
     );
 }

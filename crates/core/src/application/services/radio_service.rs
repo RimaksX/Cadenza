@@ -15,13 +15,14 @@ use std::sync::{Arc, RwLock};
 use uuid::Uuid;
 
 use crate::application::context::AppContext;
-use crate::domain::ids::{MediaFileId, MoodId, RadioSessionId, RadioSessionItemId};
+use crate::domain::ids::{MediaFileId, MoodId, ProfileId, RadioSessionId, RadioSessionItemId};
 use crate::domain::mood::MoodPreset;
 use crate::domain::policies::radio_policy::{RankingWeights, mood_score, rank};
 use crate::domain::policies::shuffle_policy::ARTIST_COOLDOWN;
 use crate::domain::policies::transition_policy::transition_score;
 use crate::domain::ports::repositories::{
-    MoodRepositoryPort, RadioRepositoryPort, TrackFeaturesRepositoryPort, TrackRepositoryPort,
+    MoodRepositoryPort, RadioRepositoryPort, StatsRepositoryPort, TrackFeaturesRepositoryPort,
+    TrackRepositoryPort,
 };
 use crate::domain::radio::{
     MAX_BATCH_SIZE, MIN_BATCH_SIZE, PickReason, RadioFeedback, RadioSession, RadioSessionItem,
@@ -35,8 +36,8 @@ use crate::{CoreError, Result};
 /// A calibration knob. Long enough that a track offered this morning is not
 /// offered again this afternoon, short enough that a library smaller than a
 /// week of listening does not run out of fresh material. Measured against
-/// radio's own picks rather than listening history, which nothing writes yet
-/// (MASTER_ISSUES 49).
+/// what the listener has heard *and* what this profile's stations have offered,
+/// whichever was later (MASTER_ISSUES 61).
 const FRESHNESS_WINDOW: DurationMs = DurationMs::from_secs(7 * 24 * 60 * 60);
 
 /// Everything radio talks to.
@@ -49,6 +50,8 @@ pub struct RadioPorts {
     pub tracks: Arc<dyn TrackRepositoryPort>,
     /// What that library sounds like.
     pub features: Arc<dyn TrackFeaturesRepositoryPort>,
+    /// What has actually been listened to, for the freshness term.
+    pub stats: Arc<dyn StatsRepositoryPort>,
 }
 
 /// A station, and the picks it is making.
@@ -166,7 +169,7 @@ impl RadioService {
         let library = self.ports.tracks.summaries_for_profile(profile_id)?;
         let features = self.ports.features.list_all()?;
         let preferences = self.ports.radio.preferences(profile_id)?;
-        let recent = self.ports.radio.last_offered(profile_id)?;
+        let recent = self.heard_recently(profile_id)?;
 
         // Everything the session has already offered. A station may not repeat
         // itself while it still has anything else to play — 9.2's first rule,
@@ -302,6 +305,35 @@ impl RadioService {
         }
 
         best.map(|(_, summary, reason)| (summary, reason))
+    }
+}
+
+/// When each file was last heard, from both of the things that count as
+/// hearing it.
+///
+/// A station must not offer again what it offered an hour ago, and it must not
+/// offer what the listener played for themselves an hour ago either — those are
+/// the same experience from the same chair. The later of the two answers wins.
+///
+/// Until M14 there was only one source, because nothing wrote the other. The
+/// formula did not move when the second arrived; the source widened, which is
+/// what `MASTER_ISSUES` 49 said would happen.
+impl RadioService {
+    fn heard_recently(&self, profile_id: ProfileId) -> Result<Vec<(MediaFileId, Timestamp)>> {
+        let mut heard = self.ports.radio.last_offered(profile_id)?;
+
+        for (media_file_id, played_at) in self.ports.stats.last_played(profile_id)? {
+            match heard.iter_mut().find(|(known, _)| *known == media_file_id) {
+                Some((_, latest)) => {
+                    if played_at > *latest {
+                        *latest = played_at;
+                    }
+                }
+                None => heard.push((media_file_id, played_at)),
+            }
+        }
+
+        Ok(heard)
     }
 }
 

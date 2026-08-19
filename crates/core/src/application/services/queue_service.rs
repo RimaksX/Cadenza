@@ -902,7 +902,7 @@ const fn source_of(origin: QueueOrigin) -> PlaySource {
     match origin {
         QueueOrigin::Library => PlaySource::Library,
         QueueOrigin::Playlist(_) => PlaySource::Playlist,
-        QueueOrigin::Radio(_) => PlaySource::Radio,
+        QueueOrigin::Radio(session_id) => PlaySource::Radio(session_id),
     }
 }
 

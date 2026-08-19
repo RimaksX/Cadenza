@@ -290,6 +290,7 @@ fn services_with_radio(
             moods: Arc::new(SqliteMoodRepository::new(db.pool().clone())),
             tracks: Arc::clone(&track_repo) as _,
             features: Arc::new(SqliteTrackFeaturesRepository::new(db.pool().clone())),
+            stats: Arc::new(SqliteHistoryRepository::new(db.pool().clone())),
         },
     ));
 

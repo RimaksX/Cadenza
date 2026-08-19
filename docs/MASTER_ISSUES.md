@@ -1412,3 +1412,41 @@ remember to ask for — and something a system copy could answer instead.
 
 Light text on a dark ground is where this shows first. It is worth looking again
 if the light theme ever gets the same reading.
+
+## 61. The two things radio knew and never said
+
+Both tails of M13, left open because M14 had not happened yet and closed now
+that it has.
+
+**Freshness was measured against the wrong ear.** `last_offered` answers "when
+did a station last *offer* you this", and the question the term is asking is
+"when did you last *hear* it". In M13 there was no other answer to give: nothing
+wrote listening history. Now `StatsRepositoryPort::last_played` gives the other
+half and the later of the two wins — offered an hour ago and played an hour ago
+are the same experience from the same chair. The formula did not move, which is
+what finding 49 said would happen: the source widened.
+
+A profile that keeps no history still gets the old answer, and that is right
+rather than unfortunate. A listener who has switched history off has said what
+they want, and a station that remembers its own offers still avoids repeating
+itself.
+
+**And the station rode beside the source instead of on it.** `play_events`
+carries `source` and `radio_session_id` as two columns held together by a
+`CHECK` — a session id only where the source is radio. `PlaySource::Radio` was a
+unit variant, so `PlaybackService` had nothing to write there and wrote `NULL`
+every time, and "how much of this station did I listen to" was unanswerable.
+
+The station was never far away: the queue stores `QueueOrigin::Radio(id)` on
+every entry it makes, and `source_of` threw the id away on the line that turned
+an origin into a source.
+
+**Chosen:** `PlaySource::Radio(RadioSessionId)`. The conversion keeps what it
+had all along, `PlayEvent` loses a field, and a rule the database had to be told
+becomes one the type cannot express a violation of. Reading a row now parses the
+pair — the text and the column beside it — so "radio with no station" and
+"library with a station" are both refused at the point where rows become values,
+which is the only place either could enter.
+
+What this unblocks rather than does: `daily_radio_stats` can now be filled, and
+per-station totals can be counted (finding 54).

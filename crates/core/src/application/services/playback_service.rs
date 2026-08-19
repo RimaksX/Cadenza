@@ -444,9 +444,6 @@ impl PlaybackService {
             profile_id: listen.profile_id,
             media_file_id: listen.media_file_id,
             source: listen.source,
-            // Which station is the queue's knowledge, not this service's. The
-            // column stays empty until something needs per-session totals.
-            radio_session_id: None,
             started_at: listen.started_at,
             ended_at: Some(self.context.now()),
             played,

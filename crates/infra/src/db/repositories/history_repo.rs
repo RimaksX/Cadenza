@@ -54,7 +54,7 @@ impl PlayEventRepositoryPort for SqliteHistoryRepository {
                     event.profile_id.to_string(),
                     event.media_file_id.to_string(),
                     event.source.as_str(),
-                    event.radio_session_id.map(|id| id.to_string()),
+                    event.source.radio_session().map(|id| id.to_string()),
                     event.started_at.as_millis(),
                     event.ended_at.map(Timestamp::as_millis),
                     event.played.as_millis() as i64,
@@ -144,6 +144,30 @@ impl StatsRepositoryPort for SqliteHistoryRepository {
             .map_err(db_error_in("summing up a month of listening"))
     }
 
+    fn last_played(&self, profile_id: ProfileId) -> Result<Vec<(MediaFileId, Timestamp)>> {
+        let connection = self.pool.get()?;
+        let mut statement = connection
+            .prepare(
+                "SELECT media_file_id, MAX(started_at)
+                   FROM play_events
+                  WHERE profile_id = ?1
+                  GROUP BY media_file_id",
+            )
+            .map_err(db_error_in("reading when tracks were last heard"))?;
+
+        let rows = statement
+            .query_map((profile_id.to_string(),), |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?))
+            })
+            .map_err(db_error_in("reading when tracks were last heard"))?
+            .collect::<rusqlite::Result<Vec<_>>>()
+            .map_err(db_error_in("reading when tracks were last heard"))?;
+
+        rows.into_iter()
+            .map(|(id, at)| Ok((MediaFileId::parse(&id)?, Timestamp::from_millis(at))))
+            .collect()
+    }
+
     fn top_tracks(
         &self,
         profile_id: ProfileId,
@@ -231,12 +255,13 @@ impl EventRow {
             id: PlayEventId::parse(&self.id)?,
             profile_id: ProfileId::parse(&self.profile_id)?,
             media_file_id: MediaFileId::parse(&self.media_file_id)?,
-            source: PlaySource::parse(&self.source)?,
-            radio_session_id: self
-                .radio_session_id
-                .as_deref()
-                .map(RadioSessionId::parse)
-                .transpose()?,
+            source: PlaySource::parse(
+                &self.source,
+                self.radio_session_id
+                    .as_deref()
+                    .map(RadioSessionId::parse)
+                    .transpose()?,
+            )?,
             started_at: Timestamp::from_millis(self.started_at),
             ended_at: self.ended_at.map(Timestamp::from_millis),
             played: DurationMs::from_millis(self.played_ms.max(0) as u64),
