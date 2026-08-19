@@ -1111,3 +1111,63 @@ writes the event, does not.
 
 Until then, "aggregates" in M14's task list means the aggregation, not the
 tables.
+
+## 55. What is wired, and what is only a seam
+
+The owner asked whether anything in the code is not actually running, or is
+swallowing errors, after nine milestones during which the window kept looking
+correct. Checked rather than assumed: every port method against its call sites,
+every discarded `Result`, every panic site, and every callback the window
+declares.
+
+**The window is correct for everything the listener does, and blind to
+everything that happens behind them.** That is the one story under all of it,
+and it is why nothing looks broken: today, almost nothing happens behind them.
+
+**The file watcher does not run in the window.** `NotifyFileWatcher` is built,
+tested and wired only into `cadenza watch`, whose own comment says "until the
+interface exists in M6 this is the only way to see the watcher work". M6 came
+and it was never wired in. The master asks for "автоматическое отслеживание
+изменений файловой системы" and today that holds only for as long as a terminal
+is open next to the window. A file dropped into a watched folder while Cadenza
+is running is not noticed until somebody scans by hand.
+
+**The event bus publishes to nobody.** Eight kinds of `DomainEvent`, sixteen
+`publish` sites, and `subscribe` is never called outside its own unit test. The
+interface refreshes because the controller re-reads a page when it is opened and
+after each command it issues — which covers every change the listener causes and
+no change caused by anything else. So the two findings are really one: wiring
+the watcher without a subscriber would update the database under a window that
+goes on showing the old library.
+
+**Artwork is extracted, written to the cache and never read.** `store` is called
+for every scanned file; `path_for` has no caller. The player bar draws a letter
+where a cover would go. Nothing is broken by this — it costs scan time and a
+cache that only grows.
+
+**Five other seams have no caller** and are harmless: `get_session` (a station
+is live in memory and does not survive a restart), `recent` (the dashboard
+aggregates instead of listing), `delete_item` (playlist entries are renumbered
+and rewritten in one transaction instead), `profile_remove`, and `supports` (the
+decoder is asked to decode rather than asked first).
+
+**Errors are not generally swallowed.** Failures from the services reach the
+player bar through `Controller::report`; six `unwrap`/`expect` sites remain in
+production code and each names a local invariant; the discarded `Result`s are
+shutdown paths — joining threads, replying on a channel whose receiver has gone
+— plus three deliberate ones: a queue that fails to save, artwork that fails to
+cache, and a listen that fails to record. The first two are commented and are
+right: neither is a reason to stop the music. The third is not commented and
+should be.
+
+**There is no logging of any kind** — no `log`, no `tracing`, nothing written to
+the log path the app already computes. Whatever a background thread swallows is
+therefore invisible, which is tolerable while the only background thread is the
+analyser and intolerable the moment the watcher joins it. M16 lists "logs" among
+its tasks; that is the milestone this belongs to.
+
+**Recommended, and the owner's to schedule:** the watcher and a subscription are
+one job and should be done together, because either alone is worse than neither.
+Logging goes with M16 as planned. Covers are a feature rather than a fix. The
+five idle seams stay: a port method with no caller costs a line of a trait, and
+removing one would be a change to the architecture for tidiness.
