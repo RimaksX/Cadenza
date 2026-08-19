@@ -1280,3 +1280,44 @@ lies and a dropped folder joins the library and is watched, and that the overlay
 draws — rendered by holding the source of the flag open, since a real drag needs
 a real pointer. What no test covers is a drag from Explorer reaching the window;
 that is checked by doing it.
+
+## 58. Dragging inside the window is experimental in the Slint we are on
+
+The other half of the owner's answer — dragging a track from the list onto
+somewhere else in the window — was written and then taken out again.
+
+`DragArea` and `DropArea` exist in Slint 1.13 and the compiler removes them from
+its own type register unless `SLINT_ENABLE_EXPERIMENTAL_FEATURES` is set in the
+environment of the build. The register's own comment says "Do not use in
+production code!". Building Cadenza would then depend on an environment variable
+being set — in CI, in whatever machine cuts the M16 installer, and in the head of
+anybody who checks the project out.
+
+In Slint 1.17 those two lines are gone: the elements are stable. 1.17 asks for
+rustc 1.92, which the machine already exceeds; what it costs is the workspace's
+declared minimum and a re-check of every screen against four minor versions of a
+toolkit whose rendering this interface has been measured against one of.
+
+**Chosen:** not now, and not quietly. The upgrade is a decision that belongs
+beside M16, which is already about toolchains and packaging, and it should be
+made once rather than as a side effect of one interaction.
+
+Two things worth keeping from the attempt, because they are what the design would
+have to be built on and they were read rather than assumed:
+
+**A press still reaches the row.** `DragArea` forwards the press to its children
+and takes the pointer only after it has moved past a threshold, so a click would
+still play the track.
+
+**A list scrolls down and carries sideways.** A `Flickable` intercepts a drag
+only in a direction it can actually scroll, so in a vertical `ListView` a
+sideways drag is forwarded to whatever is inside it. Down the list is reading;
+across it is carrying. Both gestures fit in the same square inch without a
+modifier key, which is the only reason the feature is worth having.
+
+**And one thing the layout would have to answer first.** A track and a playlist
+are never on screen together: the library is one page and the playlists are
+another. The only destination visible while a track is, is the sidebar — so
+"drag a track to the queue" is the whole of what this can mean today, and
+dragging one *into a playlist* needs a place where both are visible, which is a
+design question rather than a technical one.
