@@ -1719,3 +1719,17 @@ flag on the `Transfer` global carries that: the row raises it, the sidebar reads
 it, and nothing between them has to know.
 
 Rendered by holding the flag open, since a real drag needs a real pointer.
+
+**Second addendum to 67: the cursor was the wrong half of the answer.** `grab`
+is an open hand on platforms that have one; Windows has none, so it arrives as
+`IDC_SIZEALL` — arrows in four directions. Over a row whose click *plays* a
+track, that says the wrong thing twice: it promises a move and denies the press.
+Removed.
+
+The owner also asked the better question underneath it: why drag at all, when
+the row already carries a tidy QUEUE button that one press does the whole of?
+The honest answer is that the button is the way in and the drag is a shortcut —
+PROJECT_MASTER 2.10 asks for the gesture and it now exists, but nothing in the
+interface will advertise it beyond the moment somebody starts one. What is left
+is the part that costs nothing until then: while a track is in the air, the one
+place it can go stays lit and everything else steps back.
