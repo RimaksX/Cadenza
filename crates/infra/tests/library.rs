@@ -101,6 +101,9 @@ fn harness(tag: &str) -> Harness {
         fn pick_folder(&self, _title: &str) -> cadenza_core::Result<Option<std::path::PathBuf>> {
             Ok(None)
         }
+        fn pick_image(&self, _title: &str) -> cadenza_core::Result<Option<std::path::PathBuf>> {
+            Ok(None)
+        }
         fn suggested_music_folder(&self) -> Option<std::path::PathBuf> {
             None
         }

@@ -182,6 +182,26 @@ fn wire(window: &AppWindow, controller: &Rc<Controller>) {
         move |position| controller.remove_from_playlist(position)
     });
 
+    window.on_choose_cover({
+        let controller = Rc::clone(controller);
+        move |id| controller.choose_cover(&id)
+    });
+
+    window.on_clear_cover({
+        let controller = Rc::clone(controller);
+        move |id| controller.clear_cover(&id)
+    });
+
+    window.on_choose_playlist_cover({
+        let controller = Rc::clone(controller);
+        move |id| controller.choose_playlist_cover(&id)
+    });
+
+    window.on_clear_playlist_cover({
+        let controller = Rc::clone(controller);
+        move |id| controller.clear_playlist_cover(&id)
+    });
+
     window.on_remove_from_library({
         let controller = Rc::clone(controller);
         move |id| controller.remove_from_library(&id)

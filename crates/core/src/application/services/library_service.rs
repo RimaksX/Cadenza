@@ -15,8 +15,9 @@ use crate::domain::ids::{
     AlbumId, ArtistId, GenreId, ImportReviewId, MediaFileId, ProfileFolderId, ProfileId,
 };
 use crate::domain::media_file::{FileState, MediaFile, is_supported_extension};
+use crate::domain::policies::artwork_policy::looks_like_an_image;
 use crate::domain::policies::duplicate_policy::{self, DuplicateVerdict};
-use crate::domain::ports::artwork_cache::ArtworkCachePort;
+use crate::domain::ports::artwork_cache::{ArtworkCachePort, CoverOf};
 use crate::domain::ports::event_bus::DomainEvent;
 use crate::domain::ports::file_system::FileSystemPort;
 use crate::domain::ports::file_watcher::{FileChange, FileWatcherPort};
@@ -275,6 +276,56 @@ impl LibraryService {
         }
 
         Ok(total)
+    }
+
+    /// The cover to show for a track: this listener's choice, else the file's.
+    pub fn cover_for(&self, media_file_id: MediaFileId) -> Result<Option<PathBuf>> {
+        let profile_id = self.context.require_active_profile()?;
+        Ok(CoverOf::shown_for(
+            self.ports.artwork.as_ref(),
+            profile_id,
+            media_file_id,
+        ))
+    }
+
+    /// Asks the listener for a picture and makes it this track's cover.
+    ///
+    /// Theirs and not the file's: the image is stored under the profile, the
+    /// same way a corrected title is, so choosing a cover for yourself does not
+    /// choose it for anybody else on the machine (PROJECT_MASTER 2.1, 12.1).
+    /// The file on disk is never written to — Cadenza does not edit tags.
+    ///
+    /// `Ok(false)` means the chooser was closed, which is an answer.
+    pub fn choose_cover(&self, media_file_id: MediaFileId) -> Result<bool> {
+        let profile_id = self.context.require_active_profile()?;
+
+        let Some(path) = self.ports.picker.pick_image("Choose a cover")? else {
+            return Ok(false);
+        };
+
+        let image = self.ports.files.read(&path)?;
+        if !looks_like_an_image(&image) {
+            return Err(CoreError::invalid(
+                "cover",
+                format!("{} is not a picture this can read", path.display()),
+            ));
+        }
+
+        self.ports
+            .artwork
+            .store(CoverOf::ChosenTrack(profile_id, media_file_id), &image)?;
+        self.context.events.publish(DomainEvent::LibraryChanged);
+        Ok(true)
+    }
+
+    /// Takes back a chosen cover, leaving whatever the file itself carries.
+    pub fn clear_cover(&self, media_file_id: MediaFileId) -> Result<()> {
+        let profile_id = self.context.require_active_profile()?;
+        self.ports
+            .artwork
+            .remove(CoverOf::ChosenTrack(profile_id, media_file_id))?;
+        self.context.events.publish(DomainEvent::LibraryChanged);
+        Ok(())
     }
 
     /// Stops scanning a folder. Files already imported stay in the library.
@@ -1032,7 +1083,10 @@ impl LibraryService {
     /// stops because a disk is full of thumbnails.
     fn cache_artwork(&self, media_file: &MediaFile, tags: &TrackTags) {
         if let Some(image) = &tags.artwork {
-            let _ = self.ports.artwork.store(media_file.id, image);
+            let _ = self
+                .ports
+                .artwork
+                .store(CoverOf::Track(media_file.id), image);
         }
     }
 

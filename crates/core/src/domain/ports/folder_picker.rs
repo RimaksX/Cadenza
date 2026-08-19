@@ -20,6 +20,13 @@ pub trait FolderPickerPort: Send + Sync {
     /// all.
     fn pick_folder(&self, title: &str) -> Result<Option<PathBuf>>;
 
+    /// Opens the chooser for one image file.
+    ///
+    /// The same contract: `None` is an answer. What comes back is a path and
+    /// not bytes, because reading it is the caller's job and the caller is the
+    /// one that knows what it will accept.
+    fn pick_image(&self, title: &str) -> Result<Option<PathBuf>>;
+
     /// Where this machine keeps music, if it has an opinion.
     ///
     /// Windows and every desktop like it have a folder for this, and somebody

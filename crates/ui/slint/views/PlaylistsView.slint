@@ -12,6 +12,10 @@ export struct PlaylistCardData {
     position: string,
     maker: string,
     meta: string,
+    /// The picture somebody chose for it. Empty until anybody does.
+    cover: image,
+    /// Whether there is a cover to take off again.
+    has-cover: bool,
 }
 
 // One playlist as a tile: a square, and its name and size beneath.
@@ -64,9 +68,21 @@ export component PlaylistCard inherits Rectangle {
                 background: @linear-gradient(150deg, Theme.bg-2 0%, Theme.bg-1 55%, Theme.bg-0 100%);
                 border-width: 1px;
                 border-color: root.hovered ? Theme.line : Theme.line-soft;
+                clip: true;
                 animate y, border-color { duration: 300ms; easing: ease-out; }
 
-                VerticalLayout {
+                // A chosen picture replaces the whole stand-in rather than
+                // sitting behind it: the name set large *is* the sleeve for a
+                // list that has none, and two sleeves at once is one too many.
+                // What the list is called is still written under the tile.
+                if root.data.has-cover: Image {
+                    width: 100%;
+                    height: 100%;
+                    source: root.data.cover;
+                    image-fit: ImageFit.cover;
+                }
+
+                if !root.data.has-cover: VerticalLayout {
                 padding: 20px;
 
                 HorizontalLayout {
@@ -176,10 +192,21 @@ export component PlaylistCard inherits Rectangle {
                     menu := RowMenu {
                         x: 32px - self.width;
                         y: 32px;
-                        items: [
+                        property <[MenuItemData]> without-cover: [
                             { action: "rename", label: "Rename…" },
+                            { action: "cover", label: "Choose a cover…" },
+                            { action: "" },
                             { action: "delete", label: "Delete playlist", destructive: true },
                         ];
+                        property <[MenuItemData]> with-cover: [
+                            { action: "rename", label: "Rename…" },
+                            { action: "cover", label: "Change the cover…" },
+                            { action: "uncover", label: "Remove the cover" },
+                            { action: "" },
+                            { action: "delete", label: "Delete playlist", destructive: true },
+                        ];
+
+                        items: root.data.has-cover ? self.with-cover : self.without-cover;
                         chosen(action) => {
                             root.acted(action);
                         }
@@ -229,7 +256,7 @@ export component PlaylistCard inherits Rectangle {
                 text: root.data.name;
                 font-family: Theme.serif;
                 font-size: Theme.text-title;
-                height: 30px;
+                height: 34px;
                 vertical-alignment: center;
                 color: root.hovered ? Theme.ink-0 : Theme.ink-1;
                 overflow: elide;
@@ -323,7 +350,7 @@ export component PlaylistsView inherits Rectangle {
                         text: "Playlists";
                         font-family: Theme.serif;
                         font-size: Theme.text-display;
-                        height: 54px;
+                        height: 56px;
                         vertical-alignment: center;
                         color: Theme.ink-0;
                     }
@@ -367,7 +394,7 @@ export component PlaylistsView inherits Rectangle {
                     text: "No lists yet";
                     font-family: Theme.serif;
                     font-size: Theme.text-display;
-                    height: 54px;
+                    height: 56px;
                     vertical-alignment: center;
                     color: Theme.ink-2;
                     horizontal-alignment: center;

@@ -1450,3 +1450,48 @@ which is the only place either could enter.
 
 What this unblocks rather than does: `daily_radio_stats` can now be filled, and
 per-station totals can be counted (finding 54).
+
+## 62. Covers: whose they are, and the name that decides whether they draw
+
+The owner asked for covers in the player — both the one a file carries and one
+they can put on any track or list themselves. Two decisions and one defect.
+
+**Whose a chosen cover is.** Per profile, like a corrected title: rule 12.1 says
+user data carries a `profile_id`, and choosing a picture for yourself must not
+choose it for whoever else uses the machine. What comes *out of the file* stays
+shared, because that one is a fact about the recording rather than an opinion
+about it. So the cache is keyed three ways — the recording, one listener's
+choice for a recording, and a list — and the rule for what to show is one line:
+the choice if there is one, else the file, else the letter that was there
+before.
+
+**Where they show.** The player bar and the playlist tiles, the owner's choice.
+The tile is the interesting one: a chosen picture replaces the whole stand-in
+rather than sitting behind it, because the name set large *was* the sleeve for a
+list that had none, and two sleeves at once is one too many. What the list is
+called is still written under the tile.
+
+**And the defect, which is worth the entry.** The first render came back with
+the stand-in correctly hidden and no picture in its place: a blank square. The
+cache had always written every image under a `.img` extension — deliberately, as
+"a label for humans", with a comment saying the decoder sniffs content rather
+than trusting names. That was true of the decoder we had in mind and false of
+the one that ended up drawing: `slint::Image::load_from_path` picks its format
+from the *extension*, so every cover ever cached was unreadable to the only
+thing that needed to read it.
+
+Two things were wrong at once, which is why it looked like nothing:
+
+- the file could not decode, and
+- the tile asked *the path* whether there was a cover, so it hid its name for a
+  picture that would never draw.
+
+**Chosen:** the sniffing decides the name. `artwork_policy::image_extension`
+returns what the bytes actually are, `store` writes that extension and clears
+any other, `path_for` looks for each of them, and `remove` takes them all —
+including the old `.img`, so a cache written by an earlier build tidies itself
+the first time anything touches it. And the tile now asks the *picture* whether
+there is one, so the two answers cannot disagree again.
+
+The lesson is narrower than "sniff content": content-sniffing is right, and the
+answer still has to be written where the next reader looks.

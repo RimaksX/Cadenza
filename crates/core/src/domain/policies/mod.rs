@@ -11,6 +11,7 @@
 //! gain their scoring in M12 and M13.
 
 pub mod analysis_policy;
+pub mod artwork_policy;
 pub mod duplicate_policy;
 pub mod eq_policy;
 pub mod history_policy;

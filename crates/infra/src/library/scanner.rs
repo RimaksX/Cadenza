@@ -66,6 +66,12 @@ impl FileSystemPort for LocalFileSystem {
             CoreError::FileSystem(format!("could not create {}: {err}", path.display()))
         })
     }
+
+    fn read(&self, path: &Path) -> Result<Vec<u8>> {
+        std::fs::read(path).map_err(|err| {
+            CoreError::FileSystem(format!("could not read {}: {err}", path.display()))
+        })
+    }
 }
 
 /// Reads the modification time, falling back to the epoch.

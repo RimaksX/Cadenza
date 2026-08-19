@@ -3,23 +3,66 @@
 use std::path::PathBuf;
 
 use crate::Result;
-use crate::domain::ids::MediaFileId;
+use crate::domain::ids::{MediaFileId, PlaylistId, ProfileId};
+
+/// Whose cover an image is.
+///
+/// Three shapes rather than three ports, because the storage is one thing —
+/// bytes on disk under a key — and only the key differs. Where the key lives is
+/// what says whether the image is a fact about a recording or a choice somebody
+/// made.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum CoverOf {
+    /// The recording's own, as its file carried it.
+    ///
+    /// A fact about the file and shared by everyone on the machine: the same
+    /// bytes came out of the same tag.
+    Track(MediaFileId),
+    /// What one listener chose for that recording.
+    ///
+    /// A local override in the sense of PROJECT_MASTER 2.1, and per profile for
+    /// the same reason a corrected title is (rule 12.1): choosing a cover for
+    /// yourself must not choose it for whoever else uses this machine.
+    ChosenTrack(ProfileId, MediaFileId),
+    /// What a listener chose for one of their lists.
+    ///
+    /// No profile in the key because a playlist already belongs to one.
+    Playlist(PlaylistId),
+}
 
 /// Cover art storage.
 ///
 /// Artwork lives on disk under `%LOCALAPPDATA%` rather than in SQLite
-/// (PROJECT_MASTER 6): images are large, rarely queried, and entirely
-/// regenerable from the source files, so keeping them out of the database keeps
-/// it small and its backups cheap.
+/// (PROJECT_MASTER 6): images are large, rarely queried, and — for the ones
+/// that came out of a file — entirely regenerable, so keeping them out of the
+/// database keeps it small and its backups cheap.
 ///
-/// Cached per media file, not per profile: the image belongs to the recording.
+/// The ones a listener chose are *not* regenerable, which is worth knowing
+/// before anybody writes a cache-clearing routine.
 pub trait ArtworkCachePort: Send + Sync {
-    /// Stores an image, replacing any previous one for this file.
-    fn store(&self, media_file_id: MediaFileId, image: &[u8]) -> Result<()>;
+    /// Stores an image, replacing any previous one under the same key.
+    fn store(&self, cover: CoverOf, image: &[u8]) -> Result<()>;
 
-    /// Where the cached image lives, if it has been cached.
-    fn path_for(&self, media_file_id: MediaFileId) -> Option<PathBuf>;
+    /// Where the image lives, if there is one.
+    fn path_for(&self, cover: CoverOf) -> Option<PathBuf>;
 
-    /// Drops the cached image. Safe to call when nothing is cached.
-    fn remove(&self, media_file_id: MediaFileId) -> Result<()>;
+    /// Drops the image. Safe to call when there is none.
+    fn remove(&self, cover: CoverOf) -> Result<()>;
+}
+
+impl CoverOf {
+    /// What to show for a track: the listener's choice, else the file's own.
+    ///
+    /// The order is the whole rule, and it is the same one the tags follow — a
+    /// local override outranks what the file says, and nothing outranks a
+    /// deliberate choice except a later deliberate choice.
+    pub fn shown_for(
+        cache: &dyn ArtworkCachePort,
+        profile_id: ProfileId,
+        media_file_id: MediaFileId,
+    ) -> Option<PathBuf> {
+        cache
+            .path_for(Self::ChosenTrack(profile_id, media_file_id))
+            .or_else(|| cache.path_for(Self::Track(media_file_id)))
+    }
 }

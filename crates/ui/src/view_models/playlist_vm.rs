@@ -5,23 +5,44 @@ use cadenza_core::domain::value_objects::DurationMs;
 
 use crate::{MenuItemData, PlaylistCardData};
 
+/// The cover as the window can draw it, or nothing.
+///
+/// A picture that will not decode is treated as no picture at all rather than
+/// as an error: it is a file on somebody's disk that may have been replaced by
+/// anything since it was chosen, and the tile has something to fall back to.
+fn cover(summary: &PlaylistSummary) -> slint::Image {
+    summary
+        .cover
+        .as_deref()
+        .and_then(|path| slint::Image::load_from_path(path).ok())
+        .unwrap_or_default()
+}
+
 /// Formats the index of playlists.
 pub fn cards(summaries: &[PlaylistSummary]) -> Vec<PlaylistCardData> {
     summaries
         .iter()
         .enumerate()
-        .map(|(index, summary)| PlaylistCardData {
-            id: summary.playlist.id.to_string().into(),
-            name: summary.playlist.name.as_str().into(),
-            // The tile's corner marks, in the mono capitals everything numeric
-            // is set in. Upper-cased here rather than in the markup: Slint has
-            // no text-transform, so a label that must read as capitals has to
-            // arrive as capitals.
-            position: format!("№ {:02}", index + 1).into(),
-            // What the album tile puts here is the artist. A playlist has no
-            // artist; what it has is whose list it is.
-            maker: "MADE BY YOU".into(),
-            meta: meta(summary).into(),
+        .map(|(index, summary)| {
+            let cover = cover(summary);
+            PlaylistCardData {
+                id: summary.playlist.id.to_string().into(),
+                name: summary.playlist.name.as_str().into(),
+                // The tile's corner marks, in the mono capitals everything numeric
+                // is set in. Upper-cased here rather than in the markup: Slint has
+                // no text-transform, so a label that must read as capitals has to
+                // arrive as capitals.
+                position: format!("№ {:02}", index + 1).into(),
+                // What the album tile puts here is the artist. A playlist has no
+                // artist; what it has is whose list it is.
+                maker: "MADE BY YOU".into(),
+                meta: meta(summary).into(),
+                // Asked of the picture rather than of the path: a file that
+                // will not decode is not a cover, and a tile that hides its
+                // name for one that never draws is a blank square.
+                has_cover: cover.size().width > 0,
+                cover,
+            }
         })
         .collect()
 }
@@ -98,6 +119,7 @@ mod tests {
 
     fn summary(name: &str, track_count: usize, seconds: u64) -> PlaylistSummary {
         PlaylistSummary {
+            cover: None,
             playlist: Playlist {
                 id: PlaylistId::new(),
                 profile_id: ProfileId::new(),

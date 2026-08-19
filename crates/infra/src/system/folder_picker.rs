@@ -25,6 +25,17 @@ impl FolderPickerPort for SystemFolderPicker {
         Ok(rfd::FileDialog::new().set_title(title).pick_folder())
     }
 
+    fn pick_image(&self, title: &str) -> Result<Option<PathBuf>> {
+        // Named for what the listener is looking for rather than for the
+        // extensions: somebody choosing a cover is choosing a picture, and the
+        // filter is what keeps them from having to know which pictures this
+        // application can read.
+        Ok(rfd::FileDialog::new()
+            .set_title(title)
+            .add_filter("Pictures", &["png", "jpg", "jpeg", "webp", "gif", "bmp"])
+            .pick_file())
+    }
+
     fn suggested_music_folder(&self) -> Option<PathBuf> {
         // The system's own music folder with a room of ours inside it, rather
         // than the whole thing: somebody who accepts the suggestion is saying

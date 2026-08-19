@@ -5,12 +5,17 @@
 //! it in the library, and deleting the playlist leaves everything in it alone
 //! (PROJECT_MASTER 2.6).
 
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use crate::application::context::AppContext;
 use crate::domain::ids::{MediaFileId, PlaylistId, PlaylistItemId};
 use crate::domain::playlist::{Playlist, PlaylistItem};
+use crate::domain::policies::artwork_policy::looks_like_an_image;
+use crate::domain::ports::artwork_cache::{ArtworkCachePort, CoverOf};
 use crate::domain::ports::event_bus::DomainEvent;
+use crate::domain::ports::file_system::FileSystemPort;
+use crate::domain::ports::folder_picker::FolderPickerPort;
 use crate::domain::ports::repositories::{PlaylistRepositoryPort, TrackRepositoryPort};
 use crate::domain::track::TrackSummary;
 use crate::domain::value_objects::DurationMs;
@@ -22,6 +27,12 @@ pub struct PlaylistPorts {
     pub playlists: Arc<dyn PlaylistRepositoryPort>,
     /// The library, for the titles a playlist's entries stand for.
     pub tracks: Arc<dyn TrackRepositoryPort>,
+    /// Where a list's cover is kept, when somebody has given it one.
+    pub artwork: Arc<dyn ArtworkCachePort>,
+    /// The chooser that cover comes from.
+    pub picker: Arc<dyn FolderPickerPort>,
+    /// For reading the picture that was chosen, and nothing else.
+    pub files: Arc<dyn FileSystemPort>,
 }
 
 /// Creating, editing and reading playlists.
@@ -43,6 +54,11 @@ pub struct PlaylistSummary {
     pub track_count: usize,
     /// How long those entries run.
     pub duration: DurationMs,
+    /// The cover somebody gave it, if anybody did.
+    ///
+    /// A playlist has no file to take one from, so this is empty until it is
+    /// chosen — unlike a track, which usually arrives carrying one.
+    pub cover: Option<PathBuf>,
 }
 
 impl PlaylistService {
@@ -84,6 +100,7 @@ impl PlaylistService {
                 }
 
                 Ok(PlaylistSummary {
+                    cover: self.ports.artwork.path_for(CoverOf::Playlist(playlist.id)),
                     playlist,
                     track_count,
                     duration,
@@ -288,5 +305,40 @@ impl PlaylistService {
 
     fn announce(&self) {
         self.context.events.publish(DomainEvent::PlaylistsChanged);
+    }
+    /// Asks the listener for a picture and makes it this list's cover.
+    ///
+    /// `Ok(false)` means the chooser was closed, which is an answer.
+    pub fn choose_cover(&self, playlist_id: PlaylistId) -> Result<bool> {
+        // Read first: a cover may only be put on a list that belongs to whoever
+        // is listening, and this is what says so.
+        self.owned(playlist_id)?;
+
+        let Some(path) = self.ports.picker.pick_image("Choose a cover")? else {
+            return Ok(false);
+        };
+
+        let image = self.ports.files.read(&path)?;
+        if !looks_like_an_image(&image) {
+            return Err(CoreError::invalid(
+                "cover",
+                format!("{} is not a picture this can read", path.display()),
+            ));
+        }
+
+        self.ports
+            .artwork
+            .store(CoverOf::Playlist(playlist_id), &image)?;
+        self.context.events.publish(DomainEvent::PlaylistsChanged);
+        Ok(true)
+    }
+
+    /// Takes the cover off a list, leaving the square it was in.
+    pub fn clear_cover(&self, playlist_id: PlaylistId) -> Result<()> {
+        self.owned(playlist_id)?;
+
+        self.ports.artwork.remove(CoverOf::Playlist(playlist_id))?;
+        self.context.events.publish(DomainEvent::PlaylistsChanged);
+        Ok(())
     }
 }

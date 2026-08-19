@@ -11,8 +11,8 @@ use lofty::file::{AudioFile, FileType, TaggedFile, TaggedFileExt};
 use lofty::probe::Probe;
 use lofty::tag::{Accessor, ItemKey, Tag};
 
-use super::artwork::looks_like_an_image;
 use super::normalize;
+use cadenza_core::domain::policies::artwork_policy::looks_like_an_image;
 
 /// Identifies this reader's behaviour in `media_files.metadata_version`.
 ///

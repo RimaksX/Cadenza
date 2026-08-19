@@ -42,4 +42,11 @@ pub trait FileSystemPort: Send + Sync {
     /// Creating one that is already there is not an error: the caller wants it
     /// to exist, not to have been the one who made it.
     fn create_dir_all(&self, path: &Path) -> Result<()>;
+
+    /// Reads a whole file.
+    ///
+    /// For the small ones only — a chosen cover, and nothing else so far. Audio
+    /// is streamed by the decoder and hashed by [`Self::hash_file`], neither of
+    /// which wants a copy of a hundred megabytes in memory.
+    fn read(&self, path: &Path) -> Result<Vec<u8>>;
 }

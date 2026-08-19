@@ -74,6 +74,9 @@ pub struct Controller {
     profile: RefCell<Option<Profile>>,
     /// What the library is being filtered by, if anything.
     query: RefCell<String>,
+    /// Whose cover the player bar is showing, so it is read from disk when the
+    /// track changes rather than four times a second.
+    showing_cover: RefCell<String>,
     /// The playlist whose page is open, if one is.
     ///
     /// Held because playing a track from a playlist has to say which playlist:
@@ -114,6 +117,7 @@ impl Controller {
             window,
             profile,
             query: RefCell::new(String::new()),
+            showing_cover: RefCell::new(String::new()),
             open_playlist: RefCell::new(None),
             eq_bands: Rc::new(VecModel::default()),
             spectrum: Rc::new(VecModel::from(vec![0.0; SPECTRUM_BARS])),
@@ -232,6 +236,8 @@ impl Controller {
         window.set_loaded(shown.loaded);
         window.set_muted(shown.muted);
         window.set_volume(shown.volume);
+
+        self.refresh_cover(false);
 
         let queue = self.services.queue.view();
         window.set_shuffle(queue.shuffle);
@@ -988,6 +994,70 @@ impl Controller {
     /// played, a folder is scanned, a preset is renamed. Asking on arrival
     /// costs one query on a keypress and closes the whole class rather than
     /// the one case somebody happened to notice.
+    /// Asks for a picture and puts it on a track.
+    ///
+    /// The chooser blocks the interface thread, which is what a modal dialog
+    /// does. Nothing else may call it, and nothing else does.
+    pub fn choose_cover(&self, id: &str) {
+        let Ok(media_file_id) = MediaFileId::parse(id) else {
+            return;
+        };
+        self.run(|| self.services.library.choose_cover(media_file_id).map(drop));
+        self.refresh_cover(true);
+    }
+
+    /// Takes a chosen cover off, leaving whatever the file itself carries.
+    pub fn clear_cover(&self, id: &str) {
+        let Ok(media_file_id) = MediaFileId::parse(id) else {
+            return;
+        };
+        self.run(|| self.services.library.clear_cover(media_file_id));
+        self.refresh_cover(true);
+    }
+
+    /// The same two, for a list.
+    pub fn choose_playlist_cover(&self, id: &str) {
+        let Ok(playlist_id) = PlaylistId::parse(id) else {
+            return;
+        };
+        self.run(|| self.services.playlists.choose_cover(playlist_id).map(drop));
+        self.refresh_playlists();
+    }
+
+    pub fn clear_playlist_cover(&self, id: &str) {
+        let Ok(playlist_id) = PlaylistId::parse(id) else {
+            return;
+        };
+        self.run(|| self.services.playlists.clear_cover(playlist_id));
+        self.refresh_playlists();
+    }
+
+    /// Puts the playing track's cover in the player bar.
+    ///
+    /// Only when the track changed, or when somebody has just chosen one: this
+    /// is asked four times a second, and reading an image off the disk that
+    /// often would be paid for in frames for a picture that changes when the
+    /// music does.
+    fn refresh_cover(&self, force: bool) {
+        let Some(window) = self.window.upgrade() else {
+            return;
+        };
+
+        let playing = window.get_playing_id().to_string();
+        if !force && *self.showing_cover.borrow() == playing {
+            return;
+        }
+        *self.showing_cover.borrow_mut() = playing.clone();
+
+        let cover = MediaFileId::parse(&playing)
+            .ok()
+            .and_then(|id| self.services.library.cover_for(id).ok().flatten())
+            .and_then(|path| slint::Image::load_from_path(&path).ok())
+            .unwrap_or_default();
+
+        window.set_now_cover(cover);
+    }
+
     /// Whether something from outside is being held over the window.
     ///
     /// Written only when it changes: this is asked twenty times a second, and

@@ -132,7 +132,7 @@ export component TrackRow inherits Rectangle {
                 text: root.data.title;
                 font-family: Theme.serif;
                 font-size: Theme.text-title;
-                height: 30px;
+                height: 34px;
                 color: Theme.ink-0;
                 vertical-alignment: center;
                 horizontal-alignment: left;
@@ -329,12 +329,17 @@ export component TrackRow inherits Rectangle {
                 // in one, and the only sensible verbs there are the two ways
                 // out of it.
                 property <[MenuItemData]> in-list: [
+                    { action: "cover", label: "Choose a cover…" },
+                    { action: "uncover", label: "Use the cover from the file" },
+                    { action: "" },
                     { action: "remove-from-playlist", label: "Remove from this list", destructive: true },
                     { action: "remove-from-library", label: "Remove from library", destructive: true },
                 ];
                 property <[MenuItemData]> anywhere: [
                     { action: "add-to-playlist", label: "Add to playlist…" },
                     { action: "edit", label: "Edit details…" },
+                    { action: "cover", label: "Choose a cover…" },
+                    { action: "uncover", label: "Use the cover from the file" },
                     { action: "" },
                     { action: "remove-from-library", label: "Remove from library", destructive: true },
                 ];

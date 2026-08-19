@@ -118,6 +118,7 @@ export component AppWindow inherits Window {
     in property <string> now-title;
     in property <string> now-subtitle;
     in property <string> now-initial;
+    in property <image> now-cover;
     in property <string> now-position: "0:00";
     in property <string> now-duration: "0:00";
     in property <string> playing-id;
@@ -153,6 +154,10 @@ export component AppWindow inherits Window {
     callback create-playlist-with(string, string);
     callback remove-from-playlist(int);
     callback remove-from-library(string);
+    callback choose-cover(string);
+    callback clear-cover(string);
+    callback choose-playlist-cover(string);
+    callback clear-playlist-cover(string);
     callback clear-queue();
     callback search(string);
     callback play-from-playlist(string);
@@ -269,6 +274,7 @@ export component AppWindow inherits Window {
         now-title: root.now-title;
         now-subtitle: root.now-subtitle;
         now-initial: root.now-initial;
+        now-cover: root.now-cover;
         now-position: root.now-position;
         now-duration: root.now-duration;
         playing-id: root.playing-id;
@@ -323,6 +329,18 @@ export component AppWindow inherits Window {
         }
         remove-from-library(id) => {
             root.remove-from-library(id);
+        }
+        choose-cover(id) => {
+            root.choose-cover(id);
+        }
+        clear-cover(id) => {
+            root.clear-cover(id);
+        }
+        choose-playlist-cover(id) => {
+            root.choose-playlist-cover(id);
+        }
+        clear-playlist-cover(id) => {
+            root.clear-playlist-cover(id);
         }
         clear-queue => {
             root.clear-queue();
@@ -476,7 +494,7 @@ export component AppWindow inherits Window {
                 text: "Let go to add this to your library";
                 font-family: Theme.serif;
                 font-size: Theme.text-display;
-                height: 54px;
+                height: 56px;
                 horizontal-alignment: center;
                 vertical-alignment: center;
                 color: Theme.ink-0;

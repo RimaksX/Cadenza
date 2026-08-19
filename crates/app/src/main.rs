@@ -22,6 +22,7 @@ use cadenza_core::application::services::{
 };
 use cadenza_core::application::{AppContext, ProfileService};
 use cadenza_core::domain::playback::PlaybackState;
+use cadenza_core::domain::ports::artwork_cache::ArtworkCachePort;
 use cadenza_core::domain::ports::audio_engine::AudioEnginePort;
 use cadenza_core::domain::ports::decoder::DecoderPort;
 use cadenza_core::domain::ports::event_bus::EventBusPort;
@@ -113,14 +114,17 @@ fn run() -> std::result::Result<(), String> {
     ));
     let profiles = Arc::new(ProfileService::new(Arc::clone(&context)));
 
+    // One cache, shared: a cover belongs to a recording or to a list, and both
+    // of those live in the same directory under %LOCALAPPDATA%.
+    let artwork: Arc<dyn ArtworkCachePort> =
+        Arc::new(FileArtworkCache::new(paths.artwork_cache_dir()).map_err(|err| err.to_string())?);
+
     let library = Arc::new(LibraryService::new(
         Arc::clone(&context),
         LibraryPorts {
             files: Arc::new(LocalFileSystem),
             metadata: Arc::new(LoftyMetadataReader),
-            artwork: Arc::new(
-                FileArtworkCache::new(paths.artwork_cache_dir()).map_err(|err| err.to_string())?,
-            ),
+            artwork: Arc::clone(&artwork),
             media_files: Arc::new(SqliteMediaFileRepository::new(pool.clone())),
             tracks: Arc::new(SqliteTrackRepository::new(pool.clone())),
             artists: Arc::new(SqliteArtistRepository::new(pool.clone())),
@@ -137,6 +141,9 @@ fn run() -> std::result::Result<(), String> {
         PlaylistPorts {
             playlists: Arc::new(SqlitePlaylistRepository::new(pool.clone())),
             tracks: Arc::new(SqliteTrackRepository::new(pool.clone())),
+            artwork: Arc::clone(&artwork),
+            picker: Arc::new(SystemFolderPicker),
+            files: Arc::new(LocalFileSystem),
         },
     ));
 

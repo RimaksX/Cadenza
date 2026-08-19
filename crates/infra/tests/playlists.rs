@@ -20,6 +20,8 @@ use cadenza_infra::db::repositories::{
     SqliteSettingsRepository, SqliteTrackRepository,
 };
 use cadenza_infra::events::InProcessEventBus;
+use cadenza_infra::library::LocalFileSystem;
+use cadenza_infra::metadata::FileArtworkCache;
 use cadenza_testkit::{TempDb, TestClock};
 
 /// A profile with a four-track library and a playlist service over it.
@@ -85,8 +87,28 @@ fn service(db: &TempDb, profile_id: ProfileId) -> PlaylistService {
         PlaylistPorts {
             playlists: Arc::new(SqlitePlaylistRepository::new(db.pool().clone())),
             tracks: Arc::new(SqliteTrackRepository::new(db.pool().clone())),
+            artwork: Arc::new(
+                FileArtworkCache::new(db.directory().join("artwork")).expect("an artwork cache"),
+            ),
+            picker: Arc::new(NoPicker),
+            files: Arc::new(LocalFileSystem),
         },
     )
+}
+
+/// A chooser nobody opens: no test here chooses a cover.
+struct NoPicker;
+
+impl cadenza_core::domain::ports::folder_picker::FolderPickerPort for NoPicker {
+    fn pick_folder(&self, _title: &str) -> cadenza_core::Result<Option<PathBuf>> {
+        Ok(None)
+    }
+    fn pick_image(&self, _title: &str) -> cadenza_core::Result<Option<PathBuf>> {
+        Ok(None)
+    }
+    fn suggested_music_folder(&self) -> Option<PathBuf> {
+        None
+    }
 }
 
 fn catalogued(name: &str) -> MediaFile {

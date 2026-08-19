@@ -100,6 +100,7 @@ export component AppShell inherits Rectangle {
     in property <string> now-title;
     in property <string> now-subtitle;
     in property <string> now-initial;
+    in property <image> now-cover;
     in property <string> now-position;
     in property <string> now-duration;
     in property <string> playing-id;
@@ -134,6 +135,12 @@ export component AppShell inherits Rectangle {
     callback create-playlist-with(string, string);
     callback remove-from-playlist(int);
     callback remove-from-library(string);
+    /// Ask for a picture and put it on this track, or take one off again.
+    callback choose-cover(string);
+    callback clear-cover(string);
+    /// The same two, for a list.
+    callback choose-playlist-cover(string);
+    callback clear-playlist-cover(string);
     callback clear-queue();
     callback search(string);
     callback play-from-playlist(string);
@@ -282,7 +289,13 @@ export component AppShell inherits Rectangle {
                     root.ask("new-playlist", "", "");
                 }
                 act(id, name, action) => {
-                    root.ask(action == "rename" ? "rename-playlist" : "delete-playlist", id, name);
+                    if (action == "cover") {
+                        root.choose-playlist-cover(id);
+                    } else if (action == "uncover") {
+                        root.clear-playlist-cover(id);
+                    } else {
+                        root.ask(action == "rename" ? "rename-playlist" : "delete-playlist", id, name);
+                    }
                 }
             }
 
@@ -469,6 +482,7 @@ export component AppShell inherits Rectangle {
             title: root.now-title;
             subtitle: root.now-subtitle;
             initial: root.now-initial;
+            cover: root.now-cover;
             position: root.now-position;
             duration: root.now-duration;
             progress: root.progress;
@@ -668,6 +682,10 @@ export component AppShell inherits Rectangle {
             root.ask("pick-playlist", id, "");
         } else if (action == "remove-from-playlist") {
             root.remove-from-playlist(index);
+        } else if (action == "cover") {
+            root.choose-cover(id);
+        } else if (action == "uncover") {
+            root.clear-cover(id);
         } else if (action == "remove-from-library") {
             root.ask("remove-track", id, "");
         }

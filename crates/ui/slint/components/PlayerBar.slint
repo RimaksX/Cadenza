@@ -160,6 +160,8 @@ export component PlayerBar inherits Rectangle {
     in property <string> title;
     in property <string> subtitle;
     in property <string> initial;
+    /// The cover of what is playing, empty where there is none.
+    in property <image> cover;
     in property <string> position;
     in property <string> duration;
     in property <float> progress;
@@ -219,16 +221,26 @@ export component PlayerBar inherits Rectangle {
                     border-color: Theme.line-soft;
                     clip: true;
 
+                    Image {
+                        width: parent.width;
+                        height: parent.height;
+                        source: root.cover;
+                        image-fit: ImageFit.cover;
+                    }
+
+                    // The letter is what a square holds when it has no picture,
+                    // and it steps aside for one — as it already does for the
+                    // bars while there is sound to draw.
                     Text {
                         text: root.initial;
                         font-family: Theme.serif;
                         font-italic: true;
                         font-size: Theme.text-title;
-                        height: 30px;
+                        height: 34px;
                         color: Theme.ink-1;
                         horizontal-alignment: center;
                         vertical-alignment: center;
-                        opacity: root.playing ? 0.0 : 1.0;
+                        opacity: root.playing || root.cover.width > 0 ? 0.0 : 1.0;
                         animate opacity { duration: 300ms; }
                     }
 
@@ -259,7 +271,7 @@ export component PlayerBar inherits Rectangle {
                 horizontal-stretch: 1;
 
                 Text {
-                    height: 30px;
+                    height: 34px;
                     text: root.loaded ? root.title : "Nothing playing";
                     font-family: Theme.serif;
                     font-size: Theme.text-title;
