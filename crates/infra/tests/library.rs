@@ -1177,18 +1177,19 @@ fn synchronising_brings_back_what_is_there_and_drops_what_is_not() {
         .next()
         .expect("the music folder");
 
-    let plan = harness.library.sync_preview(&folder).expect("a plan");
-    assert_eq!(plan.restoring, 1, "the one that was taken out");
-    assert_eq!(plan.dropping, 1, "the one whose file has gone");
-    assert!(!plan.is_empty());
-
     let report = harness.library.synchronise(&folder).expect("synchronised");
-    assert_eq!(report.gone, 1);
-    assert_eq!(harness.titles(), vec!["here"]);
+    assert_eq!(report.gone, 1, "the one whose file has gone was taken out");
+    assert_eq!(
+        harness.titles(),
+        vec!["here"],
+        "and the one that was taken out came back"
+    );
 
-    // And afterwards there is nothing left to do.
-    let settled = harness.library.sync_preview(&folder).expect("a plan");
-    assert!(settled.is_empty(), "{settled:?}");
+    // And doing it again changes nothing: what was dropped had no file, so it
+    // is not something a second pass can offer to bring back.
+    let again = harness.library.synchronise(&folder).expect("synchronised");
+    assert_eq!(again.gone, 0);
+    assert_eq!(harness.titles(), vec!["here"]);
 }
 
 /// A file that went away and came back plays again.

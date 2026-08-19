@@ -1410,6 +1410,16 @@ impl Controller {
                 .services
                 .profiles
                 .set_history_enabled(profile.id, keep)?;
+
+            // Off means there is nothing written, not "stop writing from now
+            // on". A month of listening left sitting behind a switch that says
+            // off is exactly what PROJECT_MASTER 1.4 refuses, and the service
+            // that owns retention is the one that erases it
+            // (MASTER_ISSUES 70).
+            if !keep {
+                self.services.stats.forget(profile.id)?;
+            }
+
             *self.profile.borrow_mut() = Some(updated);
             Ok(())
         });

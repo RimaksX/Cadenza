@@ -571,10 +571,23 @@ fn dispatch(
                 return Err(CoreError::NoActiveProfile);
             };
             let updated = profiles.set_history_enabled(profile.id, *enabled)?;
+            // Off means there is nothing written, not "stop writing" — a month
+            // of listening left behind a switch that says off is the thing
+            // 1.4 forbids (MASTER_ISSUES 70).
+            let forgotten = if updated.history_enabled {
+                0
+            } else {
+                stats.forget(profile.id)?
+            };
             println!(
-                "history is now {} for {}",
+                "history is now {} for {}{}",
                 if updated.history_enabled { "on" } else { "off" },
-                updated.name
+                updated.name,
+                if forgotten > 0 {
+                    format!(" — {forgotten} listens forgotten")
+                } else {
+                    String::new()
+                }
             );
         }
 

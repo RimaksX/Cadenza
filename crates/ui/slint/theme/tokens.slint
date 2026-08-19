@@ -121,16 +121,11 @@ export global Theme {
     // what stops a long list reading as a spreadsheet.
     out property <length> page-inset: root.px(56);
 
-    // The boxes a line of type stands in, one per size.
-    //
-    // Stated here rather than in every view, because a box has to grow with the
-    // type it holds: a 24-pixel title in a 34-pixel box is right, and the same
-    // title at 30 pixels in the same box is a line Slint drops rather than
-    // clips. Four numbers, and the two-line one prose needs.
-    out property <length> line-display: root.px(56);
-    out property <length> line-title: root.px(34);
+    // The two boxes stated by name rather than by number, because they are the
+    // ones a list of rows repeats and a repeated number is one somebody will
+    // eventually mistype. The rest are written where they stand: a heading has
+    // one box on one page, and naming it would be a token with one caller.
     out property <length> line-body: root.px(22);
-    out property <length> line-body-2: root.px(44);
     out property <length> line-label: root.px(18);
 
     // Track list geometry, all of it from one grid: a number, the names, a time.

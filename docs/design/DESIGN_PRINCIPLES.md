@@ -78,8 +78,10 @@ lost half its density and the letter read as though it had been cut off. The
 Medium stems cross the same grid intact. The serif needs no such help — measured
 at title size its stems come out solid — so it ships as Regular.
 
-**Four sizes, and nothing between them.** Display 36, title 20, body 14, label
-12. Display names a page or an object; title names a thing inside one; body is
+**Four sizes, and nothing between them.** Display 40, title 24, body 14, label
+12 — the serif sizes a step above where they started, because Cormorant Garamond
+has a much smaller lower case than the face it replaced and the old numbers read
+a size down ([MASTER_ISSUES 59](../MASTER_ISSUES.md)). Display names a page or an object; title names a thing inside one; body is
 prose; label is the mono voice. Four rather than seven because a size that
 exists gets used, and a seventh size is a seventh thing for the eye to sort.
 Emphasis comes from the face and the ink instead.

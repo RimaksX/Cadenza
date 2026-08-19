@@ -93,23 +93,6 @@ pub struct ScanReport {
     pub gone: usize,
 }
 
-/// What synchronising a folder would do, counted before it does it.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub struct SyncPlan {
-    /// Tracks in this folder that were taken out and would come back.
-    pub restoring: usize,
-    /// Tracks from this folder whose file is gone and would be taken out.
-    pub dropping: usize,
-}
-
-impl SyncPlan {
-    /// True when synchronising would change nothing at all.
-    #[must_use]
-    pub const fn is_empty(self) -> bool {
-        self.restoring == 0 && self.dropping == 0
-    }
-}
-
 /// What importing one file did.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Imported {
@@ -590,41 +573,6 @@ impl LibraryService {
         self.ports.tracks.restore(profile_id, media_file_id)?;
         self.context.events.publish(DomainEvent::LibraryChanged);
         Ok(())
-    }
-
-    /// What synchronising a folder would do, before it does it.
-    ///
-    /// Counted rather than described: "bring back 3, drop 1" is a decision
-    /// somebody can make in a second, and a list of forty file names is not.
-    pub fn sync_preview(&self, folder: &ProfileFolder) -> Result<SyncPlan> {
-        let profile_id = self.context.require_active_profile()?;
-
-        // Only what is actually there can come back. A track taken out *and*
-        // gone from disk is not something synchronising can offer to restore —
-        // and after a synchronise has dropped one, offering to bring it back
-        // would make the action never settle.
-        let restoring = self
-            .ports
-            .tracks
-            .removed_for_profile(profile_id)?
-            .into_iter()
-            .filter(|summary| self.lies_under(folder, summary.media_file_id))
-            .filter(|summary| self.still_there(summary.media_file_id))
-            .count();
-
-        let dropping = self
-            .ports
-            .tracks
-            .summaries_for_profile(profile_id)?
-            .into_iter()
-            .filter(|summary| self.lies_under(folder, summary.media_file_id))
-            .filter(|summary| !self.still_there(summary.media_file_id))
-            .count();
-
-        Ok(SyncPlan {
-            restoring,
-            dropping,
-        })
     }
 
     /// Makes the library match the folder.

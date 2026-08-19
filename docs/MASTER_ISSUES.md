@@ -1769,7 +1769,10 @@ What is built:
   the folder holds is in the library including what was taken out of it, and
   everything the library holds from that folder whose file has gone is taken
   out. The row goes; the catalogue entry and the listening history stay, so
-  putting the file back brings the track back with its past.
+  putting the file back brings the track back with its past. It says what it did
+  afterwards rather than asking first: what it takes out appears in TAKEN OUT
+  with the reason, and what it brought back is in the library — both visible,
+  neither guessed at.
 - **A line saying how many tracks came from outside every folder.** A file
   dropped on the window is taken where it lies — the owner's choice, over
   copying it into a music folder — which means the library can hold tracks no
@@ -1818,3 +1821,40 @@ watcher would report it, then met again by a scan, must come back playable.
 
 Verified on the owner's own library: the offending row was `missing` before the
 fix and `ok` after one start, without anybody scanning anything by hand.
+
+## 70. The sweep after M15: what was left lying about
+
+The owner asked for a look across everything built so far — loose ends,
+half-things, leftovers. Checked the same way as finding 55: every port method
+and every public service method against its callers, every token against its
+uses, every document against the code.
+
+**One real gap.** `StatsService::forget` — "what turning history off means: not
+stop writing, but there is nothing written" — had no callers. Turning the switch
+off left a month of listening in the database, behind a control that says it is
+off, which is the one thing PROJECT_MASTER 1.4 is explicit about. Both places
+that flip it, the settings screen and `cadenza history off`, now erase what was
+recorded, and the command line says how many listens went.
+
+**One thing built and never wired.** `sync_preview` counted what synchronising
+would do so a listener could decide in front of numbers; then the action shipped
+without a confirmation, so nothing called it — and finding 68 claimed the
+counting happened. Removed, and the claim corrected: SYNC says what it did
+afterwards, and what it took out is visible in TAKEN OUT with its reason. A
+preview nothing shows is a lie with a test attached.
+
+**Three tokens nobody used.** `line-display`, `line-title` and `line-body-2`
+were added during the scaling sweep and made redundant by it. Gone; the two that
+rows repeat stayed.
+
+**Two documents that had drifted.** The design principles still named the type
+scale from before it moved a step, and the master's own status field still said
+M15 was unfinished.
+
+**Left alone, and why.** Five port methods have no caller — `delete_item`,
+`get_session`, `profile_remove`, `recent`, `supports` — and each is a seam a
+trait costs one line to keep. `EqService::set_simple` is a second way to write
+what the equaliser screen already writes another way; harmless, and worth
+merging the day either changes. The `daily_*` rollups stay unwritten (finding
+54). Five tests stay ignored: three need an output device, one needs a folder of
+real music, one is a measurement rather than an assertion.
