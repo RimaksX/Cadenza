@@ -687,6 +687,15 @@ impl LibraryService {
     }
 
     /// Whether the file behind a track is still on disk.
+    ///
+    /// Asked by the settings screen of everything that was taken out: a track
+    /// whose file has gone cannot be brought back, and a button that says it
+    /// can is a button that lies.
+    pub fn is_on_disk(&self, media_file_id: MediaFileId) -> bool {
+        self.still_there(media_file_id)
+    }
+
+    /// Whether the file behind a track is still on disk.
     fn still_there(&self, media_file_id: MediaFileId) -> bool {
         self.ports
             .media_files

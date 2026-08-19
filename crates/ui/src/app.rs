@@ -415,6 +415,16 @@ fn wire(window: &AppWindow, controller: &Rc<Controller>) {
         move |id| controller.remove_folder(&id)
     });
 
+    window.on_synchronise_folder({
+        let controller = Rc::clone(controller);
+        move |id| controller.synchronise_folder(&id)
+    });
+
+    window.on_restore_track({
+        let controller = Rc::clone(controller);
+        move |id| controller.restore_track(&id)
+    });
+
     window.on_scan_now({
         let controller = Rc::clone(controller);
         move || controller.scan_now()

@@ -8,7 +8,7 @@ import { QueueView } from "../views/QueueView.slint";
 import { PlaylistsView, PlaylistCardData } from "../views/PlaylistsView.slint";
 import { PlaylistDetailView } from "../views/PlaylistDetailView.slint";
 import { EqualiserView, EqPresetData, EqBandData } from "../views/EqualiserView.slint";
-import { SettingsView, FolderRowData, ProfileRowData } from "../views/SettingsView.slint";
+import { SettingsView, FolderRowData, ProfileRowData, TakenOutRowData } from "../views/SettingsView.slint";
 import { RadioView, MoodRowData } from "../views/RadioView.slint";
 import { ListeningView, TopTrackData } from "../views/ListeningView.slint";
 import { ReviewsView, ReviewRowData } from "../views/ReviewsView.slint";
@@ -46,6 +46,8 @@ export component AppShell inherits Rectangle {
     in property <int> ui-scale;
     in property <bool> history-on;
     in property <[FolderRowData]> folders;
+    in property <[TakenOutRowData]> taken-out;
+    in property <int> outside-folders;
     in property <[ProfileRowData]> profiles;
 
     // The track being corrected, as it is called now.
@@ -179,6 +181,8 @@ export component AppShell inherits Rectangle {
     callback add-folder();
     callback use-suggested-folder();
     callback remove-folder(string);
+    callback synchronise-folder(string);
+    callback restore-track(string);
     callback scan-now();
     callback widen-eq-band(int, float);
     callback pick-eq-preset(string);
@@ -347,6 +351,8 @@ export component AppShell inherits Rectangle {
                 ui-scale: root.ui-scale;
                 history-on: root.history-on;
                 folders: root.folders;
+                taken-out: root.taken-out;
+                outside-folders: root.outside-folders;
                 suggested: root.suggested-folder;
                 summary: root.settings-summary;
 
@@ -370,6 +376,12 @@ export component AppShell inherits Rectangle {
                 }
                 remove-folder(id) => {
                     root.remove-folder(id);
+                }
+                synchronise-folder(id) => {
+                    root.synchronise-folder(id);
+                }
+                restore-track(id) => {
+                    root.restore-track(id);
                 }
                 scan-now => {
                     root.scan-now();

@@ -1733,3 +1733,51 @@ PROJECT_MASTER 2.10 asks for the gesture and it now exists, but nothing in the
 interface will advertise it beyond the moment somebody starts one. What is left
 is the part that costs nothing until then: while a track is in the air, the one
 place it can go stays lit and everything else steps back.
+
+## 68. Getting music in, and every way somebody actually does it
+
+The owner listed three things that had surprised them and asked for the whole
+process to be thought through rather than patched. Reading the code turned the
+three into two causes and one gap nobody had met yet.
+
+**A removal was a decision with no undo and no evidence.** `scan_folder` runs
+with `revive: false` and `adopt_folder` with `revive: true`, so a track taken
+out stayed out of every later scan — deliberately, because a scan every few
+minutes must not overrule a decision. But nothing showed what had been decided,
+so the only way back was to add the folder again, which nobody would guess.
+Worse, it looked like a bug from outside: the file is on disk, in a watched
+folder, catalogued and unchanged, and the library will not have it.
+
+**Nothing looked at the folders when Cadenza opened.** The watcher only knows
+what happens while it is watching. Music copied in while the application was
+closed waited for a button the listener had no reason to press.
+
+**And SCAN NOW threw its report away**, so "found nothing" and "did nothing"
+looked exactly alike — which is the doubt somebody presses it to settle.
+
+What is built:
+
+- **A scan at startup**, on a thread, publishing what it finds the way the
+  watcher does. The window opens now and the library catches up behind it.
+- **SCAN NOW says what it did**: added, re-read, already here, gone, waiting for
+  a decision.
+- **TAKEN OUT**, in the settings column beside the folders, listing what this
+  listener removed with a BRING BACK on each row. A track whose file has since
+  gone says so and its button is dead, because a button that cannot work should
+  not look as though it could.
+- **SYNC on each folder** — the owner's own idea, and the right one. Everything
+  the folder holds is in the library including what was taken out of it, and
+  everything the library holds from that folder whose file has gone is taken
+  out. The row goes; the catalogue entry and the listening history stay, so
+  putting the file back brings the track back with its past.
+- **A line saying how many tracks came from outside every folder.** A file
+  dropped on the window is taken where it lies — the owner's choice, over
+  copying it into a music folder — which means the library can hold tracks no
+  folder looks after. Not a fault, but not something to discover either.
+
+One flaw a test caught before it shipped: the plan offered to bring back tracks
+whose file was gone, so a synchronise could never settle — it would offer to
+restore what it had just dropped. Only what is on disk can come back.
+
+And one thing found by rendering it: this machine already had two tracks taken
+out, months of "why is that not there" waiting in a list nobody could see.

@@ -19,7 +19,7 @@ use cadenza_core::domain::profile::Profile;
 use cadenza_core::domain::queue::RepeatMode;
 use cadenza_core::domain::radio::{MIN_BATCH_SIZE, RadioFeedback};
 use cadenza_core::domain::review::ReviewResolution;
-use cadenza_core::domain::settings::{CrossfadeDuration, InterfaceScale};
+use cadenza_core::domain::settings::{CrossfadeDuration, InterfaceScale, ProfileFolder};
 use cadenza_core::domain::value_objects::theme_mode::ThemeMode;
 use cadenza_core::domain::value_objects::{DurationMs, GainDb, PlaybackPosition, Volume};
 use cadenza_core::{CoreError, Result};
@@ -29,8 +29,8 @@ use crate::view_models::{
     self, eq_vm, library_vm, player_vm, playlist_vm, profile_vm, radio_vm, review_vm, stats_vm,
 };
 use crate::{
-    AppWindow, EqBandData, FolderRowData, MoodRowData, ProfileRowData, ReviewRowData, Theme,
-    TopTrackData, UiServices,
+    AppWindow, EqBandData, FolderRowData, MoodRowData, ProfileRowData, ReviewRowData,
+    TakenOutRowData, Theme, TopTrackData, UiServices,
 };
 
 /// How many bars the player bar draws.
@@ -1326,6 +1326,27 @@ impl Controller {
             .collect();
         window.set_folders(ModelRc::new(VecModel::from(rows)));
 
+        // What this listener took out, and how many tracks no folder looks
+        // after. Both are read here rather than on a screen of their own: they
+        // are facts about the library, and the library lives on this page.
+        let taken_out: Vec<TakenOutRowData> = self
+            .services
+            .library
+            .taken_out()
+            .unwrap_or_default()
+            .iter()
+            .map(|summary| TakenOutRowData {
+                id: summary.media_file_id.to_string().into(),
+                title: summary.title.as_str().into(),
+                subtitle: summary.artist.as_deref().unwrap_or("Unknown artist").into(),
+                gone: !self.services.library.is_on_disk(summary.media_file_id),
+            })
+            .collect();
+        window.set_taken_out(ModelRc::new(VecModel::from(taken_out)));
+        window.set_outside_folders(
+            i32::try_from(self.services.library.outside_folders().unwrap_or(0)).unwrap_or(0),
+        );
+
         let tracks = self
             .services
             .library
@@ -1418,6 +1439,46 @@ impl Controller {
             self.services.library.remove_folder(folder)
         });
         self.after_library_change();
+    }
+
+    /// Makes one folder and the library agree, and says what changed.
+    pub fn synchronise_folder(&self, id: &str) {
+        let said = match self.folder_by_id(id).and_then(|folder| {
+            self.services
+                .library
+                .synchronise(&folder)
+                .map(|report| library_vm::taken_in(&report))
+        }) {
+            Ok(said) => said,
+            Err(err) => {
+                self.report(&err);
+                return;
+            }
+        };
+
+        if let Some(window) = self.window.upgrade() {
+            window.set_message(said.into());
+        }
+        self.after_library_change();
+    }
+
+    /// Puts one track back into the library.
+    pub fn restore_track(&self, id: &str) {
+        let Ok(media_file_id) = MediaFileId::parse(id) else {
+            return;
+        };
+        self.run(|| self.services.library.restore_track(media_file_id));
+        self.after_library_change();
+    }
+
+    /// The folder one of the settings rows stands for.
+    fn folder_by_id(&self, id: &str) -> Result<ProfileFolder> {
+        self.services
+            .library
+            .folders()?
+            .into_iter()
+            .find(|folder| folder.id.to_string() == id)
+            .ok_or_else(|| CoreError::not_found("library folder", id))
     }
 
     /// Looks again at every folder, and says what it found.

@@ -29,7 +29,7 @@ import { TrackRowData } from "components/TrackRow.slint";
 import { PlaylistCardData } from "views/PlaylistsView.slint";
 import { MenuItemData } from "components/RowMenu.slint";
 import { EqPresetData, EqBandData } from "views/EqualiserView.slint";
-import { FolderRowData, ProfileRowData } from "views/SettingsView.slint";
+import { FolderRowData, ProfileRowData, TakenOutRowData } from "views/SettingsView.slint";
 import { MoodRowData } from "views/RadioView.slint";
 import { TopTrackData } from "views/ListeningView.slint";
 import { ReviewRowData } from "views/ReviewsView.slint";
@@ -88,6 +88,8 @@ export component AppWindow inherits Window {
     in property <int> ui-scale;
     in property <bool> history-on;
     in property <[FolderRowData]> folders;
+    in property <[TakenOutRowData]> taken-out;
+    in property <int> outside-folders;
     in property <[ProfileRowData]> profiles;
     in property <string> editing-id;
     in property <string> editing-title;
@@ -192,6 +194,8 @@ export component AppWindow inherits Window {
     callback add-folder();
     callback use-suggested-folder();
     callback remove-folder(string);
+    callback synchronise-folder(string);
+    callback restore-track(string);
     callback scan-now();
     callback showing(string);
     callback decide-review(string, string);
@@ -251,6 +255,8 @@ export component AppWindow inherits Window {
         ui-scale: root.ui-scale;
         history-on: root.history-on;
         folders: root.folders;
+        taken-out: root.taken-out;
+        outside-folders: root.outside-folders;
         profiles: root.profiles;
         editing-id: root.editing-id;
         editing-title: root.editing-title;
@@ -425,6 +431,12 @@ export component AppWindow inherits Window {
         }
         remove-folder(id) => {
             root.remove-folder(id);
+        }
+        synchronise-folder(id) => {
+            root.synchronise-folder(id);
+        }
+        restore-track(id) => {
+            root.restore-track(id);
         }
         showing(name) => {
             root.showing(name);
