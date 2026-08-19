@@ -1,0 +1,11 @@
+CadenzaSerif-Regular.ttf and CadenzaSerif-Italic.ttf are Cormorant Garamond
+Regular and Italic (Copyright 2015 the Cormorant Project Authors, SIL OFL 1.1,
+no Reserved Font Name) with one change: the `name` table declares the family as
+"Cadenza Serif".
+
+Nothing else was touched — not an outline, not a metric, not a kerning pair.
+The change was made by scripts/rename_font.py and exists so that the font
+shipped inside Cadenza is the font Cadenza draws with, on a machine that has
+Cormorant Garamond installed as much as on one that does not.
+
+The originals are at https://fonts.google.com/specimen/Cormorant+Garamond.

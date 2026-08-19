@@ -39,15 +39,27 @@ be found by eye.
 
 Three faces, three jobs.
 
-| Face | Job |
-|---|---|
-| Instrument Serif | names things — a page, a playlist, a track, the wordmark |
-| Inter | explains them — prose, and anything read as a sentence |
-| JetBrains Mono | anything read as a number rather than as a word — captions, column heads, quantities, times |
+| Face | Job | What it is |
+|---|---|---|
+| Cadenza Serif | names things — a page, a playlist, a track, the wordmark | Cormorant Garamond |
+| Cadenza Sans | explains them — prose, and anything read as a sentence | Manrope |
+| Cadenza Mono | anything read as a number rather than as a word — captions, column heads, quantities, times | JetBrains Mono |
 
-The families are bundled with the binary, so they are identical on every machine
-and need no network. A player that is offline by requirement cannot have a
-typeface that arrives over one.
+The families are bundled with the binary, so they need no network: a player that
+is offline by requirement cannot have a typeface that arrives over one.
+
+**They answer to names nobody else has, and that is what makes them identical on
+every machine.** Slint asks for a family by name, and the system's own copies are
+in the same database and were loaded first — so a listener with Cormorant
+Garamond installed would have seen their copy, of whatever version, and a
+developer would have seen their JetBrains Mono. Nothing but Cadenza can answer to
+"Cadenza Serif". The renaming touches the name table and nothing else
+(`scripts/rename_font.py`); all three are OFL 1.1 with no reserved name, and each
+folder says what its file was before.
+
+One weight each, in one file each, so no size or emphasis has to be asked for by
+number — and a weight that has to be requested is a weight the system copy could
+answer better.
 
 **Four sizes, and nothing between them.** Display 36, title 20, body 14, label
 12. Display names a page or an object; title names a thing inside one; body is
@@ -61,10 +73,11 @@ read as words. Digits get a hair of the same treatment, half a pixel, so a
 column of times reads as a column rather than as a word.
 
 **Every line of type states its own box, and the box is never smaller than the
-face needs.** Instrument Serif asks for about 1.4 times its size. A row that
-leaves less does not clip the title — Slint drops the line entirely, which is a
-defect that looks like missing data rather than like a layout mistake. The audit
-holds every boxed line to 1.35 times its type size.
+face needs.** The serif asks for about 1.21 times its size and the sans for 1.37.
+A row that leaves less does not clip the line — Slint drops it entirely, which is
+a defect that looks like missing data rather than like a layout mistake. The
+audit holds every boxed line to 1.35 times its type size, which is the tighter of
+the two with a little to spare.
 
 ## Colour
 

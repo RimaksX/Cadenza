@@ -1,0 +1,10 @@
+CadenzaSans-Regular.ttf is Manrope Regular (Copyright 2018 The Manrope Project
+Authors, SIL OFL 1.1, no Reserved Font Name) with one change: the `name` table
+declares the family as "Cadenza Sans".
+
+Nothing else was touched — not an outline, not a metric, not a kerning pair.
+The change was made by scripts/rename_font.py and exists so that the font
+shipped inside Cadenza is the font Cadenza draws with, whatever the machine
+happens to have installed.
+
+The original is at https://fonts.google.com/specimen/Manrope.

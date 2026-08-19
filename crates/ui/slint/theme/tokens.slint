@@ -44,13 +44,14 @@ export global Theme {
     // carries anything a listener reads as a number rather than as a word.
     //
     // The families are bundled — see the imports at the top of `app_window.slint`
-    // — so they are the same on every machine and need no network. These are the
-    // names the fonts declare inside themselves, not their file names: the
-    // static Inter cuts call themselves "Inter 18pt 18pt", which is why the
-    // variable file is the one shipped.
-    out property <string> serif: "Instrument Serif";
-    out property <string> sans: "Inter";
-    out property <string> mono: "JetBrains Mono";
+    // — so they are the same on every machine and need no network. The names are
+    // ours rather than the foundries': a family name that exists on the
+    // listener's computer is a family name their copy of it can answer to, and
+    // "the same everywhere" then depends on what they happen to have installed.
+    // Each is one weight in one file, so nothing has to be asked for by number.
+    out property <string> serif: "Cadenza Serif";
+    out property <string> sans: "Cadenza Sans";
+    out property <string> mono: "Cadenza Mono";
 
     // Type scale — four sizes, and nothing between them.
     //
@@ -97,8 +98,8 @@ export global Theme {
     out property <length> time-column: 96px;
     out property <length> row-padding: 14px;
     // Tall enough for the title's own line box, not merely for its font size:
-    // Instrument Serif asks for about 1.4 times the size, and a row that leaves
-    // less does not clip the title — it drops it entirely.
+    // the serif asks for about 1.21 times the size and the sans for 1.37, and a
+    // row that leaves less does not clip the line — it drops it entirely.
     out property <length> row-height: 62px;
 
     // The number column is right-aligned inside its own width, which leaves the

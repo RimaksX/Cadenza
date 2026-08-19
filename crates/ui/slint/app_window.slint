@@ -1,14 +1,26 @@
 // The three faces, compiled into the binary. Cadenza is offline (PROJECT_MASTER
 // 1.2): a font fetched at runtime is a font that is missing on the machine that
-// matters. All three are SIL OFL 1.1, whose licence text ships beside them.
+// matters. All three are SIL OFL 1.1, whose licence ships beside them.
 //
-// Instrument Serif is the only one with a separate italic file; Inter is the
-// variable cut, because its static cuts declare themselves as "Inter 18pt 18pt"
-// and a family name is not something to fight.
-import "../../../resources/ui/fonts/Instrument_Serif/InstrumentSerif-Regular.ttf";
-import "../../../resources/ui/fonts/Instrument_Serif/InstrumentSerif-Italic.ttf";
-import "../../../resources/ui/fonts/Inter/Inter-VariableFont_opsz,wght.ttf";
-import "../../../resources/ui/fonts/JetBrains_Mono/JetBrainsMono-Regular.ttf";
+// They answer to names no machine will already have, and that is the point.
+// Slint asks fontdb for a family by name; fontdb gathers every face carrying
+// that name — the system's own were loaded first — and breaks a tie of equal
+// weight in favour of the one it saw first. A listener with Cormorant Garamond
+// installed would have seen their copy, of whatever version, instead of the one
+// this interface was drawn against. Asking for "Cadenza Serif" cannot be
+// answered by anybody but us.
+//
+// The renaming is `scripts/rename_font.py`, and it touches nothing but the name
+// table: the outlines, metrics and kerning are the originals'. What each file
+// was before is written in the folder it sits in.
+//
+// Cormorant Garamond replaced Instrument Serif because Instrument Serif has no
+// Cyrillic at all — a Russian title fell through to whatever the system offered,
+// which is a different typeface in the middle of a list of track names.
+import "../../../resources/ui/fonts/Cormorant_Garamond/CadenzaSerif-Regular.ttf";
+import "../../../resources/ui/fonts/Cormorant_Garamond/CadenzaSerif-Italic.ttf";
+import "../../../resources/ui/fonts/Manrope/CadenzaSans-Regular.ttf";
+import "../../../resources/ui/fonts/JetBrains_Mono/CadenzaMono-Regular.ttf";
 
 import { Theme } from "theme/tokens.slint";
 import { AppShell } from "components/AppShell.slint";

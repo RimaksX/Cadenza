@@ -1,0 +1,10 @@
+CadenzaMono-Regular.ttf is JetBrains Mono Regular (Copyright 2020 The JetBrains
+Mono Project Authors, SIL OFL 1.1, no Reserved Font Name) with one change: the
+`name` table declares the family as "Cadenza Mono".
+
+Nothing else was touched — not an outline, not a metric, not a kerning pair.
+The change was made by scripts/rename_font.py and exists so that the font
+shipped inside Cadenza is the font Cadenza draws with — and a developer's
+machine is exactly the kind that already has JetBrains Mono on it.
+
+The original is at https://fonts.google.com/specimen/JetBrains+Mono.

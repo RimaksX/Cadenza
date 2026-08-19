@@ -1321,3 +1321,60 @@ another. The only destination visible while a track is, is the sidebar — so
 "drag a track to the queue" is the whole of what this can mean today, and
 dragging one *into a playlist* needs a place where both are visible, which is a
 design question rather than a technical one.
+
+## 59. Three faces, and a family name the machine cannot answer for us
+
+Instrument Serif has no Cyrillic. Not a poor one — none: a Russian title fell
+through to whatever the system offered, so one row in a list of track names was
+set in a different typeface. The owner also judged Inter the wrong sans, and
+chose the replacements: Cormorant Garamond and Manrope, JetBrains Mono staying.
+
+Three things had to be decided by reading the files rather than by looking at
+them.
+
+**The variable cuts could not be used.** A variable font carries the family name
+of its *default* instance. Manrope's variable file calls itself "Manrope
+ExtraLight" and defaults to weight 200; Cormorant Garamond's calls itself
+"Cormorant Garamond Light" at 300. Shipping either would mean the interface
+asking for a family that does not exist, or accepting a weight nobody chose. The
+static Regular cuts call themselves what they are.
+
+**A static Medium hides behind its typographic family.** Trying Cormorant
+Garamond Medium — a heavier cut for the small serif sizes — rendered nothing at
+all: the file declares family "Cormorant Garamond Medium" but *also* typographic
+family "Cormorant Garamond", which is the name fontdb registers, so the request
+matched no family and fell back to the default sans.
+
+**And the third, which is the one that mattered.** With the Regular restored,
+the render was byte-for-byte identical to the render made with the Medium — so
+neither was being used. The machine has Cormorant Garamond installed. Slint asks
+fontdb for a family by name; fontdb gathers every face carrying it, the system's
+copies having been loaded before ours, and picks by weight — breaking a tie in
+favour of the one it saw first. The bundled font was being shadowed by the
+listener's own.
+
+The owner's requirement is that it look the same for everybody. A font that can
+be shadowed cannot promise that, and no amount of asking politely fixes it,
+because the name is the only thing being asked.
+
+**Chosen:** the bundled faces are renamed. `scripts/rename_font.py` rewrites the
+`name` table and nothing else — not an outline, not a metric, not a kerning pair
+— so the families become "Cadenza Serif", "Cadenza Sans" and "Cadenza Mono".
+Nothing but Cadenza can answer to those. All three originals are SIL OFL 1.1
+with no Reserved Font Name, which permits the change; the licence ships beside
+each file and a `MODIFICATIONS.txt` says what it was.
+
+That the mono was renamed too is not symmetry: a developer's machine is exactly
+the kind that already has JetBrains Mono on it, in some version or other.
+
+One weight per family, one file per weight. A weight that has to be requested by
+number is a weight a system copy could answer better, and the request is the
+thing that goes wrong.
+
+**Deleted:** Instrument Serif and Inter entirely, both variable files of the new
+families, every static cut except the two that ship, and the unused JetBrains
+Mono variable. What is left is four files, three licences and three notes.
+
+Verified by rendering: all three faces draw Cyrillic — "Каденция Ёж" in the
+serif, "МЕСТНЫЙ ПЛЕЕР 42" in the mono, "Библиотека — всё" in the sans — with no
+fallback anywhere, which is exactly the defect this began with.
