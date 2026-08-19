@@ -1629,3 +1629,32 @@ fractions of their own viewbox, so at 125 per cent a stroke is still 1.25
 pixels. Whole-pixel geometry cannot round what is inside an SVG. Redrawing them
 on a grid that lands whole at every step is the fix, and it is a design job
 rather than a layout one.
+
+## 66. The lengths grew and the window did not
+
+Scaling the interface in its lengths (finding 65) left the frame around them
+alone: at 110 and 125 per cent the far side of every page ended up past the
+window edge, and coming back down to 100 the window kept the height it had been
+stretched to. The owner reported both.
+
+**Chosen:** the window is resized by the same ratio the moment the size changes.
+The 100 per cent window is the base — a quarter larger asks for a quarter more
+room, and a quarter smaller gives it back. The window's own floor and preferred
+size already scale with the choice; what was missing is that a *live* change
+moves neither, because the constraint growing does not resize anything by
+itself.
+
+**And the icons, which were never crisp at any size.** They are Lucide's, drawn
+on a 24-unit grid with a 2-unit stroke and rendered at 16 pixels: the stroke
+comes out at one and a third pixels, so it has always been a solid column and a
+faint one. A stroke of 1.5 units lands on exactly one pixel at 16, which is what
+they now carry — measured before and after, and it also sits better beside type
+this light.
+
+What that does not fix, and what would: the path *coordinates* are on the same
+24-grid, so their centres land on thirds of a pixel however thin the stroke is.
+Pixel-perfect icons need either drawing on a 16-unit grid with whole
+coordinates, or an icon size the 24-grid divides into wholly — 12 or 24 rather
+than 16. Both are design decisions rather than layout ones, and neither survives
+a fractional scale anyway: at 125 per cent a 16-pixel icon is 20, and nothing
+authored for 16 lands whole there.

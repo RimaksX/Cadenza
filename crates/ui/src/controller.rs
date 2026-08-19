@@ -1091,16 +1091,37 @@ impl Controller {
     }
 
     /// Chooses how large the interface is drawn, and draws it that way now.
+    ///
+    /// The window is resized by the same ratio, because the interface asking
+    /// for a quarter more room does not by itself give it any: the lengths grow
+    /// and the frame around them does not, so the far side of every page ends
+    /// up past the edge — and on the way back down the window keeps the height
+    /// it was stretched to (`MASTER_ISSUES` 66).
     pub fn set_interface_scale(&self, percent: i32) {
         let Some(profile) = self.profile.borrow().as_ref().map(|profile| profile.id) else {
             return;
         };
 
+        let before = self.chosen_scale();
         self.run(|| {
             let scale = InterfaceScale::new(u16::try_from(percent).unwrap_or_default())?;
             self.services.profiles.set_interface_scale(profile, scale)
         });
         self.refresh_interface_scale();
+
+        let after = self.chosen_scale();
+        if after == before {
+            return;
+        }
+
+        if let Some(window) = self.window.upgrade() {
+            let ratio = after.factor() / before.factor();
+            let size = window.window().size();
+            window.window().set_size(slint::PhysicalSize::new(
+                (size.width as f32 * ratio).round() as u32,
+                (size.height as f32 * ratio).round() as u32,
+            ));
+        }
     }
 
     /// Whether something from outside is being held over the window.
