@@ -1,4 +1,4 @@
-CadenzaSans-Regular.ttf is Manrope Regular (Copyright 2018 The Manrope Project
+CadenzaSans-Regular.ttf is Manrope *Medium* (Copyright 2018 The Manrope Project
 Authors, SIL OFL 1.1, no Reserved Font Name) with one change: the `name` table
 declares the family as "Cadenza Sans".
 
@@ -6,5 +6,12 @@ Nothing else was touched — not an outline, not a metric, not a kerning pair.
 The change was made by scripts/rename_font.py and exists so that the font
 shipped inside Cadenza is the font Cadenza draws with, whatever the machine
 happens to have installed.
+
+Medium rather than Regular, and measured rather than judged: at 14px Manrope
+Regular's stems are about 1.05 pixels, and the renderer does no hinting, so a
+stem landing between two pixel columns is drawn as two faint ones. In the
+capital M that cost the right-hand stem half its density and the letter read as
+if it had been clipped. The Medium stems survive the same grid intact. The file
+is named "Regular" because it is the one weight this family has.
 
 The original is at https://fonts.google.com/specimen/Manrope.

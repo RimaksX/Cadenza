@@ -61,6 +61,14 @@ One weight each, in one file each, so no size or emphasis has to be asked for by
 number — and a weight that has to be requested is a weight the system copy could
 answer better.
 
+**The sans is the Medium cut, and that is a rendering decision rather than a
+taste one.** At 14px Manrope Regular's stems are about 1.05 pixels and nothing
+in this stack hints them, so a stem that lands between two pixel columns is
+drawn as two faint ones instead of one solid: in a capital M the right-hand stem
+lost half its density and the letter read as though it had been cut off. The
+Medium stems cross the same grid intact. The serif needs no such help — measured
+at title size its stems come out solid — so it ships as Regular.
+
 **Four sizes, and nothing between them.** Display 36, title 20, body 14, label
 12. Display names a page or an object; title names a thing inside one; body is
 prose; label is the mono voice. Four rather than seven because a size that

@@ -1378,3 +1378,37 @@ Mono variable. What is left is four files, three licences and three notes.
 Verified by rendering: all three faces draw Cyrillic — "Каденция Ёж" in the
 serif, "МЕСТНЫЙ ПЛЕЕР 42" in the mono, "Библиотека — всё" in the sans — with no
 fallback anywhere, which is exactly the defect this began with.
+
+## 60. A capital M that looked clipped, and was only half lit
+
+The owner said the artist column was cutting its capitals — the right-hand stem
+of M looked sliced off. Three things were checked in order, and the first two
+were wrong.
+
+**Not the layout.** Nothing about the column changed with the typeface, and the
+letter is at the *start* of the string, where no box edge is.
+
+**Not the font data.** Every declared glyph box in Manrope matches its outline
+exactly, and M carries a right side bearing of 140 units of 2000 — a full pixel
+at this size. Nothing overflows anything.
+
+**It was the pixel grid.** Magnifying the render and printing the intensities
+column by column: the left stem of M lands at about 40% ink and the right at
+about 10%. The stem is not missing, it is half lit — Manrope Regular's stems are
+about 1.05 pixels at 14px, this stack does no hinting, and a stem that straddles
+two columns is spread across both until it disappears. The eye reads the
+survivor as a clipped letter.
+
+**Chosen:** the sans ships as Manrope **Medium**. Its stems cross the same grid
+intact — measured the same way, both stems of M come back at equal density. Not
+a larger size, which would move every line box in the interface for a defect
+that is about stroke weight; and not a heavier serif, because the serif was
+measured too and its stems at title size are solid.
+
+This is also why the faces are renamed rather than merely bundled
+(`MASTER_ISSUES` 59): "Cadenza Sans" is one file at one weight, so the weight is
+a property of the family rather than something every text element has to
+remember to ask for — and something a system copy could answer instead.
+
+Light text on a dark ground is where this shows first. It is worth looking again
+if the light theme ever gets the same reading.
