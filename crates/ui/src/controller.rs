@@ -800,6 +800,54 @@ impl Controller {
     }
 
     /// Everything the settings screen draws.
+    /// Opens the editor on a track, or closes it when the id is empty.
+    ///
+    /// What it is called now is read here rather than taken from the row: a
+    /// listing elides long titles, and the field would then offer the listener
+    /// their own title with a dash in the middle of it.
+    pub fn edit_track(&self, id: &str) {
+        let Some(window) = self.window.upgrade() else {
+            return;
+        };
+
+        if id.is_empty() {
+            window.set_editing_id(String::new().into());
+            return;
+        }
+
+        self.run(|| {
+            let media_file_id = MediaFileId::parse(id)?;
+            let track = self
+                .services
+                .library
+                .summaries()?
+                .into_iter()
+                .find(|summary| summary.media_file_id == media_file_id)
+                .ok_or_else(|| CoreError::not_found("track", media_file_id))?;
+
+            window.set_editing_title(track.title.as_str().into());
+            window.set_editing_artist(track.artist.clone().unwrap_or_default().into());
+            window.set_editing_album(track.album.clone().unwrap_or_default().into());
+            window.set_editing_id(id.into());
+            Ok(())
+        });
+    }
+
+    /// Writes a correction down and closes the editor.
+    pub fn save_track(&self, id: &str, title: &str, artist: &str, album: &str) {
+        self.run(|| {
+            let media_file_id = MediaFileId::parse(id)?;
+            self.services
+                .library
+                .edit_track(media_file_id, title, Some(artist), Some(album))
+        });
+
+        if let Some(window) = self.window.upgrade() {
+            window.set_editing_id(String::new().into());
+        }
+        self.after_library_change();
+    }
+
     /// Switches to another listener.
     ///
     /// PROJECT_MASTER 2.5 states this as three steps in order — playback stops,

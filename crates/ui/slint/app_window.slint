@@ -67,6 +67,10 @@ export component AppWindow inherits Window {
     in property <bool> history-on;
     in property <[FolderRowData]> folders;
     in property <[ProfileRowData]> profiles;
+    in property <string> editing-id;
+    in property <string> editing-title;
+    in property <string> editing-artist;
+    in property <string> editing-album;
     in property <string> suggested-folder;
     in property <string> settings-summary;
 
@@ -157,6 +161,8 @@ export component AppWindow inherits Window {
     callback remove-folder(string);
     callback scan-now();
     callback showing(string);
+    callback edit-track(string);
+    callback save-track(string, string, string, string);
     callback switch-profile(string);
     callback create-profile(string);
     callback start-radio(string);
@@ -211,6 +217,10 @@ export component AppWindow inherits Window {
         history-on: root.history-on;
         folders: root.folders;
         profiles: root.profiles;
+        editing-id: root.editing-id;
+        editing-title: root.editing-title;
+        editing-artist: root.editing-artist;
+        editing-album: root.editing-album;
         suggested-folder: root.suggested-folder;
         settings-summary: root.settings-summary;
         moods: root.moods;
@@ -365,6 +375,12 @@ export component AppWindow inherits Window {
         }
         showing(name) => {
             root.showing(name);
+        }
+        edit-track(id) => {
+            root.edit-track(id);
+        }
+        save-track(id, title, artist, album) => {
+            root.save-track(id, title, artist, album);
         }
         switch-profile(id) => {
             root.switch-profile(id);

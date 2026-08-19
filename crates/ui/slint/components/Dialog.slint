@@ -410,3 +410,145 @@ export component PickDialog inherits Rectangle {
         }
     }
 }
+
+// Three fields, because a track is called three things.
+//
+// The generic dialog above asks for one word and is right to: naming a playlist
+// is one decision. Correcting a track is three, and three dialogs in a row
+// would make somebody confirm twice to fix a typo in an album title. Its own
+// component rather than a fourth flag on that one, which already carries three.
+export component EditTrackDialog inherits Rectangle {
+    in property <string> title-value;
+    in property <string> artist-value;
+    in property <string> album-value;
+
+    callback confirmed(string, string, string);
+    callback cancelled();
+
+    background: Theme.bg-0.with-alpha(0.72);
+
+    backdrop := TouchArea {
+        clicked => {
+            root.cancelled();
+        }
+    }
+
+    keys := FocusScope {
+        key-pressed(event) => {
+            if (event.text == Key.Escape) {
+                root.cancelled();
+                return accept;
+            }
+            return reject;
+        }
+    }
+
+    card := Rectangle {
+        width: 440px;
+        height: layout.preferred-height;
+        x: round((parent.width - self.width) / 1px / 2) * 1px;
+        y: round((parent.height - self.height) / 1px / 2) * 1px;
+        background: Theme.bg-1;
+        border-width: 1px;
+        border-color: Theme.line;
+        border-radius: Theme.radius;
+
+        TouchArea { }
+
+        layout := VerticalLayout {
+            padding: Theme.space-6;
+            spacing: Theme.space-4;
+
+            Text {
+                text: "What this track is called";
+                font-family: Theme.serif;
+                font-size: Theme.text-title;
+                color: Theme.ink-0;
+                wrap: word-wrap;
+            }
+
+            Text {
+                text: "Yours alone. The file keeps its own tags, and another listener sharing it sees what they always saw.";
+                font-family: Theme.sans;
+                font-size: Theme.text-body;
+                color: Theme.ink-2;
+                wrap: word-wrap;
+            }
+
+            VerticalLayout {
+                spacing: Theme.space-2;
+
+                Text {
+                    text: "TITLE";
+                    font-family: Theme.mono;
+                    font-size: Theme.text-label;
+                    height: 18px;
+                    vertical-alignment: center;
+                    letter-spacing: Theme.label-spacing;
+                    color: Theme.ink-mute;
+                }
+
+                title-field := Field {
+                    width: 100%;
+                    placeholder: "Mysterons";
+                    text: root.title-value;
+                }
+
+                Text {
+                    text: "ARTIST";
+                    font-family: Theme.mono;
+                    font-size: Theme.text-label;
+                    height: 18px;
+                    vertical-alignment: center;
+                    letter-spacing: Theme.label-spacing;
+                    color: Theme.ink-mute;
+                }
+
+                artist-field := Field {
+                    width: 100%;
+                    placeholder: "Portishead";
+                    text: root.artist-value;
+                }
+
+                Text {
+                    text: "ALBUM";
+                    font-family: Theme.mono;
+                    font-size: Theme.text-label;
+                    height: 18px;
+                    vertical-alignment: center;
+                    letter-spacing: Theme.label-spacing;
+                    color: Theme.ink-mute;
+                }
+
+                album-field := Field {
+                    width: 100%;
+                    placeholder: "Dummy";
+                    text: root.album-value;
+                    accepted => {
+                        root.confirmed(title-field.text, artist-field.text, album-field.text);
+                    }
+                }
+            }
+
+            HorizontalLayout {
+                alignment: end;
+                spacing: Theme.space-2;
+
+                TextButton {
+                    label: "CANCEL";
+                    pressed => {
+                        root.cancelled();
+                    }
+                }
+
+                TextButton {
+                    label: "SAVE";
+                    primary: true;
+                    pressed => {
+                        root.confirmed(title-field.text, artist-field.text, album-field.text);
+                    }
+                }
+            }
+        }
+    }
+}

@@ -886,3 +886,81 @@ fn the_folder_records_when_it_was_last_scanned() {
     );
     assert_eq!(folder.profile_id, harness.profile_id);
 }
+
+#[test]
+fn a_listener_can_correct_a_track_without_touching_the_file_or_anyone_else() {
+    let harness = harness("edit");
+    write_wav(&harness.music, "one.wav", 1, 10);
+    harness.scan(true);
+
+    let track = harness
+        .library
+        .summaries()
+        .expect("a library")
+        .into_iter()
+        .next()
+        .expect("something was imported");
+
+    harness
+        .library
+        .edit_track(
+            track.media_file_id,
+            "Mysterons",
+            Some("Portishead"),
+            Some("Dummy"),
+        )
+        .expect("corrected");
+
+    let corrected = harness
+        .library
+        .summaries()
+        .expect("a library")
+        .into_iter()
+        .find(|row| row.media_file_id == track.media_file_id)
+        .expect("still there");
+
+    assert_eq!(corrected.title, "Mysterons");
+    assert_eq!(corrected.artist.as_deref(), Some("Portishead"));
+    assert_eq!(corrected.album.as_deref(), Some("Dummy"));
+
+    // The file itself was not touched: a rescan finds nothing to update, and
+    // what the listener called it survives (PROJECT_MASTER 2.1).
+    let report = harness.scan(true);
+    assert_eq!(report.added, 0);
+    assert_eq!(
+        harness
+            .library
+            .summaries()
+            .expect("a library")
+            .into_iter()
+            .find(|row| row.media_file_id == track.media_file_id)
+            .expect("still there")
+            .title,
+        "Mysterons",
+        "a scan must not undo a correction"
+    );
+
+    // Clearing a field means the absence, not a name made of spaces.
+    harness
+        .library
+        .edit_track(track.media_file_id, "Mysterons", Some("   "), None)
+        .expect("cleared");
+
+    let cleared = harness
+        .library
+        .summaries()
+        .expect("a library")
+        .into_iter()
+        .find(|row| row.media_file_id == track.media_file_id)
+        .expect("still there");
+    assert_eq!(cleared.artist, None);
+    assert_eq!(cleared.album, None);
+
+    // A track has to be called something.
+    assert!(
+        harness
+            .library
+            .edit_track(track.media_file_id, "  ", None, None)
+            .is_err()
+    );
+}

@@ -751,6 +751,56 @@ impl LibraryService {
             .map(|_| ())
     }
 
+    /// Corrects what this profile calls a track.
+    ///
+    /// A local override and nothing else: the file keeps its tags, the
+    /// catalogue keeps its reading of them, and another profile sharing the
+    /// same file goes on seeing what it always saw (PROJECT_MASTER 2.1). There
+    /// is no writing back to disk and there is not meant to be.
+    ///
+    /// An empty artist or album means "no artist", not "an artist called
+    /// nothing": the columns already carry that distinction and a listener
+    /// clearing a field is using it.
+    pub fn edit_track(
+        &self,
+        media_file_id: MediaFileId,
+        title: &str,
+        artist: Option<&str>,
+        album: Option<&str>,
+    ) -> Result<()> {
+        let profile_id = self.context.require_active_profile()?;
+        let title = title.trim();
+        if title.is_empty() {
+            return Err(CoreError::invalid(
+                "track title",
+                "a track needs something to be called",
+            ));
+        }
+
+        let track = self
+            .ports
+            .tracks
+            .get(profile_id, media_file_id)?
+            .ok_or_else(|| CoreError::not_found("track", media_file_id))?;
+
+        let now = self.context.now();
+        let artist_id = self.resolve_artist(blank_as_absent(artist), now)?;
+
+        // The album is looked up under the artist it is now filed with, which
+        // is what keeps two albums of the same name by different people apart.
+        let album_id = self.resolve_album(blank_as_absent(album), artist_id, track.year, now)?;
+
+        self.ports.tracks.save(&Track {
+            title: title.to_owned(),
+            artist_id,
+            album_id,
+            ..track
+        })?;
+
+        self.context.events.publish(DomainEvent::LibraryChanged);
+        Ok(())
+    }
+
     /// Finds or creates an artist by name.
     fn resolve_artist(&self, name: Option<&str>, now: Timestamp) -> Result<Option<ArtistId>> {
         let Some(name) = name else {
@@ -930,4 +980,13 @@ fn title_from_path(path: &Path) -> String {
     } else {
         collapsed
     }
+}
+
+/// A field the listener left blank, as the absence it is.
+///
+/// An empty artist means "no artist", not "an artist called nothing": the
+/// column already carries that distinction and somebody clearing a field is
+/// using it.
+fn blank_as_absent(value: Option<&str>) -> Option<&str> {
+    value.map(str::trim).filter(|text| !text.is_empty())
 }

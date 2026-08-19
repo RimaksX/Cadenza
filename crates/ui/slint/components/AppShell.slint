@@ -11,7 +11,7 @@ import { EqualiserView, EqPresetData, EqBandData } from "../views/EqualiserView.
 import { SettingsView, FolderRowData, ProfileRowData } from "../views/SettingsView.slint";
 import { RadioView, MoodRowData } from "../views/RadioView.slint";
 import { ListeningView, TopTrackData } from "../views/ListeningView.slint";
-import { Dialog, PickDialog } from "Dialog.slint";
+import { Dialog, PickDialog, EditTrackDialog } from "Dialog.slint";
 import { MenuItemData } from "RowMenu.slint";
 
 // The frame every screen lives in: navigation down the left, the player across
@@ -45,6 +45,12 @@ export component AppShell inherits Rectangle {
     in property <bool> history-on;
     in property <[FolderRowData]> folders;
     in property <[ProfileRowData]> profiles;
+
+    // The track being corrected, as it is called now.
+    in property <string> editing-id;
+    in property <string> editing-title;
+    in property <string> editing-artist;
+    in property <string> editing-album;
     in property <string> suggested-folder;
     in property <string> settings-summary;
 
@@ -145,6 +151,11 @@ export component AppShell inherits Rectangle {
     /// The listener moved to a screen, which is that screen's cue to re-read
     /// what it shows.
     callback showing(string);
+    /// Asks the interface to open the editor for a track. What it is called now
+    /// comes back through the properties below, because only the application
+    /// knows.
+    callback edit-track(string);
+    callback save-track(string, string, string, string);
     callback switch-profile(string);
     callback create-profile(string);
     callback start-radio(string);
@@ -582,6 +593,24 @@ export component AppShell inherits Rectangle {
         }
     }
 
+    // Correcting a track is three questions at once, so it has a card of its
+    // own rather than a flag on the general one. Opened by an identifier rather
+    // than by the `dialog` string every other card uses: what is being edited
+    // is the answer to "which track", and a second property to hold that would
+    // be the same thing said twice.
+    if root.editing-id != "": EditTrackDialog {
+        title-value: root.editing-title;
+        artist-value: root.editing-artist;
+        album-value: root.editing-album;
+
+        confirmed(title, artist, album) => {
+            root.save-track(root.editing-id, title, artist, album);
+        }
+        cancelled => {
+            root.edit-track("");
+        }
+    }
+
     // "Which playlist?" is a question with a list of answers rather than a word
     // to type: the application already knows the names, and asking somebody to
     // spell one is asking them to do its work.
@@ -620,7 +649,9 @@ export component AppShell inherits Rectangle {
     /// What a row asked for. The shell decides whether that is a question or a
     /// command; the row only knows what was pressed.
     function row-acted(index: int, id: string, action: string) {
-        if (action == "add-to-playlist") {
+        if (action == "edit") {
+            root.edit-track(id);
+        } else if (action == "add-to-playlist") {
             root.ask("pick-playlist", id, "");
         } else if (action == "remove-from-playlist") {
             root.remove-from-playlist(index);

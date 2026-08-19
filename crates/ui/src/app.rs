@@ -145,6 +145,18 @@ fn wire(window: &AppWindow, controller: &Rc<Controller>) {
         move |name| controller.showing(name.as_str())
     });
 
+    window.on_edit_track({
+        let controller = Rc::clone(controller);
+        move |id| controller.edit_track(id.as_str())
+    });
+
+    window.on_save_track({
+        let controller = Rc::clone(controller);
+        move |id, title, artist, album| {
+            controller.save_track(id.as_str(), title.as_str(), artist.as_str(), album.as_str());
+        }
+    });
+
     window.on_switch_profile({
         let controller = Rc::clone(controller);
         move |id| controller.switch_profile(id.as_str())
