@@ -20,7 +20,7 @@ section `11_План_реализации`. This file tracks progress only.
 | M12 | Smart shuffle | done |
 | M13 | Smart Radio | done |
 | M14 | Аналитика и retention | done |
-| M15 | Финальный дизайн | частично — остались масштабирование и drag-and-drop |
+| M15 | Финальный дизайн | остался drag-and-drop треков (ждёт решения про Slint 1.17) |
 | M16 | Packaging и стабилизация | not started |
 
 Milestones are implemented in order.
