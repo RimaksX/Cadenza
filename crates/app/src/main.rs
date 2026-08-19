@@ -304,6 +304,30 @@ fn run() -> std::result::Result<(), String> {
             library.watch_folders().map_err(|err| err.to_string())?;
         }
 
+        // And a look at the folders themselves, because the watcher only knows
+        // what happened while it was watching: music copied in while Cadenza
+        // was closed is otherwise found by nobody until somebody presses a
+        // button they have no reason to press (MASTER_ISSUES 68).
+        //
+        // On a thread, because the window should open now and this is a stat
+        // and an indexed lookup per file. It publishes what it finds, and the
+        // window hears it the same way it hears the watcher.
+        std::thread::spawn({
+            let library = Arc::clone(&library);
+            let log = Arc::clone(&log);
+            move || match library.scan_all() {
+                Ok(report) if report.added + report.updated > 0 => log.write(
+                    LogLevel::Info,
+                    &format!(
+                        "the opening scan found {} new and {} changed",
+                        report.added, report.updated
+                    ),
+                ),
+                Ok(_) => {}
+                Err(err) => log.write(LogLevel::Warn, &format!("the opening scan stopped: {err}")),
+            }
+        });
+
         let outcome = cadenza_ui::run(cadenza_ui::UiServices {
             profiles: Arc::clone(&profiles),
             library: Arc::clone(&library),

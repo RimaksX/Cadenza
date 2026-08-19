@@ -128,6 +128,13 @@ pub trait TrackRepositoryPort: Send + Sync {
     /// Every track currently in a profile's library, excluding tombstones.
     fn list_for_profile(&self, profile_id: ProfileId) -> Result<Vec<Track>>;
 
+    /// Everything this profile has taken out of its library, newest first.
+    ///
+    /// The counterpart to [`Self::list_for_profile`], which excludes them. A
+    /// removal is a decision and decisions are reversible, so somewhere has to
+    /// be able to list what was decided (`MASTER_ISSUES` 68).
+    fn removed_for_profile(&self, profile_id: ProfileId) -> Result<Vec<TrackSummary>>;
+
     /// The same library, with artist and album names and durations resolved.
     ///
     /// Separate from [`Self::list_for_profile`] because a listing needs names

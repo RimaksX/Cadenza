@@ -1105,3 +1105,88 @@ fn a_folder_dropped_on_the_window_joins_the_library() {
         "and it is watched, like any other folder in it"
     );
 }
+
+/// Taking a track out is a decision, and a decision has to be reversible by
+/// somebody who did not think to add the folder again.
+#[test]
+fn what_was_taken_out_can_be_listed_and_put_back() {
+    let harness = harness("taken-out");
+    write_wav(&harness.music, "kept.wav", 1, 59);
+    write_wav(&harness.music, "hidden.wav", 1, 61);
+    harness.scan(true);
+
+    let victim = harness
+        .library
+        .summaries()
+        .expect("the library")
+        .into_iter()
+        .find(|summary| summary.title.as_str() == "hidden")
+        .expect("both were imported");
+
+    harness
+        .library
+        .remove_track(victim.media_file_id)
+        .expect("taken out");
+    assert_eq!(harness.titles(), vec!["kept"]);
+
+    let taken_out = harness.library.taken_out().expect("the list");
+    assert_eq!(taken_out.len(), 1);
+    assert_eq!(taken_out[0].title.as_str(), "hidden");
+
+    // A routine scan leaves it alone — that is what makes the removal a
+    // decision rather than a suggestion.
+    harness.scan(true);
+    assert_eq!(harness.titles(), vec!["kept"]);
+
+    harness
+        .library
+        .restore_track(victim.media_file_id)
+        .expect("put back");
+    assert_eq!(harness.titles(), vec!["hidden", "kept"]);
+    assert!(harness.library.taken_out().expect("the list").is_empty());
+}
+
+/// Synchronising says what it will do before it does it, and then does that.
+#[test]
+fn synchronising_brings_back_what_is_there_and_drops_what_is_not() {
+    let harness = harness("synchronise");
+    write_wav(&harness.music, "here.wav", 1, 59);
+    let leaving = write_wav(&harness.music, "leaving.wav", 1, 61);
+    harness.scan(true);
+
+    let hidden = harness
+        .library
+        .summaries()
+        .expect("the library")
+        .into_iter()
+        .find(|summary| summary.title.as_str() == "here")
+        .expect("imported");
+    harness
+        .library
+        .remove_track(hidden.media_file_id)
+        .expect("taken out");
+
+    // And one file that leaves the folder behind the application's back.
+    std::fs::remove_file(&leaving).expect("removing the file");
+
+    let folder = harness
+        .library
+        .folders()
+        .expect("folders")
+        .into_iter()
+        .next()
+        .expect("the music folder");
+
+    let plan = harness.library.sync_preview(&folder).expect("a plan");
+    assert_eq!(plan.restoring, 1, "the one that was taken out");
+    assert_eq!(plan.dropping, 1, "the one whose file has gone");
+    assert!(!plan.is_empty());
+
+    let report = harness.library.synchronise(&folder).expect("synchronised");
+    assert_eq!(report.gone, 1);
+    assert_eq!(harness.titles(), vec!["here"]);
+
+    // And afterwards there is nothing left to do.
+    let settled = harness.library.sync_preview(&folder).expect("a plan");
+    assert!(settled.is_empty(), "{settled:?}");
+}

@@ -1420,9 +1420,22 @@ impl Controller {
         self.after_library_change();
     }
 
-    /// Looks again at every folder.
+    /// Looks again at every folder, and says what it found.
+    ///
+    /// A scan that reports nothing looks the same whether it found nothing or
+    /// was never run, which is exactly the doubt somebody presses it to settle.
     pub fn scan_now(&self) {
-        self.run(|| self.services.library.scan_all().map(|_| ()));
+        let said = match self.services.library.scan_all() {
+            Ok(report) => library_vm::taken_in(&report),
+            Err(err) => {
+                self.report(&err);
+                return;
+            }
+        };
+
+        if let Some(window) = self.window.upgrade() {
+            window.set_message(said.into());
+        }
         self.after_library_change();
     }
 

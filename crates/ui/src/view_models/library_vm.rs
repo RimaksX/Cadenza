@@ -233,6 +233,9 @@ pub fn taken_in(report: &ScanReport) -> String {
     if known > 0 {
         said.push(format!("{known} already here"));
     }
+    if report.gone > 0 {
+        said.push(format!("{} gone from the folder", report.gone));
+    }
     if report.failed > 0 {
         said.push(format!(
             "{} could not be read — see Decisions",

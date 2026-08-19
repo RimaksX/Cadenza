@@ -96,6 +96,25 @@ impl TrackRepositoryPort for SqliteTrackRepository {
         rows.into_iter().collect()
     }
 
+    fn removed_for_profile(&self, profile_id: ProfileId) -> Result<Vec<TrackSummary>> {
+        let connection = self.pool.get()?;
+        let mut statement = connection
+            .prepare(&format!(
+                "{SUMMARY_SELECT}
+                 WHERE pt.profile_id = ?1 AND pt.removed_at IS NOT NULL
+                 ORDER BY pt.removed_at DESC"
+            ))
+            .map_err(db_error_in("listing what was taken out"))?;
+
+        let rows = statement
+            .query_map([profile_id.to_string()], read_summary)
+            .map_err(db_error_in("listing what was taken out"))?
+            .collect::<rusqlite::Result<Vec<_>>>()
+            .map_err(db_error_in("listing what was taken out"))?;
+
+        rows.into_iter().collect()
+    }
+
     fn summary(
         &self,
         profile_id: ProfileId,

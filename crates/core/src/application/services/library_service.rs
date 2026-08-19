@@ -85,6 +85,29 @@ pub struct ScanReport {
     pub duplicates: usize,
     /// Files that could not be read, each with an entry in the review queue.
     pub failed: usize,
+    /// Tracks taken out because the folder no longer holds their file.
+    ///
+    /// Only synchronising fills this in: a routine scan leaves a track whose
+    /// file has gone where it is, because a disconnected drive is not a
+    /// decision to forget an album.
+    pub gone: usize,
+}
+
+/// What synchronising a folder would do, counted before it does it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct SyncPlan {
+    /// Tracks in this folder that were taken out and would come back.
+    pub restoring: usize,
+    /// Tracks from this folder whose file is gone and would be taken out.
+    pub dropping: usize,
+}
+
+impl SyncPlan {
+    /// True when synchronising would change nothing at all.
+    #[must_use]
+    pub const fn is_empty(self) -> bool {
+        self.restoring == 0 && self.dropping == 0
+    }
 }
 
 /// What importing one file did.
@@ -99,6 +122,7 @@ enum Imported {
 impl ScanReport {
     /// Adds another report to this one.
     fn absorb(&mut self, other: Self) {
+        self.gone += other.gone;
         self.seen += other.seen;
         self.added += other.added;
         self.updated += other.updated;
@@ -541,6 +565,135 @@ impl LibraryService {
             .remove(profile_id, media_file_id, self.context.now())?;
         self.context.events.publish(DomainEvent::LibraryChanged);
         Ok(())
+    }
+
+    /// What this listener has taken out of their library.
+    ///
+    /// A removal is a decision, and a decision nobody can see is a decision
+    /// nobody can undo. Until this existed the only way back was to add the
+    /// folder again, which is a strange thing to have to work out
+    /// (`MASTER_ISSUES` 68).
+    pub fn taken_out(&self) -> Result<Vec<TrackSummary>> {
+        let profile_id = self.context.require_active_profile()?;
+        self.ports.tracks.removed_for_profile(profile_id)
+    }
+
+    /// Puts one back.
+    pub fn restore_track(&self, media_file_id: MediaFileId) -> Result<()> {
+        let profile_id = self.context.require_active_profile()?;
+        self.ports.tracks.restore(profile_id, media_file_id)?;
+        self.context.events.publish(DomainEvent::LibraryChanged);
+        Ok(())
+    }
+
+    /// What synchronising a folder would do, before it does it.
+    ///
+    /// Counted rather than described: "bring back 3, drop 1" is a decision
+    /// somebody can make in a second, and a list of forty file names is not.
+    pub fn sync_preview(&self, folder: &ProfileFolder) -> Result<SyncPlan> {
+        let profile_id = self.context.require_active_profile()?;
+
+        // Only what is actually there can come back. A track taken out *and*
+        // gone from disk is not something synchronising can offer to restore —
+        // and after a synchronise has dropped one, offering to bring it back
+        // would make the action never settle.
+        let restoring = self
+            .ports
+            .tracks
+            .removed_for_profile(profile_id)?
+            .into_iter()
+            .filter(|summary| self.lies_under(folder, summary.media_file_id))
+            .filter(|summary| self.still_there(summary.media_file_id))
+            .count();
+
+        let dropping = self
+            .ports
+            .tracks
+            .summaries_for_profile(profile_id)?
+            .into_iter()
+            .filter(|summary| self.lies_under(folder, summary.media_file_id))
+            .filter(|summary| !self.still_there(summary.media_file_id))
+            .count();
+
+        Ok(SyncPlan {
+            restoring,
+            dropping,
+        })
+    }
+
+    /// Makes the library match the folder.
+    ///
+    /// Everything the folder holds is in the library, including what was taken
+    /// out of it; everything the library holds from that folder and the folder
+    /// no longer has is taken out. The file on disk is never touched.
+    pub fn synchronise(&self, folder: &ProfileFolder) -> Result<ScanReport> {
+        let profile_id = self.context.require_active_profile()?;
+        let mut report = self.adopt_folder(folder)?;
+
+        let now = self.context.now();
+        for summary in self.ports.tracks.summaries_for_profile(profile_id)? {
+            if self.lies_under(folder, summary.media_file_id)
+                && !self.still_there(summary.media_file_id)
+            {
+                self.ports
+                    .tracks
+                    .remove(profile_id, summary.media_file_id, now)?;
+                report.gone += 1;
+            }
+        }
+
+        self.context.events.publish(DomainEvent::LibraryChanged);
+        Ok(report)
+    }
+
+    /// How many of this profile's tracks came from outside every folder.
+    ///
+    /// A file dropped on the window is taken where it lies, which means the
+    /// library can hold tracks no folder is responsible for. They are not a
+    /// mistake — they are simply not covered by scanning, watching or
+    /// synchronising, and the settings screen says how many there are rather
+    /// than leaving it to be discovered.
+    pub fn outside_folders(&self) -> Result<usize> {
+        let profile_id = self.context.require_active_profile()?;
+        let folders = self.folders()?;
+
+        Ok(self
+            .ports
+            .tracks
+            .summaries_for_profile(profile_id)?
+            .into_iter()
+            .filter(|summary| {
+                !folders
+                    .iter()
+                    .any(|folder| self.lies_under(folder, summary.media_file_id))
+            })
+            .count())
+    }
+
+    /// Whether a track's file is inside this folder.
+    fn lies_under(&self, folder: &ProfileFolder, media_file_id: MediaFileId) -> bool {
+        let Ok(Some(file)) = self.ports.media_files.get(media_file_id) else {
+            return false;
+        };
+
+        let Ok(rest) = file.path.strip_prefix(&folder.path) else {
+            return false;
+        };
+
+        // Directly inside, or deeper when the folder was added with its
+        // subfolders — the same question `walk` answers when it decides where
+        // to look.
+        folder.include_subfolders || rest.components().count() == 1
+    }
+
+    /// Whether the file behind a track is still on disk.
+    fn still_there(&self, media_file_id: MediaFileId) -> bool {
+        self.ports
+            .media_files
+            .get(media_file_id)
+            .ok()
+            .flatten()
+            .is_some_and(|file| self.ports.files.exists(&file.path))
     }
 
     /// The active profile's library, ready to be listed.

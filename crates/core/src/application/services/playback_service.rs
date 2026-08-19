@@ -623,6 +623,9 @@ mod tests {
         fn list_for_profile(&self, _profile: ProfileId) -> Result<Vec<Track>> {
             unreachable!("playback reads summaries")
         }
+        fn removed_for_profile(&self, _profile: ProfileId) -> Result<Vec<TrackSummary>> {
+            unreachable!("playback does not look at what was taken out")
+        }
         fn summaries_for_profile(&self, _profile: ProfileId) -> Result<Vec<TrackSummary>> {
             Ok(vec![self.summary.clone()])
         }

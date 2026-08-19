@@ -21,7 +21,7 @@ pub mod stats_service;
 
 pub use analysis_service::{AnalysisPorts, AnalysisProgress, AnalysisService};
 pub use eq_service::{EqPorts, EqService};
-pub use library_service::{LibraryPorts, LibraryService, ReviewCard, ScanReport};
+pub use library_service::{LibraryPorts, LibraryService, ReviewCard, ScanReport, SyncPlan};
 pub use playback_service::{PlaybackPorts, PlaybackService};
 pub use playlist_service::{PlaylistPorts, PlaylistService, PlaylistSummary};
 pub use profile_service::ProfileService;
