@@ -870,8 +870,11 @@ impl QueueService {
 
         // A queue that fails to save is not a reason to stop the music. It costs
         // the restore after the next restart, and the listener finds out then
-        // rather than mid-track.
-        let _ = self.ports.queue.save(&queue);
+        // rather than mid-track — so the log is where they find out sooner.
+        if let Err(err) = self.ports.queue.save(&queue) {
+            self.context
+                .warn(&format!("the queue was not saved: {err}"));
+        }
     }
 
     fn announce(&self) {

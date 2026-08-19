@@ -25,6 +25,7 @@ pub mod feature_extractor;
 pub mod file_system;
 pub mod file_watcher;
 pub mod folder_picker;
+pub mod log;
 pub mod metadata_reader;
 pub mod repositories;
 pub mod system_priority;

@@ -44,6 +44,11 @@ watcher that keeps the library current. Both reach the application layer through
 ports and neither touches the interface — what the window does about a change is
 decided on the event loop (see [UI_CONTRACT.md](UI_CONTRACT.md)).
 
+Neither can report a failure to anybody, so both write to `LogPort` instead. It
+hangs on `AppContext` rather than on any one service's ports, because the places
+that need it are the places that already decided not to interrupt the listener,
+and those are everywhere (finding 63).
+
 Those threads stay out of the way by resting rather than by being demoted.
 `SystemPriorityPort` exists and its Windows implementation deliberately does
 nothing: `SetThreadPriority` needs `unsafe` or a dependency taken for one

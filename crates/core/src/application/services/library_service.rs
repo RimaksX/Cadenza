@@ -1083,10 +1083,14 @@ impl LibraryService {
     /// stops because a disk is full of thumbnails.
     fn cache_artwork(&self, media_file: &MediaFile, tags: &TrackTags) {
         if let Some(image) = &tags.artwork {
-            let _ = self
+            if let Err(err) = self
                 .ports
                 .artwork
-                .store(CoverOf::Track(media_file.id), image);
+                .store(CoverOf::Track(media_file.id), image)
+            {
+                self.context
+                    .warn(&format!("no cover was cached for {}: {err}", media_file.id));
+            }
         }
     }
 

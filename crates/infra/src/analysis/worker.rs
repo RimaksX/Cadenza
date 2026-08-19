@@ -14,6 +14,7 @@ use cadenza_core::application::services::AnalysisService;
 use cadenza_core::domain::policies::analysis_policy::{
     MAX_NAP, SHARE_WHEN_IDLE, SHARE_WHILE_PLAYING, nap_after,
 };
+use cadenza_core::domain::ports::log::{LogLevel, LogPort};
 use cadenza_core::domain::ports::system_priority::{PriorityClass, SystemPriorityPort};
 
 /// Whether the machine has something better to do.
@@ -39,6 +40,7 @@ impl AnalysisWorker {
         service: Arc<AnalysisService>,
         priority: Arc<dyn SystemPriorityPort>,
         busy: Busy,
+        log: Arc<dyn LogPort>,
     ) -> Self {
         let stop = Arc::new(AtomicBool::new(false));
 
@@ -46,7 +48,7 @@ impl AnalysisWorker {
             .name("cadenza-analysis".to_owned())
             .spawn({
                 let stop = Arc::clone(&stop);
-                move || run(&service, priority.as_ref(), &busy, &stop)
+                move || run(&service, priority.as_ref(), &busy, &stop, log.as_ref())
             })
             .ok();
 
@@ -74,6 +76,7 @@ fn run(
     priority: &dyn SystemPriorityPort,
     busy: &Busy,
     stop: &AtomicBool,
+    log: &dyn LogPort,
 ) {
     // Best effort, and the port says so: a platform that will not lower a
     // thread's priority is a performance problem, not a correctness one, and
@@ -95,8 +98,12 @@ fn run(
             }
             // A failure that reaches here is the database, not a file: a file
             // that will not analyse is recorded against its job and reported as
-            // success. Resting and trying again is the only useful answer.
-            Err(_) => false,
+            // success. Resting and trying again is the only useful answer — and
+            // saying so, because nobody is watching this thread.
+            Err(err) => {
+                log.write(LogLevel::Warn, &format!("analysis stopped short: {err}"));
+                false
+            }
         };
 
         let share = if (busy)() {

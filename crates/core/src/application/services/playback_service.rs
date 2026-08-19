@@ -453,10 +453,11 @@ impl PlaybackService {
 
         // A listen that fails to record is a row missing from a month of
         // statistics, and stopping the music over it would be a worse answer to
-        // a worse problem. Deliberate, and the last thing here that goes
-        // unreported: when M16 gives this application a log, this is one of the
-        // first lines it should carry (MASTER_ISSUES 56).
-        let _ = self.ports.history.append(&event);
+        // a worse problem. Deliberate, and written down rather than swallowed.
+        if let Err(err) = self.ports.history.append(&event) {
+            self.context
+                .warn(&format!("a listen was not recorded: {err}"));
+        }
     }
 
     /// How long the track that is ending was heard for.

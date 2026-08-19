@@ -27,6 +27,7 @@ use cadenza_core::domain::ports::audio_engine::AudioEnginePort;
 use cadenza_core::domain::ports::decoder::DecoderPort;
 use cadenza_core::domain::ports::event_bus::EventBusPort;
 use cadenza_core::domain::ports::file_watcher::FileWatcherPort;
+use cadenza_core::domain::ports::log::{LogLevel, LogPort, NoLog};
 use cadenza_core::domain::profile::Profile;
 use cadenza_core::domain::settings::{
     CROSSFADE_ENABLED_KEY, CROSSFADE_MS_KEY, CrossfadeDuration, SettingValue,
@@ -48,7 +49,7 @@ use cadenza_infra::db::repositories::{
 use cadenza_infra::events::InProcessEventBus;
 use cadenza_infra::library::{LocalFileSystem, NotifyFileWatcher};
 use cadenza_infra::metadata::{FileArtworkCache, LoftyMetadataReader};
-use cadenza_infra::system::{AppPaths, SystemClock, SystemFolderPicker, WindowsPriority};
+use cadenza_infra::system::{AppPaths, FileLog, SystemClock, SystemFolderPicker, WindowsPriority};
 
 use cli::{Command, PlaylistCommand};
 
@@ -106,12 +107,31 @@ fn run() -> std::result::Result<(), String> {
         None
     };
 
-    let context = Arc::new(AppContext::new(
-        Arc::new(SystemClock),
-        Arc::clone(&events),
-        Arc::new(SqliteProfileRepository::new(pool.clone())),
-        Arc::new(SqliteSettingsRepository::new(pool.clone())),
-    ));
+    // Only the window keeps a log. A command that prints its own errors to a
+    // terminal somebody is looking at has already reported them, and a log
+    // written by every invocation of `cadenza status` is a log of nothing.
+    let log: Arc<dyn LogPort> = if command == Command::Ui {
+        Arc::new(
+            FileLog::new(
+                paths.log_file(),
+                paths.previous_log_file(),
+                Arc::new(SystemClock),
+            )
+            .map_err(|err| err.to_string())?,
+        )
+    } else {
+        Arc::new(NoLog)
+    };
+
+    let context = Arc::new(
+        AppContext::new(
+            Arc::new(SystemClock),
+            Arc::clone(&events),
+            Arc::new(SqliteProfileRepository::new(pool.clone())),
+            Arc::new(SqliteSettingsRepository::new(pool.clone())),
+        )
+        .with_log(Arc::clone(&log)),
+    );
     let profiles = Arc::new(ProfileService::new(Arc::clone(&context)));
 
     // One cache, shared: a cover belongs to a recording or to a list, and both
@@ -249,7 +269,16 @@ fn run() -> std::result::Result<(), String> {
                 let engine = Arc::clone(&engine);
                 move || engine.state() == PlaybackState::Playing
             }),
+            Arc::clone(&log),
         );
+
+        context.info(&format!(
+            "Cadenza {} started as {}",
+            env!("CARGO_PKG_VERSION"),
+            active
+                .as_ref()
+                .map_or_else(|| "nobody".to_owned(), |profile| profile.name.to_string())
+        ));
 
         // The library keeps itself current for as long as the window is open,
         // which is what "автоматическое отслеживание изменений файловой системы"
@@ -258,13 +287,18 @@ fn run() -> std::result::Result<(), String> {
         if let Some(watcher) = watcher.as_ref() {
             watcher.set_handler(Box::new({
                 let library = Arc::clone(&library);
+                let log = Arc::clone(&log);
                 move |change| {
-                    // A failure concerns one file, and tearing the watcher down over
-                    // an unreadable download would cost the listener every other
-                    // file. There is nowhere to report it to yet: the window is on
-                    // another thread and this application writes no log. That is
-                    // M16's "logs", and this is the first thing that will want one.
-                    let _ = library.apply_change(&change);
+                    // A failure concerns one file, and tearing the watcher down
+                    // over an unreadable download would cost the listener every
+                    // other file. The window is on another thread and cannot be
+                    // told, so the log is told instead.
+                    if let Err(err) = library.apply_change(&change) {
+                        log.write(
+                            LogLevel::Warn,
+                            &format!("a change on disk was not applied: {err}"),
+                        );
+                    }
                 }
             }));
             library.watch_folders().map_err(|err| err.to_string())?;

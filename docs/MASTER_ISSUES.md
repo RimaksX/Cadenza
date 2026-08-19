@@ -1495,3 +1495,38 @@ there is one, so the two answers cannot disagree again.
 
 The lesson is narrower than "sniff content": content-sniffing is right, and the
 answer still has to be written where the next reader looks.
+
+## 63. A log, pulled forward from M16 because three threads earned it
+
+M16 lists "logs" among its tasks. It moved because the reason for it arrived
+early: the analyser, the file watcher and the drop importer all run behind the
+window, and each of them decided — correctly — to carry on rather than
+interrupt anybody. Findings 56 and 57 both end with the same sentence about the
+first thing that will want a log. This is it.
+
+**What it is not.** No levels anybody turns on, no module filters, no format
+strings, no dependency. `LogPort` takes a level and a line; `FileLog` appends it
+to the path `AppPaths` has computed since M2 and rolls the file over at a
+megabyte, keeping one previous generation. A civil date is ten lines of
+arithmetic — Howard Hinnant's `civil_from_days` — rather than a date library,
+because this is the only place in the application that needs one.
+
+**Where it lives.** On `AppContext`, not in each service's ports. The sites that
+need it are precisely the ones that already chose silence, and they are spread
+across every service there is; threading a port through six `Ports` structs to
+reach them would be six changes to say one thing. A context with nowhere to
+write gets `NoLog`, so every call site is unconditional — a service that has to
+ask whether there is a log is a service that will forget to.
+
+**Only the window keeps one.** A command that prints its errors to a terminal
+somebody is looking at has already reported them, and a log written by every
+`cadenza status` is a log of nothing.
+
+**What now gets written down**, all of it previously invisible: a listen that
+would not record, a queue that would not save, a cover that would not cache, a
+change on disk that would not apply, and an analysis pass that stopped short.
+Plus one line at startup naming the version and the listener, which is what
+turns a pile of warnings into a session somebody can read.
+
+Verified by running the window and reading the file it wrote:
+`2026-08-19 14:40:46 INFO  Cadenza 0.1.0 started as Sasha`.

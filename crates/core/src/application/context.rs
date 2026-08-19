@@ -5,6 +5,7 @@ use std::sync::{Arc, RwLock};
 use crate::domain::ids::ProfileId;
 use crate::domain::ports::clock::ClockPort;
 use crate::domain::ports::event_bus::{DomainEvent, EventBusPort};
+use crate::domain::ports::log::{LogLevel, LogPort, NoLog};
 use crate::domain::ports::repositories::{ProfileRepositoryPort, SettingsRepositoryPort};
 use crate::domain::value_objects::Timestamp;
 use crate::{CoreError, Result};
@@ -31,6 +32,12 @@ pub struct AppContext {
     pub profiles: Arc<dyn ProfileRepositoryPort>,
     /// Application and profile settings.
     pub settings: Arc<dyn SettingsRepositoryPort>,
+    /// Where a failure nobody can be told about is written down.
+    ///
+    /// On the context rather than in each service's ports, because the sites
+    /// that need it are exactly the ones that already decided not to interrupt
+    /// anybody, and they are scattered across every service there is.
+    log: Arc<dyn LogPort>,
     /// Who is listening right now.
     ///
     /// Behind a lock because background workers read it while the UI thread may
@@ -52,8 +59,34 @@ impl AppContext {
             events,
             profiles,
             settings,
+            log: Arc::new(NoLog),
             active_profile: RwLock::new(None),
         }
+    }
+
+    /// Gives the context somewhere to write.
+    ///
+    /// Separate from [`Self::new`] so that the test harnesses and the command
+    /// line, which have no log and want none, are not made to say so.
+    #[must_use]
+    pub fn with_log(mut self, log: Arc<dyn LogPort>) -> Self {
+        self.log = log;
+        self
+    }
+
+    /// Writes a line about something that carried on regardless.
+    pub fn warn(&self, message: &str) {
+        self.log.write(LogLevel::Warn, message);
+    }
+
+    /// Writes a line about something that did not.
+    pub fn error(&self, message: &str) {
+        self.log.write(LogLevel::Error, message);
+    }
+
+    /// Writes a line worth knowing the time of.
+    pub fn info(&self, message: &str) {
+        self.log.write(LogLevel::Info, message);
     }
 
     /// The current time, from the injected clock.
@@ -120,6 +153,7 @@ mod tests {
     use crate::domain::ids::ProfileId;
     use crate::domain::ports::clock::ClockPort;
     use crate::domain::ports::event_bus::{DomainEvent, EventBusPort, EventHandler};
+    use crate::domain::ports::log::{LogLevel, LogPort};
     use crate::domain::ports::repositories::{ProfileRepositoryPort, SettingsRepositoryPort};
     use crate::domain::profile::Profile;
     use crate::domain::settings::{ProfileFolder, SettingValue};
@@ -232,5 +266,47 @@ mod tests {
             *bus.0.lock().expect("not poisoned"),
             vec![DomainEvent::ProfileSwitched(profile)]
         );
+    }
+
+    #[test]
+    fn a_context_writes_to_the_log_it_was_given() {
+        #[derive(Default)]
+        struct Recording {
+            lines: Mutex<Vec<String>>,
+        }
+
+        impl LogPort for Recording {
+            fn write(&self, level: LogLevel, message: &str) {
+                self.lines
+                    .lock()
+                    .expect("the recording")
+                    .push(format!("{} {message}", level.as_str()));
+            }
+        }
+
+        let recording = Arc::new(Recording::default());
+        let context = context(Arc::new(RecordingBus::default()))
+            .with_log(Arc::clone(&recording) as Arc<dyn LogPort>);
+
+        context.info("started");
+        context.warn("a listen was not recorded");
+        context.error("the folder could not be watched");
+
+        assert_eq!(
+            *recording.lines.lock().expect("the recording"),
+            vec![
+                "INFO started".to_owned(),
+                "WARN a listen was not recorded".to_owned(),
+                "ERROR the folder could not be watched".to_owned(),
+            ]
+        );
+    }
+
+    #[test]
+    fn a_context_with_nowhere_to_write_writes_nothing() {
+        // The default, and the one every test and every command-line
+        // invocation gets: the call sites are unconditional, so the absence of
+        // a log has to be an implementation rather than a branch.
+        context(Arc::new(RecordingBus::default())).warn("into the void");
     }
 }
