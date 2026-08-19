@@ -8,12 +8,15 @@ use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
 use cadenza_core::domain::eq::{EqBand, EqMode};
-use cadenza_core::domain::ids::{EqPresetId, MediaFileId, MoodId, PlaylistId, ProfileId};
+use cadenza_core::domain::ids::{
+    EqPresetId, ImportReviewId, MediaFileId, MoodId, PlaylistId, ProfileId,
+};
 use cadenza_core::domain::playback::PlaybackState;
 use cadenza_core::domain::policies::eq_policy::{MAX_BAND_HZ, MAX_BAND_Q, MIN_BAND_HZ, MIN_BAND_Q};
 use cadenza_core::domain::profile::Profile;
 use cadenza_core::domain::queue::RepeatMode;
 use cadenza_core::domain::radio::{MIN_BATCH_SIZE, RadioFeedback};
+use cadenza_core::domain::review::ReviewResolution;
 use cadenza_core::domain::settings::CrossfadeDuration;
 use cadenza_core::domain::value_objects::theme_mode::ThemeMode;
 use cadenza_core::domain::value_objects::{DurationMs, GainDb, PlaybackPosition, Volume};
@@ -21,11 +24,11 @@ use cadenza_core::{CoreError, Result};
 use slint::{ComponentHandle, Model, ModelRc, VecModel, Weak};
 
 use crate::view_models::{
-    self, eq_vm, library_vm, player_vm, playlist_vm, profile_vm, radio_vm, stats_vm,
+    self, eq_vm, library_vm, player_vm, playlist_vm, profile_vm, radio_vm, review_vm, stats_vm,
 };
 use crate::{
-    AppWindow, EqBandData, FolderRowData, MoodRowData, ProfileRowData, Theme, TopTrackData,
-    UiServices,
+    AppWindow, EqBandData, FolderRowData, MoodRowData, ProfileRowData, ReviewRowData, Theme,
+    TopTrackData, UiServices,
 };
 
 /// How many bars the player bar draws.
@@ -128,6 +131,7 @@ impl Controller {
         self.refresh_settings();
         self.refresh_radio();
         self.refresh_listening();
+        self.refresh_reviews();
         self.refresh_player();
 
         if let Some(window) = self.window.upgrade() {
@@ -800,6 +804,57 @@ impl Controller {
     }
 
     /// Everything the settings screen draws.
+    /// Re-reads what is waiting for a decision.
+    pub fn refresh_reviews(&self) {
+        let Some(window) = self.window.upgrade() else {
+            return;
+        };
+
+        let cards = match self.services.library.review_cards() {
+            Ok(cards) => cards,
+            Err(CoreError::NoActiveProfile) => Vec::new(),
+            Err(err) => {
+                self.report(&err);
+                return;
+            }
+        };
+
+        let rows: Vec<ReviewRowData> = cards
+            .iter()
+            .map(|card| ReviewRowData {
+                id: card.id.to_string().into(),
+                path: card
+                    .path
+                    .as_ref()
+                    .map(|path| path.display().to_string())
+                    .unwrap_or_default()
+                    .into(),
+                reason: review_vm::reason(card.reason).into(),
+                existing: review_vm::collides_with(card).into(),
+                duplicate: card.existing.is_some(),
+            })
+            .collect();
+
+        window.set_reviews_summary(review_vm::summary_line(cards.len()).into());
+        window.set_reviews(ModelRc::new(VecModel::from(rows)));
+    }
+
+    /// Applies a decision and takes the row away.
+    pub fn decide_review(&self, id: &str, choice: &str) {
+        self.run(|| {
+            let review_id = ImportReviewId::parse(id)?;
+            let resolution = match choice {
+                "keep" => ReviewResolution::KeepExisting,
+                "replace" => ReviewResolution::RemoveExisting,
+                _ => ReviewResolution::AddAnyway,
+            };
+            self.services.library.resolve_review(review_id, resolution)
+        });
+
+        self.refresh_reviews();
+        self.after_library_change();
+    }
+
     /// Opens the editor on a track, or closes it when the id is empty.
     ///
     /// What it is called now is read here rather than taken from the row: a
@@ -934,6 +989,7 @@ impl Controller {
     pub fn showing(&self, section: &str) {
         match section {
             "listening" => self.refresh_listening(),
+            "reviews" => self.refresh_reviews(),
             "radio" => self.refresh_radio(),
             "settings" => self.refresh_settings(),
             "queue" => self.refresh_queue(),
@@ -1186,6 +1242,7 @@ impl Controller {
     /// The library moved, so everything that lists it has to look again.
     fn after_library_change(&self) {
         self.refresh_library();
+        self.refresh_reviews();
         self.refresh_settings();
     }
 

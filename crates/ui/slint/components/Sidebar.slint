@@ -118,6 +118,8 @@ component NavLabel inherits Rectangle {
 // page: the frame is fixed (PROJECT_MASTER 2.10), and this is the half of it
 // that says what the application contains.
 export component Sidebar inherits Rectangle {
+    /// How many files are waiting for a decision. Zero hides the destination.
+    in property <int> pending-reviews;
     in property <string> profile-name;
     in property <string> profile-initial;
     /// Which screen is showing. A name rather than an index: an index would
@@ -203,6 +205,17 @@ export component Sidebar inherits Rectangle {
                 selected: root.section == "queue";
                 chosen => {
                     root.select("queue");
+                }
+            }
+            // Only while there is something to decide. A destination that is
+            // empty nine days in ten is a destination nobody looks at, and one
+            // that appears when it has something to say is read the first time.
+            if root.pending-reviews > 0: NavItem {
+                label: "Decisions";
+                glyph: @image-url("../../../../resources/ui/icons/review.svg");
+                selected: root.section == "reviews";
+                chosen => {
+                    root.select("reviews");
                 }
             }
             NavItem {

@@ -447,6 +447,42 @@ impl LibraryService {
             .list_for_profile(profile_id, ReviewState::Pending)
     }
 
+    /// The waiting decisions, with enough about each to make it.
+    ///
+    /// A row of the review queue names a file the listener has never seen: it
+    /// was held back before it reached the library. What they need is where it
+    /// is, why it is waiting, and — for a duplicate — what it is a duplicate
+    /// *of*, which is a track they do know.
+    pub fn review_cards(&self) -> Result<Vec<ReviewCard>> {
+        let profile_id = self.context.require_active_profile()?;
+        let pending = self
+            .ports
+            .reviews
+            .list_for_profile(profile_id, ReviewState::Pending)?;
+
+        let mut cards = Vec::with_capacity(pending.len());
+        for review in pending {
+            let path = self
+                .ports
+                .media_files
+                .get(review.media_file_id)?
+                .map(|file| file.path);
+
+            let existing = match review.duplicate_media_file_id {
+                Some(id) => self.ports.tracks.summary(profile_id, id)?,
+                None => None,
+            };
+
+            cards.push(ReviewCard {
+                id: review.id,
+                reason: review.reason,
+                path,
+                existing,
+            });
+        }
+        Ok(cards)
+    }
+
     /// Applies the listener's decision about a file held back for review.
     pub fn resolve_review(
         &self,
@@ -980,6 +1016,19 @@ fn title_from_path(path: &Path) -> String {
     } else {
         collapsed
     }
+}
+
+/// One waiting decision, as a screen needs it.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ReviewCard {
+    /// Which decision this is.
+    pub id: ImportReviewId,
+    /// Why the file is waiting.
+    pub reason: ReviewReason,
+    /// Where the file is. Absent only if the catalogue row went with it.
+    pub path: Option<PathBuf>,
+    /// The track it duplicates, when that is what it is.
+    pub existing: Option<TrackSummary>,
 }
 
 /// A field the listener left blank, as the absence it is.

@@ -14,6 +14,7 @@ pub mod player_vm;
 pub mod playlist_vm;
 pub mod profile_vm;
 pub mod radio_vm;
+pub mod review_vm;
 pub mod stats_vm;
 
 use cadenza_core::domain::value_objects::DurationMs;

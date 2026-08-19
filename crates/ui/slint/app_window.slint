@@ -19,6 +19,7 @@ import { EqPresetData, EqBandData } from "views/EqualiserView.slint";
 import { FolderRowData, ProfileRowData } from "views/SettingsView.slint";
 import { MoodRowData } from "views/RadioView.slint";
 import { TopTrackData } from "views/ListeningView.slint";
+import { ReviewRowData } from "views/ReviewsView.slint";
 
 // Re-exported so the controller can set the palette. A global's input is set
 // from the native side; markup may read it but never assign to it, which is
@@ -77,6 +78,8 @@ export component AppWindow inherits Window {
     // Radio.
     in property <[MoodRowData]> moods;
     in property <[TopTrackData]> top-tracks;
+    in property <[ReviewRowData]> reviews;
+    in property <string> reviews-summary;
     in property <string> listening-summary;
     in property <string> listening-heard;
     in property <string> listening-listens;
@@ -161,6 +164,7 @@ export component AppWindow inherits Window {
     callback remove-folder(string);
     callback scan-now();
     callback showing(string);
+    callback decide-review(string, string);
     callback edit-track(string);
     callback save-track(string, string, string, string);
     callback switch-profile(string);
@@ -225,6 +229,8 @@ export component AppWindow inherits Window {
         settings-summary: root.settings-summary;
         moods: root.moods;
         top-tracks: root.top-tracks;
+        reviews: root.reviews;
+        reviews-summary: root.reviews-summary;
         listening-summary: root.listening-summary;
         listening-heard: root.listening-heard;
         listening-listens: root.listening-listens;
@@ -375,6 +381,9 @@ export component AppWindow inherits Window {
         }
         showing(name) => {
             root.showing(name);
+        }
+        decide-review(id, choice) => {
+            root.decide-review(id, choice);
         }
         edit-track(id) => {
             root.edit-track(id);

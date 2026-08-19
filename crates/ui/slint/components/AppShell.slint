@@ -11,6 +11,7 @@ import { EqualiserView, EqPresetData, EqBandData } from "../views/EqualiserView.
 import { SettingsView, FolderRowData, ProfileRowData } from "../views/SettingsView.slint";
 import { RadioView, MoodRowData } from "../views/RadioView.slint";
 import { ListeningView, TopTrackData } from "../views/ListeningView.slint";
+import { ReviewsView, ReviewRowData } from "../views/ReviewsView.slint";
 import { Dialog, PickDialog, EditTrackDialog } from "Dialog.slint";
 import { MenuItemData } from "RowMenu.slint";
 
@@ -59,6 +60,8 @@ export component AppShell inherits Rectangle {
 
     // Listening.
     in property <[TopTrackData]> top-tracks;
+    in property <[ReviewRowData]> reviews;
+    in property <string> reviews-summary;
     in property <string> listening-summary;
     in property <string> listening-heard;
     in property <string> listening-listens;
@@ -154,6 +157,7 @@ export component AppShell inherits Rectangle {
     /// Asks the interface to open the editor for a track. What it is called now
     /// comes back through the properties below, because only the application
     /// knows.
+    callback decide-review(string, string);
     callback edit-track(string);
     callback save-track(string, string, string, string);
     callback switch-profile(string);
@@ -203,6 +207,7 @@ export component AppShell inherits Rectangle {
 
         HorizontalLayout {
             Sidebar {
+                pending-reviews: root.reviews.length;
                 profile-name: root.profile-name;
                 profile-initial: root.profile-initial;
                 section: root.section;
@@ -278,6 +283,14 @@ export component AppShell inherits Rectangle {
                 }
                 act(id, name, action) => {
                     root.ask(action == "rename" ? "rename-playlist" : "delete-playlist", id, name);
+                }
+            }
+
+            if root.section == "reviews": ReviewsView {
+                reviews: root.reviews;
+                summary: root.reviews-summary;
+                decide(id, choice) => {
+                    root.decide-review(id, choice);
                 }
             }
 

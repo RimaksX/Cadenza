@@ -145,6 +145,11 @@ fn wire(window: &AppWindow, controller: &Rc<Controller>) {
         move |name| controller.showing(name.as_str())
     });
 
+    window.on_decide_review({
+        let controller = Rc::clone(controller);
+        move |id, choice| controller.decide_review(id.as_str(), choice.as_str())
+    });
+
     window.on_edit_track({
         let controller = Rc::clone(controller);
         move |id| controller.edit_track(id.as_str())
