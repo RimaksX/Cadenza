@@ -1171,3 +1171,54 @@ one job and should be done together, because either alone is worse than neither.
 Logging goes with M16 as planned. Covers are a feature rather than a fix. The
 five idle seams stay: a port method with no caller costs a line of a trait, and
 removing one would be a change to the architecture for tidiness.
+
+## 56. The library keeps itself current, and the window hears about it
+
+Finding 55's first two items, built together because either alone is worse than
+neither.
+
+**Only the window watches.** `LibraryPorts` gained an optional
+`FileWatcherPort`, and `crates/app` supplies one only for `Command::Ui`. A
+command that scans once and exits would otherwise start a thread and register
+directories with the operating system in order to tear both down a moment later.
+
+**A folder in the library is a folder being watched.** `add_folder` watches,
+`remove_folder` unwatches, and `watch_folders` picks up the ones that were
+already there when the window opened. Putting it in the service rather than in
+the composition root is what keeps "which folders are watched" one fact: the
+settings screen can add a folder at any time, and the answer must not depend on
+when the application started.
+
+A watch that fails is reported rather than hidden. The folder is saved first, so
+the failure means the library has the folder and will not hear about changes to
+it until the next start — which is exactly the difference worth telling somebody
+about.
+
+**The window learns by flag, not by event.** The subscriber runs on whichever
+thread published — the watcher's — and Slint may only be touched from the event
+loop, so the handler does the one thing that is safe from another thread: sets an
+`AtomicBool`. The 250 ms tick that already reads the transport reads the flag
+too. Two consequences, both wanted: no `invoke_from_event_loop` and no `Send`
+bound creeping into the controller, and coalescing for free — copying an album
+publishes one change per file, and five hundred flags are one refresh.
+
+**Three readings rather than nine.** A file appearing or vanishing moves the
+library, can take a track out of the queue and can put a duplicate in front of
+the listener. It cannot change the equaliser, the theme or a month of listening,
+and re-reading those four times a second through a long import would be paid for
+in frames.
+
+**One error is still swallowed, deliberately and last.** A change that fails to
+apply concerns one file, and tearing the watcher down over an unreadable download
+would cost the listener every other file. There is nowhere to report it to: the
+window is on another thread and this application writes no log. That is M16's
+"logs", and this is the first thing that will want one — recorded here so the
+sink arrives before anything else starts writing into the dark.
+
+What is verified: the debouncer and the classifier, `apply_change`, that adding
+a folder watches it and removing it stops, and that the window opens with the
+real watcher registered against the real folders — `watch_folders` returns an
+error and the window never opens if it does not. What is not verified
+automatically: a file dropped into a folder while the window is open reaching the
+list on screen, because that needs a real filesystem event delivered to a running
+window. It is checked by doing it.

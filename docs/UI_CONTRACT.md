@@ -18,6 +18,11 @@ The UI is a pure function of view state plus a command sink.
   listings). View models translate it into Slint models.
 - **Up:** the UI calls application services. It never mutates domain state
   itself.
+- **Sideways:** the UI subscribes to the event bus, and a published event tells
+  it only *that* something changed. The handler runs on whichever thread
+  published, so it raises a flag; the 250 ms tick reads the flag and re-reads the
+  pages a change behind the listener's back could have altered. Nothing arrives
+  through that channel except the prompt to read again.
 
 The up-channel is the services rather than a command enum, and the reasoning is
 in [MASTER_ISSUES.md](MASTER_ISSUES.md) finding 30. `PlaybackService::toggle` is

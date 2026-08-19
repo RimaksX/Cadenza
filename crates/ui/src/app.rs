@@ -1,8 +1,11 @@
 //! Building the window and running the event loop.
 
 use std::rc::Rc;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
+use cadenza_core::domain::ports::event_bus::DomainEvent;
 use cadenza_core::{CoreError, Result};
 use slint::{ComponentHandle, Timer, TimerMode};
 
@@ -35,6 +38,28 @@ pub fn run(services: UiServices) -> Result<()> {
         reason: format!("the interface could not be created: {err}"),
     })?;
 
+    // Something changed the library with nobody looking at it: the watcher
+    // noticing a file, or a scan running behind the window. The handler is
+    // called on whichever thread published, so it does the only thing that is
+    // safe from there — raises a flag. The tick below already runs on the event
+    // loop, and reading the database is its job rather than the watcher's.
+    //
+    // A flag rather than a queue of events, because a copied album publishes one
+    // change per file: five hundred of them and one of them ask the window for
+    // exactly the same thing.
+    let changed = Arc::new(AtomicBool::new(false));
+    services.events.subscribe(Box::new({
+        let changed = Arc::clone(&changed);
+        move |event| {
+            if matches!(
+                event,
+                DomainEvent::LibraryChanged | DomainEvent::ReviewPending
+            ) {
+                changed.store(true, Ordering::Relaxed);
+            }
+        }
+    }));
+
     let controller = Rc::new(Controller::new(services, window.as_weak()));
     controller.refresh_all();
 
@@ -50,6 +75,10 @@ pub fn run(services: UiServices) -> Result<()> {
             // replaced before the bar is drawn holding it.
             controller.poll_queue();
             controller.refresh_player();
+
+            if changed.swap(false, Ordering::Relaxed) {
+                controller.refresh_after_change();
+            }
         }
     });
 

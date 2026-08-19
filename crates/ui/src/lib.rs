@@ -24,6 +24,7 @@ use cadenza_core::application::services::{
     EqService, LibraryService, PlaybackService, PlaylistService, QueueService, RadioService,
     StatsService,
 };
+use cadenza_core::domain::ports::event_bus::EventBusPort;
 use cadenza_core::domain::profile::Profile;
 
 mod app;
@@ -66,6 +67,12 @@ pub struct UiServices {
     /// and editing them belong to the settings screen, and the service comes
     /// back when that does.
     pub profile: Option<Profile>,
+    /// Where the application says something changed.
+    ///
+    /// The window reads its pages when it is asked to and after every command it
+    /// issues, which covers everything the listener does and nothing anybody
+    /// else does. The watcher is somebody else.
+    pub events: Arc<dyn EventBusPort>,
 }
 
 /// Opens the window and blocks until the listener closes it.

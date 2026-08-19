@@ -39,6 +39,11 @@ APIs, and a desktop player has no concurrency load that would justify one. Long-
 work — scanning, hashing, feature extraction — runs on ordinary threads. Every port is
 `Send + Sync` so those threads can share it.
 
+Two of them run while the window is open: the analysis worker, and the file
+watcher that keeps the library current. Both reach the application layer through
+ports and neither touches the interface — what the window does about a change is
+decided on the event loop (see [UI_CONTRACT.md](UI_CONTRACT.md)).
+
 Those threads stay out of the way by resting rather than by being demoted.
 `SystemPriorityPort` exists and its Windows implementation deliberately does
 nothing: `SetThreadPriority` needs `unsafe` or a dependency taken for one

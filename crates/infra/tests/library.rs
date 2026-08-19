@@ -5,13 +5,13 @@
 //! about whether lofty can actually read what was written.
 
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use cadenza_core::application::services::{LibraryPorts, LibraryService, ScanReport};
 use cadenza_core::application::{AppContext, ProfileService};
 use cadenza_core::domain::ids::ProfileId;
 use cadenza_core::domain::media_file::{AudioFormat, FileState};
-use cadenza_core::domain::ports::file_watcher::FileChange;
+use cadenza_core::domain::ports::file_watcher::{FileChange, FileChangeHandler, FileWatcherPort};
 use cadenza_core::domain::ports::repositories::MediaFileRepositoryPort;
 use cadenza_core::domain::review::{ReviewReason, ReviewResolution};
 use cadenza_infra::db::repositories::{
@@ -27,10 +27,47 @@ use cadenza_testkit::{TempDb, TestClock};
 use lofty::config::WriteOptions;
 use lofty::tag::{Accessor, Tag, TagExt, TagType};
 
+/// A watcher that registers nothing and remembers everything.
+///
+/// What the library is asked to watch is a decision the service makes; whether
+/// `notify` can register it with Windows is not, and it is tested where the real
+/// watcher is.
+#[derive(Default)]
+struct RecordingWatcher {
+    watched: Mutex<Vec<PathBuf>>,
+}
+
+impl RecordingWatcher {
+    fn paths(&self) -> Vec<PathBuf> {
+        self.watched.lock().expect("the recording").clone()
+    }
+}
+
+impl FileWatcherPort for RecordingWatcher {
+    fn watch(&self, path: &Path, _recursive: bool) -> cadenza_core::Result<()> {
+        self.watched
+            .lock()
+            .expect("the recording")
+            .push(path.to_path_buf());
+        Ok(())
+    }
+
+    fn unwatch(&self, path: &Path) -> cadenza_core::Result<()> {
+        self.watched
+            .lock()
+            .expect("the recording")
+            .retain(|watched| watched != path);
+        Ok(())
+    }
+
+    fn set_handler(&self, _handler: FileChangeHandler) {}
+}
+
 /// A profile, a music folder and a wired library service.
 struct Harness {
     music: PathBuf,
     library: LibraryService,
+    watcher: Arc<RecordingWatcher>,
     media_files: Arc<SqliteMediaFileRepository>,
     profiles: ProfileService,
     profile_id: ProfileId,
@@ -69,6 +106,8 @@ fn harness(tag: &str) -> Harness {
         }
     }
 
+    let watcher = Arc::new(RecordingWatcher::default());
+
     let ports = LibraryPorts {
         picker: Arc::new(NoPicker),
         files: Arc::new(LocalFileSystem),
@@ -80,10 +119,12 @@ fn harness(tag: &str) -> Harness {
         albums: Arc::new(SqliteAlbumRepository::new(db.pool().clone())),
         genres: Arc::new(SqliteGenreRepository::new(db.pool().clone())),
         reviews: Arc::new(SqliteImportReviewRepository::new(db.pool().clone())),
+        watcher: Some(Arc::clone(&watcher) as _),
     };
 
     Harness {
         library: LibraryService::new(Arc::clone(&context), ports),
+        watcher,
         music,
         media_files,
         profiles: ProfileService::new(context),
@@ -962,5 +1003,38 @@ fn a_listener_can_correct_a_track_without_touching_the_file_or_anyone_else() {
             .library
             .edit_track(track.media_file_id, "  ", None, None)
             .is_err()
+    );
+}
+
+/// A folder in the library is a folder being watched — that is what makes the
+/// library keep itself current instead of waiting to be scanned again.
+#[test]
+fn a_folder_added_is_a_folder_watched() {
+    let harness = harness("watched-folder");
+    harness.scan(true);
+
+    assert_eq!(
+        harness.watcher.paths(),
+        vec![harness.music.clone()],
+        "adding a folder starts watching it"
+    );
+
+    // What the window does at startup for folders that were already there.
+    harness.library.watch_folders().expect("watching folders");
+    assert!(
+        harness.watcher.paths().contains(&harness.music),
+        "an enabled folder is watched again on the next start"
+    );
+
+    let folder = harness
+        .library
+        .folders()
+        .expect("listing folders")
+        .remove(0);
+    harness.library.remove_folder(&folder).expect("removing it");
+
+    assert!(
+        !harness.watcher.paths().contains(&harness.music),
+        "a folder taken out of the library is no longer watched"
     );
 }

@@ -24,6 +24,7 @@ use cadenza_core::application::{AppContext, ProfileService};
 use cadenza_core::domain::playback::PlaybackState;
 use cadenza_core::domain::ports::audio_engine::AudioEnginePort;
 use cadenza_core::domain::ports::decoder::DecoderPort;
+use cadenza_core::domain::ports::event_bus::EventBusPort;
 use cadenza_core::domain::ports::file_watcher::FileWatcherPort;
 use cadenza_core::domain::profile::Profile;
 use cadenza_core::domain::settings::{
@@ -88,9 +89,25 @@ fn run() -> std::result::Result<(), String> {
     // adapter is handed a connection.
     let pool = db::open(&paths.database()).map_err(|err| err.to_string())?;
 
+    // Held rather than passed in place: the window subscribes to the same bus
+    // the services publish on, which is how it hears about a change it did not
+    // make itself.
+    let events: Arc<dyn EventBusPort> = Arc::new(InProcessEventBus::new());
+
+    // Only the window watches. A command that scans once and exits would start a
+    // thread, register directories with the operating system and tear both down
+    // again before anything could happen in them.
+    let watcher: Option<Arc<dyn FileWatcherPort>> = if command == Command::Ui {
+        Some(Arc::new(
+            NotifyFileWatcher::new().map_err(|err| err.to_string())?,
+        ))
+    } else {
+        None
+    };
+
     let context = Arc::new(AppContext::new(
         Arc::new(SystemClock),
-        Arc::new(InProcessEventBus::new()),
+        Arc::clone(&events),
         Arc::new(SqliteProfileRepository::new(pool.clone())),
         Arc::new(SqliteSettingsRepository::new(pool.clone())),
     ));
@@ -111,6 +128,7 @@ fn run() -> std::result::Result<(), String> {
             genres: Arc::new(SqliteGenreRepository::new(pool.clone())),
             reviews: Arc::new(SqliteImportReviewRepository::new(pool.clone())),
             picker: Arc::new(SystemFolderPicker),
+            watcher: watcher.clone(),
         },
     ));
 
@@ -225,6 +243,25 @@ fn run() -> std::result::Result<(), String> {
             }),
         );
 
+        // The library keeps itself current for as long as the window is open,
+        // which is what "автоматическое отслеживание изменений файловой системы"
+        // asks for and what `cadenza watch` could only do with a terminal open
+        // beside it.
+        if let Some(watcher) = watcher.as_ref() {
+            watcher.set_handler(Box::new({
+                let library = Arc::clone(&library);
+                move |change| {
+                    // A failure concerns one file, and tearing the watcher down over
+                    // an unreadable download would cost the listener every other
+                    // file. There is nowhere to report it to yet: the window is on
+                    // another thread and this application writes no log. That is
+                    // M16's "logs", and this is the first thing that will want one.
+                    let _ = library.apply_change(&change);
+                }
+            }));
+            library.watch_folders().map_err(|err| err.to_string())?;
+        }
+
         let outcome = cadenza_ui::run(cadenza_ui::UiServices {
             profiles: Arc::clone(&profiles),
             library: Arc::clone(&library),
@@ -235,6 +272,7 @@ fn run() -> std::result::Result<(), String> {
             radio: Arc::clone(&radio),
             stats: Arc::clone(&stats),
             profile: active,
+            events: Arc::clone(&events),
         });
 
         // Before the pool goes: the worker holds a connection, and a thread

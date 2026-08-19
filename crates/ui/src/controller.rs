@@ -986,6 +986,19 @@ impl Controller {
     /// played, a folder is scanned, a preset is renamed. Asking on arrival
     /// costs one query on a keypress and closes the whole class rather than
     /// the one case somebody happened to notice.
+    /// Re-reads what a change nobody in this window made could have altered.
+    ///
+    /// Three readings rather than all nine: a file appearing or vanishing moves
+    /// the library, can take a track out of the queue, and can put a duplicate
+    /// in front of the listener. It cannot change the equaliser, the theme or a
+    /// month of listening, and re-reading those four times a second through a
+    /// long import would be paid for in frames.
+    pub fn refresh_after_change(&self) {
+        self.refresh_library();
+        self.refresh_queue();
+        self.refresh_reviews();
+    }
+
     pub fn showing(&self, section: &str) {
         match section {
             "listening" => self.refresh_listening(),

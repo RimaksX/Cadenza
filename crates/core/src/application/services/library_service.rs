@@ -19,7 +19,7 @@ use crate::domain::policies::duplicate_policy::{self, DuplicateVerdict};
 use crate::domain::ports::artwork_cache::ArtworkCachePort;
 use crate::domain::ports::event_bus::DomainEvent;
 use crate::domain::ports::file_system::FileSystemPort;
-use crate::domain::ports::file_watcher::FileChange;
+use crate::domain::ports::file_watcher::{FileChange, FileWatcherPort};
 use crate::domain::ports::folder_picker::FolderPickerPort;
 use crate::domain::ports::metadata_reader::{FileMetadata, MetadataReaderPort, TrackTags};
 use crate::domain::ports::repositories::{
@@ -58,6 +58,12 @@ pub struct LibraryPorts {
     pub reviews: Arc<dyn ImportReviewRepositoryPort>,
     /// The system's folder chooser, and its opinion about where music lives.
     pub picker: Arc<dyn FolderPickerPort>,
+    /// The watcher that keeps the library current, when there is one.
+    ///
+    /// Optional because a command that scans once and exits has nothing to
+    /// watch, and because every test that is not about watching should not have
+    /// to provide one. The window supplies it; `cadenza scan` does not.
+    pub watcher: Option<Arc<dyn FileWatcherPort>>,
 }
 
 /// What one scan did.
@@ -128,7 +134,33 @@ impl LibraryService {
             last_scan_at: None,
         };
         self.context.settings.save_folder(&folder)?;
+        self.watch(&folder)?;
         Ok(folder)
+    }
+
+    /// Starts watching every enabled folder of the active profile.
+    ///
+    /// Called once by whoever supplied the watcher, after they have installed a
+    /// handler for it. Folders added later are watched by [`Self::add_folder`],
+    /// so this is about the folders that were already there.
+    pub fn watch_folders(&self) -> Result<()> {
+        for folder in self.folders()?.iter().filter(|folder| folder.enabled) {
+            self.watch(folder)?;
+        }
+        Ok(())
+    }
+
+    /// Watches one folder, if there is a watcher to do it.
+    ///
+    /// The folder is saved before this runs, so a failure here means the library
+    /// has the folder and will not hear about changes to it until the next
+    /// start. That is worth reporting rather than hiding: it is the difference
+    /// between a library that keeps itself current and one that does not.
+    fn watch(&self, folder: &ProfileFolder) -> Result<()> {
+        match self.ports.watcher.as_ref() {
+            Some(watcher) => watcher.watch(&folder.path, folder.include_subfolders),
+            None => Ok(()),
+        }
     }
 
     /// Asks the listener for a folder, adds it and scans it.
@@ -177,7 +209,11 @@ impl LibraryService {
 
     /// Stops scanning a folder. Files already imported stay in the library.
     pub fn remove_folder(&self, folder: &ProfileFolder) -> Result<()> {
-        self.context.settings.delete_folder(folder)
+        self.context.settings.delete_folder(folder)?;
+        if let Some(watcher) = self.ports.watcher.as_ref() {
+            watcher.unwatch(&folder.path)?;
+        }
+        Ok(())
     }
 
     /// Scans every enabled folder of the active profile.
