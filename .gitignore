@@ -15,3 +15,11 @@
 .vscode/
 .idea/
 .claude/settings.local.json
+
+# What Python leaves beside the scripts it runs.
+__pycache__/
+*.pyc
+
+# Point-in-time reviews live in docs/MASTER_ISSUES.md; a stray file at the root
+# is a second place to look.
+/REVIEW_FINDINGS.txt

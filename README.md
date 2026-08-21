@@ -6,17 +6,16 @@ cloud accounts, no neural networks.
 - Local library with folder scanning and file watching
 - Playlists, manual queue, smart shuffle, local smart radio
 - Crossfade and gapless playback
-- 3-band and 10-band equalizer
+- Three-knob and eight-band parametric equalizer
 - Lightweight audio visualization
 - Local listening analytics with a 30-day retention window
 - Multiple user profiles, each with its own library, playlists, history and settings
 
 ## Status
 
-Milestones **M0 – M14** complete: everything in the feature list above works, in a
-window with nine screens and two themes. **M15** has two requirements left —
-interface scaling and drag-and-drop of tracks — and **M16**, Windows packaging,
-has not started.
+Milestones **M0 – M15** complete: everything in the feature list above works, in
+a window with nine screens, two themes and four sizes. **M16**, Windows
+packaging, has not started.
 
 What was actually built in each milestone is in
 [docs/PROJECT_PLAN.md](docs/PROJECT_PLAN.md); every deviation from the master file

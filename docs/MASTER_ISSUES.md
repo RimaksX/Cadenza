@@ -1900,3 +1900,26 @@ while a repository above it still held a connection. The fix landed long ago and
 the naming gained a start-time stamp; 654 of the 905 carry the *old* two-part
 name, from before it. Verified by counting before and after a full run: **a run
 today leaves none**. Deleted.
+
+**Addendum to 71: what a second pair of eyes caught.** A review of the whole
+project was sitting untracked at the repository root while this sweep ran, and
+it found three things this one had not:
+
+- the README still said M15 had two requirements left, and still called the
+  advanced equaliser ten-band when it has been parametric since finding 41;
+- `scripts/__pycache__` was committed — two `.pyc` files, with nothing in
+  `.gitignore` to stop them;
+- and four things that belong to M16 rather than to now: `deny.toml` and a
+  dependency check in CI, deferred at M0 when there were no dependencies and
+  overdue at several hundred; a CI job that actually builds on the declared
+  minimum toolchain, since `stable` never proves it; `strip` in the release
+  profile, or an installer carrying debug symbols; and the `repository` field in
+  `Cargo.toml`, which points at an address that does not exist.
+
+The first two are fixed here. The last four are written into the plan under M16
+so they are scheduled rather than remembered.
+
+The review itself was swept into a commit by a careless `git add -A` and then
+put back the way it was found — untracked, and now ignored by name. A
+point-in-time review belongs in this file, where the reasoning is; a second
+place to look for it is a second place to forget.
