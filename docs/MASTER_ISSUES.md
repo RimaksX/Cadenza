@@ -1858,3 +1858,45 @@ what the equaliser screen already writes another way; harmless, and worth
 merging the day either changes. The `daily_*` rollups stay unwritten (finding
 54). Five tests stay ignored: three need an output device, one needs a folder of
 real music, one is a measurement rather than an assertion.
+
+## 71. Forty gigabytes of build output, and nine hundred directories nobody freed
+
+The owner noticed `target/debug` at forty-two gigabytes and asked what was
+accumulating there. Measured rather than guessed:
+
+    target            41 G
+      debug           40 G
+        incremental   20 G
+        deps          19 G
+      release        1.8 G
+
+Nothing of it is the project's own doing in the ordinary sense — it is debug
+information, which on Windows lands in a `.pdb` beside every artefact, and cargo
+never deletes an artefact it has stopped needing. The UI crate alone was four
+hundred megabytes per copy, and six copies of it were sitting in `deps`: one per
+code hash this session produced, plus everything left over from Slint 1.13 after
+the upgrade to 1.17.
+
+**Chosen:** keep line tables and throw the rest away.
+
+    [profile.dev]
+    debug = "line-tables-only"
+
+    [profile.dev.package."*"]
+    debug = false
+
+A panic still names a file and a line, which is the only thing a backtrace here
+has ever been asked for. Dependencies keep nothing at all: a breakpoint inside
+Slint is not something this project debugs, and their debug info was the bulk of
+the weight.
+
+Measured after a clean and a full build with the tests: **4.2 GB**, of which the
+main `.pdb` is 119 MB where it had been 389. The clean itself returned 44.2 GB.
+
+**And a second pile, in the system's temporary directory:** 905 directories
+named `cadenza-test-*`, 441 of them empty. These are the leftovers finding
+`docs/TESTING.md` describes — the fixture that could not delete its directory
+while a repository above it still held a connection. The fix landed long ago and
+the naming gained a start-time stamp; 654 of the 905 carry the *old* two-part
+name, from before it. Verified by counting before and after a full run: **a run
+today leaves none**. Deleted.

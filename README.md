@@ -32,6 +32,13 @@ cargo run -p cadenza-app
 
 Requires Rust stable (see `rust-toolchain.toml`).
 
+`target/` grows: cargo keeps every artefact it has ever built, and on Windows
+each carries a `.pdb` beside it. The dev profile keeps line tables for this
+project and no debug information at all for dependencies, which is what holds a
+full build with tests to about four gigabytes rather than forty
+([docs/MASTER_ISSUES.md](docs/MASTER_ISSUES.md), finding 71). `cargo clean`
+returns all of it.
+
 ## Layout
 
 | Crate | Layer | May depend on |

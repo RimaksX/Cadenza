@@ -24,3 +24,18 @@ cadenza-testkit = { path = "crates/testkit" }
 [profile.release]
 lto = "thin"
 codegen-units = 1
+
+# Debug information is what makes `target/debug` enormous on Windows, where it
+# lands in a `.pdb` beside every artefact. Measured here: 40 GB of build output,
+# of which the UI crate alone accounted for four hundred megabytes per copy —
+# and cargo keeps every copy it has ever built.
+#
+# Ours keeps line tables, so a panic still names a file and a line, which is the
+# only thing a backtrace here is ever asked for. Dependencies keep nothing: a
+# breakpoint inside Slint is not something this project debugs, and their debug
+# info is the bulk of the weight.
+[profile.dev]
+debug = "line-tables-only"
+
+[profile.dev.package."*"]
+debug = false
