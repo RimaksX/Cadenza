@@ -1923,3 +1923,51 @@ The review itself was swept into a commit by a careless `git add -A` and then
 put back the way it was found — untracked, and now ignored by name. A
 point-in-time review belongs in this file, where the reasoning is; a second
 place to look for it is a second place to forget.
+
+## 72. Walking the review, point by point
+
+Every item of the review that was lying at the repository root, with what was
+done about it.
+
+**The metadata named a place nobody can go.** `repository` pointed at an invented
+GitHub address and there is no git remote at all. The field is gone, from the
+workspace and from the five crates that inherited it — it comes back the day
+there is somewhere for it to point. (Removing it from the workspace alone breaks
+the build, which is worth knowing: `repository.workspace = true` in a member is
+a reference, not a copy.)
+
+**An installer must carry the program and not the map of it.** The release
+profile strips symbols now. Measured after: a 30.2 MB executable, built in four
+minutes with `lto = "thin"` — and a `.pdb` beside it that the installer must not
+take. That the release profile builds at all had never been checked this whole
+project; it does.
+
+**The dependency audit the review asked for, done without the tool.** 682
+packages in the tree, every one of them stating a licence. The only copyleft is
+Slint's own, which is exactly why this project is GPL — everything else is
+permissive, sixteen files under MPL-2.0 and nothing at all unlicensed.
+
+But it turned up a question the tool would have raised too, and it is the
+owner's rather than mine: **Slint is `GPL-3.0-only`, and Cadenza declares
+`GPL-3.0-or-later`.** "Or later" offers recipients terms for a version of the
+licence that the Slint code cannot be relicensed under. The safe declaration for
+a work linking GPL-3.0-only code is `GPL-3.0-only`. Worth settling before
+anything is published; ADR 0002 records the choice and does not mention the
+difference.
+
+**CI now builds on the minimum it promises.** `rust-version = "1.92"` was
+declared and never proved: `stable` is whatever came out last week. There is a
+second job pinned to 1.92. It has never run, and neither has the first one —
+there is no remote, so this workflow has never executed once.
+
+**No duplicate dependency versions.** `cargo tree -d` is empty; the pair the
+review saw was collapsed by the move to Slint 1.17.
+
+**The large files stay large.** `stream.rs` 1652 lines, `controller.rs` 1601,
+`library_service.rs` 1328. This project deliberately keeps a few long files that
+read as narrative rather than many short ones that read as a directory, and the
+owner has never asked otherwise. Recorded so the next reviewer knows it is a
+choice.
+
+**`deny.toml` and a release artefact on a tag** stay M16's, where the plan
+already carries them: both are about publishing, and nothing here publishes yet.

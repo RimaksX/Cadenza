@@ -20,3 +20,14 @@ jobs:
       - run: cargo clippy --workspace --all-targets -- -D warnings
       - run: cargo build --workspace
       - run: cargo test --workspace
+
+  # The minimum this workspace claims to build on. `stable` never proves it: it
+  # is whatever came out last week, and a feature added since 1.92 would compile
+  # there and fail for anybody holding the version the manifest promises.
+  minimum-toolchain:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.92
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo build --workspace

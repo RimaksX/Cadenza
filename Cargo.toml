@@ -13,7 +13,9 @@ version = "0.1.0"
 edition = "2024"
 rust-version = "1.92"
 license = "GPL-3.0-or-later"
-repository = "https://github.com/cadenza-player/cadenza"
+# No `repository` field: there is no repository. It held an invented GitHub
+# address, and metadata that names a place nobody can go is worse than metadata
+# that says nothing. It comes back the day there is somewhere for it to point.
 
 [workspace.dependencies]
 cadenza-core = { path = "crates/core" }
@@ -24,6 +26,11 @@ cadenza-testkit = { path = "crates/testkit" }
 [profile.release]
 lto = "thin"
 codegen-units = 1
+# What goes into an installer should be the program and not the map of it.
+# Nothing reads a symbol name in a shipped build: a panic reports the message
+# and the location the line tables carry, and both of those come from the
+# `debug` setting rather than from this one.
+strip = "symbols"
 
 # Debug information is what makes `target/debug` enormous on Windows, where it
 # lands in a `.pdb` beside every artefact. Measured here: 40 GB of build output,

@@ -5,7 +5,6 @@ version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
-repository.workspace = true
 
 # Layering rule (PROJECT_MASTER 4.2): core -> infra and core -> ui are forbidden.
 # Keep this section free of any cadenza-* dependency.
