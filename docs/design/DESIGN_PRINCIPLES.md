@@ -14,9 +14,12 @@ there, and if the two ever disagree the file the compiler reads is right. What a
 file of numbers cannot carry is why a number is that number, and that is what
 this document is for.
 
-`Cadenza.html` at the repository root is the visual reference the language came
-from. It supplies the look and nothing else — never structure, naming or
-behaviour.
+The visual language came from a mockup — `Cadenza.html`, a single page at the
+repository root that supplied the look and nothing else: never structure,
+naming or behaviour. It was removed before release, because a mockup outlives
+its use the moment the thing it described exists, and this document plus the
+token file now say everything it said. It is in the history if anybody needs to
+see where a colour came from.
 
 ## The one rule underneath everything: even lengths
 
