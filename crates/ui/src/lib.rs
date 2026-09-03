@@ -29,8 +29,8 @@ use cadenza_core::domain::profile::Profile;
 
 mod app;
 mod controller;
-mod file_drop;
 pub mod view_models;
+mod winit_seam;
 
 // Brings in the types generated from `slint/app_window.slint`: the window
 // itself and every struct the markup declares.

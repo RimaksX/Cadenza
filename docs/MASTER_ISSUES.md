@@ -2312,3 +2312,58 @@ If it still does not, the diagnosis above is wrong in one specific way and there
 is a single question that separates the two cases: **does Ctrl+A select the
 text?** Select-all needs no clipboard. If it now works and paste does not, the
 key path is fixed and the clipboard is the problem instead.
+
+## 79. It was the keyboard layout, and the diagnosis above is wrong
+
+Finding 78 blamed a control-character guard in `i-slint-core` and fixed it in
+`Field.slint`. Ctrl+V still did nothing, and neither did Ctrl+A. That reading of
+the source was wrong, and so was a second one after it.
+
+So the guessing stopped. A temporary probe in the winit handler wrote the raw
+key event to a file — everything Slint's own key event cannot carry — and the
+owner pressed the two combinations once. Six lines, and they settle it:
+
+```
+state=Pressed logical=Named(Control) text=None      without=Named(Control)
+state=Pressed logical=Character("ф") text=Some("ф") without=Character("ф")
+state=Released logical=Character("ф") text=None     without=Character("ф")
+state=Pressed logical=Character("м") text=Some("м") without=Character("м")
+state=Released logical=Character("м") text=None     without=Character("м")
+state=Released logical=Named(Control) text=None     without=Named(Control)
+```
+
+**A Russian keyboard layout.** The A key produces `ф` and the V key produces
+`м`. `i-slint-core` decides that a combination is Paste by comparing the
+character produced against `"v"`, and Select All by comparing it against `"a"`
+(`input.rs`, `shortcut()`). Neither matches, so the shortcut is not recognised —
+and with Ctrl held the character is not inserted either, which is why the field
+appeared to do nothing at all rather than typing `м`.
+
+Nothing to do with control characters, and nothing that could be fixed in
+markup: a Slint `KeyEvent` carries only the produced text, so the physical key
+is not available to any handler written in `.slint`.
+
+**Where it is fixed.** The winit seam this project already owns for file drops
+(finding 57) — the one place where `physical_key` exists. Ctrl with `KeyA`,
+`KeyC`, `KeyV`, `KeyX`, `KeyY` or `KeyZ` is translated to the letter Slint is
+looking for and dispatched to the window, and the original event is the only
+event this handler has ever taken away. `file_drop.rs` is now `winit_seam.rs`,
+because it watches two things rather than one.
+
+Translated on every layout, including the American one where it would have
+worked anyway: two paths through one keypress means the one nobody here types on
+is the untested one.
+
+**What this is really about.** Every editing shortcut in Cadenza was unreachable
+for anybody typing in anything but Latin — Russian, Greek, Hebrew, Arabic — in
+every field, not just this one. It was found because the owner tried to paste a
+link into a field built an hour earlier, and it had been true since the first
+text field shipped.
+
+**And a lesson about method, since this file is for those too.** Two wrong
+diagnoses came from reading a dependency's source and reasoning forward; the
+right one came from one measurement that took a minute to arrange. This project
+already knows to render the interface rather than describe it
+([MASTER_ISSUES 34](MASTER_ISSUES.md)). The same rule applies to input, and
+there is a way to measure that too: the seam can write down what actually
+arrived.

@@ -36,7 +36,7 @@ pub fn run(services: UiServices) -> Result<()> {
     // Before the window, because a platform can only be chosen while nothing has
     // been drawn by one. This is also what puts files dropped from the desktop
     // within reach at all.
-    let drops = crate::file_drop::install()?;
+    let drops = crate::winit_seam::install()?;
 
     let window = AppWindow::new().map_err(|err| CoreError::Invalid {
         field: "window",
