@@ -947,8 +947,17 @@ fn shuffle_prefers_the_track_that_follows_best_without_insisting_on_it() {
     // and a test that demanded it every time would be testing for the very
     // behaviour PROJECT_MASTER 9.1 rules out. What is stable — and what the
     // milestone is actually about — is which one wins most often.
+    //
+    // A hundred draws rather than forty, because forty was not enough to make
+    // the assertion below safe. Seven in ten over forty draws averages
+    // twenty-eight wins with a standard deviation near three, and the test
+    // demands more than twenty — under three deviations, which is roughly one
+    // run in two hundred failing for no reason at all. It did, once, in a
+    // full-workspace run. Over a hundred draws the same margin is four and a
+    // half deviations, and a suite that cries wolf is a suite people stop
+    // reading.
     let mut counts: BTreeMap<String, usize> = BTreeMap::new();
-    for _ in 0..40 {
+    for _ in 0..100 {
         *counts.entry(who_follows_the_first_track()).or_default() += 1;
     }
 

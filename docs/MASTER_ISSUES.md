@@ -2021,3 +2021,43 @@ of the same shape in one file should be three components or one, never two and a
 half.
 
 Verified by rendering: `python scripts/shoot.py --section settings`.
+
+## 74. What the settings page says about itself
+
+Two lines at the top of the page, and neither said anything worth the space.
+
+**"THIS COPY OF CADENZA."** Meant as *this installation*, the way one speaks of
+a copy of a book. Read aloud it is a program introducing itself as a copy of
+something else, which is not what it is. Every other page uses that line to say
+what the page holds — "THE LAST THIRTY DAYS", "BUILT FROM YOUR OWN LIBRARY",
+"HELD BACK RATHER THAN IMPORTED" — so this one now says what it holds too:
+`YOURS TO DECIDE`.
+
+**"1 folder · 7 tracks."** A true count answering a question nobody arrived at
+this page with. How much is in the library is a fact about the library and the
+library page says it. What this page needs to say is *whose* settings these
+are, because every one of them is kept per profile: the size, the theme, the
+crossfade, the history and the folders all belong to a listener rather than to
+the machine. It reads `Welcome, Sasha`.
+
+That changed the typeface with it. The line is set in sans where every other
+page has mono in the same slot, and the rule decides it rather than taste: mono
+carries what a listener reads as a number (`DESIGN_PRINCIPLES`, "Type"), and
+this is the one line in that slot carrying words addressed to a person. A
+greeting on a number's letter-spacing reads as a meter.
+
+**And a test that had been failing about once in two hundred runs.** The
+full-workspace run after this change came back red on
+`shuffle_prefers_the_track_that_follows_best_without_insisting_on_it`, which
+has nothing to do with any of the above and passed on its own immediately
+afterwards. It counts forty weighted draws and asserts the good transition wins
+more than everything else together; at about seven in ten that averages
+twenty-eight against a threshold of twenty, which is under three standard
+deviations — thin enough to fail on its own now and then, and it did. A hundred
+draws puts the same margin four and a half deviations out. The assertion is
+unchanged, because the assertion was right; only the sample was too small to
+support it.
+
+Worth naming as a class: **a probabilistic test needs its arithmetic written
+down beside it.** Nobody chose forty for a reason that was ever calculated, and
+a suite that fails for no reason is a suite whose failures stop being read.

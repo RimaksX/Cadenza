@@ -318,8 +318,13 @@ export component SettingsView inherits Rectangle {
             padding-bottom: Theme.space-5;
             spacing: Theme.space-2;
 
+            // What the page holds, in the voice every other page uses for it:
+            // "THE LAST THIRTY DAYS", "BUILT FROM YOUR OWN LIBRARY". It used to
+            // read "THIS COPY OF CADENZA", meaning this installation — but read
+            // aloud that is a program calling itself a copy of something else,
+            // which is not what it is.
             Text {
-                text: "THIS COPY OF CADENZA";
+                text: "YOURS TO DECIDE";
                 font-family: Theme.mono;
                 font-size: Theme.text-label;
                 height: Theme.px(18);
@@ -337,13 +342,16 @@ export component SettingsView inherits Rectangle {
                 color: Theme.ink-0;
             }
 
+            // Sans, where every other page has mono here. Mono carries what a
+            // listener reads as a number; this line is the one in that slot
+            // that carries words addressed to a person, and setting a greeting
+            // on a number's spacing makes it look like a reading off a meter.
             Text {
                 text: root.summary;
-                font-family: Theme.mono;
-                font-size: Theme.text-label;
-                height: Theme.px(18);
+                font-family: Theme.sans;
+                font-size: Theme.text-body;
+                height: Theme.px(22);
                 vertical-alignment: center;
-                letter-spacing: Theme.number-spacing;
                 color: Theme.ink-2;
             }
         }

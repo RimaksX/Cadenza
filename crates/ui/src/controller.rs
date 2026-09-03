@@ -1347,24 +1347,19 @@ impl Controller {
             i32::try_from(self.services.library.outside_folders().unwrap_or(0)).unwrap_or(0),
         );
 
-        let tracks = self
-            .services
-            .library
-            .tracks()
-            .map(|all| all.len())
-            .unwrap_or(0);
+        // A greeting rather than a count. How many folders and tracks there
+        // are is a fact about the library, and the library has a page that
+        // says it; here it answered a question nobody had come to ask. What
+        // this page does need to say at the top is *whose* settings these are,
+        // because every one of them is kept per profile — a size, a theme, a
+        // crossfade and a history belong to the listener, not to the machine.
         window.set_settings_summary(
-            format!(
-                "{} {} · {tracks} {}",
-                folders.len(),
-                if folders.len() == 1 {
-                    "folder"
-                } else {
-                    "folders"
-                },
-                if tracks == 1 { "track" } else { "tracks" }
-            )
-            .into(),
+            self.profile
+                .borrow()
+                .as_ref()
+                .map(|profile| format!("Welcome, {}", profile.name.as_str()))
+                .unwrap_or_default()
+                .into(),
         );
     }
 
