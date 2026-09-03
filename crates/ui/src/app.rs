@@ -84,6 +84,10 @@ pub fn run(services: UiServices) -> Result<()> {
             if changed.swap(false, Ordering::Relaxed) {
                 controller.refresh_after_change();
             }
+
+            // A download running on its own thread, read the same way the
+            // watcher is: nothing off the event loop touches the window.
+            controller.poll_fetch();
         }
     });
 
@@ -283,6 +287,16 @@ fn wire(window: &AppWindow, controller: &Rc<Controller>) {
     window.on_search({
         let controller = Rc::clone(controller);
         move |query| controller.search(&query)
+    });
+
+    window.on_fetch({
+        let controller = Rc::clone(controller);
+        move |link| controller.fetch_from_link(&link)
+    });
+
+    window.on_make_local_folder({
+        let controller = Rc::clone(controller);
+        move || controller.make_local_folder()
     });
 
     window.on_play_from_playlist({

@@ -47,6 +47,24 @@ export component TrackList inherits Rectangle {
     /// the only list long enough to lose something in.
     in property <bool> searchable;
     in-out property <string> query <=> search.text;
+    /// Whether the head carries the line that brings a track in from a link.
+    /// Only the library does: it is the page about what you have, and this is
+    /// how something joins it.
+    in property <bool> fetchable;
+    /// Declared here rather than aliased into the field below: the field lives
+    /// inside a condition, and an element inside a condition is out of scope
+    /// for a name at this level. The binding goes the other way instead.
+    in-out property <string> link;
+    /// True while a fetch is running. What it costs the listener is the field
+    /// and the button: one at a time, because two downloads writing into one
+    /// folder is a race nobody asked for.
+    in property <bool> fetching;
+    in property <int> fetch-percent;
+    /// What happened, in a line. Empty says nothing has yet.
+    in property <string> fetch-note;
+    /// True where the fetch stopped because there is nowhere to put anything.
+    /// The offer to make the folder appears with it.
+    in property <bool> fetch-needs-folder;
 
     callback play(string);
     callback enqueue(string);
@@ -60,6 +78,8 @@ export component TrackList inherits Rectangle {
     callback back();
     callback act-on-page();
     callback searched(string);
+    callback fetch(string);
+    callback make-local-folder();
 
     background: Theme.bg-0;
 
@@ -224,6 +244,67 @@ export component TrackList inherits Rectangle {
                 vertical-alignment: center;
                 letter-spacing: Theme.number-spacing;
                 color: Theme.ink-2;
+            }
+
+            // Bringing a track in from a link. On the page about what you have,
+            // because that is where somebody stands when they want more of it —
+            // and on one line, because it is one field and one press.
+            //
+            // Cadenza fetches nothing itself: this hands the address to a
+            // downloader the listener installed, and what comes back is a file
+            // in their folder like any other (`MASTER_ISSUES` 76).
+            if root.fetchable: HorizontalLayout {
+                spacing: Theme.space-3;
+
+                Field {
+                    horizontal-stretch: 1;
+                    text <=> root.link;
+                    placeholder: "Paste a link to bring a track in";
+                    accepted => {
+                        root.fetch(self.text);
+                    }
+                }
+
+                VerticalLayout {
+                    alignment: center;
+
+                    TextButton {
+                        // The percentage stands in the button rather than in a
+                        // bar of its own: it is the same object that started
+                        // the download, and watching it count is watching the
+                        // thing you pressed.
+                        label: root.fetching ? root.fetch-percent + "%" : "GET";
+                        fixed-width: Theme.px(100);
+                        enabled: !root.fetching && root.link != "";
+                        pressed => {
+                            root.fetch(root.link);
+                        }
+                    }
+                }
+
+                if root.fetch-needs-folder: VerticalLayout {
+                    alignment: center;
+
+                    TextButton {
+                        label: "MAKE A FOLDER";
+                        fixed-width: Theme.px(176);
+                        primary: true;
+                        pressed => {
+                            root.make-local-folder();
+                        }
+                    }
+                }
+            }
+
+            if root.fetchable && root.fetch-note != "": Text {
+                text: root.fetch-note;
+                font-family: Theme.mono;
+                font-size: Theme.text-label;
+                height: Theme.px(18);
+                vertical-alignment: center;
+                letter-spacing: Theme.label-spacing;
+                color: Theme.ink-mute;
+                overflow: elide;
             }
         }
 

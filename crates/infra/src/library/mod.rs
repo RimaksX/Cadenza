@@ -5,9 +5,11 @@
 //! is a business rule and lives in `cadenza-core`'s library service
 //! (PROJECT_MASTER 4.1).
 
+pub mod fetcher;
 pub mod hash;
 pub mod scanner;
 pub mod watcher;
 
+pub use fetcher::ExternalFetcher;
 pub use scanner::LocalFileSystem;
 pub use watcher::NotifyFileWatcher;

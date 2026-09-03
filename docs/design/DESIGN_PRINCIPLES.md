@@ -58,7 +58,7 @@ Three faces, three jobs.
 | Cadenza Mono | anything read as a number rather than as a word — captions, column heads, quantities, times | JetBrains Mono |
 
 The families are bundled with the binary, so they need no network: a player that
-is offline by requirement cannot have a typeface that arrives over one.
+opens no connection of its own cannot have a typeface that arrives over one.
 
 **They answer to names nobody else has, and that is what makes them identical on
 every machine.** Slint asks for a family by name, and the system's own copies are

@@ -123,6 +123,8 @@ fn harness(tag: &str) -> Harness {
         genres: Arc::new(SqliteGenreRepository::new(db.pool().clone())),
         reviews: Arc::new(SqliteImportReviewRepository::new(db.pool().clone())),
         watcher: Some(Arc::clone(&watcher) as _),
+        // Nothing here fetches: a test that reaches a network is not a test.
+        fetcher: None,
     };
 
     Harness {

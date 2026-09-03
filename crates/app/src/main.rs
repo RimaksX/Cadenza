@@ -48,7 +48,7 @@ use cadenza_infra::db::repositories::{
     SqliteTrackRepository,
 };
 use cadenza_infra::events::InProcessEventBus;
-use cadenza_infra::library::{LocalFileSystem, NotifyFileWatcher};
+use cadenza_infra::library::{ExternalFetcher, LocalFileSystem, NotifyFileWatcher};
 use cadenza_infra::metadata::{FileArtworkCache, LoftyMetadataReader};
 use cadenza_infra::system::{
     AppPaths, FileLog, SystemClock, SystemFolderPicker, WindowsPriority, alert,
@@ -129,6 +129,7 @@ fn run() -> std::result::Result<(), String> {
             reviews: Arc::new(SqliteImportReviewRepository::new(pool.clone())),
             picker: Arc::new(SystemFolderPicker),
             watcher: Some(Arc::clone(&watcher)),
+            fetcher: Some(Arc::new(ExternalFetcher::new())),
         },
     ));
 

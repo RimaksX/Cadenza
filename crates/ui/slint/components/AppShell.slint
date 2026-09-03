@@ -24,6 +24,11 @@ import { MenuItemData } from "RowMenu.slint";
 export component AppShell inherits Rectangle {
     in property <[TrackRowData]> tracks;
     in property <string> library-summary;
+    in-out property <string> link;
+    in property <bool> fetching;
+    in property <int> fetch-percent;
+    in property <string> fetch-note;
+    in property <bool> fetch-needs-folder;
     in property <string> empty-hint;
     in property <[TrackRowData]> queue-tracks;
     in property <string> queue-summary;
@@ -146,6 +151,8 @@ export component AppShell inherits Rectangle {
     callback clear-playlist-cover(string);
     callback clear-queue();
     callback search(string);
+    callback fetch(string);
+    callback make-local-folder();
     callback play-from-playlist(string);
     callback toggle-play();
     callback seek(float);
@@ -238,6 +245,18 @@ export component AppShell inherits Rectangle {
             // screen being opened re-reads what it draws.
             if root.section == "library": LibraryView {
                 searchable: true;
+                fetchable: true;
+                link <=> root.link;
+                fetching: root.fetching;
+                fetch-percent: root.fetch-percent;
+                fetch-note: root.fetch-note;
+                fetch-needs-folder: root.fetch-needs-folder;
+                fetch(address) => {
+                    root.fetch(address);
+                }
+                make-local-folder => {
+                    root.make-local-folder();
+                }
                 tracks: root.tracks;
                 summary: root.library-summary;
                 playing-id: root.playing-id;

@@ -22,6 +22,7 @@ pub mod clock;
 pub mod decoder;
 pub mod event_bus;
 pub mod feature_extractor;
+pub mod fetcher;
 pub mod file_system;
 pub mod file_watcher;
 pub mod folder_picker;

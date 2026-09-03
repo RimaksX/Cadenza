@@ -1,7 +1,8 @@
 # Cadenza
 
-Local desktop music player for Windows. Fully offline: no internet, no telemetry, no
-cloud accounts, no neural networks.
+Local desktop music player for Windows. Your music is files on your disk, and nothing
+here depends on a service being up: no telemetry, no cloud accounts, no neural
+networks, and no network client of its own.
 
 - Local library with folder scanning and file watching
 - Playlists, manual queue, smart shuffle, local smart radio
@@ -10,6 +11,9 @@ cloud accounts, no neural networks.
 - Lightweight audio visualization
 - Local listening analytics with a 30-day retention window
 - Multiple user profiles, each with its own library, playlists, history and settings
+- Paste a link and the track joins the library, using a downloader you installed
+  yourself — Cadenza opens no connections and ships no such tool
+  ([docs/MASTER_ISSUES.md](docs/MASTER_ISSUES.md), finding 76)
 
 ## Status
 
@@ -53,7 +57,7 @@ returns all of it.
 `PROJECT_MASTER.json` at the repository root defines the requirements, stack,
 architecture, data model and milestone plan. It outranks this README and every file
 under `docs/`. Do not change the stack, layering, profile rules, history retention or
-the offline/no-ML stance without amending it first.
+the local/no-ML stance without amending it first.
 
 ## License
 

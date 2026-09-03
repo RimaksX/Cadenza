@@ -1,6 +1,7 @@
 //! Turning a library into rows.
 
 use cadenza_core::application::services::ScanReport;
+use cadenza_core::domain::ports::fetcher::MissingTool;
 use cadenza_core::domain::track::TrackSummary;
 use cadenza_core::domain::value_objects::DurationMs;
 
@@ -247,6 +248,29 @@ pub fn taken_in(report: &ScanReport) -> String {
         return "nothing there to add".to_owned();
     }
     said.join(" · ")
+}
+
+/// What is missing before a link can be fetched, as one line.
+///
+/// Names the programs and says what each is for. Somebody who has neither
+/// should be able to read this once and know what to go and install; a line
+/// that said only "the tools are missing" would send them to a search engine
+/// to find out which tools.
+pub fn tools_needed(missing: &[MissingTool]) -> String {
+    let named: Vec<String> = missing
+        .iter()
+        .map(|tool| format!("{} ({})", tool.name, tool.reason))
+        .collect();
+
+    format!(
+        "a link needs {} — install {} and press GET again",
+        if named.len() == 1 {
+            "one more program"
+        } else {
+            "two more programs"
+        },
+        named.join(" and ")
+    )
 }
 
 /// "track" or "tracks", so a count reads as a sentence.

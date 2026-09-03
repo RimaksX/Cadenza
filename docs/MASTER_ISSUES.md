@@ -2124,3 +2124,94 @@ longer exists. 505 became 496.
 terms finding 72 set for it. Every crate also carries `publish = false`: these
 are four parts of one program, not four libraries, and the only thing a
 `cargo publish` could do here is by accident.
+
+## 76. A link, and what "offline" was supposed to mean
+
+The owner asked for a track to be fetched from a pasted link, in mp3, into
+Cadenza's own folder. Rule 12.1 said `Не добавляй интернет, телеметрию, внешние
+сервисы` and section 1.4 was headed `Офлайн и приватность`, so the first answer
+was that this needed an amendment rather than an implementation.
+
+**And the amendment turned out to be a correction.** The owner's account:
+Cadenza was conceived as *local* — your tracks live with you and nothing
+depends on a service being up — and the flat "no internet" line most likely
+arrived when they had the plan reviewed by a language model, which hardened an
+intent about ownership into a prohibition about sockets. That is worth writing
+down for its own sake: this file exists to record decisions, and one of the
+decisions recorded in the master file was never actually made by anybody.
+
+So 1.4 is now `Локальность и приватность`, and it says what was meant:
+
+- the library is files on the listener's disk, and nothing in it depends on a
+  service;
+- Cadenza opens no connection and contains no network client;
+- every scenario works on a machine with no network, except the one the
+  listener asks for by name;
+- the one exception is a link they pasted and a button they pressed, which
+  starts a program they installed, and leaves a file in their own folder;
+- telemetry is still absent, and always will be — that half of the rule was
+  never in question.
+
+### The shape, and why it is this one
+
+Three ways to build it, and the owner chose the middle. Cadenza could carry its
+own extractor, which is a thing nobody sane maintains — the sites change and a
+hand-written one breaks in weeks. It could ship `yt-dlp` and `ffmpeg` inside the
+installer, which is a hundred and twenty megabytes, two more licences to honour,
+and a frozen copy that stops working between our releases. Or it can run what
+the listener installed.
+
+The last one costs an install step and buys three things: the extraction stays
+current without us, the installer stays a player, and Cadenza distributes no
+such tool. `rfd` and the folder picker already set the precedent — the work
+belongs to a program that exists, and this crate only knows how to ask.
+
+### Where the safety is
+
+`domain/policies/link_policy.rs`, and it is a smaller idea than it looks. What
+is typed into that field becomes an *argument to another program*, so the only
+thing worth validating is that it cannot become anything else: it must start
+with `http://` or `https://`, must carry something after that, and must hold no
+whitespace or control characters. A bare word would be read as a filename, a
+leading `-` as a flag, and a space or a newline is how one argument becomes two.
+Deliberately not a URL parser — Cadenza fetches nothing itself and has no
+business holding opinions about which sites exist.
+
+The link is also the *last* argument on the command line, after everything that
+could be read as an option.
+
+### Three things that only show up in use
+
+**The intermediate file.** `yt-dlp` writes a `.webm` or an `.m4a` and converts
+it afterwards. Downloading straight into the music folder would have the watcher
+importing a file that is about to be deleted, and the listener watching a track
+appear and vanish. So the download happens in a temporary directory nothing
+watches, and only the finished mp3 is moved in.
+
+**The console.** Cadenza was built for the windows subsystem an hour before this
+(finding 75), and a child process started the ordinary way opens one anyway —
+a black rectangle per download, flashing over the window. `CREATE_NO_WINDOW`.
+
+**The name already taken.** Fetching the same track twice must not overwrite the
+first one. It gets `(2)`.
+
+### The folder, which was the owner's own point
+
+Cadenza asks once whether it may make itself a folder, and "no" is a fair answer
+to a question about somebody's disk asked for no particular reason. A fetch is a
+reason, so the refusal comes back as the offer rather than as a failure —
+`Fetched::NeedsLocalFolder` carries the path, the head shows `MAKE A FOLDER`,
+and pressing it makes the folder *and carries on with the link*, because asking
+somebody to press GET again is asking them to confirm what they just confirmed.
+
+Downloads land in Cadenza's own folder and never in the listener's other
+folders. Those are places they pointed at, full of files they arranged
+themselves, and writing into somebody's collection because it happened to be
+first in a list is how a player earns a reputation.
+
+### And two things fixed on the way past
+
+The library's empty-state hints still told people to run `cadenza create <your
+name>` and `cadenza add-folder <path> -r`. Those commands stopped existing an
+hour earlier; a hint naming something that is not there is worse than no hint.
+They now name the window.

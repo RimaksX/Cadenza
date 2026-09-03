@@ -7,8 +7,10 @@
 use std::cell::{Cell, RefCell};
 use std::path::PathBuf;
 use std::rc::Rc;
-use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
+use std::sync::{Arc, Mutex, PoisonError};
 
+use cadenza_core::application::services::Fetched;
 use cadenza_core::domain::eq::{EqBand, EqMode};
 use cadenza_core::domain::ids::{
     EqPresetId, ImportReviewId, MediaFileId, MoodId, PlaylistId, ProfileId,
@@ -46,12 +48,15 @@ const SPECTRUM_BARS: usize = 8;
 const BAR_STEPS: f32 = 46.0;
 
 /// What to do when there is no profile to be a library for.
-const NO_PROFILE_HINT: &str =
-    "no profile yet — run:  cadenza create <your name>\nthen restart Cadenza";
+///
+/// This and the next used to name commands — `cadenza create <your name>`,
+/// `cadenza add-folder <path> -r`. The command line went with the console, and
+/// a hint telling somebody to run what no longer exists is worse than none.
+const NO_PROFILE_HINT: &str = "open Settings and add a listener\nto start a library";
 
 /// What to do when there is a profile but nothing in it.
 const NO_TRACKS_HINT: &str =
-    "add a folder and scan it:\ncadenza add-folder <path> -r\ncadenza scan";
+    "drop a file on this window, paste a link above,\nor point Cadenza at a folder in Settings";
 
 /// What to do when nothing is waiting to play.
 const NO_QUEUE_HINT: &str =
@@ -65,6 +70,36 @@ const NO_MATCH_HINT: &str = "no track here answers to that";
 
 /// What to do when a playlist has nothing in it.
 const EMPTY_PLAYLIST_HINT: &str = "add tracks from the library\nwith the ··· at the end of a row";
+
+/// What a fetch running on another thread has got to.
+///
+/// Shared with that thread and read by the tick, which is the same arrangement
+/// the watcher uses and for the same reason: the window is not `Send`, nothing
+/// off the event loop may touch it, and a flag read four times a second is
+/// cheaper than any way of asking to be let in.
+#[derive(Default)]
+struct Fetching {
+    /// True from the press until the thread has finished.
+    running: AtomicBool,
+    /// How far the downloader says it has got.
+    percent: AtomicU8,
+    /// Set once, at the end.
+    finished: Mutex<Option<Ended>>,
+}
+
+/// How a fetch turned out, in the words the head will show.
+///
+/// Three cases rather than a string and a flag: only one of them offers the
+/// listener something to press, and the window should not have to read the
+/// sentence to work out which.
+enum Ended {
+    /// It is in the library.
+    Landed(String),
+    /// There was nowhere to put it, and Cadenza can fix that.
+    NeedsFolder(String),
+    /// Anything else: a bad link, a missing program, a refusal at the far end.
+    Failed(String),
+}
 
 /// Holds the services and pushes state into the window.
 pub struct Controller {
@@ -106,6 +141,8 @@ pub struct Controller {
     visualising: Cell<bool>,
     /// The heights the window is already showing, to the pixel.
     shown_bars: RefCell<[f32; SPECTRUM_BARS]>,
+    /// The fetch in progress, if there is one.
+    fetching: Arc<Fetching>,
 }
 
 impl Controller {
@@ -124,6 +161,7 @@ impl Controller {
             selected_band: Cell::new(0),
             visualising: Cell::new(false),
             shown_bars: RefCell::new([0.0; SPECTRUM_BARS]),
+            fetching: Arc::new(Fetching::default()),
         }
     }
 
@@ -1503,6 +1541,140 @@ impl Controller {
             window.set_message(said.into());
         }
         self.after_library_change();
+    }
+
+    /// Brings a track in from a pasted link.
+    ///
+    /// The work happens on a thread, because it is a download and a conversion
+    /// and the window has to keep drawing through both. What comes back comes
+    /// back the way everything off the event loop does: written into shared
+    /// state and read by the tick.
+    pub fn fetch_from_link(&self, link: &str) {
+        // One at a time. Two downloads writing into one folder is a race for a
+        // filename, and there is nowhere in this head to show a second
+        // percentage anyway.
+        if self.fetching.running.swap(true, Ordering::Relaxed) {
+            return;
+        }
+
+        let link = link.trim().to_owned();
+        let library = Arc::clone(&self.services.library);
+        let state = Arc::clone(&self.fetching);
+
+        state.percent.store(0, Ordering::Relaxed);
+        *state
+            .finished
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner) = None;
+
+        if let Some(window) = self.window.upgrade() {
+            window.set_fetching(true);
+            window.set_fetch_percent(0);
+            window.set_fetch_needs_folder(false);
+            // Said before anything has happened, because `yt-dlp` takes a
+            // second or two to answer and a button that goes quiet reads as a
+            // button that did not work.
+            window.set_fetch_note("reaching for it…".into());
+        }
+
+        std::thread::spawn(move || {
+            let ended = match library.fetch_from_link(&link, &|percent| {
+                state.percent.store(percent, Ordering::Relaxed);
+            }) {
+                Ok(Fetched::Landed(name)) => Ended::Landed(format!("{name} — in your library")),
+                Ok(Fetched::NeedsLocalFolder(path)) => Ended::NeedsFolder(format!(
+                    "a track needs somewhere to land — Cadenza can make {}",
+                    path.display()
+                )),
+                Ok(Fetched::NeedsTools(missing)) => {
+                    Ended::Failed(library_vm::tools_needed(&missing))
+                }
+                Err(err) => Ended::Failed(err.to_string()),
+            };
+
+            *state
+                .finished
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner) = Some(ended);
+            // Last, so that whoever sees `running` false also sees the answer.
+            state.running.store(false, Ordering::Relaxed);
+        });
+    }
+
+    /// Reads how far a fetch has got, and what it came to in the end.
+    ///
+    /// On the tick, like everything else that happens off the event loop.
+    pub fn poll_fetch(&self) {
+        let Some(window) = self.window.upgrade() else {
+            return;
+        };
+
+        if self.fetching.running.load(Ordering::Relaxed) {
+            window.set_fetch_percent(i32::from(self.fetching.percent.load(Ordering::Relaxed)));
+            return;
+        }
+
+        // Taken rather than read: this runs four times a second and the end of
+        // a fetch is one event.
+        let ended = self
+            .fetching
+            .finished
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .take();
+
+        let Some(ended) = ended else {
+            return;
+        };
+
+        window.set_fetching(false);
+        window.set_fetch_percent(0);
+
+        match ended {
+            Ended::Landed(said) => {
+                window.set_fetch_note(said.into());
+                window.set_fetch_needs_folder(false);
+                // Emptied on the way in rather than left to be pressed again:
+                // the link has been used, and a field still holding it is an
+                // invitation to fetch the same track twice.
+                window.set_link(String::new().into());
+                self.after_library_change();
+            }
+            Ended::NeedsFolder(said) => {
+                window.set_fetch_note(said.into());
+                window.set_fetch_needs_folder(true);
+            }
+            Ended::Failed(said) => {
+                window.set_fetch_note(said.into());
+                window.set_fetch_needs_folder(false);
+            }
+        }
+    }
+
+    /// Makes the folder Cadenza suggests, and carries on with what was asked.
+    ///
+    /// The listener said no to this folder once, which was a fair answer to a
+    /// question about their disk asked for no particular reason. Now there is a
+    /// reason, they have agreed, and making them press GET a second time would
+    /// be asking them to confirm the thing they just confirmed.
+    pub fn make_local_folder(&self) {
+        if self.services.library.use_suggested_folder().is_err() {
+            if let Some(window) = self.window.upgrade() {
+                window.set_fetch_note("that folder could not be made".into());
+            }
+            return;
+        }
+
+        let link = self.window.upgrade().map(|window| {
+            window.set_fetch_needs_folder(false);
+            window.get_link().to_string()
+        });
+
+        self.after_library_change();
+
+        if let Some(link) = link.filter(|link| !link.trim().is_empty()) {
+            self.fetch_from_link(&link);
+        }
     }
 
     /// The library moved, so everything that lists it has to look again.

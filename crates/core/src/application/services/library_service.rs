@@ -17,8 +17,10 @@ use crate::domain::ids::{
 use crate::domain::media_file::{FileState, MediaFile, is_supported_extension};
 use crate::domain::policies::artwork_policy::looks_like_an_image;
 use crate::domain::policies::duplicate_policy::{self, DuplicateVerdict};
+use crate::domain::policies::link_policy::is_a_link;
 use crate::domain::ports::artwork_cache::{ArtworkCachePort, CoverOf};
 use crate::domain::ports::event_bus::DomainEvent;
+use crate::domain::ports::fetcher::{FetchPort, MissingTool};
 use crate::domain::ports::file_system::FileSystemPort;
 use crate::domain::ports::file_watcher::{FileChange, FileWatcherPort};
 use crate::domain::ports::folder_picker::FolderPickerPort;
@@ -61,10 +63,15 @@ pub struct LibraryPorts {
     pub picker: Arc<dyn FolderPickerPort>,
     /// The watcher that keeps the library current, when there is one.
     ///
-    /// Optional because a command that scans once and exits has nothing to
-    /// watch, and because every test that is not about watching should not have
-    /// to provide one. The window supplies it; `cadenza scan` does not.
+    /// Optional because every test that is not about watching should not have
+    /// to provide one.
     pub watcher: Option<Arc<dyn FileWatcherPort>>,
+    /// Somebody else's downloader, when this machine has one.
+    ///
+    /// Optional for the same reason as the watcher, and for one more: this is
+    /// the only part of Cadenza that touches a network at all, and a context
+    /// built without it is a context that provably cannot (`MASTER_ISSUES` 76).
+    pub fetcher: Option<Arc<dyn FetchPort>>,
 }
 
 /// What one scan did.
@@ -91,6 +98,24 @@ pub struct ScanReport {
     /// file has gone where it is, because a disconnected drive is not a
     /// decision to forget an album.
     pub gone: usize,
+}
+
+/// How a pasted link ended.
+///
+/// Three outcomes rather than a result and two error strings, because two of
+/// these are things the listener can *do* something about and the window has to
+/// offer them the doing. An error the interface has to read the words of to
+/// know which button to show is an error that will be read wrong.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Fetched {
+    /// It is in the library, under this name.
+    Landed(String),
+    /// There is nowhere for it to land: this listener has no local folder.
+    ///
+    /// Carries the folder Cadenza would make, so the offer can name it.
+    NeedsLocalFolder(PathBuf),
+    /// The machine has not got what it takes to fetch anything.
+    NeedsTools(Vec<MissingTool>),
 }
 
 /// What importing one file did.
@@ -228,6 +253,85 @@ impl LibraryService {
         self.ports.files.create_dir_all(&path)?;
         let folder = self.add_folder(&path, true)?;
         self.adopt_folder(&folder)
+    }
+
+    /// The folder a fetched track lands in, if this listener has accepted one.
+    ///
+    /// Cadenza's own folder rather than "the first folder in the list": the
+    /// other folders are places the listener pointed at, full of files they
+    /// arranged themselves, and writing into somebody's collection because it
+    /// happened to be first is how a player earns a reputation. What Cadenza
+    /// puts on a disk goes in the room Cadenza was given.
+    pub fn local_folder(&self) -> Result<Option<PathBuf>> {
+        let Some(suggested) = self.suggested_folder() else {
+            return Ok(None);
+        };
+
+        Ok(self
+            .folders()?
+            .into_iter()
+            .find(|folder| folder.path == suggested)
+            .map(|folder| folder.path))
+    }
+
+    /// Brings down whatever is at `link` and puts it in the library.
+    ///
+    /// Long: this runs a download and a conversion, so it belongs on a thread
+    /// and never on the one drawing the window. `progress` is called with whole
+    /// percentages as they arrive, on that same thread.
+    ///
+    /// The order of the three checks is the order the listener can act on them.
+    /// Whether the link is a link is instant and theirs to fix; whether the
+    /// tools exist is a five-minute install; whether there is a folder is one
+    /// press. Discovering the third after waiting for a download would be a
+    /// download thrown away.
+    pub fn fetch_from_link(&self, link: &str, progress: &dyn Fn(u8)) -> Result<Fetched> {
+        let profile_id = self.context.require_active_profile()?;
+        let link = link.trim();
+
+        if !is_a_link(link) {
+            return Err(CoreError::invalid(
+                "link",
+                "that is not a web address — paste the whole thing, starting with https://",
+            ));
+        }
+
+        let fetcher = self.ports.fetcher.as_ref().ok_or_else(|| {
+            CoreError::invalid("link", "this copy cannot fetch anything from a link")
+        })?;
+
+        let missing = fetcher.missing();
+        if !missing.is_empty() {
+            return Ok(Fetched::NeedsTools(missing));
+        }
+
+        let Some(folder) = self.local_folder()? else {
+            // Not an error: the listener was asked once whether Cadenza could
+            // make itself a folder and said no, which was a fair answer to a
+            // question about their disk. Now there is a reason, so the offer
+            // comes back with one.
+            let would_be = self.suggested_folder().ok_or_else(|| {
+                CoreError::invalid("local folder", "this machine has no music folder")
+            })?;
+            return Ok(Fetched::NeedsLocalFolder(would_be));
+        };
+
+        let file = fetcher.fetch(link, &folder, progress)?;
+
+        // From here it is an ordinary file that appeared in a watched folder,
+        // and it goes through the same import as one somebody copied in — the
+        // same tags, the same duplicate check, the same review queue when it
+        // cannot be read. A track is a track however it arrived.
+        let metadata = self.ports.files.metadata(&file)?;
+        self.import_file(profile_id, &file, metadata.size, metadata.modified, true)?;
+        self.context.events.publish(DomainEvent::LibraryChanged);
+
+        Ok(Fetched::Landed(
+            file.file_stem()
+                .unwrap_or_default()
+                .to_string_lossy()
+                .into_owned(),
+        ))
     }
 
     /// What dropping files and folders onto the window means.
