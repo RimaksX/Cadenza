@@ -17,8 +17,15 @@ Slint, with all UI code confined to `crates/ui`.
 - Declarative markup that maps well onto a design-token-driven theme, which is what M15
   needs.
 - Renders natively; no browser engine is shipped.
-- **Licensing:** Slint is used under GPLv3, so Cadenza is GPL-3.0-or-later. This is
+- **Licensing:** Slint is used under GPLv3, so Cadenza is **GPL-3.0-only**. This is
   acceptable because the project is open source.
+
+  Corrected before release: this line first said `GPL-3.0-or-later`, which was a
+  promise the project could not keep. "Or later" offers a recipient the terms of a
+  version of the GPL that has not been written yet, and Slint's grant is version 3
+  and nothing else — so the offer covered code that could not travel under it. The
+  version that is actually on offer is the one every part of the work shares
+  ([MASTER_ISSUES 75](../MASTER_ISSUES.md)).
 - If the project license ever changes, Slint must be swapped out. That stays feasible
   only because the UI layer holds no business logic and talks to the application layer
   through commands and view state alone — see `docs/UI_CONTRACT.md`. Do not erode that

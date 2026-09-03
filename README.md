@@ -57,5 +57,6 @@ the offline/no-ML stance without amending it first.
 
 ## License
 
-GPL-3.0-or-later (the Slint UI dependency is used under GPLv3; see
+GPL-3.0-only — version 3 of the GNU GPL and no other, because that is the
+version the Slint UI dependency is used under (see
 [docs/adr/0002-slint-ui.md](docs/adr/0002-slint-ui.md)).

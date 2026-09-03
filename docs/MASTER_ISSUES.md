@@ -2061,3 +2061,66 @@ support it.
 Worth naming as a class: **a probabilistic test needs its arithmetic written
 down beside it.** Nobody chose forty for a reason that was ever calculated, and
 a suite that fails for no reason is a suite whose failures stop being read.
+
+## 75. Preparing for release: one licence, one window, no command line
+
+The owner has a repository and intends to replace what is in it. Three
+decisions were settled first.
+
+### GPL-3.0-only
+
+Finding 72 raised it; the owner chose `GPL-3.0-only`, and that is now what the
+workspace, the README and ADR 0002 say. Nothing changes in practice — the same
+GPLv3 text in `LICENSE`, the same obligations — but the declaration is now one
+a recipient can act on. "Or later" was an offer of terms that had not been
+written yet, for a work whose UI dependency grants version 3 and nothing else,
+which meant the promise covered code that could not travel under it.
+
+### No console
+
+The binary is built for the windows subsystem. A player opened by double-click
+should be a window and not a window beside a black rectangle, and the rectangle
+was telling the listener about the program's own implementation.
+
+That takes away a channel, so two things replace it. Everything that used to be
+printed goes to the log, which has existed since finding 63 — the thirty-day
+sweep in particular was a `println!` that nobody with a shortcut ever saw. And
+the two failures that mean there is no application at all — it cannot start, or
+it has panicked — go to a dialog, through `rfd`, which is already here for the
+folder picker. Silence would otherwise be the whole report: an icon clicked,
+and nothing appearing.
+
+**Verified from the executable rather than by looking at it.** The PE optional
+header of `target/release/cadenza.exe` gives subsystem 2 (Windows GUI), not 3
+(console); the same for the debug build. A window that fails to open is exactly
+the case a screenshot cannot check.
+
+### The command line is gone
+
+`crates/app/src/cli.rs` opened by saying what it was: *"A temporary command
+line, until the UI exists. Scaffolding, deliberately: M6 brings the real
+interface and this goes away."* M6 shipped nine milestones ago and it did not
+go away. It was 529 lines, and it held two thirds of `main.rs` with it — a
+`dispatch` of thirty verbs, `watch`, `play`, `report_status`, `report_paths`.
+Deleted: 1546 lines of `crates/app` become 300.
+
+Checked before deleting rather than assumed. Every verb it carried is something
+the interface does — profiles, folders, scanning, theme, history, crossfade,
+playlists, genres, analysis, listening figures — with exactly one exception:
+`cadenza delete <profile> --yes`. Deleting a profile is **not** a requirement:
+PROJECT_MASTER 2.5 and the M3 definition of done ask that a profile can be
+created, switched and saved, and say nothing about removing one. So the
+deletion drops no requirement. It does mean nobody can delete a profile at all
+until somebody decides that is worth a button, which is the honest position:
+the capability was reachable only by people who knew a command nobody had
+written down.
+
+Nine tests went with it — the argument parser's, testing a parser that no
+longer exists. 505 became 496.
+
+### And the metadata, since there is now somewhere to point
+
+`repository = "https://github.com/RimaksX/Cadenza"` is back on exactly the
+terms finding 72 set for it. Every crate also carries `publish = false`: these
+are four parts of one program, not four libraries, and the only thing a
+`cargo publish` could do here is by accident.

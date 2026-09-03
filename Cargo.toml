@@ -12,10 +12,11 @@ members = [
 version = "0.1.0"
 edition = "2024"
 rust-version = "1.92"
-license = "GPL-3.0-or-later"
-# No `repository` field: there is no repository. It held an invented GitHub
-# address, and metadata that names a place nobody can go is worse than metadata
-# that says nothing. It comes back the day there is somewhere for it to point.
+license = "GPL-3.0-only"
+# Back, now that there is somewhere for it to point. It was removed when it held
+# an invented address, on the terms that it would return the day the repository
+# existed (MASTER_ISSUES 72).
+repository = "https://github.com/RimaksX/Cadenza"
 
 [workspace.dependencies]
 cadenza-core = { path = "crates/core" }

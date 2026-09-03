@@ -74,8 +74,10 @@ Two rules follow from the split, and both are easy to get wrong:
 - A finished track keeps its file open until it is stopped or replaced. The
   decoder reaches the end of the file seconds before the last note is heard, and
   closing it there would make the end of every track unseekable.
-- Underruns are counted. `cadenza play` prints the total; anything but zero means
-  the decoder is not keeping up.
+- Underruns are counted. `CpalAudioEngine::underruns` reports the total;
+  anything but zero means the decoder is not keeping up. Nothing shows the
+  figure now that the command line that printed it is gone — it is there for
+  whoever is holding a debugger.
 
 ## Volume
 

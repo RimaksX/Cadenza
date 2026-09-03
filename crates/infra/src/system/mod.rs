@@ -1,5 +1,6 @@
 //! Operating system services: the clock, data paths, thread priority.
 
+pub mod alert;
 pub mod clock;
 pub mod file_log;
 pub mod folder_picker;
