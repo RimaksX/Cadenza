@@ -157,13 +157,13 @@ impl FetchPort for ExternalFetcher {
         if locate(DOWNLOADER).is_none() {
             missing.push(MissingTool {
                 name: DOWNLOADER.to_owned(),
-                reason: "fetches what is behind the link".to_owned(),
+                install: "winget install yt-dlp.yt-dlp".to_owned(),
             });
         }
         if locate(CONVERTER).is_none() {
             missing.push(MissingTool {
                 name: CONVERTER.to_owned(),
-                reason: "turns it into an mp3".to_owned(),
+                install: "winget install Gyan.FFmpeg".to_owned(),
             });
         }
 

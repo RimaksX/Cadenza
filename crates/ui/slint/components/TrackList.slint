@@ -296,15 +296,24 @@ export component TrackList inherits Rectangle {
                 }
             }
 
+            // Two lines rather than one elided. What goes here is the only
+            // thing on the page somebody has to *act* on — a command to type, a
+            // reason the far end refused — and half of an instruction ending in
+            // an ellipsis is worse than no instruction: it looks like the
+            // application said something and reads like it said nothing.
+            //
+            // A stated box, even, and two lines of it whether or not the second
+            // is used, so that the list below does not jump up and down as the
+            // message changes length.
             if root.fetchable && root.fetch-note != "": Text {
                 text: root.fetch-note;
                 font-family: Theme.mono;
                 font-size: Theme.text-label;
-                height: Theme.px(18);
-                vertical-alignment: center;
+                height: Theme.line-label * 2;
+                wrap: word-wrap;
+                vertical-alignment: top;
                 letter-spacing: Theme.label-spacing;
                 color: Theme.ink-mute;
-                overflow: elide;
             }
         }
 

@@ -250,32 +250,61 @@ pub fn taken_in(report: &ScanReport) -> String {
     said.join(" · ")
 }
 
-/// What is missing before a link can be fetched, as one line.
+/// What is missing before a link can be fetched, and what to type to get it.
 ///
-/// Names the programs and says what each is for. Somebody who has neither
-/// should be able to read this once and know what to go and install; a line
-/// that said only "the tools are missing" would send them to a search engine
-/// to find out which tools.
+/// The command rather than the name. "Install yt-dlp" sends somebody to a
+/// search engine, then to a page, then to `winget install yt-dlp` — which
+/// matches two things and refuses to choose. The exact package is the whole
+/// difference between a message and an instruction.
 pub fn tools_needed(missing: &[MissingTool]) -> String {
-    let named: Vec<String> = missing
-        .iter()
-        .map(|tool| format!("{} ({})", tool.name, tool.reason))
-        .collect();
+    let names: Vec<&str> = missing.iter().map(|tool| tool.name.as_str()).collect();
+    let commands: Vec<&str> = missing.iter().map(|tool| tool.install.as_str()).collect();
 
     format!(
-        "a link needs {} — install {} and press GET again",
-        if named.len() == 1 {
-            "one more program"
-        } else {
-            "two more programs"
-        },
-        named.join(" and ")
+        "install {} — run: {}",
+        names.join(" and "),
+        commands.join(", then ")
     )
 }
 
 /// "track" or "tracks", so a count reads as a sentence.
 fn tracks(count: usize) -> &'static str {
     if count == 1 { "track" } else { "tracks" }
+}
+
+#[cfg(test)]
+mod tool_tests {
+    use super::tools_needed;
+    use cadenza_core::domain::ports::fetcher::MissingTool;
+
+    fn tool(name: &str, install: &str) -> MissingTool {
+        MissingTool {
+            name: name.to_owned(),
+            install: install.to_owned(),
+        }
+    }
+
+    #[test]
+    fn the_line_names_the_command_and_not_only_the_program() {
+        assert_eq!(
+            tools_needed(&[tool("yt-dlp", "winget install yt-dlp.yt-dlp")]),
+            "install yt-dlp — run: winget install yt-dlp.yt-dlp"
+        );
+    }
+
+    #[test]
+    fn two_missing_programs_are_two_commands_in_order() {
+        assert_eq!(
+            tools_needed(&[
+                tool("yt-dlp", "winget install yt-dlp.yt-dlp"),
+                tool("ffmpeg", "winget install Gyan.FFmpeg"),
+            ]),
+            concat!(
+                "install yt-dlp and ffmpeg — run: winget install yt-dlp.yt-dlp",
+                ", then winget install Gyan.FFmpeg"
+            )
+        );
+    }
 }
 
 #[cfg(test)]

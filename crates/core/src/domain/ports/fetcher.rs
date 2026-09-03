@@ -28,8 +28,13 @@ use crate::Result;
 pub struct MissingTool {
     /// What to install, as it is called.
     pub name: String,
-    /// What it is for, in a few words the listener can act on.
-    pub reason: String,
+    /// What to type to get it, exactly.
+    ///
+    /// The whole command and not the program's name, because the name is not
+    /// enough: `winget install yt-dlp` matches both the package and something
+    /// else in the Microsoft Store and refuses to choose, which is where
+    /// somebody told to "install yt-dlp" actually ends up.
+    pub install: String,
 }
 
 /// Running somebody else's downloader on the listener's behalf.

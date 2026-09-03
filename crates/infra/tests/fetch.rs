@@ -205,7 +205,7 @@ fn a_machine_without_the_programs_is_told_which_ones() {
         FakeFetcher {
             missing: vec![MissingTool {
                 name: "yt-dlp".to_owned(),
-                reason: "fetches what is behind the link".to_owned(),
+                install: "winget install yt-dlp.yt-dlp".to_owned(),
             }],
             ..FakeFetcher::default()
         },

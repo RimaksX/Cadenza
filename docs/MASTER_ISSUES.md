@@ -2215,3 +2215,44 @@ The library's empty-state hints still told people to run `cadenza create <your
 name>` and `cadenza add-folder <path> -r`. Those commands stopped existing an
 hour earlier; a hint naming something that is not there is worse than no hint.
 They now name the window.
+
+## 77. The instruction that would not fit, and the one that was not one
+
+Two defects in the same line of text, found the first time somebody actually
+pressed GET.
+
+**It said "install yt-dlp" and that is not an instruction.** Somebody told that
+goes to a search engine, then to the project's own page, and then types `winget
+install yt-dlp` — which matches two packages, refuses to choose, and prints a
+table. Which is exactly where the owner got to. `MissingTool` now carries the
+command rather than a description of the program: `winget install
+yt-dlp.yt-dlp`, the whole thing, the part that is hard to find.
+
+**And it was elided at "…and pre".** The note was a one-line box with `overflow:
+elide`, which is the right treatment for a track title in a column and the wrong
+one for the only text on the page somebody has to act on. Half an instruction
+ending in an ellipsis is worse than none: it looks like the application said
+something and reads as though it said nothing.
+
+Two lines now, stated and even (`Theme.line-label * 2`), whether or not the
+second is used — a box that grows with the message would make the list below it
+jump every time the message changed. Verified by rendering with the longest
+message this can produce, which is both programs missing and therefore two
+commands: both lines drawn, nothing cut, and `MAKE A FOLDER` still beside `GET`.
+
+Worth naming for next time: **`overflow: elide` is for data, never for
+instructions.** A title that does not fit is still recognisable at half its
+length; a command is not.
+
+### And what the install turned out to be
+
+`winget install yt-dlp.yt-dlp` pulls `yt-dlp.FFmpeg` with it, so the second tool
+arrives without being asked for. The lookup was then checked against what winget
+actually left on the disk rather than assumed: the alias it puts on `PATH` is a
+symbolic link in `%LOCALAPPDATA%\Microsoft\WinGet\Links`, not a real executable,
+and `Path::is_file()` follows it. Both programs are found.
+
+One thing it does mean: `PATH` is read once, when the process starts. Cadenza
+has to be restarted after installing either tool, and if the folder was new to
+`PATH` the change may not reach a program launched from Explorer until the next
+sign-in.
