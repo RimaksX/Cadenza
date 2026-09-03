@@ -1971,3 +1971,53 @@ choice.
 
 **`deny.toml` and a release artefact on a tag** stay M16's, where the plan
 already carries them: both are about publishing, and nothing here publishes yet.
+
+## 73. The settings page is one column
+
+Two things were wrong on the same screen and only one of them was reported.
+
+**The reported one.** Under `WHERE YOUR MUSIC IS` the first folder stood almost
+against the section's hairline, while under `WHO IS LISTENING` the first
+listener stood a comfortable distance below it. Every group on the page states
+what it is for in a line of sans under its rule; the folders were the one group
+that did not, so nothing held them apart.
+
+Fixing that led to the second, which nobody had reported because it looked
+deliberate:
+
+```
+y: round((parent.height - Theme.px(18)) / Theme.px(2)) * Theme.px(2);
+```
+
+That divides by a *length* of two pixels rather than by the number two, so it
+does not centre anything — it lands on the whole remainder instead of half of
+it. The section label sat eight pixels down in a twenty-six pixel box with
+eighteen pixels of type in it, which is to say against its own floor, and the
+folder rows did the same. `ProfileRow` had the arithmetic right two components
+further down the same file, which is how the difference between the two
+screenshots came to be visible at all. Both now read
+`round((parent.height - content) / 1px / 2) * 1px`.
+
+**And the layout it was living in.** The page was two columns: a 320-wide
+scrolling stack of every switch on the left, and on the right the folders,
+alone. One column had six groups in it and the other had one, so whichever way
+the window was sized, half of it was empty and the other half was cramped — the
+size steps had to be narrowed to 74 pixels to fit four of them across 320, which
+is the kind of number that only exists to solve a problem that should not have
+been there.
+
+It is one column now, the width of the page, in the order the decisions matter:
+who is listening, where their music is, what has been taken out of it, and then
+appearance, size, crossfade and history. Every row has the whole page to elide
+into, the size steps are 100 like every other choice on the screen, and the
+groups are 32 apart rather than 24 so that the eye reads seven of them rather
+than one long list.
+
+Two things fell out of the change rather than being done to it. The folders were
+a `ListView` inside a page that already scrolls — two places to be lost in, and
+now a plain repetition. And the taken-out rows, which had been written inline,
+became a `TakenOutRow` beside `ProfileRow` and `FolderRow`, because three rows
+of the same shape in one file should be three components or one, never two and a
+half.
+
+Verified by rendering: `python scripts/shoot.py --section settings`.

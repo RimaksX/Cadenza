@@ -129,9 +129,12 @@ A page is inset 56 pixels from the window edge rather than run to it. The
 separators are then the width of the content and not of the screen, which is
 what stops a long list reading as a spreadsheet.
 
-**A part states its own width; nothing is stretched into place.** The settings
-column is 320, a figure on the listening page is 176, the album column is 180, a
-button is as wide as its longest word needs. Pages fill the window because their
+**A part states its own width; nothing is stretched into place.** A figure on
+the listening page is 176, the album column is 180, a button is as wide as its
+longest word needs. What a page divides into is the exception: the settings page
+is one column of the page's own width, because two columns of stated widths left
+the second one holding a single control and half the window empty
+([MASTER_ISSUES 73](../MASTER_ISSUES.md)). Pages fill the window because their
 parts add up to something, not because something expands. A `min-width` under a
 page that would not otherwise fill the window is a crutch: it makes the page a
 fixed size instead of giving its contents a size, which is the same mistake one

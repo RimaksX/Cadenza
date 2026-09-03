@@ -1,4 +1,3 @@
-import { ListView } from "std-widgets.slint";
 import { Theme } from "../theme/tokens.slint";
 import { TextButton } from "../components/Dialog.slint";
 import { ScrollFade } from "../components/ScrollFade.slint";
@@ -37,7 +36,12 @@ component SectionLabel inherits Rectangle {
     height: Theme.px(26);
 
     HorizontalLayout {
-        y: round((parent.height - Theme.px(18)) / Theme.px(2)) * Theme.px(2);
+        // Centred, which is what this expression was meant to say and did not:
+        // dividing by a *length* of two pixels rather than by the number two
+        // put the line at the whole remainder instead of half of it, so the
+        // rule sat low in its box and whatever came next stood too close under
+        // it. Same arithmetic as `ProfileRow`, which had it right.
+        y: round((parent.height - Theme.px(18)) / 1px / 2) * 1px;
         height: Theme.px(18);
         spacing: Theme.space-2;
 
@@ -73,7 +77,7 @@ component SectionNote inherits Text {
     overflow: elide;
 }
 
-// One watched folder: where it is, and the one thing that can be done to it.
+// One watched folder: where it is, and the two things that can be done to it.
 component FolderRow inherits Rectangle {
     in property <FolderRowData> data;
 
@@ -83,7 +87,7 @@ component FolderRow inherits Rectangle {
     height: Theme.px(46);
 
     VerticalLayout {
-        y: round((parent.height - Theme.px(40)) / Theme.px(2)) * Theme.px(2);
+        y: round((parent.height - Theme.px(40)) / 1px / 2) * 1px;
         height: Theme.px(40);
 
         HorizontalLayout {
@@ -211,6 +215,68 @@ component ProfileRow inherits Rectangle {
     }
 }
 
+// One track that was taken out of the library but not off the disk.
+component TakenOutRow inherits Rectangle {
+    in property <TakenOutRowData> data;
+
+    callback restored();
+
+    height: Theme.px(46);
+
+    HorizontalLayout {
+        y: round((parent.height - Theme.px(40)) / 1px / 2) * 1px;
+        height: Theme.px(40);
+        spacing: Theme.space-4;
+
+        VerticalLayout {
+            alignment: center;
+            horizontal-stretch: 1;
+            spacing: Theme.px(2);
+
+            Text {
+                text: root.data.title;
+                font-family: Theme.sans;
+                font-size: Theme.text-body;
+                height: Theme.line-body;
+                vertical-alignment: center;
+                color: Theme.ink-2;
+                overflow: elide;
+            }
+            Text {
+                text: root.data.gone ? "the file is gone" : root.data.subtitle;
+                font-family: Theme.mono;
+                font-size: Theme.text-label;
+                height: Theme.line-label;
+                vertical-alignment: center;
+                letter-spacing: Theme.label-spacing;
+                color: Theme.ink-mute;
+                overflow: elide;
+            }
+        }
+
+        VerticalLayout {
+            alignment: center;
+
+            TextButton {
+                label: "BRING BACK";
+                fixed-width: Theme.px(132);
+                // Nothing to bring back to: the file left the disk, and saying
+                // so is better than a button that fails.
+                enabled: !root.data.gone;
+                pressed => {
+                    root.restored();
+                }
+            }
+        }
+    }
+
+    Rectangle {
+        y: parent.height - 1px;
+        height: 1px;
+        background: Theme.line-soft;
+    }
+}
+
 // Everything about this copy of Cadenza that is the listener's to decide.
 export component SettingsView inherits Rectangle {
     in property <bool> dark;
@@ -282,396 +348,344 @@ export component SettingsView inherits Rectangle {
             }
         }
 
-        HorizontalLayout {
+        // One column, the width of the page, read top to bottom in the order
+        // the decisions matter: who is listening, where their music is, and
+        // then how it looks and sounds. Two columns put the folders — the one
+        // thing here that grows — beside a stack of switches, and left half the
+        // window empty whichever way it was sized.
+        //
+        // A plain rectangle rather than a layout, so the fade can stand over
+        // the bottom of the column instead of taking a row beneath it.
+        Rectangle {
             vertical-stretch: 1;
-            padding-left: Theme.page-inset;
-            padding-right: Theme.page-inset;
-            padding-bottom: Theme.space-5;
-            spacing: Theme.space-6;
 
-            // Scrolls, because this column grows with the number of listeners
-            // and a decision below the bottom of the window is a decision
-            // nobody can make.
-            // A plain rectangle rather than a layout, so the fade can stand over
-            // the bottom of the column instead of taking a row beneath it.
-            Rectangle {
-                width: Theme.px(320);
+            scroller := Flickable {
+                width: parent.width;
+                height: parent.height;
+                // Stated, not inferred. Left to itself a flickable takes the
+                // *preferred* width of what is in it, which for a column of
+                // rows is as wide as the widest of them wants to be — so the
+                // column laid itself out past its own edge and clipped what
+                // fell off (MASTER_ISSUES 64).
+                viewport-width: self.width;
+                viewport-height: choices.preferred-height;
 
-                scroller := Flickable {
+                choices := VerticalLayout {
                     width: parent.width;
-                    height: parent.height;
-                    // Stated, not inferred. Left to itself a flickable takes the
-                    // *preferred* width of what is in it, which for a column of
-                    // rows is as wide as the widest of them wants to be — so the
-                    // column laid itself out past its own edge and clipped what
-                    // fell off (MASTER_ISSUES 64).
-                    viewport-width: self.width;
-                    viewport-height: choices.preferred-height;
+                    alignment: start;
+                    padding-left: Theme.page-inset;
+                    padding-right: Theme.page-inset;
+                    padding-bottom: Theme.space-6;
+                    // Wider apart than the rows inside them, so that the eye
+                    // reads seven groups rather than one long list.
+                    spacing: Theme.space-6;
 
-                    choices := VerticalLayout {
-                        width: parent.width;
-                        alignment: start;
-                        spacing: Theme.space-5;
-
-                VerticalLayout {
-                    spacing: Theme.space-2;
-
-                    SectionLabel {
-                        text: "WHO IS LISTENING";
-                    }
-                    SectionNote {
-                        text: "Each has their own library and queue.";
-                    }
-
-                    for profile in root.profiles: ProfileRow {
-                        data: profile;
-                        chosen => {
-                            root.switch-profile(profile.id);
-                        }
-                    }
-
-                    HorizontalLayout {
-                        alignment: start;
-
-                        TextButton {
-                            label: "NEW LISTENER…";
-                            fixed-width: Theme.px(208);
-                            pressed => {
-                                root.new-profile();
-                            }
-                        }
-                    }
-                }
-
-                VerticalLayout {
-                    spacing: Theme.space-2;
-
-                    SectionLabel {
-                        text: "APPEARANCE";
-                    }
-                    SectionNote {
-                        text: "Which way round the ink and the paper go.";
-                    }
-                    HorizontalLayout {
-                        alignment: start;
+                    VerticalLayout {
                         spacing: Theme.space-2;
 
-                        TextButton {
-                            label: "DARK";
-                            fixed-width: Theme.px(100);
-                            selected: root.dark;
-                            pressed => {
-                                root.set-theme(true);
+                        SectionLabel {
+                            text: "WHO IS LISTENING";
+                        }
+                        SectionNote {
+                            text: "Each has their own library and queue.";
+                        }
+
+                        for profile in root.profiles: ProfileRow {
+                            data: profile;
+                            chosen => {
+                                root.switch-profile(profile.id);
                             }
                         }
-                        TextButton {
-                            label: "LIGHT";
-                            fixed-width: Theme.px(100);
-                            selected: !root.dark;
-                            pressed => {
-                                root.set-theme(false);
-                            }
-                        }
-                    }
-                }
-
-                VerticalLayout {
-                    spacing: Theme.space-2;
-
-                    SectionLabel {
-                        text: "CROSSFADE";
-                    }
-                    SectionNote {
-                        text: "Ordinary tracks fade into each other.";
-                    }
-                    HorizontalLayout {
-                        alignment: start;
-                        spacing: Theme.space-2;
-
-                        TextButton {
-                            label: "ON";
-                            fixed-width: Theme.px(100);
-                            selected: root.crossfade-on;
-                            pressed => {
-                                root.set-crossfade(true, root.crossfade-seconds);
-                            }
-                        }
-                        TextButton {
-                            label: "OFF";
-                            fixed-width: Theme.px(100);
-                            selected: !root.crossfade-on;
-                            pressed => {
-                                root.set-crossfade(false, root.crossfade-seconds);
-                            }
-                        }
-                    }
-
-                    // Three lengths, which is the whole range 2.4 allows.
-                    HorizontalLayout {
-                        alignment: start;
-                        spacing: Theme.space-2;
-
-                        for seconds in [3, 4, 5]: TextButton {
-                            label: seconds + "";
-                            fixed-width: Theme.px(100);
-                            selected: root.crossfade-seconds == seconds;
-                            pressed => {
-                                root.set-crossfade(root.crossfade-on, seconds);
-                            }
-                        }
-                    }
-
-                    SectionNote {
-                        text: "Seconds. Playlists and radio never fade.";
-                    }
-                }
-
-                // Only while there is something in it. A list that is empty
-                // nine days out of ten is a place nobody looks; one that
-                // appears when it has something to say is read the first time.
-                if root.taken-out.length > 0: VerticalLayout {
-                    spacing: Theme.space-2;
-
-                    SectionLabel {
-                        text: "TAKEN OUT";
-                    }
-                    SectionNote {
-                        text: "Removed here, not deleted from disk.";
-                    }
-
-                    for track in root.taken-out: Rectangle {
-                        height: Theme.px(46);
 
                         HorizontalLayout {
-                            y: round((parent.height - Theme.px(40)) / 1px / 2) * 1px;
-                            height: Theme.px(40);
-                            spacing: Theme.space-4;
+                            alignment: start;
 
-                            VerticalLayout {
-                                alignment: center;
-                                horizontal-stretch: 1;
-                                spacing: Theme.px(2);
-
-                                Text {
-                                    text: track.title;
-                                    font-family: Theme.sans;
-                                    font-size: Theme.text-body;
-                                    height: Theme.line-body;
-                                    vertical-alignment: center;
-                                    color: Theme.ink-2;
-                                    overflow: elide;
-                                }
-                                Text {
-                                    text: track.gone ? "the file is gone" : track.subtitle;
-                                    font-family: Theme.mono;
-                                    font-size: Theme.text-label;
-                                    height: Theme.line-label;
-                                    vertical-alignment: center;
-                                    letter-spacing: Theme.label-spacing;
-                                    color: Theme.ink-mute;
-                                    overflow: elide;
-                                }
-                            }
-
-                            VerticalLayout {
-                                alignment: center;
-
-                                TextButton {
-                                    label: "BRING BACK";
-                                    fixed-width: Theme.px(132);
-                                    // Nothing to bring back to: the file left
-                                    // the disk, and saying so is better than a
-                                    // button that fails.
-                                    enabled: !track.gone;
-                                    pressed => {
-                                        root.restore-track(track.id);
-                                    }
+                            TextButton {
+                                label: "NEW LISTENER…";
+                                fixed-width: Theme.px(208);
+                                pressed => {
+                                    root.new-profile();
                                 }
                             }
                         }
-
-                        Rectangle {
-                            y: parent.height - 1px;
-                            height: 1px;
-                            background: Theme.line-soft;
-                        }
-                    }
-                }
-
-                VerticalLayout {
-                    spacing: Theme.space-2;
-
-                    SectionLabel {
-                        text: "SIZE";
-                    }
-                    SectionNote {
-                        text: "How large everything is drawn.";
                     }
 
-                    HorizontalLayout {
-                        alignment: start;
+                    VerticalLayout {
                         spacing: Theme.space-2;
 
-                        // Four across a column of 320, with the spacing between
-                        // them: 4 x 74 + 3 x 8 comes out exactly, where four of
-                        // the usual 100 would have pushed the last step off the
-                        // edge — which is what it did.
-                        for percent in [90, 100, 110, 125]: TextButton {
-                            label: percent + "%";
-                            fixed-width: Theme.px(74);
-                            selected: root.ui-scale == percent;
-                            pressed => {
-                                root.set-ui-scale(percent);
+                        SectionLabel {
+                            text: "WHERE YOUR MUSIC IS";
+                        }
+                        // Every other group here says what it is for in a line
+                        // under its rule. This one did not, and the first
+                        // folder stood against the hairline as a result.
+                        SectionNote {
+                            text: "Cadenza watches these and picks up what you put in them.";
+                        }
+
+                        if root.folders.length == 0: VerticalLayout {
+                            spacing: Theme.space-2;
+
+                            Text {
+                                text: "No folders yet";
+                                font-family: Theme.serif;
+                                font-size: Theme.text-title;
+                                height: Theme.px(34);
+                                vertical-alignment: center;
+                                color: Theme.ink-2;
+                            }
+                            SectionNote {
+                                text: "Point Cadenza at music you already have — or let it make a folder for you to put some in.";
+                                wrap: word-wrap;
+                                height: Theme.px(44);
+                            }
+                            Text {
+                                text: root.suggested;
+                                font-family: Theme.mono;
+                                font-size: Theme.text-label;
+                                height: Theme.px(18);
+                                vertical-alignment: center;
+                                letter-spacing: Theme.number-spacing;
+                                color: Theme.ink-mute;
+                                overflow: elide;
+                            }
+                        }
+
+                        // A plain repetition rather than a list of its own: the
+                        // page already scrolls, and a scrolling list inside a
+                        // scrolling page is two places to be lost in.
+                        for folder in root.folders: FolderRow {
+                            data: folder;
+                            removed => {
+                                root.remove-folder(folder.id);
+                            }
+                            synchronised => {
+                                root.synchronise-folder(folder.id);
+                            }
+                        }
+
+                        // Tracks that came in from somewhere no folder covers —
+                        // a file dropped on the window. Not a fault; simply not
+                        // something a scan, a watcher or a synchronise can look
+                        // after, and better said than discovered.
+                        if root.outside-folders > 0: Text {
+                            text: root.outside-folders + " tracks came from outside these folders";
+                            font-family: Theme.mono;
+                            font-size: Theme.text-label;
+                            height: Theme.px(18);
+                            vertical-alignment: center;
+                            letter-spacing: Theme.label-spacing;
+                            color: Theme.ink-mute;
+                            overflow: elide;
+                        }
+
+                        HorizontalLayout {
+                            alignment: start;
+                            spacing: Theme.space-2;
+
+                            TextButton {
+                                label: "ADD FOLDER…";
+                                fixed-width: Theme.px(148);
+                                primary: true;
+                                pressed => {
+                                    root.add-folder();
+                                }
+                            }
+                            TextButton {
+                                label: "MAKE ME ONE";
+                                fixed-width: Theme.px(148);
+                                pressed => {
+                                    root.use-suggested();
+                                }
+                            }
+                            TextButton {
+                                label: "SCAN NOW";
+                                fixed-width: Theme.px(148);
+                                pressed => {
+                                    root.scan-now();
+                                }
                             }
                         }
                     }
 
-                    SectionNote {
-                        text: "The window grows and shrinks with it.";
-                    }
-                }
-
-                VerticalLayout {
-                    spacing: Theme.space-2;
-
-                    SectionLabel {
-                        text: "HISTORY";
-                    }
-                    SectionNote {
-                        text: "What you played, kept for thirty days.";
-                    }
-                    HorizontalLayout {
-                        alignment: start;
+                    // Only while there is something in it. A list that is empty
+                    // nine days out of ten is a place nobody looks; one that
+                    // appears when it has something to say is read the first
+                    // time. Directly under the folders, because it is the same
+                    // subject: what the library holds and what it does not.
+                    if root.taken-out.length > 0: VerticalLayout {
                         spacing: Theme.space-2;
 
-                        TextButton {
-                            label: "KEEP";
-                            fixed-width: Theme.px(100);
-                            selected: root.history-on;
-                            pressed => {
-                                root.set-history(true);
-                            }
+                        SectionLabel {
+                            text: "TAKEN OUT";
                         }
-                        TextButton {
-                            label: "DO NOT";
-                            fixed-width: Theme.px(100);
-                            selected: !root.history-on;
-                            pressed => {
-                                root.set-history(false);
+                        SectionNote {
+                            text: "Removed here, not deleted from disk.";
+                        }
+
+                        for track in root.taken-out: TakenOutRow {
+                            data: track;
+                            restored => {
+                                root.restore-track(track.id);
                             }
                         }
                     }
-                }
 
+                    VerticalLayout {
+                        spacing: Theme.space-2;
+
+                        SectionLabel {
+                            text: "APPEARANCE";
+                        }
+                        SectionNote {
+                            text: "Which way round the ink and the paper go.";
+                        }
+                        HorizontalLayout {
+                            alignment: start;
+                            spacing: Theme.space-2;
+
+                            TextButton {
+                                label: "DARK";
+                                fixed-width: Theme.px(100);
+                                selected: root.dark;
+                                pressed => {
+                                    root.set-theme(true);
+                                }
+                            }
+                            TextButton {
+                                label: "LIGHT";
+                                fixed-width: Theme.px(100);
+                                selected: !root.dark;
+                                pressed => {
+                                    root.set-theme(false);
+                                }
+                            }
+                        }
                     }
-                }
 
-                ScrollFade {
-                    y: parent.height - self.height;
-                    width: parent.width;
-                    more: scroller.viewport-height + scroller.viewport-y > scroller.height;
+                    VerticalLayout {
+                        spacing: Theme.space-2;
+
+                        SectionLabel {
+                            text: "SIZE";
+                        }
+                        SectionNote {
+                            text: "How large everything is drawn.";
+                        }
+
+                        HorizontalLayout {
+                            alignment: start;
+                            spacing: Theme.space-2;
+
+                            // The same width as every other choice on this
+                            // page. They were narrowed to 74 to fit four across
+                            // a 320-wide column; the column is the width of the
+                            // page now, and there is no reason for these four
+                            // to be the odd ones out.
+                            for percent in [90, 100, 110, 125]: TextButton {
+                                label: percent + "%";
+                                fixed-width: Theme.px(100);
+                                selected: root.ui-scale == percent;
+                                pressed => {
+                                    root.set-ui-scale(percent);
+                                }
+                            }
+                        }
+
+                        SectionNote {
+                            text: "The window grows and shrinks with it.";
+                        }
+                    }
+
+                    VerticalLayout {
+                        spacing: Theme.space-2;
+
+                        SectionLabel {
+                            text: "CROSSFADE";
+                        }
+                        SectionNote {
+                            text: "Ordinary tracks fade into each other.";
+                        }
+                        HorizontalLayout {
+                            alignment: start;
+                            spacing: Theme.space-2;
+
+                            TextButton {
+                                label: "ON";
+                                fixed-width: Theme.px(100);
+                                selected: root.crossfade-on;
+                                pressed => {
+                                    root.set-crossfade(true, root.crossfade-seconds);
+                                }
+                            }
+                            TextButton {
+                                label: "OFF";
+                                fixed-width: Theme.px(100);
+                                selected: !root.crossfade-on;
+                                pressed => {
+                                    root.set-crossfade(false, root.crossfade-seconds);
+                                }
+                            }
+                        }
+
+                        // Three lengths, which is the whole range 2.4 allows.
+                        HorizontalLayout {
+                            alignment: start;
+                            spacing: Theme.space-2;
+
+                            for seconds in [3, 4, 5]: TextButton {
+                                label: seconds + "";
+                                fixed-width: Theme.px(100);
+                                selected: root.crossfade-seconds == seconds;
+                                pressed => {
+                                    root.set-crossfade(root.crossfade-on, seconds);
+                                }
+                            }
+                        }
+
+                        SectionNote {
+                            text: "Seconds. Playlists and radio never fade.";
+                        }
+                    }
+
+                    VerticalLayout {
+                        spacing: Theme.space-2;
+
+                        SectionLabel {
+                            text: "HISTORY";
+                        }
+                        SectionNote {
+                            text: "What you played, kept for thirty days.";
+                        }
+                        HorizontalLayout {
+                            alignment: start;
+                            spacing: Theme.space-2;
+
+                            TextButton {
+                                label: "KEEP";
+                                fixed-width: Theme.px(100);
+                                selected: root.history-on;
+                                pressed => {
+                                    root.set-history(true);
+                                }
+                            }
+                            TextButton {
+                                label: "DO NOT";
+                                fixed-width: Theme.px(100);
+                                selected: !root.history-on;
+                                pressed => {
+                                    root.set-history(false);
+                                }
+                            }
+                        }
+                    }
                 }
             }
 
-            // The folders, which is the one thing here that grows.
-            VerticalLayout {
-                horizontal-stretch: 1;
-                spacing: Theme.space-2;
-
-                SectionLabel {
-                    text: "WHERE YOUR MUSIC IS";
-                }
-
-                if root.folders.length == 0: VerticalLayout {
-                    vertical-stretch: 1;
-                    alignment: start;
-                    spacing: Theme.space-2;
-
-                    Text {
-                        text: "No folders yet";
-                        font-family: Theme.serif;
-                        font-size: Theme.text-title;
-                        height: Theme.px(34);
-                        vertical-alignment: center;
-                        color: Theme.ink-2;
-                    }
-                    SectionNote {
-                        text: "Point Cadenza at music you already have — or let it make a folder for you to put some in.";
-                        wrap: word-wrap;
-                        height: Theme.px(44);
-                    }
-                    Text {
-                        text: root.suggested;
-                        font-family: Theme.mono;
-                        font-size: Theme.text-label;
-                        height: Theme.px(18);
-                        vertical-alignment: center;
-                        letter-spacing: Theme.number-spacing;
-                        color: Theme.ink-mute;
-                        overflow: elide;
-                    }
-                }
-
-                if root.folders.length > 0: ListView {
-                    vertical-stretch: 1;
-
-                    for folder[index] in root.folders: FolderRow {
-                        data: folder;
-                        removed => {
-                            root.remove-folder(folder.id);
-                        }
-                        synchronised => {
-                            root.synchronise-folder(folder.id);
-                        }
-                    }
-                }
-
-                // Tracks that came in from somewhere no folder covers — a file
-                // dropped on the window. Not a fault; simply not something a
-                // scan, a watcher or a synchronise can look after, and better
-                // said than discovered.
-                if root.outside-folders > 0: Text {
-                    text: root.outside-folders + " tracks came from outside these folders";
-                    font-family: Theme.mono;
-                    font-size: Theme.text-label;
-                    height: Theme.px(18);
-                    vertical-alignment: center;
-                    letter-spacing: Theme.label-spacing;
-                    color: Theme.ink-mute;
-                    overflow: elide;
-                }
-
-                Rectangle {
-                    vertical-stretch: 1;
-                }
-
-                HorizontalLayout {
-                    alignment: start;
-                    spacing: Theme.space-2;
-
-                    TextButton {
-                        label: "ADD FOLDER…";
-                        fixed-width: Theme.px(148);
-                        primary: true;
-                        pressed => {
-                            root.add-folder();
-                        }
-                    }
-                    TextButton {
-                        label: "MAKE ME ONE";
-                        fixed-width: Theme.px(148);
-                        pressed => {
-                            root.use-suggested();
-                        }
-                    }
-                    TextButton {
-                        label: "SCAN NOW";
-                        fixed-width: Theme.px(148);
-                        pressed => {
-                            root.scan-now();
-                        }
-                    }
-                }
+            ScrollFade {
+                y: parent.height - self.height;
+                width: parent.width;
+                more: scroller.viewport-height + scroller.viewport-y > scroller.height;
             }
         }
     }
