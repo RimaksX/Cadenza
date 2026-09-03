@@ -2256,3 +2256,59 @@ One thing it does mean: `PATH` is read once, when the process starts. Cadenza
 has to be restarted after installing either tool, and if the folder was new to
 `PATH` the change may not reach a program launched from Explorer until the next
 sign-in.
+
+## 78. Ctrl+V did nothing, and neither did Ctrl+C, X or A
+
+Typing into the link field worked; pasting into it did not. The field is
+`components/Field.slint`, which is the only text input in the application — so
+whatever this was, it was every text field, including the search box.
+
+Read rather than guessed at, in `i-slint-core` 1.17.1, `items/text.rs`. The
+order of two blocks decides it:
+
+```rust
+// Only insert/interpreter non-control character strings
+if event.key_event.text.is_empty()
+    || event.key_event.text.as_str().chars().any(|ch| {
+        ('\u{f700}'..='\u{f7ff}').contains(&ch) || (ch.is_control() && ch != '\n')
+    })
+{
+    return KeyEventResult::EventIgnored;
+}
+
+if let Some(shortcut) = event.shortcut() {
+    match shortcut {
+        StandardShortcut::Paste if !self.read_only() => { … }
+```
+
+And `shortcut()` in `input.rs` matches on that same text: `"v"` is Paste,
+`"c"` is Copy, `"a"` is Select All. So a shortcut can only be recognised if the
+event's text is the bare letter — while the guard above throws the event away if
+the text is a control character.
+
+On Windows it is a control character. The winit backend takes `logical_key`,
+which for Ctrl+V is `Key::Character("\u{16}")`, and the one place it would
+substitute the unmodified letter — `text_without_modifiers` — only applies
+`if text.is_empty()`, which U+0016 is not. The guard fires, the event is
+ignored, and every editing shortcut is unreachable.
+
+**The fix is in our field rather than around it.** `TextInput` has a
+`key-pressed` callback that runs *before* its own handling, and `paste()`,
+`copy()`, `cut()` and `select-all()` are callable functions on it. So `Field`
+takes the event first and asks the input to do the thing. Both spellings are
+matched — the letter and the control code — because handling it twice costs
+nothing and being wrong about which one arrives costs the feature.
+
+One place, so it is every field in the application: the link, the search box,
+and every field in a dialog.
+
+**What is verified and what is not.** It compiles, the window renders unchanged,
+506 tests, clippy and the interface audit clean. The keystroke itself is not
+verified and cannot be: this project checks its interface by asking the window
+to draw itself into a bitmap, which cannot press a key (`MASTER_ISSUES` 34).
+Whether Ctrl+V now pastes is something only a hand can answer.
+
+If it still does not, the diagnosis above is wrong in one specific way and there
+is a single question that separates the two cases: **does Ctrl+A select the
+text?** Select-all needs no clipboard. If it now works and paste does not, the
+key path is fixed and the clipboard is the problem instead.

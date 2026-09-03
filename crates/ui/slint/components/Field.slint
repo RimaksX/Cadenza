@@ -86,6 +86,46 @@ export component Field inherits Rectangle {
                 selection-background-color: Theme.ink-mute;
                 selection-foreground-color: Theme.bg-0;
                 single-line: true;
+
+                // Ctrl+V, and the three shortcuts beside it.
+                //
+                // Slint's own handling of these is unreachable on Windows. It
+                // matches the shortcut on the event's `text`, but before that
+                // it drops any event whose text is a control character — and
+                // Ctrl+V arrives from winit as U+0016, which is exactly that.
+                // The guard runs first, the event is ignored, and paste, copy,
+                // cut and select-all are all dead in every text field
+                // (`i-slint-core` 1.17.1 `items/text.rs`, and
+                // `MASTER_ISSUES` 78).
+                //
+                // `key-pressed` runs before any of that, so this takes the
+                // event first and asks the input to do the thing itself. Both
+                // spellings are accepted — the letter, in case a platform or a
+                // later version delivers it that way, and the control code —
+                // because handling it here twice is free and being wrong about
+                // which one arrives is not.
+                key-pressed(event) => {
+                    if (event.modifiers.control && !event.modifiers.shift) {
+                        if (event.text == "v" || event.text == "\u{16}") {
+                            self.paste();
+                            return accept;
+                        }
+                        if (event.text == "c" || event.text == "\u{3}") {
+                            self.copy();
+                            return accept;
+                        }
+                        if (event.text == "x" || event.text == "\u{18}") {
+                            self.cut();
+                            return accept;
+                        }
+                        if (event.text == "a" || event.text == "\u{1}") {
+                            self.select-all();
+                            return accept;
+                        }
+                    }
+                    return reject;
+                }
+
                 accepted => {
                     root.accepted();
                 }
