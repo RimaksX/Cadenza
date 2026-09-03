@@ -259,7 +259,11 @@ export component TrackList inherits Rectangle {
                 Field {
                     horizontal-stretch: 1;
                     text <=> root.link;
-                    placeholder: "Paste a link to bring a track in";
+                    // Names the site people actually paste from, rather than
+                    // promising "a link" and leaving them to find out which
+                    // kind. Most video sites work too; the ones that do not are
+                    // named when somebody tries one.
+                    placeholder: "Paste a YouTube link to bring a track in";
                     accepted => {
                         root.fetch(self.text);
                     }

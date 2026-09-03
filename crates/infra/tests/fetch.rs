@@ -229,6 +229,32 @@ fn a_machine_without_the_programs_is_told_which_ones() {
 }
 
 #[test]
+fn a_service_that_encrypts_its_audio_is_refused_by_name() {
+    // Not a failure to hide behind a generic message: no version of any tool
+    // will ever fetch these, and saying which service it is turns ten seconds
+    // of waiting into one sentence somebody can act on.
+    let harness = harness("locked", FakeFetcher::default());
+    harness
+        .library
+        .use_suggested_folder()
+        .expect("the local folder");
+
+    let refused = harness
+        .library
+        .fetch_from_link("https://open.spotify.com/track/abc", &nothing)
+        .expect_err("Spotify cannot be fetched from");
+
+    assert!(
+        refused.to_string().contains("Spotify"),
+        "the service is named: {refused}"
+    );
+    assert!(
+        !harness.fetcher.ran.load(Ordering::Relaxed),
+        "and nothing was started to find that out"
+    );
+}
+
+#[test]
 fn what_is_not_a_link_never_reaches_the_downloader() {
     // The reason the check exists: what is typed here becomes an argument to
     // another program, and an argument that can turn into a flag is a text

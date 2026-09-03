@@ -17,7 +17,7 @@ use crate::domain::ids::{
 use crate::domain::media_file::{FileState, MediaFile, is_supported_extension};
 use crate::domain::policies::artwork_policy::looks_like_an_image;
 use crate::domain::policies::duplicate_policy::{self, DuplicateVerdict};
-use crate::domain::policies::link_policy::is_a_link;
+use crate::domain::policies::link_policy::{is_a_link, locked_service};
 use crate::domain::ports::artwork_cache::{ArtworkCachePort, CoverOf};
 use crate::domain::ports::event_bus::DomainEvent;
 use crate::domain::ports::fetcher::{FetchPort, MissingTool};
@@ -293,6 +293,18 @@ impl LibraryService {
             return Err(CoreError::invalid(
                 "link",
                 "that is not a web address — paste the whole thing, starting with https://",
+            ));
+        }
+
+        // Before the tools, because this is true whatever is installed: no
+        // version of anything will ever fetch from these, and the listener's
+        // next move is the same track somewhere that will part with it.
+        if let Some(service) = locked_service(link) {
+            return Err(CoreError::invalid(
+                "link",
+                format!(
+                    "{service} encrypts its audio — nothing can fetch it.                      Find the track on YouTube instead"
+                ),
             ));
         }
 

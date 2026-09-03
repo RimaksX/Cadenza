@@ -2367,3 +2367,36 @@ already knows to render the interface rather than describe it
 ([MASTER_ISSUES 34](MASTER_ISSUES.md)). The same rule applies to input, and
 there is a way to measure that too: the seam can write down what actually
 arrived.
+
+## 80. Naming the site, and naming the ones that will never work
+
+Two additions to the link field, both about what a listener knows before they
+press anything.
+
+**The placeholder names YouTube.** It said "Paste a link to bring a track in",
+which promises everything and specifies nothing. `yt-dlp` does reach a great
+many sites, but the one anybody actually has open when they copy a link to a
+song is YouTube, and a placeholder that names it answers the question instead of
+posing one. The rest still work; they are simply not advertised.
+
+**And the services that never will are refused by name.** Spotify, Apple Music,
+Tidal and Deezer hand out encrypted audio under a licence their own player
+holds, so what a downloader finds at one of those addresses is a page rather
+than a recording. No newer version of any tool changes that. Without this, a
+pasted Spotify link waits ten seconds and comes back as somebody else's error
+output, which reads as a fault in Cadenza rather than as the answer — and the
+answer is short: that track, on a site that will part with it.
+
+This is the one exception to `link_policy`'s rule against knowing anything about
+the web, and it earns itself: it is not a fact that goes stale, and it turns a
+wait into a sentence. A substring rather than a parsed host, because the only
+thing it decides is which sentence to show.
+
+### And the feature is proved
+
+A render taken while checking the placeholder showed the library at **9 tracks ·
+28:11** where it had been 7, with a row that was not there before. The owner had
+pasted a link. Nothing in this session's tests could have told us that — they
+run against a fake downloader on purpose — so this is the first evidence that
+the whole path works: `yt-dlp` started, converted, the file landed in Cadenza's
+own folder, and the ordinary import picked it up as a track like any other.
