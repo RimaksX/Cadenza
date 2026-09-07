@@ -142,6 +142,13 @@ pub struct Controller {
     visualising: Cell<bool>,
     /// The heights the window is already showing, to the pixel.
     shown_bars: RefCell<[f32; SPECTRUM_BARS]>,
+    /// The size the window has been given room for.
+    ///
+    /// The window is created before anybody knows whose it is, so it opens at
+    /// the size for 100 per cent; the profile's own size arrives a moment
+    /// later. Remembering which one the frame was built for is what lets the
+    /// difference be made up exactly once.
+    sized_for: Cell<f32>,
     /// The fetch in progress, if there is one.
     fetching: Arc<Fetching>,
 }
@@ -162,6 +169,7 @@ impl Controller {
             selected_band: Cell::new(0),
             visualising: Cell::new(false),
             shown_bars: RefCell::new([0.0; SPECTRUM_BARS]),
+            sized_for: Cell::new(1.0),
             fetching: Arc::new(Fetching::default()),
         }
     }
@@ -1126,6 +1134,24 @@ impl Controller {
         let scale = self.chosen_scale();
         window.set_ui_scale(i32::from(scale.percent()));
         window.global::<Theme>().set_scale(scale.factor());
+
+        // And the frame grows with what is inside it. Lengths asking for a
+        // tenth more room do not by themselves give it any: without this the
+        // layout wants more than the window has, and the far side and the
+        // bottom of every page are cut off — which is what a listener whose
+        // size was not 100 per cent saw on every run after the one where they
+        // chose it (`MASTER_ISSUES` 84).
+        let ratio = scale.factor() / self.sized_for.get();
+        if (ratio - 1.0).abs() < f32::EPSILON {
+            return;
+        }
+        self.sized_for.set(scale.factor());
+
+        let size = window.window().size();
+        window.window().set_size(slint::PhysicalSize::new(
+            (size.width as f32 * ratio).round() as u32,
+            (size.height as f32 * ratio).round() as u32,
+        ));
     }
 
     /// How large this listener has asked for the interface to be drawn.
@@ -1140,36 +1166,20 @@ impl Controller {
 
     /// Chooses how large the interface is drawn, and draws it that way now.
     ///
-    /// The window is resized by the same ratio, because the interface asking
-    /// for a quarter more room does not by itself give it any: the lengths grow
-    /// and the frame around them does not, so the far side of every page ends
-    /// up past the edge — and on the way back down the window keeps the height
-    /// it was stretched to (`MASTER_ISSUES` 66).
+    /// The frame grows with the lengths inside it, and that happens in
+    /// [`Self::refresh_interface_scale`] rather than here — the window has to
+    /// be given room whenever the scale is applied, and it is applied at every
+    /// start as well as at every press (`MASTER_ISSUES` 66, 84).
     pub fn set_interface_scale(&self, percent: i32) {
         let Some(profile) = self.profile.borrow().as_ref().map(|profile| profile.id) else {
             return;
         };
 
-        let before = self.chosen_scale();
         self.run(|| {
             let scale = InterfaceScale::new(u16::try_from(percent).unwrap_or_default())?;
             self.services.profiles.set_interface_scale(profile, scale)
         });
         self.refresh_interface_scale();
-
-        let after = self.chosen_scale();
-        if after == before {
-            return;
-        }
-
-        if let Some(window) = self.window.upgrade() {
-            let ratio = after.factor() / before.factor();
-            let size = window.window().size();
-            window.window().set_size(slint::PhysicalSize::new(
-                (size.width as f32 * ratio).round() as u32,
-                (size.height as f32 * ratio).round() as u32,
-            ));
-        }
     }
 
     /// Whether something from outside is being held over the window.
