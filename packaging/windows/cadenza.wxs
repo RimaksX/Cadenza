@@ -50,9 +50,17 @@
     <Property Id="ARPNOREPAIR" Value="1" />
 
     <!-- %LOCALAPPDATA%\Programs\Cadenza, which is where Windows puts a program
-         that belongs to one person. -->
+         that belongs to one person.
+         The identifier here is not `ProgramsFolder`, and that is the whole
+         point of this comment: `ProgramsFolder` is a *reserved* Windows
+         Installer directory meaning the Start Menu's Programs folder. Used as
+         the id of a folder named "Programs" under LocalAppData it collides
+         with the system's own, the path resolves differently depending on how
+         a machine's profile folders are arranged, and the installer fails
+         costing the volume — on some machines and not others, which is the
+         worst way for a defect to behave. -->
     <StandardDirectory Id="LocalAppDataFolder">
-      <Directory Id="ProgramsFolder" Name="Programs">
+      <Directory Id="LocalProgramsDir" Name="Programs">
         <Directory Id="INSTALLFOLDER" Name="Cadenza" />
       </Directory>
     </StandardDirectory>
@@ -98,7 +106,14 @@
          of listening because it was asked to remove a program has answered a
          question nobody put to it. -->
 
-    <ui:WixUI Id="WixUI_InstallDir" InstallDirectory="INSTALLFOLDER" />
+    <!-- No dialog for choosing a folder, and not only because that dialog is
+         where the volume costing that failed happens. Cadenza installs into
+         one person's profile beside the data it already keeps there; a folder
+         somebody picked instead would separate the two for no benefit, and a
+         question with one sensible answer is a question not worth asking.
+         `WixUI_Minimal` keeps the welcome page, the licence and the artwork,
+         and drops the rest. -->
+    <ui:WixUI Id="WixUI_Minimal" />
     <WixVariable Id="WixUIBannerBmp" Value="assets\banner.bmp" />
     <WixVariable Id="WixUIDialogBmp" Value="assets\dialog.bmp" />
     <WixVariable Id="WixUILicenseRtf" Value="assets\license.rtf" />
