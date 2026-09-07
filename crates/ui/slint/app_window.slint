@@ -48,9 +48,11 @@ export { Theme }
 export component AppWindow inherits Window {
     title: "Cadenza";
     background: Theme.bg-0;
-    // The frame is ours. Slint's backend keeps the edges resizable and their
-    // cursors correct on an undecorated window; everything else the system
-    // frame used to do is in `TitleBar`.
+    // The frame is ours, and so is everything it used to do: the buttons and
+    // the drag are in `TitleBar`, and the resizable edges are in `winit_seam`.
+    // They had to be. An undecorated window answers every point with "client",
+    // so nothing ever asks the system to resize it, however willing the system
+    // is (`MASTER_ISSUES` 88).
     no-frame: true;
     default-font-family: Theme.sans;
     default-font-size: Theme.text-body;
