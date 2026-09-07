@@ -307,6 +307,10 @@ fn services_with_radio(
             tracks: track_repo as _,
             features: Arc::new(SqliteTrackFeaturesRepository::new(db.pool().clone())),
             radio: Some(Arc::clone(&radio)),
+            // No filters in a test about repeat modes and shuffle. The
+            // equaliser following the track has its own tests, in the file
+            // about the equaliser.
+            eq: None,
         },
     );
 

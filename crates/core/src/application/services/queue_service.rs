@@ -53,6 +53,13 @@ pub struct QueuePorts {
     /// command line that lists tracks has no station, and neither has a test
     /// about repeat modes.
     pub radio: Option<Arc<super::RadioService>>,
+    /// The equaliser, to be told which track it is now playing.
+    ///
+    /// The queue is the only thing that knows a track has started — the engine
+    /// knows it too, but seconds earlier and on a thread that must not touch a
+    /// database. Optional for the same reason radio is: a test about repeat
+    /// modes has no filters to set.
+    pub eq: Option<Arc<super::EqService>>,
 }
 
 /// The playback queue and the transport commands that move through it.
@@ -739,6 +746,10 @@ impl QueueService {
         if let Some(entry) = self.with_queue(|queue| queue.current) {
             self.playback
                 .adopt(entry.media_file_id, source_of(entry.origin))?;
+            // Late by however long the ring buffer is, because that is when
+            // anybody above the engine finds out a gapless join happened at
+            // all. The alternative is setting filters from the audio thread.
+            self.follow_with_eq(entry.media_file_id);
         }
         self.persist();
         self.announce();
@@ -872,6 +883,10 @@ impl QueueService {
             return self.playback.stop();
         };
 
+        // Before the first sample rather than after it: the sound a listener
+        // chose for this record is part of how it starts (`MASTER_ISSUES` 89).
+        self.follow_with_eq(entry.media_file_id);
+
         let played = self
             .playback
             .play_track(entry.media_file_id, source_of(entry.origin));
@@ -888,6 +903,23 @@ impl QueueService {
         self.persist();
         self.announce();
         Ok(())
+    }
+
+    /// Tells the equaliser what is playing now, if there is one to tell.
+    ///
+    /// A failure here is not a reason to stop the music: the worst it costs is
+    /// the previous track's curve on this one, which the listener can see and
+    /// change, whereas a track that will not start is a track that will not
+    /// start.
+    fn follow_with_eq(&self, media_file_id: MediaFileId) {
+        let Some(eq) = self.ports.eq.as_ref() else {
+            return;
+        };
+
+        if let Err(err) = eq.follow(media_file_id) {
+            self.context
+                .warn(&format!("the equaliser was not set for this track: {err}"));
+        }
     }
 
     fn persist(&self) {

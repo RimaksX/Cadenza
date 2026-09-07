@@ -395,6 +395,34 @@ pub trait EqPresetRepositoryPort: Send + Sync {
     fn delete(&self, id: EqPresetId) -> Result<()>;
 }
 
+/// Which preset a listener has chosen for one track.
+///
+/// Separate from the setting in `SettingsRepositoryPort` because it says a
+/// different thing: the setting is what the filters are doing *now* and this is
+/// what this listener wants *this track* played with. A pointer at a preset
+/// rather than a curve, because a preset is what somebody chooses; a control
+/// nudged afterwards belongs to the moment and not to the track.
+pub trait TrackEqRepositoryPort: Send + Sync {
+    /// The preset chosen for one track, or `None` where none ever was.
+    fn preset_for(
+        &self,
+        profile_id: ProfileId,
+        media_file_id: MediaFileId,
+    ) -> Result<Option<EqPresetId>>;
+
+    /// Records a choice, replacing whatever this listener chose before.
+    fn remember(
+        &self,
+        profile_id: ProfileId,
+        media_file_id: MediaFileId,
+        preset_id: EqPresetId,
+        now: Timestamp,
+    ) -> Result<()>;
+
+    /// Forgets the choice, leaving the track to whatever plays by default.
+    fn forget(&self, profile_id: ProfileId, media_file_id: MediaFileId) -> Result<()>;
+}
+
 /// The background analysis work queue.
 pub trait AnalysisJobRepositoryPort: Send + Sync {
     /// Enqueues work, ignoring a request that is already queued for the same

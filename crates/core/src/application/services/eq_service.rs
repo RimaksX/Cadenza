@@ -6,16 +6,23 @@
 //! most of the time — so the setting is stored in its own right rather than as
 //! a pointer at a preset that no longer describes it (PROJECT_MASTER 2.8,
 //! "сохранение состояния").
+//!
+//! And a third thing, which is neither: **the preset a track is played with.**
+//! An equaliser set once for everything is set wrong for almost everything —
+//! the curve that rescues a thin recording ruins a well-made one. So a preset
+//! chosen while something is playing is remembered for that track, and every
+//! track that has no choice of its own starts at Standard: what a listener did
+//! to one record does not follow them into the next (`MASTER_ISSUES` 89).
 
 use std::sync::{Arc, RwLock};
 
 use crate::application::context::AppContext;
 use crate::domain::eq::{EqBand, EqMode, EqPreset, EqSetting, SimpleEq};
-use crate::domain::ids::{EqPresetId, ProfileId};
+use crate::domain::ids::{EqPresetId, MediaFileId, ProfileId};
 use crate::domain::policies::eq_policy::{ADVANCED_BAND_COUNT, default_advanced_bands};
 use crate::domain::ports::audio_engine::AudioEnginePort;
 use crate::domain::ports::event_bus::DomainEvent;
-use crate::domain::ports::repositories::EqPresetRepositoryPort;
+use crate::domain::ports::repositories::{EqPresetRepositoryPort, TrackEqRepositoryPort};
 use crate::domain::settings::SettingValue;
 use crate::domain::value_objects::GainDb;
 use crate::{CoreError, Result};
@@ -30,6 +37,8 @@ const SIMPLE_KEYS: [&str; 3] = ["eq.simple.bass", "eq.simple.mid", "eq.simple.tr
 pub struct EqPorts {
     /// The presets table.
     pub presets: Arc<dyn EqPresetRepositoryPort>,
+    /// What each track is to be played with.
+    pub choices: Arc<dyn TrackEqRepositoryPort>,
     /// The filters themselves.
     pub engine: Arc<dyn AudioEnginePort>,
 }
@@ -44,6 +53,12 @@ pub struct EqService {
     /// parametric setting is twenty-eight rows to read. The profile travels
     /// with it so a switch cannot be answered from the last listener's sound.
     current: RwLock<Option<(ProfileId, EqSetting)>>,
+    /// What is playing, as [`Self::follow`] was last told.
+    ///
+    /// Held here rather than asked for, because this is the only thing the
+    /// equaliser wants to know about the transport and asking would make the
+    /// two services depend on each other in both directions.
+    playing: RwLock<Option<MediaFileId>>,
 }
 
 impl EqService {
@@ -53,6 +68,7 @@ impl EqService {
             context,
             ports,
             current: RwLock::new(None),
+            playing: RwLock::new(None),
         }
     }
 
@@ -94,7 +110,50 @@ impl EqService {
     /// the advanced mode moves the eight faders. Switching modes underneath
     /// somebody who pressed a preset was the first thing anybody noticed about
     /// this screen, and it was the screen being wrong rather than them.
+    /// **And the track keeps it.** Choosing a preset while something is
+    /// playing is how a listener says what that record should sound like, so
+    /// it is written down against the file and applied again the next time it
+    /// comes round. With nothing playing there is nothing to write it against,
+    /// and the choice is simply the sound until something else changes it.
     pub fn apply_preset(&self, id: EqPresetId) -> Result<()> {
+        self.set_from_preset(id)?;
+
+        let profile_id = self.context.require_active_profile()?;
+        if let Some(track) = *self.playing.read().unwrap_or_else(|err| err.into_inner()) {
+            self.ports
+                .choices
+                .remember(profile_id, track, id, self.context.clock.now())?;
+        }
+
+        Ok(())
+    }
+
+    /// Puts the equaliser where the track that is starting wants it.
+    ///
+    /// Called by whatever opens a track, which is the queue. A track nobody has
+    /// chosen for gets Standard rather than the last track's curve: the sound
+    /// somebody set for one record is about that record, and carrying it into
+    /// the next is how an equaliser ends up quietly ruining a library.
+    ///
+    /// The mode is left alone, the way [`Self::apply_preset`] leaves it: a
+    /// preset describes the same intention as three controls and as eight
+    /// bands, and the listener stays on the screen they were looking at.
+    pub fn follow(&self, track: MediaFileId) -> Result<()> {
+        let profile_id = self.context.require_active_profile()?;
+        *self.playing.write().unwrap_or_else(|err| err.into_inner()) = Some(track);
+
+        match self.ports.choices.preset_for(profile_id, track)? {
+            Some(chosen) => self.set_from_preset(chosen),
+            None => {
+                let mut setting = EqSetting::flat();
+                setting.mode = self.current()?.mode;
+                self.write(setting)
+            }
+        }
+    }
+
+    /// Applies a preset without recording that anybody chose it.
+    fn set_from_preset(&self, id: EqPresetId) -> Result<()> {
         let preset = self
             .ports
             .presets
@@ -167,7 +226,17 @@ impl EqService {
     }
 
     /// Puts everything back to doing nothing.
+    ///
+    /// And forgets what the playing track was chosen to sound like, because
+    /// that is what the press means: a listener who resets while a record is on
+    /// is saying they no longer want that record treated specially, and leaving
+    /// the choice in the table would bring it back the moment the track did.
     pub fn reset(&self) -> Result<()> {
+        let profile_id = self.context.require_active_profile()?;
+        if let Some(track) = *self.playing.read().unwrap_or_else(|err| err.into_inner()) {
+            self.ports.choices.forget(profile_id, track)?;
+        }
+
         self.write(EqSetting::flat())
     }
 

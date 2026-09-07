@@ -12,13 +12,17 @@ use cadenza_core::Result;
 use cadenza_core::application::services::{EqPorts, EqService};
 use cadenza_core::application::{AppContext, ProfileService};
 use cadenza_core::domain::eq::{EqBand, EqMode, EqSetting, SimpleEq};
-use cadenza_core::domain::ids::ProfileId;
+use cadenza_core::domain::ids::{MediaFileId, ProfileId};
+use cadenza_core::domain::media_file::{AudioFormat, AudioProperties, FileState, MediaFile};
+use cadenza_core::domain::ports::repositories::MediaFileRepositoryPort;
+use cadenza_core::domain::value_objects::DurationMs;
 use cadenza_core::domain::playback::{PlaybackState, TransitionProfile};
 use cadenza_core::domain::ports::audio_engine::AudioEnginePort;
 use cadenza_core::domain::settings::CrossfadeDuration;
 use cadenza_core::domain::value_objects::{GainDb, PlaybackPosition, Volume};
 use cadenza_infra::db::repositories::{
-    SqliteEqPresetRepository, SqliteProfileRepository, SqliteSettingsRepository,
+    SqliteEqPresetRepository, SqliteMediaFileRepository, SqliteProfileRepository,
+    SqliteSettingsRepository, SqliteTrackEqRepository,
 };
 use cadenza_infra::events::InProcessEventBus;
 use cadenza_testkit::{TempDb, TestClock};
@@ -115,6 +119,47 @@ fn harness() -> Harness {
     }
 }
 
+impl Harness {
+    /// A file in the catalogue, which is what a choice can be recorded against.
+    fn track(&self, name: &str) -> MediaFileId {
+        let file = MediaFile {
+            id: MediaFileId::new(),
+            path: std::path::PathBuf::from(format!("C:/music/{name}.flac")),
+            file_hash: None,
+            file_size: 1_024,
+            file_mtime: cadenza_core::domain::value_objects::Timestamp::from_millis(0),
+            format: AudioFormat::Flac,
+            properties: AudioProperties {
+                duration: DurationMs::from_secs(200),
+                sample_rate: 44_100,
+                channels: 2,
+                bitrate: None,
+            },
+            metadata_version: None,
+            metadata_extracted_at: None,
+            state: FileState::Available,
+            created_at: cadenza_core::domain::value_objects::Timestamp::from_millis(0),
+            updated_at: cadenza_core::domain::value_objects::Timestamp::from_millis(0),
+        };
+
+        SqliteMediaFileRepository::new(self.db.pool().clone())
+            .save(&file)
+            .expect("catalogued");
+        file.id
+    }
+
+    /// The preset with this name, as the listener would press it.
+    fn preset(&self, name: &str) -> cadenza_core::domain::ids::EqPresetId {
+        self.eq
+            .list()
+            .expect("presets")
+            .into_iter()
+            .find(|preset| preset.name == name)
+            .unwrap_or_else(|| panic!("{name} ships"))
+            .id
+    }
+}
+
 fn context(db: &TempDb) -> Arc<AppContext> {
     Arc::new(AppContext::new(
         Arc::new(TestClock::default()),
@@ -134,6 +179,7 @@ fn service(db: &TempDb, profile_id: ProfileId) -> (EqService, Arc<FakeEngine>) {
         context,
         EqPorts {
             presets: Arc::new(SqliteEqPresetRepository::new(db.pool().clone())),
+            choices: Arc::new(SqliteTrackEqRepository::new(db.pool().clone())),
             engine: Arc::clone(&engine) as Arc<dyn AudioEnginePort>,
         },
     );
@@ -367,4 +413,81 @@ fn the_nine_that_shipped_cannot_be_renamed_or_thrown_away() {
     assert!(harness.eq.rename(rock.id, "Not Rock").is_err());
     assert!(harness.eq.delete(rock.id).is_err());
     assert_eq!(harness.eq.list().expect("listed").len(), 9);
+}
+
+#[test]
+fn a_preset_chosen_while_a_track_plays_belongs_to_that_track() {
+    let harness = harness();
+    let downpour = harness.track("downpour");
+    let deadlock = harness.track("deadlock");
+    let bass_boost = harness.preset("Bass Boost");
+
+    harness.eq.follow(downpour).expect("the track starts");
+    harness.eq.apply_preset(bass_boost).expect("chosen");
+    let chosen = harness.engine.applied();
+    assert!(!chosen.is_flat(), "a boost is not nothing");
+
+    // The next track is not the last track. Whatever was set for one record
+    // does not follow the listener into the next one.
+    harness.eq.follow(deadlock).expect("the next track starts");
+    assert!(
+        harness.engine.applied().is_flat(),
+        "a track nobody chose for plays as it was recorded"
+    );
+
+    // And coming back to it is coming back to the sound it was given.
+    harness.eq.follow(downpour).expect("round again");
+    assert_eq!(harness.engine.applied(), chosen);
+}
+
+#[test]
+fn a_choice_survives_a_restart() {
+    let harness = harness();
+    let downpour = harness.track("downpour");
+    harness.eq.follow(downpour).expect("the track starts");
+    harness
+        .eq
+        .apply_preset(harness.preset("Rock"))
+        .expect("chosen");
+    let chosen = harness.engine.applied();
+
+    // The same database, opened again the way the next run opens it.
+    let (eq, engine) = service(&harness.db, harness.profile_id);
+    eq.follow(downpour).expect("the track starts again");
+    assert_eq!(engine.applied(), chosen);
+}
+
+#[test]
+fn resetting_forgets_what_the_track_was_chosen_to_sound_like() {
+    let harness = harness();
+    let downpour = harness.track("downpour");
+
+    harness.eq.follow(downpour).expect("the track starts");
+    harness
+        .eq
+        .apply_preset(harness.preset("Treble Boost"))
+        .expect("chosen");
+    harness.eq.reset().expect("reset");
+
+    // Not merely flat now — flat the next time as well, which is the half a
+    // reset that only cleared the filters would have got wrong.
+    harness.eq.follow(downpour).expect("round again");
+    assert!(harness.engine.applied().is_flat());
+}
+
+#[test]
+fn a_preset_chosen_with_nothing_playing_is_just_the_sound() {
+    let harness = harness();
+    let downpour = harness.track("downpour");
+
+    // Nobody has pressed play, so there is nothing to attach the choice to.
+    harness
+        .eq
+        .apply_preset(harness.preset("Classical"))
+        .expect("chosen");
+    assert!(!harness.engine.applied().is_flat());
+
+    // And the first track to start is a track nobody chose for.
+    harness.eq.follow(downpour).expect("the track starts");
+    assert!(harness.engine.applied().is_flat());
 }

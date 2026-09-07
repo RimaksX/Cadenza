@@ -32,6 +32,7 @@ mod m0016_preset_tone_controls;
 mod m0017_builtin_moods;
 mod m0018_radio_feedback;
 mod m0019_standard_preset;
+mod m0020_track_eq;
 
 /// One numbered schema change.
 pub struct Migration {
@@ -139,6 +140,11 @@ pub const MIGRATIONS: &[Migration] = &[
         version: 19,
         name: "standard_preset",
         sql: m0019_standard_preset::SQL,
+    },
+    Migration {
+        version: 20,
+        name: "track_eq",
+        sql: m0020_track_eq::SQL,
     },
 ];
 

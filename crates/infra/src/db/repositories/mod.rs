@@ -24,6 +24,7 @@ pub mod queue_repo;
 pub mod radio_repo;
 pub mod review_repo;
 pub mod settings_repo;
+pub mod track_eq_repo;
 pub mod track_repo;
 
 pub use analysis_repo::SqliteAnalysisJobRepository;
@@ -39,4 +40,5 @@ pub use queue_repo::SqliteQueueRepository;
 pub use radio_repo::SqliteRadioRepository;
 pub use review_repo::SqliteImportReviewRepository;
 pub use settings_repo::SqliteSettingsRepository;
+pub use track_eq_repo::SqliteTrackEqRepository;
 pub use track_repo::SqliteTrackRepository;

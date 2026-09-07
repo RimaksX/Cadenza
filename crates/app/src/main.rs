@@ -44,8 +44,8 @@ use cadenza_infra::db::repositories::{
     SqliteEqPresetRepository, SqliteGenreRepository, SqliteHistoryRepository,
     SqliteImportReviewRepository, SqliteMediaFileRepository, SqliteMoodRepository,
     SqlitePlaylistRepository, SqliteProfileRepository, SqliteQueueRepository,
-    SqliteRadioRepository, SqliteSettingsRepository, SqliteTrackFeaturesRepository,
-    SqliteTrackRepository,
+    SqliteRadioRepository, SqliteSettingsRepository, SqliteTrackEqRepository,
+    SqliteTrackFeaturesRepository, SqliteTrackRepository,
 };
 use cadenza_infra::events::InProcessEventBus;
 use cadenza_infra::library::{ExternalFetcher, LocalFileSystem, NotifyFileWatcher};
@@ -214,6 +214,17 @@ fn run() -> std::result::Result<(), String> {
         },
     ));
 
+    // Before the queue, which holds it: the queue is what knows a track has
+    // started, and the equaliser is what has to be told.
+    let eq = Arc::new(EqService::new(
+        Arc::clone(&context),
+        EqPorts {
+            presets: Arc::new(SqliteEqPresetRepository::new(pool.clone())),
+            choices: Arc::new(SqliteTrackEqRepository::new(pool.clone())),
+            engine: Arc::clone(&engine),
+        },
+    ));
+
     // Built after the profile has been restored, because building it is what
     // restores that profile's queue.
     let queue = Arc::new(QueueService::new(
@@ -224,14 +235,7 @@ fn run() -> std::result::Result<(), String> {
             tracks: Arc::new(SqliteTrackRepository::new(pool.clone())),
             features: Arc::new(SqliteTrackFeaturesRepository::new(pool.clone())),
             radio: Some(Arc::clone(&radio)),
-        },
-    ));
-
-    let eq = Arc::new(EqService::new(
-        Arc::clone(&context),
-        EqPorts {
-            presets: Arc::new(SqliteEqPresetRepository::new(pool.clone())),
-            engine: Arc::clone(&engine),
+            eq: Some(Arc::clone(&eq)),
         },
     ));
 
