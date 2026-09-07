@@ -150,6 +150,26 @@ fn move_file(from: &Path, to: &Path) -> Result<()> {
     Ok(())
 }
 
+/// What the downloader said, plus what to do about it where that is knowable.
+///
+/// One case, and it earns itself. A `403` is what a site returns when the
+/// downloader asked correctly and was refused anyway — which in practice means
+/// its build is old enough that the site no longer accepts the client it
+/// presents itself as. Passed through untouched it reads as a fault in Cadenza,
+/// and two people hit it on two machines without either knowing there was
+/// anything to do.
+///
+/// The remedy is `yt-dlp`'s own updater rather than whatever installed it: the
+/// winget package sat two months behind the releases it packages, so the
+/// obvious command reports that everything is current while nothing works.
+fn explain(reason: &str) -> String {
+    if reason.contains("403") || reason.contains("Forbidden") {
+        return format!("{reason} — yt-dlp is likely out of date; run: yt-dlp -U");
+    }
+
+    reason.to_owned()
+}
+
 impl FetchPort for ExternalFetcher {
     fn missing(&self) -> Vec<MissingTool> {
         let mut missing = Vec::new();
@@ -272,7 +292,7 @@ impl FetchPort for ExternalFetcher {
                     || "the download did not finish".to_owned(),
                     |line| line.trim_start_matches("ERROR: ").to_owned(),
                 );
-            return Err(CoreError::invalid("link", reason));
+            return Err(CoreError::invalid("link", explain(&reason)));
         }
 
         let mp3 = std::fs::read_dir(&workspace)
@@ -298,7 +318,21 @@ impl FetchPort for ExternalFetcher {
 
 #[cfg(test)]
 mod tests {
-    use super::{free_name, percentage};
+    use super::{explain, free_name, percentage};
+
+    #[test]
+    fn a_refusal_carries_the_one_thing_that_answers_it() {
+        let refused = explain("unable to download video data: HTTP Error 403: Forbidden");
+        assert!(refused.contains("403"), "what it said is still there");
+        assert!(refused.contains("yt-dlp -U"), "and what to do about it");
+
+        // Everything else is passed through as it came. A guess appended to an
+        // error nobody understands is worse than the error alone.
+        assert_eq!(
+            explain("Video unavailable. This video is private"),
+            "Video unavailable. This video is private"
+        );
+    }
 
     #[test]
     fn a_percentage_is_read_out_of_a_progress_line() {
