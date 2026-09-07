@@ -77,6 +77,8 @@ export component AppWindow inherits Window {
     in property <int> fetch-percent;
     in property <string> fetch-note;
     in property <bool> fetch-needs-folder;
+    /// What the one offered button would do, or empty for no button.
+    in property <string> fetch-offer;
     in property <[TrackRowData]> queue-tracks;
     in property <string> queue-summary;
     in property <string> queue-hint;
@@ -182,6 +184,7 @@ export component AppWindow inherits Window {
     callback fetch(string);
     callback fetch-playlist(string);
     callback stop-fetch();
+    callback fix-fetch();
     callback make-local-folder();
     callback play-from-playlist(string);
     callback toggle-play();
@@ -382,8 +385,12 @@ export component AppWindow inherits Window {
         fetch-percent: root.fetch-percent;
         fetch-note: root.fetch-note;
         fetch-needs-folder: root.fetch-needs-folder;
+        fetch-offer: root.fetch-offer;
         fetch-playlist(address) => {
             root.fetch-playlist(address);
+        }
+        fix-fetch() => {
+            root.fix-fetch();
         }
         stop-fetch() => {
             root.stop-fetch();

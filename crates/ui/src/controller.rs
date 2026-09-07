@@ -74,6 +74,29 @@ const NO_MATCH_HINT: &str = "no track here answers to that";
 /// What to do when a playlist has nothing in it.
 const EMPTY_PLAYLIST_HINT: &str = "add tracks from the library\nwith the ··· at the end of a row";
 
+/// What the one offered button would do, when there is one.
+///
+/// Two things go wrong in a way a listener can put right — the programs are
+/// not installed, and the installed one has fallen behind — and both are
+/// answered by pressing once. One button rather than two, because only one of
+/// them is ever true at a time and a row of buttons that are usually both
+/// wrong teaches people to read none of them.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Offer {
+    Install,
+    Update,
+}
+
+impl Offer {
+    /// What the button says.
+    const fn label(self) -> &'static str {
+        match self {
+            Self::Install => "INSTALL",
+            Self::Update => "UPDATE",
+        }
+    }
+}
+
 /// What a fetch running on another thread has got to.
 ///
 /// Shared with that thread and read by the tick, which is the same arrangement
@@ -103,6 +126,10 @@ struct Fetching {
 enum Ended {
     /// It is in the library.
     Landed(String),
+    /// It did not work, and one press would fix it.
+    Offer(String, Offer),
+    /// The fixing is done: what it said, and the thing to try again.
+    Fixed(String),
     /// There was nowhere to put it, and Cadenza can fix that.
     NeedsFolder(String),
     /// Anything else: a bad link, a missing program, a refusal at the far end.
@@ -117,6 +144,11 @@ pub struct Controller {
     profile: RefCell<Option<Profile>>,
     /// What the library is being filtered by, if anything.
     query: RefCell<String>,
+    /// What the offered button would do, while one is offered.
+    offer: Cell<Option<Offer>>,
+    /// What the last press asked for, so that fixing the reason it failed can
+    /// then do the thing that failed.
+    asked_for: Cell<FetchWhat>,
     /// The library as it was last read, which is what a search filters.
     ///
     /// Kept because searching used to read the whole table again for every
@@ -181,6 +213,8 @@ impl Controller {
             window,
             profile,
             query: RefCell::new(String::new()),
+            offer: Cell::new(None),
+            asked_for: Cell::new(FetchWhat::OneTrack),
             shown_library: RefCell::new(Vec::new()),
             showing_cover: RefCell::new(String::new()),
             open_playlist: RefCell::new(None),
@@ -1636,6 +1670,8 @@ impl Controller {
     /// back the way everything off the event loop does: written into shared
     /// state and read by the tick.
     fn fetch(&self, link: &str, what: FetchWhat) {
+        self.asked_for.set(what);
+
         // One at a time. Two downloads writing into one folder is a race for a
         // filename, and there is nowhere in this head to show a second
         // percentage anyway.
@@ -1695,9 +1731,15 @@ impl Controller {
                     "a track needs somewhere to land — Cadenza can make {}",
                     path.display()
                 )),
+                // Not a dead end any more. What is missing is named, and the
+                // button beside it installs exactly that.
                 Ok(Fetched::NeedsTools(missing)) => {
-                    Ended::Failed(library_vm::tools_needed(&missing))
+                    Ended::Offer(library_vm::tools_needed(&missing), Offer::Install)
                 }
+                Ok(Fetched::NeedsUpdate(said)) => Ended::Offer(
+                    format!("{said} — yt-dlp has probably fallen behind"),
+                    Offer::Update,
+                ),
                 Err(err) => Ended::Failed(err.to_string()),
             };
 
@@ -1764,8 +1806,89 @@ impl Controller {
             Ended::Failed(said) => {
                 window.set_fetch_note(said.into());
                 window.set_fetch_needs_folder(false);
+                self.offer.set(None);
+                window.set_fetch_offer(String::new().into());
+            }
+            Ended::Offer(said, offer) => {
+                window.set_fetch_note(said.into());
+                window.set_fetch_needs_folder(false);
+                self.offer.set(Some(offer));
+                window.set_fetch_offer(offer.label().into());
+            }
+            // Straight on to the thing that failed, rather than asking the
+            // listener to press the button they already pressed: they said
+            // what they wanted, this was the obstacle, and the obstacle is
+            // gone.
+            Ended::Fixed(said) => {
+                window.set_fetch_note(said.into());
+                self.offer.set(None);
+                window.set_fetch_offer(String::new().into());
+
+                let link = window.get_link().to_string();
+                if !link.trim().is_empty() {
+                    self.fetch(&link, self.asked_for.get());
+                }
             }
         }
+    }
+
+    /// Does the one thing that would make the last press work, and then makes
+    /// that press again.
+    ///
+    /// Installing through the machine's own package manager, or updating
+    /// through the downloader's own updater. Never without being asked: this
+    /// runs from a button that says what it is about to do.
+    pub fn fix_fetch(&self) {
+        let Some(offer) = self.offer.get() else {
+            return;
+        };
+        if self.fetching.running.swap(true, Ordering::Relaxed) {
+            return;
+        }
+
+        let library = Arc::clone(&self.services.library);
+        let state = Arc::clone(&self.fetching);
+
+        state.percent.store(0, Ordering::Relaxed);
+        state.item.store(0, Ordering::Relaxed);
+        state.of.store(0, Ordering::Relaxed);
+        *state
+            .finished
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner) = None;
+
+        if let Some(window) = self.window.upgrade() {
+            window.set_fetching(true);
+            window.set_fetch_offer(String::new().into());
+            window.set_fetch_note(
+                match offer {
+                    Offer::Install => "installing what this needs…",
+                    Offer::Update => "updating yt-dlp…",
+                }
+                .into(),
+            );
+        }
+
+        std::thread::spawn(move || {
+            let ended = match offer {
+                Offer::Install => match library.install_tools(&|_| {}) {
+                    Ok(missing) if missing.is_empty() => {
+                        Ended::Fixed("installed — trying again".to_owned())
+                    }
+                    Ok(missing) => Ended::Failed(library_vm::tools_needed(&missing)),
+                    Err(err) => Ended::Failed(err.to_string()),
+                },
+                Offer::Update => match library.update_downloader(&|_| {}) {
+                    Ok(spoke) => Ended::Fixed(format!("{spoke} — trying again")),
+                    Err(err) => Ended::Failed(err.to_string()),
+                },
+            };
+            *state
+                .finished
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner) = Some(ended);
+            state.running.store(false, Ordering::Relaxed);
+        });
     }
 
     /// Makes the folder Cadenza suggests, and carries on with what was asked.

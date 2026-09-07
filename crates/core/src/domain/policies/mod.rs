@@ -14,6 +14,7 @@ pub mod analysis_policy;
 pub mod artwork_policy;
 pub mod duplicate_policy;
 pub mod eq_policy;
+pub mod fetch_policy;
 pub mod history_policy;
 pub mod link_policy;
 pub mod playback_policy;

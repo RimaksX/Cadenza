@@ -304,6 +304,11 @@ fn wire(window: &AppWindow, controller: &Rc<Controller>) {
         move || controller.stop_fetch()
     });
 
+    window.on_fix_fetch({
+        let controller = Rc::clone(controller);
+        move || controller.fix_fetch()
+    });
+
     window.on_make_local_folder({
         let controller = Rc::clone(controller);
         move || controller.make_local_folder()

@@ -28,6 +28,21 @@ const DOWNLOADER: &str = "yt-dlp";
 /// What turns whatever came down into an mp3.
 const CONVERTER: &str = "ffmpeg";
 
+/// The package manager that comes with Windows.
+///
+/// Cadenza installs nothing itself. It asks the thing that installs software on
+/// this machine to install software on this machine, which is the same posture
+/// as handing a link to `yt-dlp`: the program that does the work is the
+/// program whose job it is.
+const PACKAGES: &str = "winget";
+
+/// What this needs, and what each one is called where it is installed from.
+///
+/// The identifier is exact on purpose. `winget install yt-dlp` matches both the
+/// package and something else in the Microsoft Store and refuses to choose,
+/// which is where somebody told to "install yt-dlp" actually ends up.
+const TOOLS: [(&str, &str); 2] = [(DOWNLOADER, "yt-dlp.yt-dlp"), (CONVERTER, "Gyan.FFmpeg")];
+
 /// Starts `yt-dlp` and waits for it.
 pub struct ExternalFetcher {
     /// Where the list of what has already been brought down is kept.
@@ -232,22 +247,106 @@ fn explain(reason: &str) -> String {
 
 impl FetchPort for ExternalFetcher {
     fn missing(&self) -> Vec<MissingTool> {
-        let mut missing = Vec::new();
+        TOOLS
+            .iter()
+            .filter(|(program, _)| locate(program).is_none())
+            .map(|(program, package)| MissingTool {
+                name: (*program).to_owned(),
+                install: format!("{PACKAGES} install {package}"),
+            })
+            .collect()
+    }
 
-        if locate(DOWNLOADER).is_none() {
-            missing.push(MissingTool {
-                name: DOWNLOADER.to_owned(),
-                install: "winget install yt-dlp.yt-dlp".to_owned(),
-            });
-        }
-        if locate(CONVERTER).is_none() {
-            missing.push(MissingTool {
-                name: CONVERTER.to_owned(),
-                install: "winget install Gyan.FFmpeg".to_owned(),
-            });
+    fn install(&self, said: &dyn Fn(&str)) -> Result<Vec<MissingTool>> {
+        let Some(packages) = locate(PACKAGES) else {
+            return Err(CoreError::invalid(
+                "link",
+                format!(
+                    "{PACKAGES} is not on this machine, so nothing here can install anything —                      the two programs can still be installed by hand"
+                ),
+            ));
+        };
+
+        for (program, package) in TOOLS {
+            if locate(program).is_some() {
+                continue;
+            }
+
+            said(&format!("installing {program}…"));
+
+            let output = quietly(&packages)
+                .args(["install", "--id", package, "--exact"])
+                // Every question answered in advance, because there is nobody
+                // to answer them: this runs with no console and no input.
+                .args([
+                    "--silent",
+                    "--accept-package-agreements",
+                    "--accept-source-agreements",
+                    "--disable-interactivity",
+                ])
+                .stdout(Stdio::piped())
+                .stderr(Stdio::piped())
+                .stdin(Stdio::null())
+                .output()
+                .map_err(|err| {
+                    CoreError::FileSystem(format!("{PACKAGES} would not start: {err}"))
+                })?;
+
+            // Read as bytes and decoded loosely, like everything else a child
+            // says here: `winget` draws progress bars and speaks the machine's
+            // own language, and neither is promised to be UTF-8
+            // (`MASTER_ISSUES` 90).
+            let last = String::from_utf8_lossy(&output.stdout)
+                .lines()
+                .map(str::trim)
+                .rfind(|line| !line.is_empty())
+                .unwrap_or_default()
+                .to_owned();
+
+            if !output.status.success() {
+                said(&format!("{program} was not installed: {last}"));
+            }
         }
 
-        missing
+        // Asked again rather than inferred from the exit codes: what matters is
+        // whether the program is there now, and that is a question with a
+        // definite answer.
+        Ok(self.missing())
+    }
+
+    fn update(&self, said: &dyn Fn(&str)) -> Result<String> {
+        let Some(downloader) = locate(DOWNLOADER) else {
+            return Err(CoreError::invalid(
+                "link",
+                format!("{DOWNLOADER} is not installed, so there is nothing to update"),
+            ));
+        };
+
+        said("updating yt-dlp…");
+
+        let output = quietly(&downloader)
+            .arg("--update")
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .stdin(Stdio::null())
+            .output()
+            .map_err(|err| CoreError::FileSystem(format!("{DOWNLOADER} would not start: {err}")))?;
+
+        // Its own words, whichever stream it chose to say them on: "up to date"
+        // and "updated to stable@…" both arrive on stdout, and a refusal on
+        // stderr.
+        let mut spoke = String::from_utf8_lossy(&output.stdout).into_owned();
+        spoke.push('\n');
+        spoke.push_str(&String::from_utf8_lossy(&output.stderr));
+
+        let last = spoke
+            .lines()
+            .map(str::trim)
+            .rfind(|line| !line.is_empty())
+            .unwrap_or("yt-dlp said nothing")
+            .to_owned();
+
+        Ok(last)
     }
 
     fn fetch(

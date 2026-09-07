@@ -29,6 +29,7 @@ export component AppShell inherits Rectangle {
     in property <int> fetch-percent;
     in property <string> fetch-note;
     in property <bool> fetch-needs-folder;
+    in property <string> fetch-offer;
     in property <string> empty-hint;
     in property <[TrackRowData]> queue-tracks;
     in property <string> queue-summary;
@@ -154,6 +155,7 @@ export component AppShell inherits Rectangle {
     callback fetch(string);
     callback fetch-playlist(string);
     callback stop-fetch();
+    callback fix-fetch();
     callback make-local-folder();
     callback play-from-playlist(string);
     callback toggle-play();
@@ -253,8 +255,12 @@ export component AppShell inherits Rectangle {
                 fetch-percent: root.fetch-percent;
                 fetch-note: root.fetch-note;
                 fetch-needs-folder: root.fetch-needs-folder;
+                fetch-offer: root.fetch-offer;
                 fetch-playlist(address) => {
                     root.fetch-playlist(address);
+                }
+                fix-fetch() => {
+                    root.fix-fetch();
                 }
                 stop-fetch() => {
                     root.stop-fetch();

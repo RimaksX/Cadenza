@@ -45,11 +45,28 @@ struct FakeFetcher {
     asked: Mutex<Vec<String>>,
     /// Set once it has run, so a test can prove it did not.
     ran: AtomicBool,
+    /// Set once the missing programs have been installed through it.
+    installed: Mutex<bool>,
+    /// What it refuses with, where a test is about a refusal.
+    refuse: Option<String>,
 }
 
 impl FetchPort for FakeFetcher {
     fn missing(&self) -> Vec<MissingTool> {
         self.missing.clone()
+    }
+
+    fn install(&self, said: &dyn Fn(&str)) -> cadenza_core::Result<Vec<MissingTool>> {
+        said("installing");
+        // A fake package manager that always works, so that what is under test
+        // is what the service does about it rather than what winget does.
+        *self.installed.lock().expect("the record") = true;
+        Ok(Vec::new())
+    }
+
+    fn update(&self, said: &dyn Fn(&str)) -> cadenza_core::Result<String> {
+        said("updating");
+        Ok("yt-dlp is up to date".to_owned())
     }
 
     fn fetch(
@@ -62,6 +79,10 @@ impl FetchPort for FakeFetcher {
     ) -> cadenza_core::Result<FetchedTracks> {
         self.ran.store(true, Ordering::Relaxed);
         self.asked.lock().expect("the record").push(link.to_owned());
+
+        if let Some(refusal) = self.refuse.as_deref() {
+            return Err(cadenza_core::CoreError::invalid("link", refusal));
+        }
 
         // A listener who pressed stop before anything started gets what a
         // listener who pressed stop before anything started should get.
@@ -477,5 +498,92 @@ fn one_track_makes_no_playlist() {
     assert!(
         harness.playlists.list().expect("the playlists").is_empty(),
         "one track is a track, not a list of one"
+    );
+}
+
+#[test]
+fn a_refusal_that_reads_like_a_stale_copy_becomes_an_offer() {
+    let harness = harness(
+        "stale",
+        FakeFetcher {
+            refuse: Some("unable to download video data: HTTP Error 403: Forbidden".to_owned()),
+            ..FakeFetcher::default()
+        },
+    );
+    harness
+        .library
+        .use_suggested_folder()
+        .expect("the local folder");
+
+    let outcome = harness
+        .library
+        .fetch_from_link(
+            "https://example.com/watch?v=abc",
+            FetchWhat::OneTrack,
+            &nothing,
+            &carry_on,
+        )
+        .expect("a refusal that can be answered is not an error");
+
+    // What it said is still there. The offer is what is added to it, not what
+    // replaces it: "403" is the truest thing anybody can be told about this.
+    let Fetched::NeedsUpdate(said) = outcome else {
+        panic!("a stale-looking refusal should offer an update, and gave {outcome:?}");
+    };
+    assert!(said.contains("403"), "and it still says what happened");
+}
+
+#[test]
+fn a_refusal_about_the_link_is_not_an_offer_to_update() {
+    let harness = harness(
+        "private",
+        FakeFetcher {
+            refuse: Some("Video unavailable. This video is private".to_owned()),
+            ..FakeFetcher::default()
+        },
+    );
+    harness
+        .library
+        .use_suggested_folder()
+        .expect("the local folder");
+
+    // No amount of updating answers this one, and an offer that never works is
+    // an offer nobody reads by the third time.
+    assert!(
+        harness
+            .library
+            .fetch_from_link(
+                "https://example.com/watch?v=abc",
+                FetchWhat::OneTrack,
+                &nothing,
+                &carry_on,
+            )
+            .is_err()
+    );
+}
+
+#[test]
+fn installing_clears_what_was_missing() {
+    let harness = harness(
+        "toolless",
+        FakeFetcher {
+            missing: vec![MissingTool {
+                name: "yt-dlp".to_owned(),
+                install: "winget install yt-dlp.yt-dlp".to_owned(),
+            }],
+            ..FakeFetcher::default()
+        },
+    );
+
+    let told = std::cell::RefCell::new(Vec::new());
+    let still_missing = harness
+        .library
+        .install_tools(&|line| told.borrow_mut().push(line.to_owned()))
+        .expect("an install");
+
+    assert!(still_missing.is_empty(), "nothing is missing afterwards");
+    assert!(
+        !told.borrow().is_empty(),
+        "and it said what it was doing while it did it"
     );
 }

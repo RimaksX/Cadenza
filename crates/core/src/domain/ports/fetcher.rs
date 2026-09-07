@@ -97,6 +97,26 @@ pub trait FetchPort: Send + Sync {
     /// them: a playlist somebody changed their mind about has to end when they
     /// say so and not when it finishes. Both run on whatever thread called
     /// this, which is never the one drawing the window.
+    /// Installs whatever [`Self::missing`] reported, and says what is still
+    /// missing afterwards.
+    ///
+    /// Through the machine's own package manager, which is the same posture as
+    /// everything else here: Cadenza opens no connection, it runs a program
+    /// that is already on the machine and lets that program do its job. What
+    /// it runs is reported line by line through `said`, because installing
+    /// something on somebody's computer is not a thing to do behind a spinner
+    /// (`MASTER_ISSUES` 96).
+    fn install(&self, said: &dyn Fn(&str)) -> Result<Vec<MissingTool>>;
+
+    /// Brings the downloader up to date with its own updater, and says what it
+    /// said.
+    ///
+    /// Its own rather than the package manager's, measured rather than assumed:
+    /// the package in `winget` on the machine this was written on was six weeks
+    /// behind the copy that was actually running, because the copy had already
+    /// updated itself.
+    fn update(&self, said: &dyn Fn(&str)) -> Result<String>;
+
     fn fetch(
         &self,
         link: &str,

@@ -17,6 +17,7 @@ use crate::domain::ids::{
 use crate::domain::media_file::{FileState, MediaFile, is_supported_extension};
 use crate::domain::policies::artwork_policy::looks_like_an_image;
 use crate::domain::policies::duplicate_policy::{self, DuplicateVerdict};
+use crate::domain::policies::fetch_policy::looks_out_of_date;
 use crate::domain::policies::link_policy::{is_a_link, locked_service};
 use crate::domain::ports::artwork_cache::{ArtworkCachePort, CoverOf};
 use crate::domain::ports::event_bus::DomainEvent;
@@ -135,6 +136,12 @@ pub enum Fetched {
     NeedsLocalFolder(PathBuf),
     /// The machine has not got what it takes to fetch anything.
     NeedsTools(Vec<MissingTool>),
+    /// It failed in one of the ways a downloader that has fallen behind fails.
+    ///
+    /// Carries what it said, because that is still the truest thing anybody
+    /// can be told — the offer to update is what is added to it, not what
+    /// replaces it.
+    NeedsUpdate(String),
 }
 
 /// What importing one file did.
@@ -353,7 +360,17 @@ impl LibraryService {
             return Ok(Fetched::NeedsLocalFolder(would_be));
         };
 
-        let brought = fetcher.fetch(link, &folder, what, progress, stop)?;
+        let brought = match fetcher.fetch(link, &folder, what, progress, stop) {
+            Ok(brought) => brought,
+            // A refusal that reads like a stale copy is an offer rather than an
+            // error: the listener can fix it by pressing one thing, and being
+            // told so beats being told what went wrong (`MASTER_ISSUES` 96).
+            Err(CoreError::Invalid { field, reason }) if looks_out_of_date(&reason) => {
+                debug_assert_eq!(field, "link");
+                return Ok(Fetched::NeedsUpdate(reason));
+            }
+            Err(err) => return Err(err),
+        };
         let files = brought.files;
 
         // From here they are ordinary files that appeared in a watched folder,
@@ -430,6 +447,28 @@ impl LibraryService {
         }
 
         Ok(())
+    }
+
+    /// Installs the programs a fetch needs, through the machine's own package
+    /// manager, and says what is still missing afterwards.
+    ///
+    /// Empty means it worked. `said` is called as it goes, because installing
+    /// something on somebody's computer is not a thing to do behind a spinner.
+    pub fn install_tools(&self, said: &dyn Fn(&str)) -> Result<Vec<MissingTool>> {
+        let fetcher = self.ports.fetcher.as_ref().ok_or_else(|| {
+            CoreError::invalid("link", "this copy cannot fetch anything from a link")
+        })?;
+
+        fetcher.install(said)
+    }
+
+    /// Brings the downloader up to date, and hands back what it said about it.
+    pub fn update_downloader(&self, said: &dyn Fn(&str)) -> Result<String> {
+        let fetcher = self.ports.fetcher.as_ref().ok_or_else(|| {
+            CoreError::invalid("link", "this copy cannot fetch anything from a link")
+        })?;
+
+        fetcher.update(said)
     }
 
     /// What dropping files and folders onto the window means.

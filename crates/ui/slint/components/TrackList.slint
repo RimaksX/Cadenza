@@ -65,6 +65,12 @@ export component TrackList inherits Rectangle {
     /// True where the fetch stopped because there is nowhere to put anything.
     /// The offer to make the folder appears with it.
     in property <bool> fetch-needs-folder;
+    /// What the one offered button would do, or empty for no button.
+    ///
+    /// A label rather than a flag, because the two things it offers — install
+    /// what is missing, update what has fallen behind — are never both true and
+    /// the word on the button is the whole of the difference.
+    in property <string> fetch-offer;
 
     callback play(string);
     callback enqueue(string);
@@ -83,6 +89,8 @@ export component TrackList inherits Rectangle {
     callback fetch-playlist(string);
     /// Enough. What has finished is kept.
     callback stop-fetch();
+    /// Do the thing the offer says, then try again.
+    callback fix-fetch();
     callback make-local-folder();
 
     background: Theme.bg-0;
@@ -286,6 +294,18 @@ export component TrackList inherits Rectangle {
                     destructive: true;
                     pressed => {
                         root.stop-fetch();
+                    }
+                }
+
+                // Beside the words that explain why nothing happened, so
+                // that the reason and the answer to it are one object.
+                if !root.fetching && root.fetch-offer != "": TextButton {
+                    label: root.fetch-offer;
+                    fixed-width: Theme.px(140);
+                    height: Theme.px(40);
+                    primary: true;
+                    pressed => {
+                        root.fix-fetch();
                     }
                 }
 
