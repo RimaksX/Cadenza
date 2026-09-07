@@ -1156,3 +1156,54 @@ fn switching_listener_puts_the_other_ones_queue_away() {
     harness.queue.reload();
     assert_eq!(harness.listed(), vec!["four", "three"]);
 }
+
+#[test]
+fn pressing_shuffle_reorders_the_playlist_already_playing() {
+    let harness = harness();
+    let library = SqliteTrackRepository::new(harness.db.pool().clone())
+        .summaries_for_profile(harness.profile_id)
+        .expect("a library");
+
+    harness
+        .queue
+        .play_playlist(PlaylistId::new(), &library, harness.tracks[0])
+        .expect("played");
+
+    let order = |harness: &Harness| -> Vec<MediaFileId> {
+        harness
+            .queue
+            .upcoming()
+            .expect("queued")
+            .iter()
+            .map(|track| track.media_file_id)
+            .collect()
+    };
+
+    let before = order(&harness);
+    assert!(before.len() > 1, "there has to be something to reorder");
+
+    // Six goes, because a shuffle is allowed to return the order it was given
+    // and a test that fails one run in twenty-four is a test nobody trusts.
+    // What is being asserted is that pressing it does something, not that any
+    // particular permutation comes out.
+    let mut moved = false;
+    for _ in 0..6 {
+        harness.queue.toggle_shuffle().expect("shuffled");
+        let after = order(&harness);
+
+        assert_eq!(
+            after.len(),
+            before.len(),
+            "shuffling loses nothing and invents nothing"
+        );
+        assert!(
+            after.iter().all(|track| before.contains(track)),
+            "and it is the same tracks in a different order"
+        );
+
+        moved |= after != before;
+        harness.queue.toggle_shuffle().expect("unshuffled");
+    }
+
+    assert!(moved, "pressing shuffle left the playlist in its own order");
+}

@@ -59,6 +59,13 @@ pub struct LibraryPorts {
     pub genres: Arc<dyn GenreRepositoryPort>,
     /// The import review queue.
     pub reviews: Arc<dyn ImportReviewRepositoryPort>,
+    /// Where a playlist brought in from a link becomes a playlist here.
+    ///
+    /// The service rather than the repository, because "make a playlist" has
+    /// rules — a name has to be valid and unique to the profile — and they are
+    /// written down once, there. Optional like the watcher: a command that
+    /// scans a folder has no playlists to make.
+    pub playlists: Option<Arc<super::PlaylistService>>,
     /// The system's folder chooser, and its opinion about where music lives.
     pub picker: Arc<dyn FolderPickerPort>,
     /// The watcher that keeps the library current, when there is one.
@@ -346,7 +353,8 @@ impl LibraryService {
             return Ok(Fetched::NeedsLocalFolder(would_be));
         };
 
-        let files = fetcher.fetch(link, &folder, what, progress, stop)?;
+        let brought = fetcher.fetch(link, &folder, what, progress, stop)?;
+        let files = brought.files;
 
         // From here they are ordinary files that appeared in a watched folder,
         // and they go through the same import as one somebody copied in — the
@@ -360,6 +368,22 @@ impl LibraryService {
         if files.is_empty() {
             return Ok(Fetched::NothingNew);
         }
+
+        // A playlist that came in as a playlist becomes one here, under the
+        // name it had where it came from. Forty tracks landing loose in a
+        // library is forty tracks somebody has to gather up by hand — and the
+        // thing they were part of is exactly what they pasted.
+        //
+        // Failing to make it is not failing to fetch: the tracks are in the
+        // library either way, and that is what was asked for.
+        if let Some(name) = brought.playlist.as_deref()
+            && let Err(err) = self.gather_into_playlist(name, &files)
+        {
+            self.context.warn(&format!(
+                "the tracks came in but the playlist did not: {err}"
+            ));
+        }
+
         self.context.events.publish(DomainEvent::LibraryChanged);
 
         // One track is named; forty are counted. Naming the first of forty
@@ -374,6 +398,38 @@ impl LibraryService {
         }
 
         Ok(Fetched::LandedMany(files.len()))
+    }
+
+    /// Puts what just arrived into a playlist of that name, making it if it is
+    /// new and adding to it if it is not.
+    ///
+    /// Adding rather than refusing, because that is what a second press means:
+    /// a playlist fetched again brings whatever was added to it since, and
+    /// those tracks belong with the ones already here. A track already in the
+    /// playlist is not added twice — `add_track` is what decides that.
+    fn gather_into_playlist(&self, name: &str, files: &[PathBuf]) -> Result<()> {
+        let Some(playlists) = self.ports.playlists.as_ref() else {
+            return Ok(());
+        };
+
+        let existing = playlists
+            .list()?
+            .into_iter()
+            .map(|summary| summary.playlist)
+            .find(|playlist| playlist.name.as_str().eq_ignore_ascii_case(name));
+
+        let playlist = match existing {
+            Some(playlist) => playlist,
+            None => playlists.create(name)?,
+        };
+
+        for file in files {
+            if let Some(media_file) = self.ports.media_files.find_by_path(file)? {
+                playlists.add_track(playlist.id, media_file.id)?;
+            }
+        }
+
+        Ok(())
     }
 
     /// What dropping files and folders onto the window means.

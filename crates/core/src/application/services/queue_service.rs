@@ -333,7 +333,7 @@ impl QueueService {
     /// library is only what happens in the absence of one.
     fn step(&self) -> Result<Option<QueueEntry>> {
         if self.with_queue(|queue| queue.following().is_some()) {
-            return Ok(self.write_queue(Queue::advance));
+            return Ok(self.write_queue(|queue| queue.advance(seed())));
         }
 
         match self.library_successor()? {
@@ -343,7 +343,7 @@ impl QueueService {
             }
             // Nothing queued and nothing after it: `advance` is what puts the
             // finished track into history on the way to stopping.
-            None => Ok(self.write_queue(Queue::advance)),
+            None => Ok(self.write_queue(|queue| queue.advance(seed()))),
         }
     }
 

@@ -64,6 +64,20 @@ pub struct FetchProgress {
     pub item: Option<(u32, u32)>,
 }
 
+/// What came back.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct FetchedTracks {
+    /// The mp3s, in the order the playlist held them.
+    pub files: Vec<PathBuf>,
+    /// What the playlist is called, where a playlist is what was asked for.
+    ///
+    /// The downloader knows it — it prints it before the first track — and it
+    /// is the only name anybody would recognise. The album tag is not it: half
+    /// a mixtape carries no album at all, and the other half carries forty
+    /// different ones.
+    pub playlist: Option<String>,
+}
+
 /// Running somebody else's downloader on the listener's behalf.
 pub trait FetchPort: Send + Sync {
     /// Which of the programs this needs are not on this machine.
@@ -90,5 +104,5 @@ pub trait FetchPort: Send + Sync {
         what: FetchWhat,
         progress: &dyn Fn(FetchProgress),
         stop: &dyn Fn() -> bool,
-    ) -> Result<Vec<PathBuf>>;
+    ) -> Result<FetchedTracks>;
 }

@@ -12,14 +12,18 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
-use cadenza_core::application::services::{Fetched, LibraryPorts, LibraryService};
+use cadenza_core::application::services::{
+    Fetched, LibraryPorts, LibraryService, PlaylistPorts, PlaylistService,
+};
 use cadenza_core::application::{AppContext, ProfileService};
-use cadenza_core::domain::ports::fetcher::{FetchPort, FetchProgress, FetchWhat, MissingTool};
+use cadenza_core::domain::ports::fetcher::{
+    FetchPort, FetchProgress, FetchWhat, FetchedTracks, MissingTool,
+};
 use cadenza_core::domain::ports::folder_picker::FolderPickerPort;
 use cadenza_infra::db::repositories::{
     SqliteAlbumRepository, SqliteArtistRepository, SqliteGenreRepository,
-    SqliteImportReviewRepository, SqliteMediaFileRepository, SqliteProfileRepository,
-    SqliteSettingsRepository, SqliteTrackRepository,
+    SqliteImportReviewRepository, SqliteMediaFileRepository, SqlitePlaylistRepository,
+    SqliteProfileRepository, SqliteSettingsRepository, SqliteTrackRepository,
 };
 use cadenza_infra::events::InProcessEventBus;
 use cadenza_infra::library::LocalFileSystem;
@@ -55,14 +59,14 @@ impl FetchPort for FakeFetcher {
         what: FetchWhat,
         progress: &dyn Fn(FetchProgress),
         stop: &dyn Fn() -> bool,
-    ) -> cadenza_core::Result<Vec<PathBuf>> {
+    ) -> cadenza_core::Result<FetchedTracks> {
         self.ran.store(true, Ordering::Relaxed);
         self.asked.lock().expect("the record").push(link.to_owned());
 
         // A listener who pressed stop before anything started gets what a
         // listener who pressed stop before anything started should get.
         if stop() {
-            return Ok(Vec::new());
+            return Ok(FetchedTracks::default());
         }
 
         let how_many = match what {
@@ -99,7 +103,13 @@ impl FetchPort for FakeFetcher {
             item: None,
         });
 
-        Ok(landed)
+        Ok(FetchedTracks {
+            files: landed,
+            // Named only when a playlist is what was asked for, the way the
+            // downloader only prints a name when there is one.
+            playlist: matches!(what, FetchWhat::WholePlaylist)
+                .then(|| "A Fetched Playlist".to_owned()),
+        })
     }
 }
 
@@ -120,6 +130,8 @@ impl FolderPickerPort for Suggesting {
 
 struct Harness {
     library: LibraryService,
+    /// The same service the library was handed, so a test can ask what it made.
+    playlists: Arc<PlaylistService>,
     fetcher: Arc<FakeFetcher>,
     /// Where the suggestion points, which is where a fetched track must land.
     local: PathBuf,
@@ -143,6 +155,17 @@ fn harness(tag: &str, fetcher: FakeFetcher) -> Harness {
         .expect("a profile");
 
     let fetcher = Arc::new(fetcher);
+    let playlists = Arc::new(PlaylistService::new(
+        Arc::clone(&context),
+        PlaylistPorts {
+            playlists: Arc::new(SqlitePlaylistRepository::new(db.pool().clone())),
+            tracks: Arc::new(SqliteTrackRepository::new(db.pool().clone())),
+            artwork: Arc::new(FileArtworkCache::new(db.directory().join("art")).expect("a cache")),
+            picker: Arc::new(Suggesting(local.clone())),
+            files: Arc::new(LocalFileSystem),
+        },
+    ));
+
     let ports = LibraryPorts {
         picker: Arc::new(Suggesting(local.clone())),
         files: Arc::new(LocalFileSystem),
@@ -156,10 +179,12 @@ fn harness(tag: &str, fetcher: FakeFetcher) -> Harness {
         reviews: Arc::new(SqliteImportReviewRepository::new(db.pool().clone())),
         watcher: None,
         fetcher: Some(Arc::clone(&fetcher) as _),
+        playlists: Some(Arc::clone(&playlists)),
     };
 
     Harness {
         library: LibraryService::new(context, ports),
+        playlists,
         fetcher,
         local,
         _db: db,
@@ -400,5 +425,57 @@ fn stopping_leaves_the_library_where_it_was() {
     assert!(
         harness.library.tracks().expect("the library").is_empty(),
         "nothing half-fetched was imported"
+    );
+}
+
+#[test]
+fn a_playlist_that_arrived_as_one_becomes_one() {
+    let harness = harness("gathered", FakeFetcher::default());
+    harness
+        .library
+        .use_suggested_folder()
+        .expect("the local folder");
+
+    harness
+        .library
+        .fetch_from_link(
+            "https://example.com/watch?v=abc&list=xyz",
+            FetchWhat::WholePlaylist,
+            &nothing,
+            &carry_on,
+        )
+        .expect("a fetch");
+
+    // Forty tracks landing loose in a library is forty tracks somebody has to
+    // gather up by hand, and the thing they were part of is what they pasted.
+    let made = harness.playlists.list().expect("the playlists");
+    let [only] = made.as_slice() else {
+        panic!("one playlist arrived and {} were made", made.len());
+    };
+    assert_eq!(only.playlist.name.as_str(), "A Fetched Playlist");
+    assert_eq!(only.track_count, 3, "with everything that came with it");
+}
+
+#[test]
+fn one_track_makes_no_playlist() {
+    let harness = harness("ungathered", FakeFetcher::default());
+    harness
+        .library
+        .use_suggested_folder()
+        .expect("the local folder");
+
+    harness
+        .library
+        .fetch_from_link(
+            "https://example.com/watch?v=abc",
+            FetchWhat::OneTrack,
+            &nothing,
+            &carry_on,
+        )
+        .expect("a fetch");
+
+    assert!(
+        harness.playlists.list().expect("the playlists").is_empty(),
+        "one track is a track, not a list of one"
     );
 }

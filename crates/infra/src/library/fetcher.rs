@@ -17,7 +17,9 @@ use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
-use cadenza_core::domain::ports::fetcher::{FetchPort, FetchProgress, FetchWhat, MissingTool};
+use cadenza_core::domain::ports::fetcher::{
+    FetchPort, FetchProgress, FetchWhat, FetchedTracks, MissingTool,
+};
 use cadenza_core::{CoreError, Result};
 
 /// The downloader itself.
@@ -119,6 +121,17 @@ fn lines_of(stream: impl std::io::Read) -> impl Iterator<Item = String> {
                 .trim_end_matches('\r')
                 .to_owned()
         })
+}
+
+/// The playlist's own name, out of `[download] Downloading playlist: Mixtape 11`.
+///
+/// Printed once, before the first track. It is the name the listener chose the
+/// thing by, which is why it is worth reading a line for.
+fn playlist_name(line: &str) -> Option<String> {
+    let name = line
+        .strip_prefix("[download] Downloading playlist: ")?
+        .trim();
+    (!name.is_empty()).then(|| name.to_owned())
 }
 
 /// Which track of how many, out of a `[download] Downloading item 3 of 40`.
@@ -244,7 +257,7 @@ impl FetchPort for ExternalFetcher {
         what: FetchWhat,
         progress: &dyn Fn(FetchProgress),
         stop: &dyn Fn() -> bool,
-    ) -> Result<Vec<PathBuf>> {
+    ) -> Result<FetchedTracks> {
         let downloader = locate(DOWNLOADER)
             .ok_or_else(|| CoreError::invalid("link", format!("{DOWNLOADER} is not installed")))?;
         let converter = locate(CONVERTER)
@@ -359,10 +372,16 @@ impl FetchPort for ExternalFetcher {
         // from here: a killed program exits without success and says nothing.
         let mut stopped = false;
 
+        let mut named = None;
+
         if let Some(stdout) = child.stdout.take() {
             let mut item = None;
 
             for line in lines_of(stdout) {
+                if let Some(name) = playlist_name(&line) {
+                    named = Some(name);
+                }
+
                 if stop() {
                     // Killed rather than asked. There is no polite way to end
                     // a download, and the workspace it was writing into is
@@ -423,7 +442,7 @@ impl FetchPort for ExternalFetcher {
             // here. Neither is a failure, and the caller says which by what it
             // asked for.
             if stopped || status.success() {
-                return Ok(Vec::new());
+                return Ok(FetchedTracks::default());
             }
 
             // The last thing it said, not everything: yt-dlp explains itself in
@@ -451,7 +470,10 @@ impl FetchPort for ExternalFetcher {
             percent: 100,
             item: None,
         });
-        Ok(landed)
+        Ok(FetchedTracks {
+            files: landed,
+            playlist: named,
+        })
     }
 }
 

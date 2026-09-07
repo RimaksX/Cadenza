@@ -11,8 +11,6 @@
 //! It exists because three rounds of guessing at somebody else's error message
 //! cost more than one run of the real thing would have (`MASTER_ISSUES` 90).
 
-use std::path::PathBuf;
-
 use cadenza_core::domain::ports::fetcher::{FetchPort, FetchWhat};
 use cadenza_infra::library::fetcher::ExternalFetcher;
 
@@ -28,7 +26,7 @@ fn a_link_comes_in_as_a_file() {
     // No archive: this test asks for the same link every time it is run, and a
     // record of having fetched it once would make every run after the first
     // prove nothing.
-    let landed: Vec<PathBuf> = ExternalFetcher::new(None)
+    let brought = ExternalFetcher::new(None)
         .fetch(
             LINK,
             &into,
@@ -42,8 +40,8 @@ fn a_link_comes_in_as_a_file() {
         )
         .unwrap_or_else(|err| panic!("what it actually said: {err}"));
 
-    let [file] = landed.as_slice() else {
-        panic!("one link, one track, and {} came back", landed.len());
+    let [file] = brought.files.as_slice() else {
+        panic!("one link, one track, and {} came back", brought.files.len());
     };
     println!("landed at {}", file.display());
     assert!(file.exists(), "the file is where it says it is");

@@ -115,6 +115,20 @@ fn run() -> std::result::Result<(), String> {
     let artwork: Arc<dyn ArtworkCachePort> =
         Arc::new(FileArtworkCache::new(paths.artwork_cache_dir()).map_err(|err| err.to_string())?);
 
+    // Before the library, which hands it the tracks a fetched playlist brought
+    // in: what arrived as a playlist becomes one here rather than forty loose
+    // tracks somebody has to gather up.
+    let playlists = Arc::new(PlaylistService::new(
+        Arc::clone(&context),
+        PlaylistPorts {
+            playlists: Arc::new(SqlitePlaylistRepository::new(pool.clone())),
+            tracks: Arc::new(SqliteTrackRepository::new(pool.clone())),
+            artwork: Arc::clone(&artwork),
+            picker: Arc::new(SystemFolderPicker),
+            files: Arc::new(LocalFileSystem),
+        },
+    ));
+
     let library = Arc::new(LibraryService::new(
         Arc::clone(&context),
         LibraryPorts {
@@ -132,17 +146,7 @@ fn run() -> std::result::Result<(), String> {
             fetcher: Some(Arc::new(ExternalFetcher::new(Some(
                 paths.fetch_archive_file(),
             )))),
-        },
-    ));
-
-    let playlists = Arc::new(PlaylistService::new(
-        Arc::clone(&context),
-        PlaylistPorts {
-            playlists: Arc::new(SqlitePlaylistRepository::new(pool.clone())),
-            tracks: Arc::new(SqliteTrackRepository::new(pool.clone())),
-            artwork: Arc::clone(&artwork),
-            picker: Arc::new(SystemFolderPicker),
-            files: Arc::new(LocalFileSystem),
+            playlists: Some(Arc::clone(&playlists)),
         },
     ));
 

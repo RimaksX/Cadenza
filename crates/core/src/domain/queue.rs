@@ -195,7 +195,9 @@ impl Queue {
     /// This is the whole advancement rule of PROJECT_MASTER 2.3 in one place:
     /// repeat one holds, the manual queue outranks the continuation, and repeat
     /// all refills from what has already played rather than stopping.
-    pub fn advance(&mut self) -> Option<QueueEntry> {
+    /// `seed` is used only for the refill: the domain has no entropy of its
+    /// own, and a round that comes back shuffled needs some.
+    pub fn advance(&mut self, seed: u64) -> Option<QueueEntry> {
         if self.repeat.holds_current_track() && self.current.is_some() {
             return self.current;
         }
@@ -205,10 +207,17 @@ impl Queue {
             && self.repeat == RepeatMode::All
             && self.holds_its_own_round()
         {
-            // Everything that has played goes back in front, in the order it
-            // played. The track that is ending is not among them yet — it is
-            // pushed below, and so leads the round after this one.
-            self.upcoming = self.history.drain(..).collect();
+            // Everything that has played goes back in front. In the order it
+            // played, unless shuffle is on — a second round in the first
+            // round's order is the one thing shuffle exists to prevent, and it
+            // was doing exactly that (`MASTER_ISSUES` 94). The track that is
+            // ending is not among them yet: it is pushed below, and so leads
+            // the round after this one.
+            let mut round = std::mem::take(&mut self.history);
+            if self.shuffle {
+                crate::domain::policies::shuffle_policy::shuffle(&mut round, seed);
+            }
+            self.upcoming = round.into();
 
             // A single track is still a list. With nothing else to rewind to,
             // repeat all means play it again.
@@ -274,6 +283,54 @@ impl Queue {
 
 #[cfg(test)]
 mod tests {
+    /// One seed for every test here. What a shuffle *does* is tested in
+    /// `shuffle_policy`; what these tests are about is which lane a track
+    /// comes from, and that answer must not depend on a throw of the dice.
+    const SEED: u64 = 7;
+
+    #[test]
+    fn a_second_round_under_shuffle_is_not_the_first_round_again() {
+        // A playlist, because a library track continues by itself: repeat all
+        // over the library means the next row, not the round just played, and
+        // `holds_its_own_round` is where that is decided.
+        let list = QueueOrigin::Playlist(PlaylistId::new());
+        let played: Vec<QueueEntry> = (0..8).map(|_| entry(list)).collect();
+
+        // The state at the end of a list: everything has played, repeat all is
+        // on, and shuffle is on. What comes back is the whole round.
+        let round = |seed: u64| -> Vec<QueueEntry> {
+            let mut queue = Queue::new(ProfileId::new());
+            queue.repeat = RepeatMode::All;
+            queue.shuffle = true;
+            queue.history = played.clone();
+            queue.current = Some(entry(list));
+
+            // `advance` refills and then takes the first of the refill, so
+            // the round is what it moved to followed by what is left waiting.
+            let moved_to = queue.advance(seed);
+            moved_to
+                .into_iter()
+                .chain(queue.upcoming.iter().copied())
+                .collect()
+        };
+
+        let first = round(1);
+        assert_eq!(first.len(), played.len(), "the round comes back whole");
+        assert!(
+            first.iter().all(|track| played.contains(track)),
+            "and it is the same tracks"
+        );
+
+        // Six seeds, because a shuffle is allowed to return the order it was
+        // given and a test that fails one run in forty thousand is still a
+        // test that fails. What is asserted is that the order can change at
+        // all — in play order it never could.
+        assert!(
+            (1..=6).any(|seed| round(seed) != played),
+            "the second round replayed the first round's order"
+        );
+    }
+
     use super::{MediaFileId, Queue, QueueEntry, QueueOrigin, RepeatMode};
     use crate::domain::ids::{PlaylistId, ProfileId};
 
@@ -331,10 +388,10 @@ mod tests {
         queue.start(first, vec![automatic]);
         queue.enqueue(manual);
 
-        assert_eq!(queue.advance(), Some(manual));
+        assert_eq!(queue.advance(SEED), Some(manual));
         assert_eq!(queue.history, vec![first]);
-        assert_eq!(queue.advance(), Some(automatic));
-        assert_eq!(queue.advance(), None, "repeat off stops at the end");
+        assert_eq!(queue.advance(SEED), Some(automatic));
+        assert_eq!(queue.advance(SEED), None, "repeat off stops at the end");
         assert_eq!(queue.current, None);
     }
 
@@ -346,11 +403,11 @@ mod tests {
         queue.repeat = RepeatMode::All;
         queue.start(a, vec![b, c]);
 
-        assert_eq!(queue.advance(), Some(b));
-        assert_eq!(queue.advance(), Some(c));
-        assert_eq!(queue.advance(), Some(a), "round two");
-        assert_eq!(queue.advance(), Some(b));
-        assert_eq!(queue.advance(), Some(c));
+        assert_eq!(queue.advance(SEED), Some(b));
+        assert_eq!(queue.advance(SEED), Some(c));
+        assert_eq!(queue.advance(SEED), Some(a), "round two");
+        assert_eq!(queue.advance(SEED), Some(b));
+        assert_eq!(queue.advance(SEED), Some(c));
     }
 
     #[test]
@@ -360,7 +417,7 @@ mod tests {
         queue.repeat = RepeatMode::All;
         queue.start(only, Vec::new());
 
-        assert_eq!(queue.advance(), Some(only));
+        assert_eq!(queue.advance(SEED), Some(only));
         assert!(queue.history.is_empty(), "it never left");
     }
 
@@ -370,13 +427,13 @@ mod tests {
         let (a, b) = (entry(QueueOrigin::Library), entry(QueueOrigin::Library));
         queue.repeat = RepeatMode::All;
         queue.start(a, vec![b]);
-        assert_eq!(queue.advance(), Some(b));
+        assert_eq!(queue.advance(SEED), Some(b));
 
         // Repeat all still means "begin the round again" — but the round is the
         // library, and putting what has played back in front would fill the
         // queue with tracks nobody queued.
         assert_eq!(queue.following(), None, "the service asks the library");
-        assert_eq!(queue.advance(), None);
+        assert_eq!(queue.advance(SEED), None);
         assert!(queue.upcoming.is_empty(), "nothing was put back in front");
     }
 
@@ -395,8 +452,8 @@ mod tests {
         // has to be decoded before this one ends is the first of the round to
         // come.
         queue.repeat = RepeatMode::All;
-        queue.advance();
-        queue.advance();
+        queue.advance(SEED);
+        queue.advance(SEED);
         assert_eq!(queue.peek_next(), None);
         assert_eq!(queue.following(), Some(a), "the list starts again");
 
@@ -412,7 +469,7 @@ mod tests {
         queue.start(current, vec![waiting]);
         queue.repeat = RepeatMode::One;
 
-        assert_eq!(queue.advance(), Some(current));
+        assert_eq!(queue.advance(SEED), Some(current));
         assert_eq!(queue.upcoming.front(), Some(&waiting));
     }
 
@@ -421,7 +478,7 @@ mod tests {
         let mut queue = Queue::new(ProfileId::new());
         let (a, b) = (entry(QueueOrigin::Library), entry(QueueOrigin::Library));
         queue.start(a, vec![b]);
-        assert_eq!(queue.advance(), Some(b));
+        assert_eq!(queue.advance(SEED), Some(b));
 
         assert_eq!(queue.go_back(), Some(a));
         assert_eq!(queue.current, Some(a));

@@ -125,6 +125,8 @@ fn harness(tag: &str) -> Harness {
         watcher: Some(Arc::clone(&watcher) as _),
         // Nothing here fetches: a test that reaches a network is not a test.
         fetcher: None,
+        // And nothing here gathers what it fetched into a playlist.
+        playlists: None,
     };
 
     Harness {
