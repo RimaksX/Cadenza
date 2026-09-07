@@ -17,7 +17,7 @@ use cadenza_core::application::services::{
 };
 use cadenza_core::application::{AppContext, ProfileService};
 use cadenza_core::domain::ports::fetcher::{
-    FetchPort, FetchProgress, FetchWhat, FetchedTracks, MissingTool,
+    FetchPort, FetchProgress, FetchWhat, FetchedTracks, ListedTrack, MissingTool,
 };
 use cadenza_core::domain::ports::folder_picker::FolderPickerPort;
 use cadenza_infra::db::repositories::{
@@ -49,6 +49,12 @@ struct FakeFetcher {
     installed: Mutex<bool>,
     /// What it refuses with, where a test is about a refusal.
     refuse: Option<String>,
+    /// Whether it brings nothing back and only names what the list holds.
+    ///
+    /// What a second fetch of the same address looks like once each program
+    /// remembers what it has already brought down: everything is on the disk
+    /// already, so nothing is downloaded and the list is all there is to go on.
+    already_here: bool,
     /// Whether two of the tracks it brings back are the same recording.
     ///
     /// What a second fetch of the same list is full of, and what the import
@@ -100,6 +106,22 @@ impl FetchPort for FakeFetcher {
             FetchWhat::WholePlaylist => 3,
         };
 
+        // Nothing new, and the names of everything the list holds — which is
+        // what the tags on those files say, because the same metadata wrote
+        // both.
+        if self.already_here {
+            return Ok(FetchedTracks {
+                files: Vec::new(),
+                listed: (1..=how_many)
+                    .map(|index| ListedTrack {
+                        title: format!("A Fetched Track {index}"),
+                        artist: "Nobody".to_owned(),
+                    })
+                    .collect(),
+                playlist: Some("A Fetched Playlist".to_owned()),
+            });
+        }
+
         let mut landed = Vec::new();
         for index in 1..=how_many {
             progress(FetchProgress {
@@ -133,6 +155,10 @@ impl FetchPort for FakeFetcher {
 
         Ok(FetchedTracks {
             files: landed,
+            // The fake names no list of its own: what these tests are about is
+            // what the service does with what it is handed, and the list is
+            // the matcher's business.
+            listed: Vec::new(),
             // Named only when a playlist is what was asked for, the way the
             // downloader only prints a name when there is one.
             playlist: matches!(what, FetchWhat::WholePlaylist)
@@ -659,5 +685,62 @@ fn a_track_that_cannot_join_the_playlist_does_not_take_the_others_with_it() {
     assert_eq!(
         only.track_count, 2,
         "the track that could not join cost only itself"
+    );
+}
+
+#[test]
+fn a_list_fetched_again_keeps_its_tracks_without_doubling_them() {
+    let harness = harness("again", FakeFetcher::default());
+    harness
+        .library
+        .use_suggested_folder()
+        .expect("the local folder");
+
+    let link = "https://example.com/watch?v=abc&list=xyz";
+    let fetch = |harness: &Harness| {
+        harness
+            .library
+            .fetch_from_link(link, FetchWhat::WholePlaylist, &nothing, &carry_on)
+            .expect("a fetch")
+    };
+
+    fetch(&harness);
+    let first = harness.playlists.list().expect("the playlists");
+    assert_eq!(first[0].track_count, 3, "everything the list held");
+
+    // The same address again, once both programs remember what they have
+    // brought down: nothing is downloaded, and all that comes back is the
+    // names. The playlist must hold the list either way.
+    let harness = Harness {
+        fetcher: Arc::new(FakeFetcher {
+            already_here: true,
+            ..FakeFetcher::default()
+        }),
+        ..harness
+    };
+    let _ = fetch(&harness);
+
+    let after = harness.playlists.list().expect("the playlists");
+    assert_eq!(after.len(), 1, "the same playlist, not a second one");
+    assert_eq!(
+        after[0].track_count, 3,
+        "the same three: nothing lost and nothing counted twice"
+    );
+
+    // And the case this was built for: the playlist is gone and the tracks are
+    // not. Fetching the list again has nothing to download and must still
+    // rebuild it whole — before this, it made an empty playlist and called it
+    // done.
+    harness
+        .playlists
+        .delete(after[0].playlist.id)
+        .expect("deleted");
+    let _ = fetch(&harness);
+
+    let rebuilt = harness.playlists.list().expect("the playlists");
+    assert_eq!(rebuilt.len(), 1);
+    assert_eq!(
+        rebuilt[0].track_count, 3,
+        "a list rebuilt from what the listener already has"
     );
 }

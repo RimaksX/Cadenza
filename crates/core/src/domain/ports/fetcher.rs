@@ -64,11 +64,30 @@ pub struct FetchProgress {
     pub item: Option<(u32, u32)>,
 }
 
+/// One track a list names, as the service that named it calls it.
+///
+/// Title and artist rather than a file name: both come from the same metadata
+/// the tags were written from, so this matches what the library knows even
+/// when the file on disk was named differently or renamed since.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ListedTrack {
+    pub title: String,
+    pub artist: String,
+}
+
 /// What came back.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct FetchedTracks {
     /// The mp3s, in the order the playlist held them.
     pub files: Vec<PathBuf>,
+    /// Every track the list names, whether it arrived just now or was already
+    /// here.
+    ///
+    /// A playlist holds the *list*, and a second fetch of the same address
+    /// fetches almost nothing — everything is already on the disk. Without
+    /// this the playlist made from that fetch would hold the two tracks that
+    /// happened to be new (`MASTER_ISSUES` 105).
+    pub listed: Vec<ListedTrack>,
     /// What the playlist is called, where a playlist is what was asked for.
     ///
     /// The downloader knows it — it prints it before the first track — and it

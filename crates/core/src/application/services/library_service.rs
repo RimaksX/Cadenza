@@ -21,7 +21,9 @@ use crate::domain::policies::fetch_policy::looks_out_of_date;
 use crate::domain::policies::link_policy::{LinkHandler, handler_for, is_a_link};
 use crate::domain::ports::artwork_cache::{ArtworkCachePort, CoverOf};
 use crate::domain::ports::event_bus::DomainEvent;
-use crate::domain::ports::fetcher::{FetchPort, FetchProgress, FetchWhat, MissingTool};
+use crate::domain::ports::fetcher::{
+    FetchPort, FetchProgress, FetchWhat, ListedTrack, MissingTool,
+};
 use crate::domain::ports::file_system::FileSystemPort;
 use crate::domain::ports::file_watcher::{FileChange, FileWatcherPort};
 use crate::domain::ports::folder_picker::FolderPickerPort;
@@ -429,7 +431,7 @@ impl LibraryService {
         // Failing to make it is not failing to fetch: the tracks are in the
         // library either way, and that is what was asked for.
         if let Some(name) = brought.playlist.as_deref()
-            && let Err(err) = self.gather_into_playlist(name, &files)
+            && let Err(err) = self.gather_into_playlist(name, &files, &brought.listed)
         {
             self.context.warn(&format!(
                 "the tracks came in but the playlist did not: {err}"
@@ -459,7 +461,12 @@ impl LibraryService {
     /// a playlist fetched again brings whatever was added to it since, and
     /// those tracks belong with the ones already here. A track already in the
     /// playlist is not added twice — `add_track` is what decides that.
-    fn gather_into_playlist(&self, name: &str, files: &[PathBuf]) -> Result<()> {
+    fn gather_into_playlist(
+        &self,
+        name: &str,
+        files: &[PathBuf],
+        listed: &[ListedTrack],
+    ) -> Result<()> {
         let Some(playlists) = self.ports.playlists.as_ref() else {
             return Ok(());
         };
@@ -475,6 +482,51 @@ impl LibraryService {
             None => playlists.create(name)?,
         };
 
+        // Everything the list names that this listener has, whether it came
+        // just now or a week ago.
+        //
+        // A playlist holds the *list*. A second fetch of the same address
+        // fetches almost nothing — the memory sees to that — so a playlist
+        // built from what arrived would hold the two tracks that happened to
+        // be new and none of the fifty that were already here
+        // (`MASTER_ISSUES` 105).
+        //
+        // Matched on title and artist rather than on a file name: both ends of
+        // that comparison came from the same metadata — the matcher wrote the
+        // tags, the library read them back — while a file name has been through
+        // one program's idea of what a filename may contain.
+        let profile_id = self.context.require_active_profile()?;
+        let library = self.ports.tracks.summaries_for_profile(profile_id)?;
+
+        // What it already holds counts as added, or fetching the same list
+        // twice would put every track in it twice — and `add_track` appends
+        // whatever it is given, as it should: it is the caller who knows
+        // whether this is the same list coming round again.
+        let mut added: std::collections::HashSet<_> = playlists
+            .tracks_of(playlist.id)?
+            .into_iter()
+            .map(|track| track.media_file_id)
+            .collect();
+
+        for track in listed {
+            let found = library.iter().find(|summary| {
+                summary.title.eq_ignore_ascii_case(&track.title)
+                    && summary
+                        .artist
+                        .as_deref()
+                        .is_some_and(|artist| artist.eq_ignore_ascii_case(&track.artist))
+            });
+
+            if let Some(summary) = found
+                && added.insert(summary.media_file_id)
+                && playlists
+                    .add_track(playlist.id, summary.media_file_id)
+                    .is_err()
+            {
+                added.remove(&summary.media_file_id);
+            }
+        }
+
         // One track that will not join must not cost the other fifty-one.
         //
         // It used to. A file the import set aside — a duplicate of one already
@@ -483,10 +535,17 @@ impl LibraryService {
         // threw away every track after it. A listener watched three new tracks
         // arrive and the playlist stay exactly where it was
         // (`MASTER_ISSUES` 104).
+        //
+        // And whatever arrived that the list did not name, or named
+        // differently: the tracks a YouTube link brought, and any whose tags
+        // the listener has since corrected.
         let mut missed = 0;
         for file in files {
             let joined = match self.ports.media_files.find_by_path(file)? {
-                Some(media_file) => playlists.add_track(playlist.id, media_file.id).is_ok(),
+                Some(media_file) => {
+                    !added.insert(media_file.id)
+                        || playlists.add_track(playlist.id, media_file.id).is_ok()
+                }
                 None => false,
             };
             if !joined {

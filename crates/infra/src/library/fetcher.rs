@@ -19,7 +19,7 @@ use std::process::{Command, Stdio};
 
 use cadenza_core::domain::policies::link_policy::{LinkHandler, handler_for};
 use cadenza_core::domain::ports::fetcher::{
-    FetchPort, FetchProgress, FetchWhat, FetchedTracks, MissingTool,
+    FetchPort, FetchProgress, FetchWhat, FetchedTracks, ListedTrack, MissingTool,
 };
 use cadenza_core::{CoreError, Result};
 
@@ -232,7 +232,12 @@ impl ExternalFetcher {
     ///
     /// Not knowing is not a failure: the download goes ahead, with no total and
     /// no playlist made from it.
-    fn ask_matcher(&self, matcher: &Path, link: &str, workspace: &Path) -> (Option<String>, u32) {
+    fn ask_matcher(
+        &self,
+        matcher: &Path,
+        link: &str,
+        workspace: &Path,
+    ) -> (Option<String>, Vec<ListedTrack>) {
         let file = workspace.join("list.spotdl");
 
         let asked = quietly(matcher)
@@ -247,18 +252,18 @@ impl ExternalFetcher {
             .output();
 
         if !asked.is_ok_and(|spoke| spoke.status.success()) {
-            return (None, 0);
+            return (None, Vec::new());
         }
 
         let Ok(text) = std::fs::read_to_string(&file) else {
-            return (None, 0);
+            return (None, Vec::new());
         };
         let Ok(songs) = serde_json::from_str::<Vec<serde_json::Value>>(&text) else {
-            return (None, 0);
+            return (None, Vec::new());
         };
 
         let Some(first) = songs.first() else {
-            return (None, 0);
+            return (None, Vec::new());
         };
 
         let list = first
@@ -267,9 +272,21 @@ impl ExternalFetcher {
             .map(str::trim)
             .filter(|name| !name.is_empty())
             .map(str::to_owned);
-        let total = u32::try_from(songs.len()).unwrap_or(u32::MAX);
 
-        (list, total)
+        // Read as fields, not parsed out of anything it printed. `name` and
+        // `artist` are what it writes into the tags, which is what the library
+        // reads back — the two ends of the same string.
+        let listed = songs
+            .iter()
+            .filter_map(|song| {
+                Some(ListedTrack {
+                    title: song.get("name")?.as_str()?.to_owned(),
+                    artist: song.get("artist")?.as_str()?.to_owned(),
+                })
+            })
+            .collect();
+
+        (list, listed)
     }
 
     /// Fetches what a Spotify link *names*, which is not what it holds.
@@ -292,7 +309,8 @@ impl ExternalFetcher {
             .ok_or_else(|| CoreError::invalid("link", format!("{CONVERTER} is not installed")))?;
 
         let workspace = workspace()?;
-        let (list, total) = self.ask_matcher(&matcher, link, &workspace);
+        let (list, listed) = self.ask_matcher(&matcher, link, &workspace);
+        let total = u32::try_from(listed.len()).unwrap_or(u32::MAX);
 
         let mut child = quietly(&matcher)
             // In UTF-8, and this is not optional: the matcher prints the name
@@ -407,6 +425,7 @@ impl ExternalFetcher {
         // than guessed at from anything it printed.
         Ok(FetchedTracks {
             files: landed,
+            listed,
             playlist: list,
         })
     }
@@ -982,6 +1001,9 @@ impl FetchPort for ExternalFetcher {
         });
         Ok(FetchedTracks {
             files: landed,
+            // The downloader names no list: what a YouTube playlist holds is
+            // what it just fetched, and its own memory keeps that true.
+            listed: Vec::new(),
             playlist: named,
         })
     }
