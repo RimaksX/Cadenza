@@ -1,4 +1,6 @@
 import { ListView } from "std-widgets.slint";
+import { ScrollView } from "std-widgets.slint";
+
 import { Theme } from "../theme/tokens.slint";
 import { Field } from "Field.slint";
 import { MenuItemData } from "RowMenu.slint";
@@ -154,7 +156,12 @@ export component Dialog inherits Rectangle {
         // Wider where the dialog explains: a paragraph at 440 is a column of
         // six words, and seven of them is a wall.
         width: root.informs ? Theme.px(560) : Theme.px(440);
-        height: layout.preferred-height;
+        // As tall as it wants to be, and never taller than the window it is
+        // standing in. The explaining card had grown to within thirty pixels
+        // of the bottom at 100 per cent and past it at any larger size — and a
+        // card that does not fit is a card whose last paragraph and whose only
+        // button are both somewhere off the screen (`MASTER_ISSUES` 91).
+        height: min(layout.preferred-height, parent.height - Theme.px(64));
         // Whole pixels. A card centred on a window of odd height lands on
         // half a pixel, every glyph inside it is then snapped to the pixel
         // grid on its own, and the line comes out with its letters at
@@ -181,12 +188,27 @@ export component Dialog inherits Rectangle {
                 wrap: word-wrap;
             }
 
-            if root.message != "": Text {
-                text: root.message;
-                font-family: Theme.sans;
-                font-size: Theme.text-body;
-                color: Theme.ink-2;
-                wrap: word-wrap;
+            // The paragraphs, and the only part of the card that gives way
+            // when there is not enough room. The title stays, the field stays,
+            // the buttons stay: those are what the card is *for*, and a
+            // dialog whose confirm button has been squeezed off the bottom is
+            // worse than one whose explanation has to be scrolled.
+            if root.message != "": ScrollView {
+                vertical-stretch: 1;
+                preferred-height: words.preferred-height;
+                viewport-height: words.preferred-height;
+
+                words := Text {
+                    // Short of the viewport by the width of the bar, which is
+                    // drawn over the content rather than beside it — the same
+                    // gutter the track list keeps.
+                    width: parent.width - Theme.scroll-gutter;
+                    text: root.message;
+                    font-family: Theme.sans;
+                    font-size: Theme.text-body;
+                    color: Theme.ink-2;
+                    wrap: word-wrap;
+                }
             }
 
             // Always built, and collapsed when the dialog only confirms: an

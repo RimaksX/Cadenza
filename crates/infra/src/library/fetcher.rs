@@ -87,6 +87,30 @@ fn quietly(program: &Path) -> Command {
     command
 }
 
+/// Every line a child wrote, whatever bytes it chose to write them in.
+///
+/// Not `BufReader::lines()`, and this is the whole of `MASTER_ISSUES` 90.
+/// `lines()` yields an error the moment it meets a byte sequence that is not
+/// UTF-8, and the idiom for draining it — `map_while(Result::ok)` — treats that
+/// error as the end. The reader stops, the pipe is dropped, and the program on
+/// the other side is killed by its next `print`: *unable to open for writing:
+/// [Errno 22] Invalid argument*. It looked like a download that failed and it
+/// was a download we hung up on.
+///
+/// So: bytes, split on newlines, and whatever will not decode becomes U+FFFD.
+/// A character we cannot read is a character drawn wrong in a progress line.
+/// It is not a reason to abandon a track.
+fn lines_of(stream: impl std::io::Read) -> impl Iterator<Item = String> {
+    BufReader::new(stream)
+        .split(b'\n')
+        .map_while(std::result::Result::ok)
+        .map(|line| {
+            String::from_utf8_lossy(&line)
+                .trim_end_matches('\r')
+                .to_owned()
+        })
+}
+
 /// The percentage out of a `[download]  12.3% of  4.56MiB` line.
 ///
 /// Read rather than parsed: the format is one program's console output and not
@@ -216,6 +240,13 @@ impl FetchPort for ExternalFetcher {
             .map_err(|err| CoreError::FileSystem(format!("nowhere to download to: {err}")))?;
 
         let mut child = quietly(&downloader)
+            // Said in UTF-8, so that the lines above arrive as the words they
+            // are. Without it yt-dlp writes in the machine's own code page —
+            // cp1252 here, cp1251 on a Russian one — and a track whose title
+            // carries an en dash comes back with a hole in it. It is the
+            // downloader's own knob: it is a Python program, and this is the
+            // variable Python reads before it opens a stream.
+            .env("PYTHONIOENCODING", "utf-8")
             .args(["--extract-audio", "--audio-format", "mp3"])
             .args(["--audio-quality", "0"])
             // One link is one track. A pasted address often carries a playlist
@@ -233,13 +264,12 @@ impl FetchPort for ExternalFetcher {
             .arg("--newline")
             // The title, capped at 150 bytes.
             //
-            // Without the cap a long title fails with "Error 22: Invalid
-            // argument" — EINVAL, which on Windows is what a path past 260
-            // characters produces. It is the filename that is too long rather
-            // than anything about the download, which is why it happens on
-            // some tracks and not others, and why no combination of other
-            // arguments helps (yt-dlp #11251, closed as a duplicate of #1136
-            // with exactly this answer).
+            // Not the fix for the "Error 22" people reported — that was ours
+            // and is in `lines_of` (`MASTER_ISSUES` 90). This is for the other
+            // half of it: a genuinely long title makes a path past the 260
+            // characters Windows will accept, and yt-dlp fails with the same
+            // EINVAL it fails with for everything (yt-dlp #11251, whose
+            // reporter had a title of 214 characters).
             //
             // Bytes rather than characters, because that is what the limit is
             // made of: 150 bytes is 150 letters of Latin and about 75 of
@@ -260,22 +290,13 @@ impl FetchPort for ExternalFetcher {
         // reading fills up, and a program writing into a full pipe stops — so
         // leaving this until after the download is how the download never
         // finishes.
-        let complaints = child.stderr.take().map(|stderr| {
-            std::thread::spawn(move || {
-                BufReader::new(stderr)
-                    .lines()
-                    .map_while(std::result::Result::ok)
-                    .collect::<Vec<_>>()
-            })
-        });
+        let complaints = child
+            .stderr
+            .take()
+            .map(|stderr| std::thread::spawn(move || lines_of(stderr).collect::<Vec<_>>()));
 
         if let Some(stdout) = child.stdout.take() {
-            // `std::result::Result`, spelled out: this crate's `Result` is the
-            // core alias, and the bare name would resolve to that one.
-            for line in BufReader::new(stdout)
-                .lines()
-                .map_while(std::result::Result::ok)
-            {
+            for line in lines_of(stdout) {
                 if line.starts_with("[download]")
                     && let Some(percent) = percentage(&line)
                 {
