@@ -321,6 +321,35 @@ impl Shared {
         self.announce_at.store(announce_at, Ordering::Release);
     }
 
+    /// Applies a transition the decoder has already made but nobody has heard
+    /// announced yet.
+    ///
+    /// A gapless join swaps the tracks over inside the decoder and marks the
+    /// boundary in the same breath, leaving the announcement to the callback —
+    /// which is seconds behind, because that is the point of a ring buffer.
+    /// Seeking in that window used to throw the mark away with the samples in
+    /// front of it, and the join had *already happened*: the engine went on
+    /// playing the next track while nothing above it was ever told. The player
+    /// bar kept the previous track's name and cover, and the timeline kept its
+    /// length while running on the new track's position (`MASTER_ISSUES` 83).
+    ///
+    /// So the announcement is made rather than lost. The callback's own path
+    /// does the same three things at the boundary; `track_base` is left to the
+    /// flush that follows, which resets it to where the seek landed.
+    fn announce_pending(&self) -> bool {
+        if self.announce_at.load(Ordering::Acquire) == NO_BOUNDARY {
+            return false;
+        }
+
+        self.duration_ms.store(
+            self.boundary_duration_ms.load(Ordering::Relaxed),
+            Ordering::Relaxed,
+        );
+        self.advances.fetch_add(1, Ordering::Relaxed);
+        self.clear_boundary();
+        true
+    }
+
     /// Forgets a transition that was published but never reached.
     fn clear_boundary(&self) {
         self.announce_at.store(NO_BOUNDARY, Ordering::Relaxed);
@@ -805,7 +834,19 @@ impl Producer {
             return Err(CoreError::Audio("nothing is loaded to seek in".into()));
         };
 
+        // Asked before anything is dropped: has the decoder already joined? A
+        // gapless join leaves nothing armed and no fade running, and it is the
+        // one case where the track being seeked is no longer the track the rest
+        // of the application thinks is playing. Mid-crossfade the answer is no
+        // — `next` is still held and the fade is still running — and the mark
+        // then belongs to a join that is about to be abandoned.
+        let joined = self.next.is_none() && self.fade_frames == 0;
+
         let landed = current.seek(position, rate)?;
+
+        if joined {
+            self.shared.announce_pending();
+        }
 
         // Whatever was armed had already begun to be mixed in at a point that
         // no longer exists. It is dropped rather than rewound, and the caller
