@@ -108,7 +108,14 @@ component NavLabel inherits Rectangle {
     height: Theme.px(26);
 
     HorizontalLayout {
-        y: round((parent.height - Theme.px(18)) / Theme.px(2)) * Theme.px(2);
+        // Centred. Dividing by a *length* of two pixels rather than by the
+        // number two lands on the whole remainder instead of half of it, so
+        // the label and its rule sat against the floor of their own box. The
+        // same mistake was fixed in the settings page (`MASTER_ISSUES` 73) and
+        // this copy was missed; the two other places that divide by
+        // `Theme.px(2)` are snapping a length to an even pixel, which is what
+        // that division is actually for.
+        y: round((parent.height - Theme.px(18)) / 1px / 2) * 1px;
         height: Theme.px(18);
         padding-left: Theme.space-3;
         padding-right: Theme.space-3;
