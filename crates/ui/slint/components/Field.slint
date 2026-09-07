@@ -1,16 +1,20 @@
 import { Theme } from "../theme/tokens.slint";
 
-// A line to type on.
+// A box to type in.
 //
-// Not a box: nothing else in this interface is boxed, and a text field drawn as
-// a well would be the loudest object on any page it appeared on. A hairline
-// under the text is enough to say "this is where the words go" — the same
-// hairline that separates rows, brightened while the field has focus.
+// One shape, everywhere: the same hairline rectangle the buttons are drawn as,
+// because a field is a control and this interface draws its controls alike. It
+// used to be a bare underline instead, on the argument that a box would be the
+// loudest object on the page — and the argument was wrong in the one way that
+// matters. The first person who was handed the link field could not find it:
+// a line under a grey hint reads as a caption, not as somewhere to put words
+// (`MASTER_ISSUES` 85).
 export component Field inherits Rectangle {
     in property <string> placeholder;
-    /// Whether the field draws its own hairline. Off where something around it
-    /// already has an outline — two lines around one control is one too many.
-    in property <bool> underlined: true;
+    /// Drawn inside the box, at the near end, where there is one. The field
+    /// makes room for it — a search glass is part of the control rather than
+    /// something stood in front of it.
+    in property <image> icon;
     out property <bool> has-focus <=> input.has-focus;
     in-out property <string> text <=> input.text;
 
@@ -18,8 +22,20 @@ export component Field inherits Rectangle {
     /// Every keystroke. What a search field needs; a name field ignores it.
     callback edited(string);
 
+    // Where the words start. Far enough in that they are not against the
+    // hairline, and further where an icon stands in front of them.
+    private property <length> inset: root.icon.width > 0 ? Theme.px(38) : Theme.space-3;
+
     height: Theme.px(40);
     forward-focus: input;
+    clip: true;
+    border-radius: Theme.radius;
+    border-width: 1px;
+    border-color: input.has-focus ? Theme.line : (touch.has-hover ? Theme.line : Theme.line-soft);
+    // Lit while it is being used or pointed at, flat otherwise. Hover belongs
+    // to the whole object, so the box changes rather than anything inside it.
+    background: input.has-focus || touch.has-hover ? Theme.bg-1 : transparent;
+    animate background, border-color { duration: 120ms; }
 
     // Clicking anywhere on the field, including the empty part after the text,
     // puts the cursor in it — a two-character name should not have to be aimed
@@ -33,12 +49,20 @@ export component Field inherits Rectangle {
         }
     }
 
+    if root.icon.width > 0: Image {
+        source: root.icon;
+        width: Theme.px(14);
+        height: self.width;
+        x: Theme.space-3;
+        y: round((parent.height - self.height) / 1px / 2) * 1px;
+        colorize: input.text == "" ? Theme.ink-mute : Theme.ink-1;
+        animate colorize { duration: 120ms; }
+    }
+
     VerticalLayout {
         alignment: center;
-        // The gap is for the hairline underneath. Where there is no hairline —
-        // a field inside a box that draws its own — the text belongs in the
-        // middle of the box instead of pushed off it.
-        padding-bottom: root.underlined ? Theme.px(8) : 0px;
+        padding-left: root.inset;
+        padding-right: Theme.space-3;
 
         // The placeholder is a second Text under the input rather than a
         // property of it: the built-in input has none, and a caption drawn in
@@ -100,12 +124,5 @@ export component Field inherits Rectangle {
                 }
             }
         }
-    }
-
-    if root.underlined: Rectangle {
-        y: parent.height - self.height;
-        height: 1px;
-        background: input.has-focus ? Theme.ink-1 : (touch.has-hover ? Theme.line : Theme.line-soft);
-        animate background { duration: 120ms; }
     }
 }

@@ -173,55 +173,18 @@ export component TrackList inherits Rectangle {
                     // alias above names it: an element inside a condition is
                     // out of scope everywhere else.
                     //
-                    // Outlined like the buttons beside it on other pages. A
-                    // field is a control, and this interface draws its controls
-                    // as a hairline rectangle — a bare underline here read as a
-                    // different family of object.
                     // Collapses in both directions where the page does not
                     // search. Left at its full height it was an invisible Theme.px(34)
                     // standing above the page's own button, the head grew by
                     // that much, and the heading — centred in a taller row —
                     // sat nine pixels lower on the queue than on the library.
-                    Rectangle {
+                    search := Field {
                         width: root.searchable ? Theme.px(280) : 0px;
                         height: root.searchable ? Theme.px(34) : 0px;
-                        clip: true;
-                        border-radius: Theme.radius;
-                        border-width: 1px;
-                        border-color: search.has-focus
-                            ? Theme.line
-                            : (field-touch.has-hover ? Theme.line : Theme.line-soft);
-                        background: search.has-focus || field-touch.has-hover
-                            ? Theme.bg-1
-                            : transparent;
-                        animate background, border-color { duration: 120ms; }
-
-                        field-touch := TouchArea {
-                            mouse-cursor: MouseCursor.text;
-                            clicked => {
-                                search.focus();
-                            }
-                        }
-
-                        Image {
-                            source: @image-url("../../../../resources/ui/icons/search.svg");
-                            width: Theme.px(14);
-                            height: self.width;
-                            x: Theme.space-3;
-                            y: round((parent.height - self.height) / 1px / 2) * 1px;
-                            colorize: root.query == "" ? Theme.ink-mute : Theme.ink-1;
-                            animate colorize { duration: 120ms; }
-                        }
-
-                        search := Field {
-                            x: Theme.px(38);
-                            width: parent.width - Theme.px(38) - Theme.space-3;
-                            height: parent.height;
-                            underlined: false;
-                            placeholder: "Search";
-                            edited => {
-                                root.searched(self.text);
-                            }
+                        icon: @image-url("../../../../resources/ui/icons/search.svg");
+                        placeholder: "Search";
+                        edited => {
+                            root.searched(self.text);
                         }
                     }
 
