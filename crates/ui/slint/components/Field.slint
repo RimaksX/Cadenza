@@ -68,7 +68,13 @@ export component Field inherits Rectangle {
                 font-family: Theme.mono;
                 font-size: Theme.text-label;
                 letter-spacing: Theme.number-spacing;
-                color: Theme.ink-disabled;
+                // `ink-mute`, not `ink-disabled`. The palette says plainly
+                // that `ink-disabled` sits below the readable minimum on
+                // purpose, because it marks a control that cannot be used —
+                // and it was drawing the one line that explains what a field
+                // is for. Somebody hunting for the link box had to read every
+                // other word on the page before finding it.
+                color: Theme.ink-mute;
                 horizontal-alignment: left;
                 vertical-alignment: center;
             }

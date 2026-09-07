@@ -138,8 +138,14 @@ export component TrackRow inherits Rectangle {
             Text {
                 text: root.data.title;
                 font-family: Theme.serif;
-                font-size: Theme.text-title;
-                height: Theme.px(34);
+                // Body, not title. Twenty-four is the size that names a thing
+                // on a page of its own; in a row beside three columns of
+                // fourteen it dominated, truncated anything past two words,
+                // and left no room for the cover that belongs at the front.
+                // Rank is carried by the face and the ink instead, which is
+                // already how the artist differs from the album.
+                font-size: Theme.text-body;
+                height: Theme.px(22);
                 color: Theme.ink-0;
                 vertical-alignment: center;
                 horizontal-alignment: left;
@@ -173,10 +179,15 @@ export component TrackRow inherits Rectangle {
             Text {
                 text: root.data.album;
                 font-family: Theme.serif;
-                font-italic: true;
                 font-size: Theme.text-body;
                 height: Theme.px(22);
-                color: Theme.ink-mute;
+                // Upright, and a step louder. This was the same fourteen as
+                // the artist beside it and read much smaller: italic, in a
+                // serif whose lower case is famously small, in the quietest
+                // ink there is. Three things compounding, none of them the
+                // number. `ink-2` measures 6.4:1 against the page where
+                // `ink-mute` measured 4.8.
+                color: Theme.ink-2;
                 vertical-alignment: center;
                 horizontal-alignment: left;
                 overflow: elide;
