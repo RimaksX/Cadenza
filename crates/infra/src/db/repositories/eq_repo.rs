@@ -46,8 +46,8 @@ impl EqPresetRepositoryPort for SqliteEqPresetRepository {
     ///
     /// The order of the built-ins is their identifiers': migration 15 numbers
     /// them the way the specification lists them, which is an order with a
-    /// shape — Flat, then the genres, then the two boosts — and alphabetical is
-    /// not.
+    /// shape — Standard, then the genres, then the two boosts — and
+    /// alphabetical is not.
     fn list_for_profile(&self, profile_id: ProfileId) -> Result<Vec<EqPreset>> {
         let connection = self.pool.get()?;
         let mut statement = connection

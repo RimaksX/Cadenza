@@ -6,8 +6,12 @@ use super::value_objects::{GainDb, Timestamp};
 use crate::{CoreError, Result};
 
 /// Names of the presets shipped with the application (PROJECT_MASTER 2.8).
+///
+/// The first was called `Flat` until migration 19. It is the preset that
+/// leaves the sound alone, and "flat" is the word an engineer reaches for
+/// and a listener reads as *dull*.
 pub const BUILTIN_PRESET_NAMES: [&str; 9] = [
-    "Flat",
+    "Standard",
     "Pop",
     "Rock",
     "Classical",
@@ -228,7 +232,7 @@ mod tests {
     #[test]
     fn every_builtin_from_the_specification_is_present() {
         assert_eq!(BUILTIN_PRESET_NAMES.len(), 9);
-        assert!(BUILTIN_PRESET_NAMES.contains(&"Flat"));
+        assert!(BUILTIN_PRESET_NAMES.contains(&"Standard"));
         assert!(BUILTIN_PRESET_NAMES.contains(&"Spatial Enhance"));
     }
 

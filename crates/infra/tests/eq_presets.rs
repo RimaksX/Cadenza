@@ -84,8 +84,8 @@ fn flat_is_the_one_that_does_nothing() {
 
     let flat = all
         .iter()
-        .find(|preset| preset.name == "Flat")
-        .expect("Flat ships");
+        .find(|preset| preset.name == "Standard")
+        .expect("Standard ships");
 
     assert_eq!(flat.mode, EqMode::Simple);
     assert!(flat.simple.is_flat());
