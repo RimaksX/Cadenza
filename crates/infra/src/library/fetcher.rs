@@ -48,6 +48,28 @@ const MATCHER: &str = "spotdl";
 /// Python's package manager, which is the only place `spotdl` comes from.
 const PYTHON_PACKAGES: &str = "pip";
 
+/// How many tracks of a list the matcher fetches at once.
+///
+/// Its own default is four, and four is what fails: measured on a
+/// fifty-two-track playlist, thirty of them came back
+/// `AudioProviderError: YT-DLP download error` — **fifty-eight per cent** — and
+/// the same tracks download perfectly one at a time. It is not the track, the
+/// version or the link; it is how many are asked for at once
+/// (`MASTER_ISSUES` 103).
+///
+/// One is the other end: nine per cent failed, and it took eight minutes to
+/// bring ten tracks. A listener waiting on forty of them is waiting half an
+/// hour for something that used to take thirteen minutes and arrive broken.
+const AT_ONCE: &str = "2";
+
+/// Where the matcher looks for a recording, in order.
+///
+/// Its own default is YouTube Music alone, and a slice of the failures above
+/// are not downloads at all but *searches*: "YouTube Music returned no usable
+/// results for … after 3 attempts". Plain YouTube behind it is the answer to
+/// those, and it is the same place the other button fetches from anyway.
+const LOOK_IN: [&str; 2] = ["youtube-music", "youtube"];
+
 /// Where a program is installed from.
 #[derive(Clone, Copy)]
 enum Source {
@@ -277,6 +299,12 @@ impl ExternalFetcher {
             .arg("--output")
             .arg(workspace.join("{artists} - {title}.{output-ext}"))
             .args(["--format", "mp3"])
+            // Two at a time rather than its own four, and two places to look
+            // rather than its own one. Both numbers were measured on the
+            // playlist that reported this, not chosen.
+            .args(["--threads", AT_ONCE])
+            .arg("--audio")
+            .args(LOOK_IN)
             // The one we found, so a machine with ffmpeg in a folder of its own
             // works — and so that the matcher and the downloader convert with
             // the same program.
