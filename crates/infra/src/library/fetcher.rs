@@ -201,12 +201,16 @@ impl FetchPort for ExternalFetcher {
         // afterwards; landing those in a watched folder would have the library
         // importing an intermediate file that is about to be deleted, and the
         // listener watching a track appear and vanish.
+        // Short on purpose. Everything after this directory is the video's
+        // own title, and the whole path has to stay inside what Windows will
+        // accept — so every character spent naming the workspace is a
+        // character taken off the name of the track.
         let workspace = std::env::temp_dir().join(format!(
-            "cadenza-fetch-{}-{}",
-            std::process::id(),
+            "cdz-{:x}",
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
-                .map_or(0, |since| since.as_nanos())
+                .map_or(0, |since| since.as_nanos()) as u64
+                ^ u64::from(std::process::id())
         ));
         std::fs::create_dir_all(&workspace)
             .map_err(|err| CoreError::FileSystem(format!("nowhere to download to: {err}")))?;
@@ -227,8 +231,21 @@ impl FetchPort for ExternalFetcher {
             // the difference between something readable and a stream of
             // carriage returns.
             .arg("--newline")
+            // The title, capped at 150 bytes.
+            //
+            // Without the cap a long title fails with "Error 22: Invalid
+            // argument" — EINVAL, which on Windows is what a path past 260
+            // characters produces. It is the filename that is too long rather
+            // than anything about the download, which is why it happens on
+            // some tracks and not others, and why no combination of other
+            // arguments helps (yt-dlp #11251, closed as a duplicate of #1136
+            // with exactly this answer).
+            //
+            // Bytes rather than characters, because that is what the limit is
+            // made of: 150 bytes is 150 letters of Latin and about 75 of
+            // Cyrillic, and both leave room for the folder in front of them.
             .arg("--output")
-            .arg(workspace.join("%(title)s.%(ext)s"))
+            .arg(workspace.join("%(title).150B.%(ext)s"))
             // Last, and after everything that could be read as an option. What
             // arrives here has already been checked for whitespace and for a
             // scheme (`link_policy`), so it cannot become a second argument.
