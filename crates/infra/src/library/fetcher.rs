@@ -310,7 +310,15 @@ impl ExternalFetcher {
                 // before any of this started.
                 let done = finished_files(&workspace);
                 progress(FetchProgress {
-                    percent: 0,
+                    // Out of how many are coming, which is what the button
+                    // counts. It showed nothing but 0% before, because this
+                    // path never sent a percentage at all — the matcher does
+                    // not report one per file, so the honest number is how far
+                    // through the list it is (`MASTER_ISSUES` 102).
+                    percent: match total {
+                        0 => 0,
+                        total => u8::try_from(done.saturating_mul(100) / total).unwrap_or(100),
+                    },
                     item: (done > 0).then_some((done, total)),
                 });
             }
