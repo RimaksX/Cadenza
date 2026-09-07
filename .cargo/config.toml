@@ -1,0 +1,17 @@
+# The C runtime goes inside the executable.
+#
+# Rust links the Microsoft C runtime dynamically by default, which puts
+# `VCRUNTIME140.dll` in the import table — and that library is not part of
+# Windows. It arrives with the Visual C++ Redistributable, which most machines
+# happen to have because some other program installed it, and a clean one does
+# not. The failure that produces is the worst kind: the installer succeeds, the
+# shortcut appears, and the program does not start.
+#
+# Everything else Cadenza imports is Windows itself. The `api-ms-win-crt-*`
+# libraries are the Universal CRT, which has shipped with Windows since 10.
+#
+# What it costs is a larger binary. What it buys is a player that runs on a
+# machine where nothing else has ever been installed, which is the only kind of
+# machine worth testing an installer on.
+[target.x86_64-pc-windows-msvc]
+rustflags = ["-C", "target-feature=+crt-static"]
