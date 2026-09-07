@@ -882,11 +882,17 @@ impl Producer {
     }
 
     /// Forgets the armed track and any fade that had begun on it.
+    ///
+    /// The record of a join goes too. Seeking announces one before calling
+    /// this, so nothing is lost — and leaving the flag set would let a later
+    /// seek announce a crossfade's mark as though the swap behind it had
+    /// happened, when mid-fade it has not.
     fn disarm(&mut self) {
         self.next = None;
         self.fade_frames = 0;
         self.fade_done = 0;
         self.shared.armed.store(false, Ordering::Relaxed);
+        self.shared.joined.store(false, Ordering::Relaxed);
     }
 
     /// Moves one step of work along. Returns false when there was nothing to do.

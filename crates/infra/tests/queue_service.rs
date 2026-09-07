@@ -537,15 +537,26 @@ fn previous_restarts_the_track_until_it_is_early_enough_to_go_back() {
         .seek(PlaybackPosition::from_secs(30))
         .expect("seeked");
     harness.queue.previous().expect("previous");
-    assert_eq!(harness.engine.heard().len(), 2, "nothing new was loaded");
+    let heard = harness.engine.heard();
+    assert_eq!(
+        heard.last(),
+        Some(&second),
+        "the same track, from the beginning"
+    );
     assert_eq!(harness.engine.position(), PlaybackPosition::START);
+
+    // Opened again rather than seeked, and that is deliberate. A seek acts on
+    // whatever the decoder holds, and in the last seconds of a track that is
+    // already the next one — which is how "previous" came to start the
+    // following song. Loading acts on what the queue holds, which is the track
+    // being heard.
+    assert_eq!(heard.len(), 3, "started again rather than rewound");
 
     // Near the start: previous means the track before.
     harness.queue.previous().expect("previous");
     let heard = harness.engine.heard();
-    assert_eq!(heard.len(), 3);
-    assert_eq!(heard[2], "one", "back to what played first");
-    assert_ne!(heard[2], second);
+    assert_eq!(heard.last().map(String::as_str), Some("one"));
+    assert_ne!(heard.last(), Some(&second));
 }
 
 #[test]

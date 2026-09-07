@@ -33,7 +33,6 @@ use crate::domain::queue::{Queue, QueueEntry, QueueOrigin, RepeatMode};
 use crate::domain::radio::{MIN_BATCH_SIZE, REFILL_THRESHOLD};
 use crate::domain::stats::PlaySource;
 use crate::domain::track::{TrackFeatures, TrackSummary};
-use crate::domain::value_objects::PlaybackPosition;
 use crate::{CoreError, Result};
 
 use super::PlaybackService;
@@ -500,31 +499,35 @@ impl QueueService {
     /// PROJECT_MASTER 2.3 states it as a rule about elapsed time, and a rule
     /// belongs in a policy.
     pub fn previous(&self) -> Result<()> {
-        // Reconciled before anything is decided. In the last seconds of a track
-        // the engine may already have joined to the next one — the decoder runs
-        // ahead of the speakers by design — and a decision taken against the
-        // queue's older idea of what is current acts on the wrong track. That
-        // is how "previous" came to start the *next* one: the position said
-        // "near the end, restart it", and the track restarted was the one the
-        // engine had already moved to.
-        //
-        // Catching up first makes the question the right one. After it, what is
-        // current is what is playing, its position is a second or two, and
-        // going back one lands on the track the listener was actually
-        // listening to.
+        // Reconciled first, for the window after the callback has crossed a
+        // join but before the tick has noticed: a quarter of a second in which
+        // stepping again would skip a track nobody asked to skip.
         self.catch_up()?;
 
         let position = self.playback.view().position;
 
         if previous_action(position) == PreviousAction::RestartCurrent {
-            return self.playback.seek(PlaybackPosition::START);
+            // Loaded, not seeked, and that is the whole of this defect.
+            //
+            // The decoder runs ahead of the speakers by design, so in the last
+            // seconds of a track it has often already joined to the next one.
+            // A seek acts on what the *decoder* holds — which by then is that
+            // next track, and seeking it to the start is how "previous" came
+            // to begin the following song. Loading acts on what the *queue*
+            // holds, and the queue still holds the track being heard.
+            //
+            // It costs opening the file again where a seek would have done.
+            // That is what starting any track costs, and it buys the command
+            // meaning the same thing two seconds before the end as two minutes
+            // before it.
+            return self.play_current();
         }
 
         match self.write_queue(Queue::go_back) {
             Some(_) => self.play_current(),
             // Nothing played before this: the start of the track is as far back
             // as "previous" can go.
-            None => self.playback.seek(PlaybackPosition::START),
+            None => self.play_current(),
         }
     }
 
