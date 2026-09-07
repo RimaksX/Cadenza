@@ -144,7 +144,7 @@ fn run() -> std::result::Result<(), String> {
             picker: Arc::new(SystemFolderPicker),
             watcher: Some(Arc::clone(&watcher)),
             fetcher: Some(Arc::new(ExternalFetcher::new(Some(
-                paths.fetch_archive_file(),
+                paths.local_dir().to_path_buf(),
             )))),
             playlists: Some(Arc::clone(&playlists)),
         },

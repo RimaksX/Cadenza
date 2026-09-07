@@ -118,22 +118,32 @@ fn needed_for(link: &str) -> Vec<(&'static str, Source)> {
 
 /// Starts `yt-dlp` and waits for it.
 pub struct ExternalFetcher {
-    /// Where the list of what has already been brought down is kept.
+    /// Where each program's record of what it has already fetched is kept.
     ///
-    /// yt-dlp appends one line per finished track and skips anything already
-    /// in it, which is what turns a second press into a resume rather than a
-    /// repeat: a playlist stopped at track twelve carries on at twelve, and a
+    /// Both of them keep one, in their own formats, and both skip what is in
+    /// it: that is what turns a second press into a resume rather than a
+    /// repeat. A playlist stopped at track twelve carries on at twelve, and a
     /// link pasted twice brings nothing the second time.
     ///
+    /// The matcher was given none until a listener fetched the same playlist
+    /// twice and got twenty second copies of tracks they already had
+    /// (`MASTER_ISSUES` 104).
+    ///
     /// Optional because a test fetching one link wants no memory of it.
-    archive: Option<PathBuf>,
+    remembers: Option<PathBuf>,
 }
 
+/// What the downloader has fetched, in its format.
+const DOWNLOADER_MEMORY: &str = "fetched.txt";
+
+/// What the matcher has fetched, in its own.
+const MATCHER_MEMORY: &str = "matched.txt";
+
 impl ExternalFetcher {
-    /// Remembers what it has fetched in the file at `archive`.
+    /// Remembers what it has fetched, in `remembers`, which is a directory.
     #[must_use]
-    pub const fn new(archive: Option<PathBuf>) -> Self {
-        Self { archive }
+    pub const fn new(remembers: Option<PathBuf>) -> Self {
+        Self { remembers }
     }
 }
 
@@ -305,6 +315,16 @@ impl ExternalFetcher {
             .args(["--threads", AT_ONCE])
             .arg("--audio")
             .args(LOOK_IN)
+            // And what it has already brought down, so that fetching the same
+            // list twice brings what is new rather than a second copy of
+            // everything (`MASTER_ISSUES` 104).
+            .args(match self.remembers.as_ref() {
+                Some(directory) => vec![
+                    std::ffi::OsStr::new("--archive").to_owned(),
+                    directory.join(MATCHER_MEMORY).into_os_string(),
+                ],
+                None => Vec::new(),
+            })
             // The one we found, so a machine with ffmpeg in a folder of its own
             // works — and so that the matcher and the downloader convert with
             // the same program.
@@ -803,10 +823,10 @@ impl FetchPort for ExternalFetcher {
             // What has already been brought down, so that it is not brought
             // down twice. yt-dlp writes a line per finished track and reads
             // the same file before starting one.
-            .args(match self.archive.as_ref() {
-                Some(archive) => vec![
-                    std::ffi::OsStr::new("--download-archive"),
-                    archive.as_os_str(),
+            .args(match self.remembers.as_ref() {
+                Some(directory) => vec![
+                    std::ffi::OsStr::new("--download-archive").to_owned(),
+                    directory.join(DOWNLOADER_MEMORY).into_os_string(),
                 ],
                 None => Vec::new(),
             })

@@ -49,6 +49,11 @@ struct FakeFetcher {
     installed: Mutex<bool>,
     /// What it refuses with, where a test is about a refusal.
     refuse: Option<String>,
+    /// Whether two of the tracks it brings back are the same recording.
+    ///
+    /// What a second fetch of the same list is full of, and what the import
+    /// sets aside rather than adding twice.
+    twins: bool,
 }
 
 impl FetchPort for FakeFetcher {
@@ -112,12 +117,14 @@ impl FetchPort for FakeFetcher {
             // recordings rather than one file written three times: the import
             // hashes what it is given, and identical files are a duplicate by
             // every measure it has.
-            landed.push(write_wav(
-                into,
-                &name,
-                1,
-                900 + i16::try_from(index).expect("a small playlist"),
-            ));
+            // The second one is the first one again, where a test asked for
+            // that: same bytes, same hash, and the import knows it.
+            let fill = if self.twins && index == 2 {
+                901
+            } else {
+                900 + i16::try_from(index).expect("a small playlist")
+            };
+            landed.push(write_wav(into, &name, 1, fill));
         }
         progress(FetchProgress {
             percent: 100,
@@ -615,5 +622,42 @@ fn installing_clears_what_was_missing() {
     assert!(
         !told.borrow().is_empty(),
         "and it said what it was doing while it did it"
+    );
+}
+
+#[test]
+fn a_track_that_cannot_join_the_playlist_does_not_take_the_others_with_it() {
+    let harness = harness(
+        "one-bad",
+        FakeFetcher {
+            twins: true,
+            ..FakeFetcher::default()
+        },
+    );
+    harness
+        .library
+        .use_suggested_folder()
+        .expect("the local folder");
+
+    harness
+        .library
+        .fetch_from_link(
+            "https://example.com/watch?v=abc&list=xyz",
+            FetchWhat::WholePlaylist,
+            &nothing,
+            &carry_on,
+        )
+        .expect("a fetch");
+
+    // Three came back and two are distinct recordings; the third is the second
+    // one again, which the import sets aside. Before this was fixed the loop
+    // stopped at it and the playlist kept only what came before — one track.
+    let made = harness.playlists.list().expect("the playlists");
+    let [only] = made.as_slice() else {
+        panic!("one playlist arrived and {} were made", made.len());
+    };
+    assert_eq!(
+        only.track_count, 2,
+        "the track that could not join cost only itself"
     );
 }

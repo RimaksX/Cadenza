@@ -475,10 +475,30 @@ impl LibraryService {
             None => playlists.create(name)?,
         };
 
+        // One track that will not join must not cost the other fifty-one.
+        //
+        // It used to. A file the import set aside — a duplicate of one already
+        // in the library, which is what a second fetch of the same list is full
+        // of — is not in the library, `add_track` says so, and the `?` here
+        // threw away every track after it. A listener watched three new tracks
+        // arrive and the playlist stay exactly where it was
+        // (`MASTER_ISSUES` 104).
+        let mut missed = 0;
         for file in files {
-            if let Some(media_file) = self.ports.media_files.find_by_path(file)? {
-                playlists.add_track(playlist.id, media_file.id)?;
+            let joined = match self.ports.media_files.find_by_path(file)? {
+                Some(media_file) => playlists.add_track(playlist.id, media_file.id).is_ok(),
+                None => false,
+            };
+            if !joined {
+                missed += 1;
             }
+        }
+
+        if missed > 0 {
+            self.context.warn(&format!(
+                "{missed} of {} did not join the playlist: they are already in                  the library, or waiting for a decision",
+                files.len()
+            ));
         }
 
         Ok(())
