@@ -27,6 +27,14 @@ export component Field inherits Rectangle {
     private property <length> inset: root.icon.width > 0 ? Theme.px(38) : Theme.space-3;
 
     height: Theme.px(40);
+    // A field is as wide as it is given, never as wide as what is in it.
+    //
+    // Without this the typed text sets the *minimum* width, and a pasted link
+    // is three hundred pixels of it: the row could not shrink, so the buttons
+    // beside it went off the edge and the whole page went with them
+    // (`MASTER_ISSUES` 100). Anything longer than the box scrolls inside it,
+    // which is what a text field is for.
+    min-width: Theme.px(120);
     forward-focus: input;
     clip: true;
     border-radius: Theme.radius;
