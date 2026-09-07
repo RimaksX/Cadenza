@@ -197,6 +197,9 @@ struct Harness {
     context: Arc<AppContext>,
     queue: QueueService,
     engine: Arc<FakeEngine>,
+    /// What the player bar reads, which is the other half of the disagreement
+    /// a handover can cause.
+    playback: Arc<PlaybackService>,
     profile_id: ProfileId,
     tracks: Vec<MediaFileId>,
     /// Declared last on purpose: fields are dropped in declaration order, and
@@ -234,13 +237,14 @@ fn harness() -> Harness {
         })
         .collect();
 
-    let (queue, engine, _radio, context) = services_with_radio(&db, profile.id);
+    let (queue, engine, playback, _radio, context) = services_with_radio(&db, profile.id);
 
     Harness {
         context,
         db,
         queue,
         engine,
+        playback,
         profile_id: profile.id,
         tracks,
     }
@@ -248,7 +252,7 @@ fn harness() -> Harness {
 
 /// The queue and the device under it, as one run of the application builds them.
 fn services(db: &TempDb, profile_id: ProfileId) -> (QueueService, Arc<FakeEngine>) {
-    let (queue, engine, _radio, _context) = services_with_radio(db, profile_id);
+    let (queue, engine, _playback, _radio, _context) = services_with_radio(db, profile_id);
     (queue, engine)
 }
 
@@ -259,6 +263,7 @@ fn services_with_radio(
 ) -> (
     QueueService,
     Arc<FakeEngine>,
+    Arc<PlaybackService>,
     Arc<RadioService>,
     Arc<AppContext>,
 ) {
@@ -296,7 +301,7 @@ fn services_with_radio(
 
     let queue = QueueService::new(
         Arc::clone(&context),
-        playback,
+        Arc::clone(&playback),
         QueuePorts {
             queue: Arc::new(SqliteQueueRepository::new(db.pool().clone())),
             tracks: track_repo as _,
@@ -305,7 +310,7 @@ fn services_with_radio(
         },
     );
 
-    (queue, engine, radio, context)
+    (queue, engine, playback, radio, context)
 }
 
 fn catalogued(name: &str) -> MediaFile {
@@ -1003,9 +1008,67 @@ fn shuffle_still_works_when_nothing_has_been_analysed() {
 }
 
 #[test]
+fn going_back_during_a_handover_does_not_leave_the_queue_behind_the_engine() {
+    // Written while hunting a reported defect, and it does *not* reproduce it:
+    // this passes. Kept because the invariant is worth holding anyway, and
+    // because the next person to look should not spend the hour again.
+    //
+    // What it covers: the engine has handed over to the armed track and the
+    // queue has not polled since — a real window, since the queue looks once
+    // every 250 ms — and the listener presses "previous" inside it. Going back
+    // loads a track outright, which resets the engine and brings the two back
+    // into step, so the player bar and the engine still name the same track.
+    //
+    // What it does *not* cover, and what the reported defect needs, is the
+    // crossfade *under way*: armed, fading, not yet handed over, with the
+    // engine still reporting the outgoing track near its end. `previous` there
+    // takes the other branch — restart the current track — and this fake
+    // engine has no fading state to express that.
+    let harness = harness();
+    harness
+        .queue
+        .play_from_library(harness.tracks[0])
+        .expect("played");
+    harness.queue.poll().expect("armed what follows");
+
+    // The crossfade completes. Nothing stopped, so only the advance count says
+    // it happened — and nobody has polled since.
+    harness.engine.hand_over();
+
+    // And now the listener reaches for "previous".
+    harness.queue.previous().expect("went back");
+    harness.queue.poll().expect("polled");
+
+    let heard = harness.engine.heard();
+    let playing = heard.last().expect("something is playing").clone();
+
+    // The fixture's four tracks are named in the order they were catalogued,
+    // so the name the engine reports maps back to the identifier the player
+    // bar would be showing.
+    let names = ["one", "two", "three", "four"];
+    let should_be = harness.tracks[names
+        .iter()
+        .position(|name| *name == playing)
+        .expect("the engine is playing one of the fixture's tracks")];
+
+    let shown = harness
+        .playback
+        .view()
+        .track
+        .map(|track| track.media_file_id);
+
+    assert_eq!(
+        shown,
+        Some(should_be),
+        "the player bar names the track the engine is playing: heard {heard:?}"
+    );
+}
+
+#[test]
 fn playing_a_track_ends_the_station() {
     let harness = harness();
-    let (queue, engine, radio, _context) = services_with_radio(&harness.db, harness.profile_id);
+    let (queue, engine, _playback, radio, _context) =
+        services_with_radio(&harness.db, harness.profile_id);
 
     let workout = radio
         .moods()
