@@ -1,0 +1,53 @@
+name: Release
+
+# A tag, and only a tag. Every push to main is already checked by CI; this is
+# the one that produces something a listener can download, so it runs when
+# somebody has decided a version exists rather than every time a file changes.
+#
+#     git tag v0.1.0
+#     git push origin v0.1.0
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  windows-installer:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Build the player
+        run: cargo build --release
+
+      # Version 5 deliberately. WiX 6 and 7 refuse to run until the Open Source
+      # Maintenance Fee agreement has been accepted, and a build machine is not
+      # a place to accept an agreement on anybody's behalf. The extension is
+      # pinned for the same reason it is pinned locally: by bare name it
+      # fetches a build made for a WiX this is not.
+      - name: Install WiX
+        run: |
+          dotnet tool install --global wix --version "5.*"
+          wix extension add -g WixToolset.UI.wixext/5.0.2
+
+      - name: Build the installer
+        working-directory: packaging/windows
+        run: wix build cadenza.wxs -arch x64 -ext WixToolset.UI.wixext -o out/Cadenza-${{ github.ref_name }}.msi
+
+      # The MSI and nothing else. The `.wixpdb` beside it is the installer's own
+      # build map, and the `.pdb` beside the executable is the program's — both
+      # are for diagnosing a broken build, and neither is something to hand a
+      # listener.
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: packaging/windows/out/*.msi
+          body: |
+            Windows 10 or 11, 64-bit.
+
+            The installer is not signed, so Windows will show a SmartScreen
+            warning before it will run it: choose **More info**, then **Run
+            anyway**. Cadenza installs for the current user only and never asks
+            for administrator.

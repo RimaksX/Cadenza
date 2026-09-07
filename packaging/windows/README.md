@@ -13,12 +13,18 @@ out/                 where the MSI lands; ignored by git
 
 ## Once
 
-WiX is a .NET tool and is not part of the Rust toolchain:
+WiX is a .NET tool and is not part of the Rust toolchain. Version 5, and the
+version matters: WiX 6 and 7 will not run until you have accepted the Open
+Source Maintenance Fee agreement, which is a commitment somebody has to make
+deliberately rather than discover in a build log.
 
 ```
-dotnet tool install --global wix
-wix extension add -g WixToolset.UI.wixext
+dotnet tool install --global wix --version "5.*"
+wix extension add -g WixToolset.UI.wixext/5.0.2
 ```
+
+The extension has to be pinned too. Asked for by bare name it fetches the
+latest, which is built for a WiX this is not.
 
 ## Every time
 
@@ -32,14 +38,17 @@ cargo build --release
 Then, from this directory:
 
 ```
-wix build cadenza.wxs -ext WixToolset.UI.wixext -o out/Cadenza-0.1.0.msi
+wix build cadenza.wxs -arch x64 -ext WixToolset.UI.wixext -o out/Cadenza-0.1.0.msi
 ```
 
 To package a build from somewhere else, name it:
 
 ```
-wix build cadenza.wxs -ext WixToolset.UI.wixext -d Binaries=<path> -o out/Cadenza-0.1.0.msi
+wix build cadenza.wxs -arch x64 -ext WixToolset.UI.wixext -d Binaries=<path> -o out/Cadenza-0.1.0.msi
 ```
+
+`out/` also collects a `.wixpdb`, which is the installer's own build map. It is
+for diagnosing a broken MSI and is not something to hand anybody.
 
 ## What it does on the listener's machine
 
