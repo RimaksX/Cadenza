@@ -12,9 +12,21 @@
 
 [advisories]
 version = 2
-# A known vulnerability fails the check. Nothing is ignored here yet, and
-# anything added should carry the date and the reason beside it.
+# A known vulnerability fails the check, wherever in the tree it is. Nothing is
+# ignored here, and anything added should carry the date and the reason beside
+# it.
 ignore = []
+
+# Being unmaintained is only checked for crates this workspace chose itself.
+#
+# The first run of this check failed on `ttf-parser`, which arrived through
+# Slint's text stack and is four levels down. That is a true fact and not an
+# actionable one: the only ways to answer it are to stop using Slint or to
+# ignore it, and a check that reports something nobody can act on is a check
+# people learn to skip — which is how the vulnerability that *does* matter goes
+# past unread. An unmaintained crate this project picked is its own problem and
+# still fails.
+unmaintained = "workspace"
 
 [licenses]
 version = 2

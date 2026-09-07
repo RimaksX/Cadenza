@@ -26,8 +26,8 @@ pub fn looks_like_an_image(bytes: &[u8]) -> bool {
 pub fn image_extension(bytes: &[u8]) -> Option<&'static str> {
     const JPEG: [u8; 3] = [0xFF, 0xD8, 0xFF];
     const PNG: [u8; 8] = [0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A];
-    const GIF: [u8; 3] = [b'G', b'I', b'F'];
-    const BMP: [u8; 2] = [b'B', b'M'];
+    const GIF: [u8; 3] = *b"GIF";
+    const BMP: [u8; 2] = *b"BM";
 
     if bytes.starts_with(&JPEG) {
         Some("jpg")
