@@ -232,33 +232,32 @@ export component TrackList inherits Rectangle {
                     }
                 }
 
-                VerticalLayout {
-                    alignment: center;
-
-                    TextButton {
-                        // The percentage stands in the button rather than in a
-                        // bar of its own: it is the same object that started
-                        // the download, and watching it count is watching the
-                        // thing you pressed.
-                        label: root.fetching ? root.fetch-percent + "%" : "GET";
-                        fixed-width: Theme.px(100);
-                        enabled: !root.fetching && root.link != "";
-                        pressed => {
-                            root.fetch(root.link);
-                        }
+                // As tall as the field beside them, rather than the button
+                // height everywhere else. Two controls on one line that answer
+                // the same question should be one object with a seam in it,
+                // and a button six pixels shorter than the box it belongs to
+                // reads as something dropped next to it.
+                TextButton {
+                    // The percentage stands in the button rather than in a
+                    // bar of its own: it is the same object that started
+                    // the download, and watching it count is watching the
+                    // thing you pressed.
+                    label: root.fetching ? root.fetch-percent + "%" : "GET";
+                    fixed-width: Theme.px(100);
+                    height: Theme.px(40);
+                    enabled: !root.fetching && root.link != "";
+                    pressed => {
+                        root.fetch(root.link);
                     }
                 }
 
-                if root.fetch-needs-folder: VerticalLayout {
-                    alignment: center;
-
-                    TextButton {
-                        label: "MAKE A FOLDER";
-                        fixed-width: Theme.px(176);
-                        primary: true;
-                        pressed => {
-                            root.make-local-folder();
-                        }
+                if root.fetch-needs-folder: TextButton {
+                    label: "MAKE A FOLDER";
+                    fixed-width: Theme.px(176);
+                    height: Theme.px(40);
+                    primary: true;
+                    pressed => {
+                        root.make-local-folder();
                     }
                 }
             }
