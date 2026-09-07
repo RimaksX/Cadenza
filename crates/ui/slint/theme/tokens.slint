@@ -156,6 +156,14 @@ export global Theme {
     // otherwise it ends flush against the edge and the row looks cut off.
     out property <length> row-end-inset: root.px(16);
 
+    // The room a scrolling list keeps for its own bar.
+    //
+    // The bar is drawn over the content rather than beside it, so without
+    // this it lands two pixels inside the row it is scrolling: the row's
+    // background and the hairline that ends it run underneath, and the bar
+    // reads as a mark on the list instead of a control at the edge of it.
+    out property <length> scroll-gutter: root.px(8);
+
     // Mono capitals are set wide: at label size and in upper case they crowd
     // each other, and a caption is read as a shape before it is read as words.
     out property <length> label-spacing: root.fine(2);

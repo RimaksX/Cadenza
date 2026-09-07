@@ -292,7 +292,10 @@ export component TrackList inherits Rectangle {
 
             HorizontalLayout {
                 padding-bottom: Theme.row-padding;
-                padding-right: Theme.row-end-inset;
+                // The rows below keep a gutter for the scrollbar, so the head
+                // keeps the same one — otherwise every label stands eight
+                // pixels right of the column it names.
+                padding-right: Theme.row-end-inset + Theme.scroll-gutter;
                 spacing: Theme.column-gap;
 
                 ColumnLabel {
@@ -409,7 +412,15 @@ export component TrackList inherits Rectangle {
                     allow-copy: true;
 
                     TrackRow {
-                    width: parent.width;
+                    // Short of the list by the width of its bar, which is
+                    // drawn over the content rather than beside it.
+                    //
+                    // Anchored, because a `DragArea` centres what it holds: a
+                    // row merely made narrower loses half the gutter off its
+                    // left as well, and every number, title and time in the
+                    // list stands four pixels right of the label naming it.
+                    x: 0px;
+                    width: parent.width - Theme.scroll-gutter;
                     data: entry;
                     playing: entry.id == root.playing-id;
                     queued: root.queued;
