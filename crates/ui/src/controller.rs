@@ -1767,10 +1767,25 @@ impl Controller {
 
             // "3 of 40" while a playlist is coming, because a percentage that
             // goes back to nothing forty times answers no question anybody has.
+            //
+            // And "3" alone where that is all anybody knows: the matcher does
+            // not say how many it is going to find, so what is counted is what
+            // has arrived. A number that is true is better than a total that
+            // was guessed.
             let of = self.fetching.of.load(Ordering::Relaxed);
-            if of > 0 && !self.fetching.stopping.load(Ordering::Relaxed) {
-                let item = self.fetching.item.load(Ordering::Relaxed);
-                window.set_fetch_note(format!("track {item} of {of}").into());
+            let item = self.fetching.item.load(Ordering::Relaxed);
+            if !self.fetching.stopping.load(Ordering::Relaxed) {
+                if of > 0 {
+                    window.set_fetch_note(format!("track {item} of {of}").into());
+                } else if item > 0 {
+                    window.set_fetch_note(
+                        format!(
+                            "{item} {} so far",
+                            if item == 1 { "track" } else { "tracks" }
+                        )
+                        .into(),
+                    );
+                }
             }
             return;
         }
@@ -1850,6 +1865,15 @@ impl Controller {
 
         let library = Arc::clone(&self.services.library);
         let state = Arc::clone(&self.fetching);
+        // The link that failed, because what a link needs depends on the link:
+        // a Spotify address wants the program that reads its names, and a
+        // listener who only pastes YouTube links must never be told to install
+        // that one.
+        let link = self
+            .window
+            .upgrade()
+            .map(|window| window.get_link().to_string())
+            .unwrap_or_default();
 
         state.percent.store(0, Ordering::Relaxed);
         state.item.store(0, Ordering::Relaxed);
@@ -1873,7 +1897,7 @@ impl Controller {
 
         std::thread::spawn(move || {
             let ended = match offer {
-                Offer::Install => match library.install_tools(&|_| {}) {
+                Offer::Install => match library.install_tools(&link, &|_| {}) {
                     Ok(missing) if missing.is_empty() => {
                         Ended::Fixed("installed — trying again".to_owned())
                     }

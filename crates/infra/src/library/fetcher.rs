@@ -17,6 +17,7 @@ use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
+use cadenza_core::domain::policies::link_policy::{LinkHandler, handler_for};
 use cadenza_core::domain::ports::fetcher::{
     FetchPort, FetchProgress, FetchWhat, FetchedTracks, MissingTool,
 };
@@ -36,12 +37,62 @@ const CONVERTER: &str = "ffmpeg";
 /// program whose job it is.
 const PACKAGES: &str = "winget";
 
-/// What this needs, and what each one is called where it is installed from.
+/// What reads a Spotify link's names and finds the recording behind them.
 ///
-/// The identifier is exact on purpose. `winget install yt-dlp` matches both the
-/// package and something else in the Microsoft Store and refuses to choose,
-/// which is where somebody told to "install yt-dlp" actually ends up.
-const TOOLS: [(&str, &str); 2] = [(DOWNLOADER, "yt-dlp.yt-dlp"), (CONVERTER, "Gyan.FFmpeg")];
+/// It does not take anything out of Spotify — nothing does — and it says so
+/// about itself. What it is for is the names: a track fetched this way carries
+/// its title, artist and album rather than the title of a video
+/// (`MASTER_ISSUES` 99).
+const MATCHER: &str = "spotdl";
+
+/// Python's package manager, which is the only place `spotdl` comes from.
+const PYTHON_PACKAGES: &str = "pip";
+
+/// Where a program is installed from.
+#[derive(Clone, Copy)]
+enum Source {
+    /// The machine's own package manager, by exact identifier.
+    ///
+    /// Exact on purpose: `winget install yt-dlp` matches both the package and
+    /// something else in the Microsoft Store and refuses to choose, which is
+    /// where somebody told to "install yt-dlp" actually ends up.
+    Packages(&'static str),
+    /// Python's, which is where the matcher lives — it is not in `winget` at
+    /// all, measured rather than assumed.
+    Python(&'static str),
+}
+
+/// What this needs, and where each one comes from.
+const TOOLS: [(&str, Source); 3] = [
+    (DOWNLOADER, Source::Packages("yt-dlp.yt-dlp")),
+    (CONVERTER, Source::Packages("Gyan.FFmpeg")),
+    (MATCHER, Source::Python("spotdl")),
+];
+
+impl Source {
+    /// What somebody would type to install it themselves.
+    fn command(self) -> String {
+        match self {
+            Self::Packages(id) => format!("{PACKAGES} install {id}"),
+            Self::Python(package) => format!("{PYTHON_PACKAGES} install {package}"),
+        }
+    }
+}
+
+/// Which programs a link needs.
+///
+/// Everything needs the downloader and the converter — the matcher hands its
+/// work to both. A Spotify link needs the matcher as well, and nothing else
+/// does: a listener who only ever pastes YouTube links must never be told to
+/// install it.
+fn needed_for(link: &str) -> Vec<(&'static str, Source)> {
+    let matching = matches!(handler_for(link), LinkHandler::Matcher);
+
+    TOOLS
+        .into_iter()
+        .filter(|(program, _)| matching || *program != MATCHER)
+        .collect()
+}
 
 /// Starts `yt-dlp` and waits for it.
 pub struct ExternalFetcher {
@@ -68,6 +119,264 @@ impl Default for ExternalFetcher {
     fn default() -> Self {
         Self::new(None)
     }
+}
+
+impl ExternalFetcher {
+    /// Installs one package through the machine's own package manager.
+    fn install_with_packages(&self, id: &str) -> Result<()> {
+        let packages = locate(PACKAGES).ok_or_else(|| {
+            CoreError::invalid(
+                "link",
+                format!("{PACKAGES} is not on this machine, so nothing here can install anything"),
+            )
+        })?;
+
+        // Every question answered in advance, because there is nobody to answer
+        // them: this runs with no console and no input.
+        let spoke = quietly(&packages)
+            .args(["install", "--id", id, "--exact"])
+            .args([
+                "--silent",
+                "--accept-package-agreements",
+                "--accept-source-agreements",
+                "--disable-interactivity",
+            ])
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .stdin(Stdio::null())
+            .output()
+            .map_err(|err| CoreError::FileSystem(format!("{PACKAGES} would not start: {err}")))?;
+
+        finished(&spoke, PACKAGES)
+    }
+
+    /// Installs or upgrades one package through Python's.
+    ///
+    /// `spotdl` is not in `winget` — searched rather than assumed — so this is
+    /// the only way it arrives. A machine with no Python has no `pip` either,
+    /// and the answer to that is a package manager away rather than something
+    /// this can do quietly.
+    fn install_with_python(&self, package: &str, upgrade: bool) -> Result<()> {
+        let pip = locate(PYTHON_PACKAGES).ok_or_else(|| {
+            CoreError::invalid(
+                "link",
+                format!(
+                    "{PYTHON_PACKAGES} is not on this machine — install Python first:                      {PACKAGES} install Python.Python.3.12"
+                ),
+            )
+        })?;
+
+        let mut command = quietly(&pip);
+        command.args(["install", "--disable-pip-version-check"]);
+        if upgrade {
+            command.arg("--upgrade");
+        }
+
+        let spoke = command
+            .arg(package)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .stdin(Stdio::null())
+            .output()
+            .map_err(|err| {
+                CoreError::FileSystem(format!("{PYTHON_PACKAGES} would not start: {err}"))
+            })?;
+
+        finished(&spoke, PYTHON_PACKAGES)
+    }
+}
+
+impl ExternalFetcher {
+    /// Fetches what a Spotify link *names*, which is not what it holds.
+    ///
+    /// The matcher reads the title, artist and album from the link and finds
+    /// that recording on YouTube — its own words, and the only thing anybody
+    /// can do: Spotify's audio is encrypted and nothing takes it out. So the
+    /// sound is the same sound the other button gets, and what is gained is
+    /// the names on it (`MASTER_ISSUES` 99).
+    fn fetch_matched(
+        &self,
+        link: &str,
+        into: &Path,
+        progress: &dyn Fn(FetchProgress),
+        stop: &dyn Fn() -> bool,
+    ) -> Result<FetchedTracks> {
+        let matcher = locate(MATCHER)
+            .ok_or_else(|| CoreError::invalid("link", format!("{MATCHER} is not installed")))?;
+        let converter = locate(CONVERTER)
+            .ok_or_else(|| CoreError::invalid("link", format!("{CONVERTER} is not installed")))?;
+
+        let workspace = workspace()?;
+
+        let mut child = quietly(&matcher)
+            .arg("download")
+            .arg(link)
+            // Its own template language rather than yt-dlp's, and the names in
+            // it are the point of the whole exercise: what lands is called
+            // what the record is called.
+            .arg("--output")
+            .arg(workspace.join("{artists} - {title}.{output-ext}"))
+            .args(["--format", "mp3"])
+            // The one we found, so a machine with ffmpeg in a folder of its own
+            // works — and so that the matcher and the downloader convert with
+            // the same program.
+            .arg("--ffmpeg")
+            .arg(&converter)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .stdin(Stdio::null())
+            .spawn()
+            .map_err(|err| CoreError::FileSystem(format!("{MATCHER} would not start: {err}")))?;
+
+        let complaints = child
+            .stderr
+            .take()
+            .map(|stderr| std::thread::spawn(move || lines_of(stderr).collect::<Vec<_>>()));
+
+        let mut stopped = false;
+        if let Some(stdout) = child.stdout.take() {
+            for _ in lines_of(stdout) {
+                if stop() {
+                    let _ = child.kill();
+                    stopped = true;
+                    break;
+                }
+
+                // Counted rather than read. What the matcher prints while it
+                // works is not documented anywhere, and a parser written
+                // against strings nobody has seen is a parser that will be
+                // wrong in a language nobody here reads. Files that have
+                // appeared are a fact.
+                let done = finished_files(&workspace);
+                progress(FetchProgress {
+                    percent: 0,
+                    item: (done > 0).then_some((done, 0)),
+                });
+            }
+        }
+
+        let status = child
+            .wait()
+            .map_err(|err| CoreError::FileSystem(format!("{MATCHER} did not finish: {err}")))?;
+        let said = complaints
+            .and_then(|thread| thread.join().ok())
+            .unwrap_or_default();
+
+        let landed = land(&workspace, into)?;
+        let _ = std::fs::remove_dir_all(&workspace);
+
+        if landed.is_empty() {
+            if stopped || status.success() {
+                return Ok(FetchedTracks::default());
+            }
+
+            let reason = said
+                .iter()
+                .rev()
+                .find(|line| line.to_lowercase().contains("error"))
+                .map_or_else(
+                    || "the matcher found nothing for that link".to_owned(),
+                    |line| line.trim().to_owned(),
+                );
+            return Err(CoreError::invalid("link", reason));
+        }
+
+        progress(FetchProgress {
+            percent: 100,
+            item: None,
+        });
+        // No playlist is made from a Spotify link yet: the matcher does not say
+        // what the list it was given is called, and a playlist named by a guess
+        // is worse than none.
+        Ok(FetchedTracks {
+            files: landed,
+            playlist: None,
+        })
+    }
+}
+
+/// A directory of our own to work in, named as short as it can be.
+///
+/// Everything after it is the track's own name, and the whole path has to stay
+/// inside what Windows will accept — so every character spent naming this is a
+/// character taken off the name of a track.
+fn workspace() -> Result<PathBuf> {
+    let path = std::env::temp_dir().join(format!(
+        "cdz-{:x}",
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |since| since.as_nanos()) as u64
+            ^ u64::from(std::process::id())
+    ));
+    std::fs::create_dir_all(&path)
+        .map_err(|err| CoreError::FileSystem(format!("nowhere to download to: {err}")))?;
+    Ok(path)
+}
+
+/// How many finished tracks are sitting in the workspace.
+fn finished_files(workspace: &Path) -> u32 {
+    std::fs::read_dir(workspace)
+        .map(|entries| {
+            entries
+                .flatten()
+                .filter(|entry| {
+                    entry
+                        .path()
+                        .extension()
+                        .is_some_and(|extension| extension.eq_ignore_ascii_case("mp3"))
+                })
+                .count()
+        })
+        .unwrap_or_default()
+        .try_into()
+        .unwrap_or(u32::MAX)
+}
+
+/// Moves every finished track out of the workspace and into the listener's
+/// folder, in the order the names put them.
+fn land(workspace: &Path, into: &Path) -> Result<Vec<PathBuf>> {
+    let mut arrived = std::fs::read_dir(workspace)
+        .map_err(|err| CoreError::FileSystem(format!("the download vanished: {err}")))?
+        .flatten()
+        .map(|entry| entry.path())
+        .filter(|path| {
+            path.extension()
+                .is_some_and(|extension| extension.eq_ignore_ascii_case("mp3"))
+        })
+        .collect::<Vec<_>>();
+    arrived.sort();
+
+    let mut landed = Vec::with_capacity(arrived.len());
+    for file in arrived {
+        let place = free_name(into, &file);
+        move_file(&file, &place)?;
+        landed.push(place);
+    }
+    Ok(landed)
+}
+
+/// Whether a child worked, and what it said if it did not.
+///
+/// Read as bytes and decoded loosely, like everything else a child says here:
+/// these programs draw progress bars and speak the machine's own language, and
+/// neither is promised to be UTF-8 (`MASTER_ISSUES` 90).
+fn finished(spoke: &std::process::Output, program: &str) -> Result<()> {
+    if spoke.status.success() {
+        return Ok(());
+    }
+
+    let mut said = String::from_utf8_lossy(&spoke.stdout).into_owned();
+    said.push('\n');
+    said.push_str(&String::from_utf8_lossy(&spoke.stderr));
+
+    let last = said
+        .lines()
+        .map(str::trim)
+        .rfind(|line| !line.is_empty())
+        .unwrap_or("it did not say why")
+        .to_owned();
+
+    Err(CoreError::invalid("link", format!("{program}: {last}")))
 }
 
 /// Where a program is, looking where Windows itself would.
@@ -246,72 +555,38 @@ fn explain(reason: &str) -> String {
 }
 
 impl FetchPort for ExternalFetcher {
-    fn missing(&self) -> Vec<MissingTool> {
-        TOOLS
-            .iter()
+    fn missing_for(&self, link: &str) -> Vec<MissingTool> {
+        needed_for(link)
+            .into_iter()
             .filter(|(program, _)| locate(program).is_none())
-            .map(|(program, package)| MissingTool {
-                name: (*program).to_owned(),
-                install: format!("{PACKAGES} install {package}"),
+            .map(|(program, source)| MissingTool {
+                name: program.to_owned(),
+                install: source.command(),
             })
             .collect()
     }
 
-    fn install(&self, said: &dyn Fn(&str)) -> Result<Vec<MissingTool>> {
-        let Some(packages) = locate(PACKAGES) else {
-            return Err(CoreError::invalid(
-                "link",
-                format!(
-                    "{PACKAGES} is not on this machine, so nothing here can install anything —                      the two programs can still be installed by hand"
-                ),
-            ));
-        };
-
-        for (program, package) in TOOLS {
+    fn install(&self, link: &str, said: &dyn Fn(&str)) -> Result<Vec<MissingTool>> {
+        for (program, source) in needed_for(link) {
             if locate(program).is_some() {
                 continue;
             }
 
             said(&format!("installing {program}…"));
+            let spoke = match source {
+                Source::Packages(id) => self.install_with_packages(id),
+                Source::Python(package) => self.install_with_python(package, false),
+            };
 
-            let output = quietly(&packages)
-                .args(["install", "--id", package, "--exact"])
-                // Every question answered in advance, because there is nobody
-                // to answer them: this runs with no console and no input.
-                .args([
-                    "--silent",
-                    "--accept-package-agreements",
-                    "--accept-source-agreements",
-                    "--disable-interactivity",
-                ])
-                .stdout(Stdio::piped())
-                .stderr(Stdio::piped())
-                .stdin(Stdio::null())
-                .output()
-                .map_err(|err| {
-                    CoreError::FileSystem(format!("{PACKAGES} would not start: {err}"))
-                })?;
-
-            // Read as bytes and decoded loosely, like everything else a child
-            // says here: `winget` draws progress bars and speaks the machine's
-            // own language, and neither is promised to be UTF-8
-            // (`MASTER_ISSUES` 90).
-            let last = String::from_utf8_lossy(&output.stdout)
-                .lines()
-                .map(str::trim)
-                .rfind(|line| !line.is_empty())
-                .unwrap_or_default()
-                .to_owned();
-
-            if !output.status.success() {
-                said(&format!("{program} was not installed: {last}"));
+            if let Err(err) = spoke {
+                said(&format!("{program} was not installed: {err}"));
             }
         }
 
         // Asked again rather than inferred from the exit codes: what matters is
         // whether the program is there now, and that is a question with a
         // definite answer.
-        Ok(self.missing())
+        Ok(self.missing_for(link))
     }
 
     fn update(&self, said: &dyn Fn(&str)) -> Result<String> {
@@ -322,7 +597,7 @@ impl FetchPort for ExternalFetcher {
             ));
         };
 
-        said("updating yt-dlp…");
+        said(&format!("updating {DOWNLOADER}…"));
 
         let output = quietly(&downloader)
             .arg("--update")
@@ -339,12 +614,23 @@ impl FetchPort for ExternalFetcher {
         spoke.push('\n');
         spoke.push_str(&String::from_utf8_lossy(&output.stderr));
 
-        let last = spoke
+        let mut last = spoke
             .lines()
             .map(str::trim)
             .rfind(|line| !line.is_empty())
             .unwrap_or("yt-dlp said nothing")
             .to_owned();
+
+        // And the matcher, where it is installed. It has no updater of its
+        // own — it is a Python package, and the thing that installed it is the
+        // thing that updates it.
+        if locate(MATCHER).is_some() {
+            said(&format!("updating {MATCHER}…"));
+            match self.install_with_python("spotdl", true) {
+                Ok(()) => last = format!("{last}; {MATCHER} up to date"),
+                Err(err) => last = format!("{last}; {MATCHER} was not updated: {err}"),
+            }
+        }
 
         Ok(last)
     }
@@ -357,6 +643,14 @@ impl FetchPort for ExternalFetcher {
         progress: &dyn Fn(FetchProgress),
         stop: &dyn Fn() -> bool,
     ) -> Result<FetchedTracks> {
+        // A link that names a recording without holding one goes to the
+        // program that finds it. `what` does not apply there: a Spotify
+        // address is a track or an album or a playlist by its own shape, and
+        // both buttons fetch what it names.
+        if matches!(handler_for(link), LinkHandler::Matcher) {
+            return self.fetch_matched(link, into, progress, stop);
+        }
+
         let downloader = locate(DOWNLOADER)
             .ok_or_else(|| CoreError::invalid("link", format!("{DOWNLOADER} is not installed")))?;
         let converter = locate(CONVERTER)
@@ -578,7 +872,26 @@ impl FetchPort for ExternalFetcher {
 
 #[cfg(test)]
 mod tests {
-    use super::{explain, free_name, percentage};
+    use super::{MATCHER, explain, free_name, needed_for, percentage};
+
+    #[test]
+    fn a_link_needs_only_what_it_needs() {
+        // The promise this keeps: somebody who only ever pastes YouTube links
+        // is never told to install the program that reads Spotify's names.
+        let ordinary: Vec<&str> = needed_for("https://www.youtube.com/watch?v=abc")
+            .into_iter()
+            .map(|(program, _)| program)
+            .collect();
+        assert!(!ordinary.contains(&MATCHER));
+        assert_eq!(ordinary.len(), 2, "the downloader and the converter");
+
+        let named: Vec<&str> = needed_for("https://open.spotify.com/track/abc")
+            .into_iter()
+            .map(|(program, _)| program)
+            .collect();
+        assert!(named.contains(&MATCHER), "and this one needs all three");
+        assert_eq!(named.len(), 3);
+    }
 
     #[test]
     fn a_refusal_carries_the_one_thing_that_answers_it() {

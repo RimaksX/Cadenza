@@ -80,11 +80,16 @@ pub struct FetchedTracks {
 
 /// Running somebody else's downloader on the listener's behalf.
 pub trait FetchPort: Send + Sync {
-    /// Which of the programs this needs are not on this machine.
+    /// Which of the programs *this link* needs are not on this machine.
     ///
     /// Asked before anything is attempted, so that "you need to install
     /// yt-dlp" arrives instead of a failure ten seconds into a download.
-    fn missing(&self) -> Vec<MissingTool>;
+    ///
+    /// Per link, because they do not all need the same things: a Spotify
+    /// address needs the program that reads its names and finds the recording,
+    /// and a listener who only ever pastes YouTube links should never be told
+    /// to install it.
+    fn missing_for(&self, link: &str) -> Vec<MissingTool>;
 
     /// Brings audio from `link` into `into` as mp3s, and says where they went.
     ///
@@ -97,8 +102,8 @@ pub trait FetchPort: Send + Sync {
     /// them: a playlist somebody changed their mind about has to end when they
     /// say so and not when it finishes. Both run on whatever thread called
     /// this, which is never the one drawing the window.
-    /// Installs whatever [`Self::missing`] reported, and says what is still
-    /// missing afterwards.
+    /// Installs whatever [`Self::missing_for`] reported for this link, and says
+    /// what is still missing afterwards.
     ///
     /// Through the machine's own package manager, which is the same posture as
     /// everything else here: Cadenza opens no connection, it runs a program
@@ -106,10 +111,12 @@ pub trait FetchPort: Send + Sync {
     /// it runs is reported line by line through `said`, because installing
     /// something on somebody's computer is not a thing to do behind a spinner
     /// (`MASTER_ISSUES` 96).
-    fn install(&self, said: &dyn Fn(&str)) -> Result<Vec<MissingTool>>;
+    fn install(&self, link: &str, said: &dyn Fn(&str)) -> Result<Vec<MissingTool>>;
 
-    /// Brings the downloader up to date with its own updater, and says what it
-    /// said.
+    /// Brings the programs up to date, and says what they said.
+    ///
+    /// The downloader through its own updater, and anything installed through
+    /// the machine's package manager through that.
     ///
     /// Its own rather than the package manager's, measured rather than assumed:
     /// the package in `winget` on the machine this was written on was six weeks

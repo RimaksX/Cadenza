@@ -52,14 +52,58 @@ pub fn is_a_link(text: &str) -> bool {
 /// what a downloader would find at one of these addresses is a page, not a
 /// recording. That is a fact about those services rather than a shortcoming of
 /// whichever tool is installed, so no newer version of anything will change it.
-const LOCKED: [(&str, &str); 4] = [
-    ("spotify.com", "Spotify"),
+const LOCKED: [(&str, &str); 3] = [
     ("music.apple.com", "Apple Music"),
     ("tidal.com", "Tidal"),
     ("deezer.com", "Deezer"),
 ];
 
+/// The service whose links name a recording without holding one anybody can
+/// have.
+const MATCHED: &str = "spotify.com";
+
+/// Which program answers a link, if any does.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LinkHandler {
+    /// The downloader fetches what the link points at.
+    Downloader,
+    /// The link names a recording and the audio is found elsewhere.
+    ///
+    /// **Nothing takes audio out of Spotify.** Its streams are encrypted, and
+    /// every service that claims otherwise does what this does: it reads the
+    /// title, the artist and the album from the link and then finds that
+    /// recording on YouTube. `spotDL` says so about itself in as many words —
+    /// it uses YouTube as its source "to avoid any issues related to
+    /// downloading music from Spotify".
+    ///
+    /// So what a listener gets is the same audio the other button gets, with
+    /// better names on it, chosen by a match that is usually right and
+    /// sometimes finds a live version instead (`MASTER_ISSUES` 99).
+    Matcher,
+    /// Nothing does, and the service is named so the answer arrives at once.
+    Refused(&'static str),
+}
+
+/// Which program to hand a link to.
+#[must_use]
+pub fn handler_for(text: &str) -> LinkHandler {
+    let text = text.to_lowercase();
+
+    if let Some((_, service)) = LOCKED.iter().find(|(host, _)| text.contains(host)) {
+        return LinkHandler::Refused(service);
+    }
+    if text.contains(MATCHED) {
+        return LinkHandler::Matcher;
+    }
+
+    LinkHandler::Downloader
+}
+
 /// The service this link belongs to, when it is one nothing can fetch from.
+///
+/// Spotify is not among them any more, and it never should have been for the
+/// stated reason: what was true is that nothing can take its *audio*, and what
+/// this list is for is services where nothing can be got at all.
 ///
 /// The one exception to "this is not a URL parser", and it earns itself: these
 /// four are what people actually have open when they copy a link to a song.
@@ -86,26 +130,64 @@ mod tests {
     use super::{is_a_link, locked_service};
 
     #[test]
-    fn a_service_that_encrypts_its_audio_is_named_rather_than_attempted() {
+    fn which_program_answers_which_link() {
+        use super::{LinkHandler, handler_for};
+
+        // The one that names a recording without holding one: read the names,
+        // find the recording elsewhere.
         assert_eq!(
-            locked_service("https://open.spotify.com/track/4cOdK2wGLETKBW3PvgPWqT"),
-            Some("Spotify")
+            handler_for("https://open.spotify.com/track/4cOdK2wGLETKBW3PvgPWqT"),
+            LinkHandler::Matcher
         );
+        assert_eq!(
+            handler_for("https://open.spotify.com/playlist/37i9dQZF1DX"),
+            LinkHandler::Matcher
+        );
+
+        // The ones where nothing can be got at all.
+        assert_eq!(
+            handler_for("https://music.apple.com/us/album/x/1"),
+            LinkHandler::Refused("Apple Music")
+        );
+        assert_eq!(
+            handler_for("HTTPS://TIDAL.COM/track/1"),
+            LinkHandler::Refused("Tidal")
+        );
+
+        // And everything else, which is the downloader's job.
+        assert_eq!(
+            handler_for("https://www.youtube.com/watch?v=abc"),
+            LinkHandler::Downloader
+        );
+        assert_eq!(
+            handler_for("https://soundcloud.com/a/b"),
+            LinkHandler::Downloader
+        );
+        assert_eq!(
+            handler_for("https://www.youtube.com/watch?v=spotify"),
+            LinkHandler::Downloader,
+            "the host is what is matched, not the word: this is a YouTube link"
+        );
+    }
+
+    #[test]
+    fn a_service_that_encrypts_its_audio_is_named_rather_than_attempted() {
         assert_eq!(
             locked_service("https://music.apple.com/us/album/x/1"),
             Some("Apple Music")
         );
         assert_eq!(locked_service("HTTPS://TIDAL.COM/track/1"), Some("Tidal"));
 
-        // What can be fetched is left alone, including the site whose name
-        // contains another one.
+        // Spotify is answered rather than refused now: its links name a
+        // recording, and the recording is findable.
+        assert_eq!(
+            locked_service("https://open.spotify.com/track/4cOdK2wGLETKBW3"),
+            None
+        );
+
+        // What can be fetched is left alone.
         assert_eq!(locked_service("https://www.youtube.com/watch?v=abc"), None);
         assert_eq!(locked_service("https://soundcloud.com/a/b"), None);
-        assert_eq!(
-            locked_service("https://www.youtube.com/watch?v=spotify"),
-            None,
-            "a word in a query is not a host"
-        );
     }
 
     #[test]

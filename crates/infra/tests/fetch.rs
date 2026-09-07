@@ -52,11 +52,11 @@ struct FakeFetcher {
 }
 
 impl FetchPort for FakeFetcher {
-    fn missing(&self) -> Vec<MissingTool> {
+    fn missing_for(&self, _link: &str) -> Vec<MissingTool> {
         self.missing.clone()
     }
 
-    fn install(&self, said: &dyn Fn(&str)) -> cadenza_core::Result<Vec<MissingTool>> {
+    fn install(&self, _link: &str, said: &dyn Fn(&str)) -> cadenza_core::Result<Vec<MissingTool>> {
         said("installing");
         // A fake package manager that always works, so that what is under test
         // is what the service does about it rather than what winget does.
@@ -331,7 +331,7 @@ fn a_machine_without_the_programs_is_told_which_ones() {
 }
 
 #[test]
-fn a_service_that_encrypts_its_audio_is_refused_by_name() {
+fn a_service_nothing_can_fetch_from_is_refused_by_name() {
     // Not a failure to hide behind a generic message: no version of any tool
     // will ever fetch these, and saying which service it is turns ten seconds
     // of waiting into one sentence somebody can act on.
@@ -344,20 +344,48 @@ fn a_service_that_encrypts_its_audio_is_refused_by_name() {
     let refused = harness
         .library
         .fetch_from_link(
-            "https://open.spotify.com/track/abc",
+            "https://music.apple.com/us/album/x/1",
             FetchWhat::OneTrack,
             &nothing,
             &carry_on,
         )
-        .expect_err("Spotify cannot be fetched from");
+        .expect_err("Apple Music cannot be fetched from");
 
     assert!(
-        refused.to_string().contains("Spotify"),
+        refused.to_string().contains("Apple Music"),
         "the service is named: {refused}"
     );
     assert!(
         !harness.fetcher.ran.load(Ordering::Relaxed),
         "and nothing was started to find that out"
+    );
+}
+
+#[test]
+fn a_spotify_link_is_attempted_rather_than_refused() {
+    // What changed, and the distinction it rests on: nothing can take
+    // Spotify's audio, which is still true — but its links *name* a recording,
+    // and a recording can be found. So this one goes to a program instead of
+    // to a sentence.
+    let harness = harness("named", FakeFetcher::default());
+    harness
+        .library
+        .use_suggested_folder()
+        .expect("the local folder");
+
+    harness
+        .library
+        .fetch_from_link(
+            "https://open.spotify.com/track/abc",
+            FetchWhat::OneTrack,
+            &nothing,
+            &carry_on,
+        )
+        .expect("a Spotify link is answered now");
+
+    assert!(
+        harness.fetcher.ran.load(Ordering::Relaxed),
+        "something was started to answer it"
     );
 }
 
@@ -578,7 +606,9 @@ fn installing_clears_what_was_missing() {
     let told = std::cell::RefCell::new(Vec::new());
     let still_missing = harness
         .library
-        .install_tools(&|line| told.borrow_mut().push(line.to_owned()))
+        .install_tools("https://example.com/watch?v=abc", &|line| {
+            told.borrow_mut().push(line.to_owned())
+        })
         .expect("an install");
 
     assert!(still_missing.is_empty(), "nothing is missing afterwards");

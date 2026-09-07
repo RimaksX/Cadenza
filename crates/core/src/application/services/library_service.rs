@@ -18,7 +18,7 @@ use crate::domain::media_file::{FileState, MediaFile, is_supported_extension};
 use crate::domain::policies::artwork_policy::looks_like_an_image;
 use crate::domain::policies::duplicate_policy::{self, DuplicateVerdict};
 use crate::domain::policies::fetch_policy::looks_out_of_date;
-use crate::domain::policies::link_policy::{is_a_link, locked_service};
+use crate::domain::policies::link_policy::{LinkHandler, handler_for, is_a_link};
 use crate::domain::ports::artwork_cache::{ArtworkCachePort, CoverOf};
 use crate::domain::ports::event_bus::DomainEvent;
 use crate::domain::ports::fetcher::{FetchPort, FetchProgress, FetchWhat, MissingTool};
@@ -359,7 +359,14 @@ impl LibraryService {
         // Before the tools, because this is true whatever is installed: no
         // version of anything will ever fetch from these, and the listener's
         // next move is the same track somewhere that will part with it.
-        if let Some(service) = locked_service(link) {
+        //
+        // Spotify used to be on that list and is not any more, and the
+        // distinction is worth keeping straight: nothing can take Spotify's
+        // *audio*, which is still true, but its links name a recording and the
+        // recording can be found. That is what the matcher does, and what
+        // every service claiming to "download from Spotify" does
+        // (`MASTER_ISSUES` 99).
+        if let LinkHandler::Refused(service) = handler_for(link) {
             return Err(CoreError::invalid(
                 "link",
                 format!(
@@ -372,7 +379,7 @@ impl LibraryService {
             CoreError::invalid("link", "this copy cannot fetch anything from a link")
         })?;
 
-        let missing = fetcher.missing();
+        let missing = fetcher.missing_for(link);
         if !missing.is_empty() {
             return Ok(Fetched::NeedsTools(missing));
         }
@@ -482,12 +489,12 @@ impl LibraryService {
     ///
     /// Empty means it worked. `said` is called as it goes, because installing
     /// something on somebody's computer is not a thing to do behind a spinner.
-    pub fn install_tools(&self, said: &dyn Fn(&str)) -> Result<Vec<MissingTool>> {
+    pub fn install_tools(&self, link: &str, said: &dyn Fn(&str)) -> Result<Vec<MissingTool>> {
         let fetcher = self.ports.fetcher.as_ref().ok_or_else(|| {
             CoreError::invalid("link", "this copy cannot fetch anything from a link")
         })?;
 
-        fetcher.install(said)
+        fetcher.install(link, said)
     }
 
     /// Brings the downloader up to date, and hands back what it said about it.
