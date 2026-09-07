@@ -189,6 +189,13 @@ pub const CROSSFADE_MS_KEY: &str = "playback.crossfade_ms";
 /// Where the preloading switch is kept.
 pub const PRELOAD_NEXT_KEY: &str = "playback.preload_next";
 
+/// Where the output level is kept, per profile.
+///
+/// A scalar in `0.0..=1.0`, the same number the slider holds. Kept per profile
+/// because it is a preference and not a property of the machine: two listeners
+/// sharing a computer do not share what "loud enough" means.
+pub const VOLUME_KEY: &str = "playback.volume";
+
 /// Where the interface scale is kept, per profile.
 pub const UI_SCALE_KEY: &str = "ui.scale";
 

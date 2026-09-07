@@ -1063,6 +1063,8 @@ impl Controller {
             let profile = self.services.profiles.switch_to(profile_id)?;
             self.services.queue.reload();
             self.services.radio.stop();
+            // Their level, not the level the last listener was at.
+            self.services.playback.restore_volume()?;
 
             *self.profile.borrow_mut() = Some(profile);
             Ok(())

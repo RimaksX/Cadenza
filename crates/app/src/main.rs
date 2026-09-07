@@ -231,6 +231,18 @@ fn run() -> std::result::Result<(), String> {
         },
     ));
 
+    // The level this listener left it at, before anything can be played at
+    // somebody else's (`MASTER_ISSUES` 98). Only where there is a listener: a
+    // first run has nobody to have left anything.
+    if active.is_some()
+        && let Err(err) = playback.restore_volume()
+    {
+        log.write(
+            LogLevel::Warn,
+            &format!("the volume was not restored: {err}"),
+        );
+    }
+
     // Built after the profile has been restored, because building it is what
     // restores that profile's queue.
     let queue = Arc::new(QueueService::new(

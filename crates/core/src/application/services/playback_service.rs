@@ -19,7 +19,7 @@ use crate::domain::ports::repositories::{
 };
 use crate::domain::settings::{
     CROSSFADE_ENABLED_KEY, CROSSFADE_MS_KEY, CrossfadeDuration, PRELOAD_NEXT_KEY, PlaybackSettings,
-    SettingValue,
+    SettingValue, VOLUME_KEY,
 };
 use crate::domain::stats::{PlayEvent, PlaySource};
 use crate::domain::track::TrackSummary;
@@ -214,6 +214,33 @@ impl PlaybackService {
         Ok(())
     }
 
+    /// Puts the volume back where this profile left it.
+    ///
+    /// Called when a profile becomes the active one — at the start of a run and
+    /// at a switch — because those are the two moments the engine is holding
+    /// somebody else's level, or none at all. The engine has no database and no
+    /// way to ask, the same as everything else here.
+    ///
+    /// A profile that has never touched it gets `Volume::default`, which is
+    /// full: the first run of a music player should make a sound.
+    pub fn restore_volume(&self) -> Result<()> {
+        let profile_id = self.context.require_active_profile()?;
+
+        let volume = match self.context.settings.profile_get(profile_id, VOLUME_KEY)? {
+            Some(value) => Volume::clamped(value.as_float()? as f32),
+            None => Volume::default(),
+        };
+
+        *self.volume.write().unwrap_or_else(|err| err.into_inner()) = volume;
+        // Through the same door a listener's own press goes through: muted
+        // stays muted, and what the engine is told is what is heard.
+        let muted = *self.muted.read().unwrap_or_else(|err| err.into_inner());
+        let level = if muted { Volume::MUTED } else { volume };
+        self.ports.engine.set_volume(level)?;
+        self.announce();
+        Ok(())
+    }
+
     fn read_settings(&self, profile_id: ProfileId) -> Result<PlaybackSettings> {
         let defaults = PlaybackSettings::default();
         let store = &self.context.settings;
@@ -351,10 +378,28 @@ impl PlaybackService {
 
     /// Sets the output level.
     ///
+    /// Written down as well as applied, because a player that opens at full
+    /// volume every morning is a player somebody turns down every morning
+    /// (`MASTER_ISSUES` 98). Every step of a drag writes one small row; volume
+    /// is not dragged often enough for that to be worth the preview-and-commit
+    /// dance the equaliser needs.
+    ///
     /// Setting a level while muted unmutes: reaching for the volume is how
     /// somebody says they want to hear something.
     pub fn set_volume(&self, volume: Volume) -> Result<()> {
         *self.volume.write().unwrap_or_else(|err| err.into_inner()) = volume;
+
+        // A profile is needed to write it against and not to hear it: a window
+        // open before anybody has chosen one still has a volume, it is simply
+        // nobody's yet.
+        if let Some(profile_id) = self.context.active_profile() {
+            self.context.settings.profile_set(
+                profile_id,
+                VOLUME_KEY,
+                &SettingValue::Float(f64::from(volume.as_f32())),
+                self.context.now(),
+            )?;
+        }
         *self.muted.write().unwrap_or_else(|err| err.into_inner()) = false;
 
         self.ports.engine.set_volume(volume)?;
