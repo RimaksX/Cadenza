@@ -4,10 +4,10 @@
 //! one identifier, and the whole point of the table is that it holds a pointer
 //! rather than a curve (`MASTER_ISSUES` 89).
 
+use cadenza_core::Result;
 use cadenza_core::domain::ids::{EqPresetId, MediaFileId, ProfileId};
 use cadenza_core::domain::ports::repositories::TrackEqRepositoryPort;
 use cadenza_core::domain::value_objects::Timestamp;
-use cadenza_core::Result;
 use rusqlite::OptionalExtension;
 
 use crate::db::SqlitePool;
