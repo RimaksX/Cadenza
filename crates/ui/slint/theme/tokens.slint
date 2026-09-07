@@ -101,6 +101,13 @@ export global Theme {
     // steps of grey.
     out property <length> text-display: root.type-size(40);
     out property <length> text-title: root.type-size(24);
+    // The fifth size, and the scale said four for a reason — so it is worth
+    // saying why this one exists. A track's name is the loudest thing in a list
+    // row and the quietest kind of heading: at 24 it dominated three columns of
+    // 14 and truncated anything past two words, at 14 it read small, because
+    // this serif has a famously short lower case. The gap between the two had
+    // nothing in it, and a list row is where that gap is felt.
+    out property <length> text-lead: root.type-size(18);
     out property <length> text-body: root.type-size(14);
     out property <length> text-label: root.type-size(12);
 

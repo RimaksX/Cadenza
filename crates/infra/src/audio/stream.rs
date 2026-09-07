@@ -165,6 +165,13 @@ pub(crate) struct Shared {
     pub(crate) loaded: AtomicBool,
     /// Whether a following track is open and waiting to be joined on.
     pub(crate) armed: AtomicBool,
+    /// A join the decoder has made and nobody has announced yet.
+    ///
+    /// Recorded when it happens rather than worked out afterwards. The
+    /// state it would have to be worked out from — what is armed, whether a
+    /// fade is running — is rebuilt by the queue four times a second, so a
+    /// moment after a swap it says the opposite of what is true.
+    pub(crate) joined: AtomicBool,
     /// A copy of what actually went to the device, for the visualiser.
     ///
     /// The end of the chain rather than the middle of it: what is drawn is what
@@ -221,6 +228,7 @@ impl Shared {
             ended: AtomicBool::new(false),
             loaded: AtomicBool::new(false),
             armed: AtomicBool::new(false),
+            joined: AtomicBool::new(false),
             tap: SampleRing::new(TAP_FRAMES, channels),
             tapping: AtomicBool::new(false),
             flush_seq: AtomicU64::new(0),
@@ -337,9 +345,12 @@ impl Shared {
     /// does the same three things at the boundary; `track_base` is left to the
     /// flush that follows, which resets it to where the seek landed.
     fn announce_pending(&self) -> bool {
-        if self.announce_at.load(Ordering::Acquire) == NO_BOUNDARY {
+        if !self.joined.load(Ordering::Relaxed)
+            || self.announce_at.load(Ordering::Acquire) == NO_BOUNDARY
+        {
             return false;
         }
+        self.joined.store(false, Ordering::Relaxed);
 
         self.duration_ms.store(
             self.boundary_duration_ms.load(Ordering::Relaxed),
@@ -511,6 +522,7 @@ pub(crate) fn fill_output(shared: &Shared, out: &mut [f32], gain: &mut f32, eq: 
             Ordering::Relaxed,
         );
         shared.announce_at.store(NO_BOUNDARY, Ordering::Relaxed);
+        shared.joined.store(false, Ordering::Relaxed);
         shared.advances.fetch_add(1, Ordering::Relaxed);
     }
 }
@@ -834,19 +846,14 @@ impl Producer {
             return Err(CoreError::Audio("nothing is loaded to seek in".into()));
         };
 
-        // Asked before anything is dropped: has the decoder already joined? A
-        // gapless join leaves nothing armed and no fade running, and it is the
-        // one case where the track being seeked is no longer the track the rest
-        // of the application thinks is playing. Mid-crossfade the answer is no
-        // — `next` is still held and the fade is still running — and the mark
-        // then belongs to a join that is about to be abandoned.
-        let joined = self.next.is_none() && self.fade_frames == 0;
-
         let landed = current.seek(position, rate)?;
 
-        if joined {
-            self.shared.announce_pending();
-        }
+        // A join the decoder has already made and the callback has not yet
+        // reached. Announced here rather than thrown away with the samples
+        // in front of it: the swap has happened, and the track being seeked
+        // is no longer the one the rest of the application believes is
+        // playing.
+        self.shared.announce_pending();
 
         // Whatever was armed had already begun to be mixed in at a point that
         // no longer exists. It is dropped rather than rewound, and the caller
@@ -1094,6 +1101,7 @@ impl Producer {
         self.fade_frames = 0;
         self.fade_done = 0;
         self.shared.armed.store(false, Ordering::Relaxed);
+        self.shared.joined.store(true, Ordering::Relaxed);
     }
 
     /// Marks the end of the stream, with a reason when it ended badly.
