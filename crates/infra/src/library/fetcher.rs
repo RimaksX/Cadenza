@@ -187,6 +187,59 @@ impl ExternalFetcher {
 }
 
 impl ExternalFetcher {
+    /// What the matcher can say about a link without fetching anything.
+    ///
+    /// One metadata call, a couple of seconds, and it buys three things: what
+    /// the list is called, how many tracks are in it, and therefore a
+    /// percentage that means something. The answer is written to a file rather
+    /// than printed, so it is read rather than parsed — `list_name` and
+    /// `list_length` are fields, not sentences (`MASTER_ISSUES` 101).
+    ///
+    /// A link naming one track has no `list_name` at all, which is how a track
+    /// and a list are told apart without guessing.
+    ///
+    /// Not knowing is not a failure: the download goes ahead, with no total and
+    /// no playlist made from it.
+    fn ask_matcher(&self, matcher: &Path, link: &str, workspace: &Path) -> (Option<String>, u32) {
+        let file = workspace.join("list.spotdl");
+
+        let asked = quietly(matcher)
+            .env("PYTHONIOENCODING", "utf-8")
+            .arg("save")
+            .arg(link)
+            .arg("--save-file")
+            .arg(&file)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .stdin(Stdio::null())
+            .output();
+
+        if !asked.is_ok_and(|spoke| spoke.status.success()) {
+            return (None, 0);
+        }
+
+        let Ok(text) = std::fs::read_to_string(&file) else {
+            return (None, 0);
+        };
+        let Ok(songs) = serde_json::from_str::<Vec<serde_json::Value>>(&text) else {
+            return (None, 0);
+        };
+
+        let Some(first) = songs.first() else {
+            return (None, 0);
+        };
+
+        let list = first
+            .get("list_name")
+            .and_then(serde_json::Value::as_str)
+            .map(str::trim)
+            .filter(|name| !name.is_empty())
+            .map(str::to_owned);
+        let total = u32::try_from(songs.len()).unwrap_or(u32::MAX);
+
+        (list, total)
+    }
+
     /// Fetches what a Spotify link *names*, which is not what it holds.
     ///
     /// The matcher reads the title, artist and album from the link and finds
@@ -207,8 +260,15 @@ impl ExternalFetcher {
             .ok_or_else(|| CoreError::invalid("link", format!("{CONVERTER} is not installed")))?;
 
         let workspace = workspace()?;
+        let (list, total) = self.ask_matcher(&matcher, link, &workspace);
 
         let mut child = quietly(&matcher)
+            // In UTF-8, and this is not optional: the matcher prints the name
+            // of what it is fetching, and printing "европа плюс 2016" into a
+            // cp1252 stream kills it before it starts. Measured — the first
+            // playlist anybody tried was that one, and it died on its own
+            // title (`MASTER_ISSUES` 101, and the same shape as 90).
+            .env("PYTHONIOENCODING", "utf-8")
             .arg("download")
             .arg(link)
             // Its own template language rather than yt-dlp's, and the names in
@@ -246,11 +306,12 @@ impl ExternalFetcher {
                 // works is not documented anywhere, and a parser written
                 // against strings nobody has seen is a parser that will be
                 // wrong in a language nobody here reads. Files that have
-                // appeared are a fact.
+                // appeared are a fact, and how many are coming was asked for
+                // before any of this started.
                 let done = finished_files(&workspace);
                 progress(FetchProgress {
                     percent: 0,
-                    item: (done > 0).then_some((done, 0)),
+                    item: (done > 0).then_some((done, total)),
                 });
             }
         }
@@ -285,12 +346,12 @@ impl ExternalFetcher {
             percent: 100,
             item: None,
         });
-        // No playlist is made from a Spotify link yet: the matcher does not say
-        // what the list it was given is called, and a playlist named by a guess
-        // is worse than none.
+        // And the list it came from becomes a list here, under the name it has
+        // where it came from — which the matcher was asked for by name rather
+        // than guessed at from anything it printed.
         Ok(FetchedTracks {
             files: landed,
-            playlist: None,
+            playlist: list,
         })
     }
 }
