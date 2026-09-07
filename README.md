@@ -1,68 +1,79 @@
 # Cadenza
 
-Local desktop music player for Windows. Your music is files on your disk, and nothing
-here depends on a service being up: no telemetry, no cloud accounts, no neural
-networks, and no network client of its own.
+A local music player for Windows.
 
-- Local library with folder scanning and file watching
-- Playlists, manual queue, smart shuffle, local smart radio
+Your music is files on your disk, and nothing here depends on a service being
+up. No account, no cloud, no telemetry, no neural networks, and no network
+client of its own — close the connection and everything still works.
+
+- Library built from folders you point it at, kept current while the window is
+  open: files copied in are noticed, files removed are noticed
+- MP3, AAC, ALAC, FLAC and WAV
+- Playlists, a queue you arrange by hand, shuffle that listens to what fits, and
+  a radio built from your own library
 - Crossfade and gapless playback
-- Three-knob and eight-band parametric equalizer
-- Lightweight audio visualization
-- Local listening analytics with a 30-day retention window
-- Multiple user profiles, each with its own library, playlists, history and settings
-- Paste a link and the track joins the library, using a downloader you installed
-  yourself — Cadenza opens no connections and ships no such tool
-  ([docs/MASTER_ISSUES.md](docs/MASTER_ISSUES.md), finding 76)
+- Three-knob and eight-band parametric equaliser
+- A visualiser that follows what is playing
+- What you listened to, kept for thirty days — or not kept at all, if you say so
+- Several listeners on one machine, each with their own library, playlists,
+  history and settings
+- Paste a link and the track joins the library
 
-## Status
+## What you need
 
-Milestones **M0 – M15** complete: everything in the feature list above works, in
-a window with nine screens, two themes and four sizes. **M16**, Windows
-packaging, is under way — the application icon and the WiX manifest are in
-`packaging/windows`, and what remains is building the MSI and proving install
-and uninstall on a clean machine.
+Windows 10 or 11, 64-bit.
 
-What was actually built in each milestone is in
-[docs/PROJECT_PLAN.md](docs/PROJECT_PLAN.md); every deviation from the master file
-and the reason for it is in [docs/MASTER_ISSUES.md](docs/MASTER_ISSUES.md).
+## Building it
 
-## Build
+There is no installer yet. Until there is, build it yourself — you need
+[Rust](https://rustup.rs) and nothing else:
 
-```bash
-cargo build --workspace
-cargo test --workspace
-cargo run -p cadenza-app
+```
+cargo build --release
 ```
 
-Requires Rust stable (see `rust-toolchain.toml`).
+The player is then `target/release/cadenza.exe`. It is self-contained: the
+fonts and the icons are inside it.
 
-`target/` grows: cargo keeps every artefact it has ever built, and on Windows
-each carries a `.pdb` beside it. The dev profile keeps line tables for this
-project and no debug information at all for dependencies, which is what holds a
-full build with tests to about four gigabytes rather than forty
-([docs/MASTER_ISSUES.md](docs/MASTER_ISSUES.md), finding 71). `cargo clean`
-returns all of it.
+## Bringing a track in from a link
 
-## Layout
+The field at the top of the library takes a web address and puts the track in
+your Cadenza folder.
 
-| Crate | Layer | May depend on |
-|---|---|---|
-| `crates/core` | domain + application | nothing in this workspace |
-| `crates/infra` | SQLite, audio, metadata, filesystem, analysis | `core` |
-| `crates/ui` | Slint views, view models, commands | `core` |
-| `crates/app` | composition root | `core`, `infra`, `ui` |
-| `crates/testkit` | shared test helpers | `core` (`infra` from M2) |
+Cadenza does not download anything itself. It runs **yt-dlp**, which you
+install once:
 
-## Source of truth
+```
+winget install yt-dlp.yt-dlp
+```
 
-`PROJECT_MASTER.json` at the repository root defines the requirements, stack,
-architecture, data model and milestone plan. It outranks this README and every file
-under `docs/`. Do not change the stack, layering, profile rules, history retention or
-the local/no-ML stance without amending it first.
+That pulls in ffmpeg with it, which is what turns what arrives into an mp3.
+Neither program is shipped with Cadenza, and that is deliberate: they are kept
+current by the people who watch the sites they fetch from, so the feature does
+not quietly stop working between releases here. Restart Cadenza after
+installing them — it looks for them when it starts.
 
-## License
+Some services cannot be fetched from at all. Spotify, Apple Music, Tidal and
+Deezer hand out encrypted audio to their own players, so there is no recording
+at those addresses for anything to find. Cadenza says so rather than trying.
 
-GPL-3.0-only — version 3 of the GNU GPL and no other, because that is the
-version the Slint UI dependency is used under (see
-[docs/adr/0002-slint-ui.md](docs/adr/0002-slint-ui.md)).
+## Where your things are
+
+Everything Cadenza keeps lives in one place:
+
+```
+%LOCALAPPDATA%\Cadenza
+```
+
+The library database, the cover art it has cached, and its log. Downloaded
+tracks go to a folder of their own — `Music\Cadenza` under your user folder —
+and the music you already had is never moved, copied or written to. Cadenza
+reads your folders and remembers where things are; it does not tidy them.
+
+## Licence
+
+GPL-3.0-only — version 3 of the GNU General Public License and no other
+version. That is not a preference: the interface is built on
+[Slint](https://slint.dev), which is used here under GPLv3, so this is the
+version the whole work can be offered under. The full text is in
+[LICENSE](LICENSE).

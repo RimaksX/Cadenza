@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  The Windows installer, as PROJECT_MASTER 1.2 requires: "Дистрибуция: MSI".
+  The Windows installer.
 
   Two decisions are worth reading before the markup.
 
@@ -14,7 +14,7 @@
   And it installs **the program and not the map of it**. The release profile
   strips symbols, and a `.pdb` sits beside the executable in `target/release`.
   Only `cadenza.exe` is named below, so the debug file cannot travel by
-  accident (MASTER_ISSUES 72).
+  accident.
 -->
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
      xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">

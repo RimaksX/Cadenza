@@ -34,9 +34,8 @@ jobs:
 
   # What the dependency tree is allowed to contain: no known vulnerability, no
   # licence nobody has agreed to, no wildcard version, nothing from a registry
-  # this project does not use. Deferred from M0 when there were three
-  # dependencies; there are 682 now (MASTER_ISSUES 72), and the terms are in
-  # `deny.toml`.
+  # this project does not use. Deferred from the start when there were three
+  # dependencies; there are 682 now, and the terms are in `deny.toml`.
   #
   # On Linux because this one reads a manifest rather than building anything,
   # and it is the cheapest runner there is.

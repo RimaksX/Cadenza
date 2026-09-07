@@ -1,8 +1,7 @@
 # Building the installer
 
-Cadenza ships as an MSI, which PROJECT_MASTER 1.2 fixes as the distribution
-format. This directory holds everything the installer is made of except the
-program itself.
+Cadenza ships as an MSI. This directory holds everything the installer is made
+of except the program itself.
 
 ```
 cadenza.wxs          the manifest — what is installed, where, and under what name

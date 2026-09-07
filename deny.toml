@@ -1,7 +1,7 @@
 # What the dependency tree is allowed to contain.
 #
-# Deferred from M0, when there were three dependencies and nothing to check;
-# there are 682 of them now (MASTER_ISSUES 72). Run it with:
+# Deferred from the start, when there were three dependencies and nothing to
+# check; there are 682 of them now. Run it with:
 #
 #     cargo deny check
 #
@@ -21,8 +21,7 @@ version = 2
 allow = [
     # Cadenza itself and the UI toolkit it is built on. Slint offers other
     # terms as alternatives — `LicenseRef-Slint-*` below — and this project
-    # takes the GPL branch, which is why the whole work is GPL-3.0-only
-    # (docs/adr/0002-slint-ui.md).
+    # takes the GPL branch, which is why the whole work is GPL-3.0-only.
     "GPL-3.0-only",
     "LGPL-2.1-or-later",
 
