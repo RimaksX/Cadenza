@@ -330,6 +330,20 @@ impl PlaybackService {
 
     /// Jumps to a position in the current track.
     pub fn seek(&self, position: PlaybackPosition) -> Result<()> {
+        // A probe, while a reported defect is being hunted (MASTER_ISSUES 83).
+        // Seeking with a transition armed is the state the defect needs, and it
+        // cannot be reproduced in a test: the count of transitions is raised by
+        // the audio callback crossing the middle of a crossfade, while a seek
+        // travels to the decode thread as a command. Only a real machine has
+        // both a callback and a queue of commands.
+        //
+        // Cheap enough to leave: a listener seeks a handful of times an hour.
+        self.context.info(&format!(
+            "seek to {} ms, armed = {}",
+            position.as_millis(),
+            self.ports.engine.armed()
+        ));
+
         self.ports.engine.seek(position)?;
         self.announce();
         Ok(())

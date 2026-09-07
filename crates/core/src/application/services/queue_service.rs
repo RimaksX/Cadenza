@@ -700,6 +700,16 @@ impl QueueService {
             return Ok(false);
         }
 
+        // The other half of the probe in `PlaybackService::seek`
+        // (MASTER_ISSUES 83). A step the listener did not ask for, logged with
+        // the counts that caused it: a seek immediately followed by one of
+        // these is the defect, and nothing short of a real machine produces the
+        // pair.
+        self.context.info(&format!(
+            "the engine advanced on its own: {} counted, {seen} seen",
+            advances
+        ));
+
         for _ in seen..advances {
             self.step()?;
         }

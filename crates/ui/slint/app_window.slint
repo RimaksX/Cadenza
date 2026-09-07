@@ -560,8 +560,20 @@ export component AppWindow inherits Window {
 
     // Space is the one shortcut worth having before there is a settings screen
     // to list shortcuts in.
+    //
+    // Zero-sized, and that is the whole of it. A `FocusScope` left to its own
+    // devices expands to fill its parent, and this one is declared last — so it
+    // lay over the entire window, took the first press anywhere as a request
+    // for focus, and swallowed it. Every button in the application needed two
+    // clicks whenever a text field held the focus: the first to feed this, the
+    // second to reach what was actually being aimed at.
+    //
+    // With no area it can still hold focus and still hear the keyboard; it
+    // simply has nowhere for a pointer to land (`MASTER_ISSUES` 83).
     forward-focus: keys;
     keys := FocusScope {
+        width: 0px;
+        height: 0px;
         key-pressed(event) => {
             if (event.text == " ") {
                 root.toggle-play();
