@@ -169,15 +169,17 @@ export component TrackRow inherits Rectangle {
             }
         }
 
-        // The album is set in italic serif rather than in the interface face:
-        // it is the name of a work, like the title, and reads as one.
+        // The album is set in the same face as the artist beside it. It was
+        // serif, on the reasoning that it names a work as the title does — but
+        // in a row the title already carries that job, and a second accented
+        // face on a quieter column reads as decoration rather than as rank.
         VerticalLayout {
             alignment: center;
             width: Theme.album-column;
 
             Text {
                 text: root.data.album;
-                font-family: Theme.serif;
+                font-family: Theme.sans;
                 font-size: Theme.text-body;
                 height: Theme.px(22);
                 // Upright, and a step louder. This was the same fourteen as

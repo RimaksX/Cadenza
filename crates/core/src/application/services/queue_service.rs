@@ -310,6 +310,11 @@ impl QueueService {
 
     /// Moves to the next track, or stops when there is nothing left to play.
     pub fn next(&self) -> Result<()> {
+        // For the same reason as `previous`: skipping in the last seconds of a
+        // track would otherwise step past a join the engine had already made,
+        // and skip two.
+        self.catch_up()?;
+
         match self.step()? {
             Some(_) => self.play_current(),
             None => self.playback.stop(),
@@ -495,6 +500,20 @@ impl QueueService {
     /// PROJECT_MASTER 2.3 states it as a rule about elapsed time, and a rule
     /// belongs in a policy.
     pub fn previous(&self) -> Result<()> {
+        // Reconciled before anything is decided. In the last seconds of a track
+        // the engine may already have joined to the next one — the decoder runs
+        // ahead of the speakers by design — and a decision taken against the
+        // queue's older idea of what is current acts on the wrong track. That
+        // is how "previous" came to start the *next* one: the position said
+        // "near the end, restart it", and the track restarted was the one the
+        // engine had already moved to.
+        //
+        // Catching up first makes the question the right one. After it, what is
+        // current is what is playing, its position is a second or two, and
+        // going back one lands on the track the listener was actually
+        // listening to.
+        self.catch_up()?;
+
         let position = self.playback.view().position;
 
         if previous_action(position) == PreviousAction::RestartCurrent {
