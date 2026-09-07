@@ -46,6 +46,19 @@ pub trait ArtworkCachePort: Send + Sync {
     /// Where the image lives, if there is one.
     fn path_for(&self, cover: CoverOf) -> Option<PathBuf>;
 
+    /// Where a small copy lives, making one the first time it is asked for.
+    ///
+    /// A list draws covers at forty-odd pixels and the stored ones are
+    /// routinely a thousand square. Decoding the second to draw the first, once
+    /// per row, is what makes a library of a few thousand tracks scroll badly —
+    /// so the small copy is made once, kept beside the original, and thrown
+    /// away with it when the cover changes.
+    ///
+    /// `None` where there is no cover to shrink, or where the picture could not
+    /// be read: a row without a thumbnail draws its fallback, which is a
+    /// smaller failure than a row that will not draw at all.
+    fn thumbnail_for(&self, cover: CoverOf) -> Option<PathBuf>;
+
     /// Drops the image. Safe to call when there is none.
     fn remove(&self, cover: CoverOf) -> Result<()>;
 }

@@ -47,6 +47,18 @@ pub fn image_extension(bytes: &[u8]) -> Option<&'static str> {
 /// Every extension a stored cover can have, for finding one again.
 pub const IMAGE_EXTENSIONS: [&str; 5] = ["png", "jpg", "gif", "bmp", "webp"];
 
+/// How large a cover is kept for showing in a list.
+///
+/// A row shows the cover at forty-odd pixels; a cover on disk is routinely a
+/// thousand square. Decoding the second to draw the first is a tenth of a
+/// second and a few megabytes per row, and a library scrolls hundreds of rows.
+///
+/// Ninety-six rather than forty-eight: the interface scales to 125 per cent and
+/// the screen may scale again on top of that, and an enlarged thumbnail is the
+/// one thing worse than a slow one. Above that the saving stops being the
+/// point.
+pub const THUMBNAIL_PX: u32 = 96;
+
 #[cfg(test)]
 mod tests {
     use super::looks_like_an_image;

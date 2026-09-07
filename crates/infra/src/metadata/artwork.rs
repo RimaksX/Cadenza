@@ -3,7 +3,9 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use cadenza_core::domain::policies::artwork_policy::{IMAGE_EXTENSIONS, image_extension};
+use cadenza_core::domain::policies::artwork_policy::{
+    IMAGE_EXTENSIONS, THUMBNAIL_PX, image_extension,
+};
 use cadenza_core::domain::ports::artwork_cache::{ArtworkCachePort, CoverOf};
 use cadenza_core::{CoreError, Result};
 
@@ -48,6 +50,15 @@ impl FileArtworkCache {
         self.directory
             .join(format!("{}.{extension}", Self::stem_for(cover)))
     }
+
+    /// Where the small copy of a cover goes.
+    ///
+    /// Always a PNG, whatever the original was: one format to write means one
+    /// encoder, and a thumbnail is small enough that the choice costs nothing.
+    fn thumbnail_file(&self, cover: CoverOf) -> PathBuf {
+        self.directory
+            .join(format!("{}.thumb.png", Self::stem_for(cover)))
+    }
 }
 
 impl ArtworkCachePort for FileArtworkCache {
@@ -76,7 +87,31 @@ impl ArtworkCachePort for FileArtworkCache {
             .find(|path| path.is_file())
     }
 
+    fn thumbnail_for(&self, cover: CoverOf) -> Option<PathBuf> {
+        let small = self.thumbnail_file(cover);
+        if small.is_file() {
+            return Some(small);
+        }
+
+        // Made on the first ask rather than when the cover is stored: most
+        // covers are never looked at in a list, and the ones that are get asked
+        // for once and then found.
+        let full = self.path_for(cover)?;
+        let picture = image::open(&full).ok()?;
+        picture
+            .thumbnail(THUMBNAIL_PX, THUMBNAIL_PX)
+            .save(&small)
+            .ok()?;
+
+        Some(small)
+    }
+
     fn remove(&self, cover: CoverOf) -> Result<()> {
+        // The small copy goes with the original. `store` removes before it
+        // writes, so a cover replaced by another leaves no thumbnail of the one
+        // it replaced.
+        let _ = fs::remove_file(self.thumbnail_file(cover));
+
         // Every extension it could be under, and the one earlier versions wrote
         // before a name had to say what it held.
         for extension in IMAGE_EXTENSIONS.iter().chain(std::iter::once(&"img")) {

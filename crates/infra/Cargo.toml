@@ -61,6 +61,7 @@ rustfft = "6"
 # are the Linux portal and an async runtime, and Windows is the whole target
 # (PROJECT_MASTER 1.2).
 rfd = { version = "0.15", default-features = false }
+image = { version = "0.25.10", default-features = false, features = ["jpeg", "png", "gif", "bmp", "webp"] }
 
 # A dev-dependency cycle: testkit depends on infra for the migration runner, and
 # infra's integration tests depend on testkit for a migrated database. Cargo
