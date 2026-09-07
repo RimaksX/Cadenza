@@ -17,7 +17,7 @@ use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
-use cadenza_core::domain::ports::fetcher::{FetchPort, MissingTool};
+use cadenza_core::domain::ports::fetcher::{FetchPort, FetchProgress, FetchWhat, MissingTool};
 use cadenza_core::{CoreError, Result};
 
 /// The downloader itself.
@@ -27,19 +27,29 @@ const DOWNLOADER: &str = "yt-dlp";
 const CONVERTER: &str = "ffmpeg";
 
 /// Starts `yt-dlp` and waits for it.
-pub struct ExternalFetcher;
+pub struct ExternalFetcher {
+    /// Where the list of what has already been brought down is kept.
+    ///
+    /// yt-dlp appends one line per finished track and skips anything already
+    /// in it, which is what turns a second press into a resume rather than a
+    /// repeat: a playlist stopped at track twelve carries on at twelve, and a
+    /// link pasted twice brings nothing the second time.
+    ///
+    /// Optional because a test fetching one link wants no memory of it.
+    archive: Option<PathBuf>,
+}
 
 impl ExternalFetcher {
-    /// Nothing to configure: what this needs is either on the machine or not.
+    /// Remembers what it has fetched in the file at `archive`.
     #[must_use]
-    pub const fn new() -> Self {
-        Self
+    pub const fn new(archive: Option<PathBuf>) -> Self {
+        Self { archive }
     }
 }
 
 impl Default for ExternalFetcher {
     fn default() -> Self {
-        Self::new()
+        Self::new(None)
     }
 }
 
@@ -109,6 +119,19 @@ fn lines_of(stream: impl std::io::Read) -> impl Iterator<Item = String> {
                 .trim_end_matches('\r')
                 .to_owned()
         })
+}
+
+/// Which track of how many, out of a `[download] Downloading item 3 of 40`.
+///
+/// The only place yt-dlp says how long a playlist is. It says it again before
+/// every item, which is what makes it a progress report rather than a header.
+fn item_of(line: &str) -> Option<(u32, u32)> {
+    let rest = line.strip_prefix("[download] Downloading item ")?;
+    let (index, total) = rest.split_once(" of ")?;
+    Some((
+        index.trim().parse().ok()?,
+        total.split_whitespace().next()?.parse().ok()?,
+    ))
 }
 
 /// The percentage out of a `[download]  12.3% of  4.56MiB` line.
@@ -214,7 +237,14 @@ impl FetchPort for ExternalFetcher {
         missing
     }
 
-    fn fetch(&self, link: &str, into: &Path, progress: &dyn Fn(u8)) -> Result<PathBuf> {
+    fn fetch(
+        &self,
+        link: &str,
+        into: &Path,
+        what: FetchWhat,
+        progress: &dyn Fn(FetchProgress),
+        stop: &dyn Fn() -> bool,
+    ) -> Result<Vec<PathBuf>> {
         let downloader = locate(DOWNLOADER)
             .ok_or_else(|| CoreError::invalid("link", format!("{DOWNLOADER} is not installed")))?;
         let converter = locate(CONVERTER)
@@ -249,15 +279,34 @@ impl FetchPort for ExternalFetcher {
             .env("PYTHONIOENCODING", "utf-8")
             .args(["--extract-audio", "--audio-format", "mp3"])
             .args(["--audio-quality", "0"])
-            // One link is one track. A pasted address often carries a playlist
-            // on the end of it, and nobody who pastes one link is asking for
-            // two hundred.
-            .arg("--no-playlist")
+            // One link is one track unless the listener said otherwise by
+            // pressing the other button. A pasted address often carries a
+            // playlist on the end of it, and nobody who pastes one link is
+            // asking for two hundred without meaning to.
+            //
+            // `--ignore-errors` only with the playlist: one video that has
+            // been taken down must not end the other thirty-nine, and what
+            // landed is counted afterwards either way. For a single track
+            // there is nothing to carry on with, and an error is the answer.
+            .args(match what {
+                FetchWhat::OneTrack => ["--no-playlist"].as_slice(),
+                FetchWhat::WholePlaylist => ["--yes-playlist", "--ignore-errors"].as_slice(),
+            })
             // Named for the converter we found, so that a machine with it in a
             // folder of its own rather than on PATH still works.
             .arg("--ffmpeg-location")
             .arg(&converter)
             .args(["--embed-metadata", "--embed-thumbnail"])
+            // What has already been brought down, so that it is not brought
+            // down twice. yt-dlp writes a line per finished track and reads
+            // the same file before starting one.
+            .args(match self.archive.as_ref() {
+                Some(archive) => vec![
+                    std::ffi::OsStr::new("--download-archive"),
+                    archive.as_os_str(),
+                ],
+                None => Vec::new(),
+            })
             // A line per progress report rather than a redrawn bar, which is
             // the difference between something readable and a stream of
             // carriage returns.
@@ -274,8 +323,18 @@ impl FetchPort for ExternalFetcher {
             // Bytes rather than characters, because that is what the limit is
             // made of: 150 bytes is 150 letters of Latin and about 75 of
             // Cyrillic, and both leave room for the folder in front of them.
+            //
+            // A playlist is numbered as well as named. Two videos in one
+            // playlist can share a title, and the second would otherwise be
+            // taken for the first already downloaded and skipped — and the
+            // number is what puts an album back in its own order in any file
+            // manager. It costs nothing in the library: the title there comes
+            // from the tags `--embed-metadata` wrote, not from the filename.
             .arg("--output")
-            .arg(workspace.join("%(title).150B.%(ext)s"))
+            .arg(workspace.join(match what {
+                FetchWhat::OneTrack => "%(title).150B.%(ext)s",
+                FetchWhat::WholePlaylist => "%(playlist_index)03d %(title).140B.%(ext)s",
+            }))
             // Last, and after everything that could be read as an option. What
             // arrives here has already been checked for whitespace and for a
             // scheme (`link_policy`), so it cannot become a second argument.
@@ -295,17 +354,37 @@ impl FetchPort for ExternalFetcher {
             .take()
             .map(|stderr| std::thread::spawn(move || lines_of(stderr).collect::<Vec<_>>()));
 
+        // Set the moment the listener asks to stop, so that what follows can
+        // tell "they pressed stop" from "it failed" — the two look identical
+        // from here: a killed program exits without success and says nothing.
+        let mut stopped = false;
+
         if let Some(stdout) = child.stdout.take() {
+            let mut item = None;
+
             for line in lines_of(stdout) {
-                if line.starts_with("[download]")
+                if stop() {
+                    // Killed rather than asked. There is no polite way to end
+                    // a download, and the workspace it was writing into is
+                    // thrown away below along with whatever it left half
+                    // written.
+                    let _ = child.kill();
+                    stopped = true;
+                    break;
+                }
+
+                if let Some(counted) = item_of(&line) {
+                    item = Some(counted);
+                    progress(FetchProgress { percent: 0, item });
+                } else if line.starts_with("[download]")
                     && let Some(percent) = percentage(&line)
                 {
-                    progress(percent);
+                    progress(FetchProgress { percent, item });
                 } else if line.starts_with("[ExtractAudio]") {
                     // The download is done and the conversion has started.
                     // Not a percentage anybody reports, so it is a step rather
                     // than a number: near the end, and honestly not at it.
-                    progress(95);
+                    progress(FetchProgress { percent: 95, item });
                 }
             }
         }
@@ -318,8 +397,35 @@ impl FetchPort for ExternalFetcher {
             .and_then(|thread| thread.join().ok())
             .unwrap_or_default();
 
-        if !status.success() {
+        // What is there, before what the exit code says about it. A playlist
+        // of forty with one video taken down comes back unsuccessful and with
+        // thirty-nine tracks in it, and thirty-nine tracks is not a failure.
+        // Neither is a playlist somebody stopped at twelve: eleven finished
+        // tracks are eleven tracks they asked for, and throwing them away is
+        // what would make pressing the button again download them twice.
+        let mut arrived = std::fs::read_dir(&workspace)
+            .map_err(|err| CoreError::FileSystem(format!("the download vanished: {err}")))?
+            .flatten()
+            .map(|entry| entry.path())
+            .filter(|path| {
+                path.extension()
+                    .is_some_and(|extension| extension.eq_ignore_ascii_case("mp3"))
+            })
+            .collect::<Vec<_>>();
+        // In the order the playlist was in, which is the order the filenames
+        // were numbered in. `read_dir` promises nothing about its own.
+        arrived.sort();
+
+        if arrived.is_empty() {
             let _ = std::fs::remove_dir_all(&workspace);
+
+            // Stopped before anything finished, or asked for what is already
+            // here. Neither is a failure, and the caller says which by what it
+            // asked for.
+            if stopped || status.success() {
+                return Ok(Vec::new());
+            }
+
             // The last thing it said, not everything: yt-dlp explains itself in
             // one line and then prints where in its own source that happened.
             let reason = said
@@ -333,23 +439,18 @@ impl FetchPort for ExternalFetcher {
             return Err(CoreError::invalid("link", explain(&reason)));
         }
 
-        let mp3 = std::fs::read_dir(&workspace)
-            .map_err(|err| CoreError::FileSystem(format!("the download vanished: {err}")))?
-            .flatten()
-            .map(|entry| entry.path())
-            .find(|path| {
-                path.extension()
-                    .is_some_and(|extension| extension.eq_ignore_ascii_case("mp3"))
-            })
-            .ok_or_else(|| {
-                CoreError::invalid("link", "nothing came back that could be turned into an mp3")
-            })?;
-
-        let landed = free_name(into, &mp3);
-        move_file(&mp3, &landed)?;
+        let mut landed = Vec::with_capacity(arrived.len());
+        for file in arrived {
+            let place = free_name(into, &file);
+            move_file(&file, &place)?;
+            landed.push(place);
+        }
         let _ = std::fs::remove_dir_all(&workspace);
 
-        progress(100);
+        progress(FetchProgress {
+            percent: 100,
+            item: None,
+        });
         Ok(landed)
     }
 }

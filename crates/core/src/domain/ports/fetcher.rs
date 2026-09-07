@@ -37,6 +37,33 @@ pub struct MissingTool {
     pub install: String,
 }
 
+/// What a link is being asked for.
+///
+/// A YouTube address often carries a playlist on the end of it, and the two
+/// readings of the same link are worth different things: somebody who pressed
+/// GET wants the track they were looking at, and somebody who pressed PLAYLIST
+/// wants the forty behind it. Neither can be guessed from the address.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FetchWhat {
+    /// The one track the link points at, whatever else it carries.
+    OneTrack,
+    /// Everything in the playlist the link carries.
+    WholePlaylist,
+}
+
+/// How far a fetch has got.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct FetchProgress {
+    /// Whole percentages, of the file being downloaded now.
+    pub percent: u8,
+    /// Which track of how many, where more than one is coming.
+    ///
+    /// A playlist is not one download with a percentage; it is forty of them,
+    /// and "3 of 40" is the only number that answers "how long is this going
+    /// to take".
+    pub item: Option<(u32, u32)>,
+}
+
 /// Running somebody else's downloader on the listener's behalf.
 pub trait FetchPort: Send + Sync {
     /// Which of the programs this needs are not on this machine.
@@ -45,9 +72,23 @@ pub trait FetchPort: Send + Sync {
     /// yt-dlp" arrives instead of a failure ten seconds into a download.
     fn missing(&self) -> Vec<MissingTool>;
 
-    /// Brings the audio at `link` into `into` as one mp3, and says where.
+    /// Brings audio from `link` into `into` as mp3s, and says where they went.
     ///
-    /// `progress` is called with whole percentages as they arrive. It runs on
-    /// whatever thread called this, which is never the one drawing the window.
-    fn fetch(&self, link: &str, into: &Path, progress: &dyn Fn(u8)) -> Result<PathBuf>;
+    /// One file for [`FetchWhat::OneTrack`] and as many as the playlist held
+    /// for [`FetchWhat::WholePlaylist`] — including none, if every one of them
+    /// failed, which is not an error here: the caller is told what landed and
+    /// says so.
+    ///
+    /// `progress` is called as reports arrive, and `stop` is asked between
+    /// them: a playlist somebody changed their mind about has to end when they
+    /// say so and not when it finishes. Both run on whatever thread called
+    /// this, which is never the one drawing the window.
+    fn fetch(
+        &self,
+        link: &str,
+        into: &Path,
+        what: FetchWhat,
+        progress: &dyn Fn(FetchProgress),
+        stop: &dyn Fn() -> bool,
+    ) -> Result<Vec<PathBuf>>;
 }

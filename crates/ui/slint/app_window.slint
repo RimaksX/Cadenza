@@ -180,6 +180,8 @@ export component AppWindow inherits Window {
     callback clear-queue();
     callback search(string);
     callback fetch(string);
+    callback fetch-playlist(string);
+    callback stop-fetch();
     callback make-local-folder();
     callback play-from-playlist(string);
     callback toggle-play();
@@ -380,6 +382,12 @@ export component AppWindow inherits Window {
         fetch-percent: root.fetch-percent;
         fetch-note: root.fetch-note;
         fetch-needs-folder: root.fetch-needs-folder;
+        fetch-playlist(address) => {
+            root.fetch-playlist(address);
+        }
+        stop-fetch() => {
+            root.stop-fetch();
+        }
         fetch(address) => {
             root.fetch(address);
         }

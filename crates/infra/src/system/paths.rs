@@ -75,6 +75,18 @@ impl AppPaths {
         self.config.join("settings.json")
     }
 
+    /// What has already been brought down from a link.
+    ///
+    /// One line per track, written by `yt-dlp` and read by it: it is the file
+    /// that makes a second press on a playlist carry on where the first was
+    /// stopped rather than fetch the same forty tracks again. Kept beside the
+    /// cache rather than in the music folder, because it is a record of what
+    /// this machine did and not a thing to listen to.
+    #[must_use]
+    pub fn fetch_archive_file(&self) -> PathBuf {
+        self.local.join("fetched.txt")
+    }
+
     /// Logging configuration.
     #[must_use]
     pub fn log_config_file(&self) -> PathBuf {

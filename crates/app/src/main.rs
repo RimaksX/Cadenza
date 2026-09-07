@@ -129,7 +129,9 @@ fn run() -> std::result::Result<(), String> {
             reviews: Arc::new(SqliteImportReviewRepository::new(pool.clone())),
             picker: Arc::new(SystemFolderPicker),
             watcher: Some(Arc::clone(&watcher)),
-            fetcher: Some(Arc::new(ExternalFetcher::new())),
+            fetcher: Some(Arc::new(ExternalFetcher::new(Some(
+                paths.fetch_archive_file(),
+            )))),
         },
     ));
 

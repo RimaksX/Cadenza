@@ -14,7 +14,7 @@ use std::sync::{Arc, Mutex};
 
 use cadenza_core::application::services::{Fetched, LibraryPorts, LibraryService};
 use cadenza_core::application::{AppContext, ProfileService};
-use cadenza_core::domain::ports::fetcher::{FetchPort, MissingTool};
+use cadenza_core::domain::ports::fetcher::{FetchPort, FetchProgress, FetchWhat, MissingTool};
 use cadenza_core::domain::ports::folder_picker::FolderPickerPort;
 use cadenza_infra::db::repositories::{
     SqliteAlbumRepository, SqliteArtistRepository, SqliteGenreRepository,
@@ -52,14 +52,52 @@ impl FetchPort for FakeFetcher {
         &self,
         link: &str,
         into: &Path,
-        progress: &dyn Fn(u8),
-    ) -> cadenza_core::Result<PathBuf> {
+        what: FetchWhat,
+        progress: &dyn Fn(FetchProgress),
+        stop: &dyn Fn() -> bool,
+    ) -> cadenza_core::Result<Vec<PathBuf>> {
         self.ran.store(true, Ordering::Relaxed);
         self.asked.lock().expect("the record").push(link.to_owned());
 
-        progress(50);
-        let landed = write_wav(into, "A Fetched Track.wav", 1, 900);
-        progress(100);
+        // A listener who pressed stop before anything started gets what a
+        // listener who pressed stop before anything started should get.
+        if stop() {
+            return Ok(Vec::new());
+        }
+
+        let how_many = match what {
+            FetchWhat::OneTrack => 1,
+            FetchWhat::WholePlaylist => 3,
+        };
+
+        let mut landed = Vec::new();
+        for index in 1..=how_many {
+            progress(FetchProgress {
+                percent: 50,
+                item: (how_many > 1).then_some((index, how_many)),
+            });
+            // Numbered only where there are several, so that the one-track
+            // case is still called what every other test calls it.
+            let name = if how_many == 1 {
+                "A Fetched Track.wav".to_owned()
+            } else {
+                format!("A Fetched Track {index}.wav")
+            };
+            // A different fill per track, so that three of them are three
+            // recordings rather than one file written three times: the import
+            // hashes what it is given, and identical files are a duplicate by
+            // every measure it has.
+            landed.push(write_wav(
+                into,
+                &name,
+                1,
+                900 + i16::try_from(index).expect("a small playlist"),
+            ));
+        }
+        progress(FetchProgress {
+            percent: 100,
+            item: None,
+        });
 
         Ok(landed)
     }
@@ -129,7 +167,12 @@ fn harness(tag: &str, fetcher: FakeFetcher) -> Harness {
 }
 
 /// Nothing at all, for the tests that only care that it was never reached.
-fn nothing(_percent: u8) {}
+fn nothing(_report: FetchProgress) {}
+
+/// A listener who is not pressing stop, which is almost all of them.
+fn carry_on() -> bool {
+    false
+}
 
 #[test]
 fn a_track_from_a_link_lands_in_the_local_folder_and_joins_the_library() {
@@ -145,9 +188,12 @@ fn a_track_from_a_link_lands_in_the_local_folder_and_joins_the_library() {
     let seen = std::cell::RefCell::new(Vec::new());
     let outcome = harness
         .library
-        .fetch_from_link("https://example.com/watch?v=abc", &|percent| {
-            seen.borrow_mut().push(percent);
-        })
+        .fetch_from_link(
+            "https://example.com/watch?v=abc",
+            FetchWhat::OneTrack,
+            &|report| seen.borrow_mut().push(report.percent),
+            &carry_on,
+        )
         .expect("a fetch");
 
     assert_eq!(
@@ -184,7 +230,12 @@ fn without_a_local_folder_the_offer_to_make_one_comes_back() {
 
     let outcome = harness
         .library
-        .fetch_from_link("https://example.com/a", &nothing)
+        .fetch_from_link(
+            "https://example.com/a",
+            FetchWhat::OneTrack,
+            &nothing,
+            &carry_on,
+        )
         .expect("an outcome rather than an error");
 
     assert_eq!(
@@ -217,7 +268,12 @@ fn a_machine_without_the_programs_is_told_which_ones() {
 
     let outcome = harness
         .library
-        .fetch_from_link("https://example.com/a", &nothing)
+        .fetch_from_link(
+            "https://example.com/a",
+            FetchWhat::OneTrack,
+            &nothing,
+            &carry_on,
+        )
         .expect("an outcome rather than an error");
 
     let Fetched::NeedsTools(missing) = outcome else {
@@ -241,7 +297,12 @@ fn a_service_that_encrypts_its_audio_is_refused_by_name() {
 
     let refused = harness
         .library
-        .fetch_from_link("https://open.spotify.com/track/abc", &nothing)
+        .fetch_from_link(
+            "https://open.spotify.com/track/abc",
+            FetchWhat::OneTrack,
+            &nothing,
+            &carry_on,
+        )
         .expect_err("Spotify cannot be fetched from");
 
     assert!(
@@ -273,7 +334,10 @@ fn what_is_not_a_link_never_reaches_the_downloader() {
         "https://example.com/a --exec calc.exe",
     ] {
         assert!(
-            harness.library.fetch_from_link(typed, &nothing).is_err(),
+            harness
+                .library
+                .fetch_from_link(typed, FetchWhat::OneTrack, &nothing, &carry_on)
+                .is_err(),
             "{typed:?} should have been refused"
         );
     }
@@ -281,5 +345,60 @@ fn what_is_not_a_link_never_reaches_the_downloader() {
     assert!(
         !harness.fetcher.ran.load(Ordering::Relaxed),
         "and none of them started anything"
+    );
+}
+
+#[test]
+fn a_playlist_link_brings_in_everything_behind_it() {
+    let harness = harness("playlist", FakeFetcher::default());
+    harness
+        .library
+        .use_suggested_folder()
+        .expect("the local folder");
+
+    let outcome = harness
+        .library
+        .fetch_from_link(
+            "https://example.com/watch?v=abc&list=xyz",
+            FetchWhat::WholePlaylist,
+            &nothing,
+            &carry_on,
+        )
+        .expect("a fetch");
+
+    // Counted rather than named: forty names is not a thing a line under a
+    // button can say, and the library below is already showing them.
+    assert_eq!(outcome, Fetched::LandedMany(3));
+    assert_eq!(
+        harness.library.tracks().expect("the library").len(),
+        3,
+        "and all of them joined the library, not just the first"
+    );
+}
+
+#[test]
+fn stopping_leaves_the_library_where_it_was() {
+    let harness = harness("stopped", FakeFetcher::default());
+    harness
+        .library
+        .use_suggested_folder()
+        .expect("the local folder");
+
+    let outcome = harness
+        .library
+        .fetch_from_link(
+            "https://example.com/watch?v=abc&list=xyz",
+            FetchWhat::WholePlaylist,
+            &nothing,
+            // Already pressed by the time the downloader starts, which is the
+            // hardest moment for it to be pressed.
+            &|| true,
+        )
+        .expect("stopping is not a failure");
+
+    assert_eq!(outcome, Fetched::NothingNew);
+    assert!(
+        harness.library.tracks().expect("the library").is_empty(),
+        "nothing half-fetched was imported"
     );
 }

@@ -79,6 +79,10 @@ export component TrackList inherits Rectangle {
     callback act-on-page();
     callback searched(string);
     callback fetch(string);
+    /// Everything the playlist on the end of that link holds.
+    callback fetch-playlist(string);
+    /// Enough. What has finished is kept.
+    callback stop-fetch();
     callback make-local-folder();
 
     background: Theme.bg-0;
@@ -226,7 +230,10 @@ export component TrackList inherits Rectangle {
                     // promising "a link" and leaving them to find out which
                     // kind. Most video sites work too; the ones that do not are
                     // named when somebody tries one.
-                    placeholder: "Paste a YouTube link to bring a track in";
+                    // Says both things it takes, because the pair of
+                    // buttons beside it is the only other clue and a listener
+                    // reads the field first.
+                    placeholder: "Paste a YouTube link — a track, or a playlist";
                     accepted => {
                         root.fetch(self.text);
                     }
@@ -248,6 +255,37 @@ export component TrackList inherits Rectangle {
                     enabled: !root.fetching && root.link != "";
                     pressed => {
                         root.fetch(root.link);
+                    }
+                }
+
+                // The same link read the other way. Two buttons rather than a
+                // guess at the address: a YouTube link that carries a playlist
+                // is a reasonable request for one track and a reasonable
+                // request for forty, and only the listener knows which they
+                // meant. Standing here, named, it also answers the question
+                // nobody would have asked — that a playlist can be pasted at
+                // all.
+                if !root.fetching: TextButton {
+                    label: "PLAYLIST";
+                    fixed-width: Theme.px(140);
+                    height: Theme.px(40);
+                    enabled: root.link != "";
+                    pressed => {
+                        root.fetch-playlist(root.link);
+                    }
+                }
+
+                // In its place while something is coming, because a download
+                // with no way out is a download that owns the listener's
+                // evening. What has finished is kept and pressing PLAYLIST
+                // again carries on from there.
+                if root.fetching: TextButton {
+                    label: "STOP";
+                    fixed-width: Theme.px(140);
+                    height: Theme.px(40);
+                    destructive: true;
+                    pressed => {
+                        root.stop-fetch();
                     }
                 }
 

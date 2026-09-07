@@ -7,7 +7,7 @@
 use std::cell::{Cell, RefCell};
 use std::path::PathBuf;
 use std::rc::Rc;
-use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU8, AtomicU32, Ordering};
 use std::sync::{Arc, Mutex, PoisonError};
 
 use cadenza_core::application::services::Fetched;
@@ -17,6 +17,7 @@ use cadenza_core::domain::ids::{
 };
 use cadenza_core::domain::playback::PlaybackState;
 use cadenza_core::domain::policies::eq_policy::{MAX_BAND_HZ, MAX_BAND_Q, MIN_BAND_HZ, MIN_BAND_Q};
+use cadenza_core::domain::ports::fetcher::FetchWhat;
 use cadenza_core::domain::profile::Profile;
 use cadenza_core::domain::queue::RepeatMode;
 use cadenza_core::domain::radio::{MIN_BATCH_SIZE, RadioFeedback};
@@ -83,8 +84,13 @@ const EMPTY_PLAYLIST_HINT: &str = "add tracks from the library\nwith the ··· 
 struct Fetching {
     /// True from the press until the thread has finished.
     running: AtomicBool,
-    /// How far the downloader says it has got.
+    /// How far the downloader says it has got, on the track it is on.
     percent: AtomicU8,
+    /// Which track of how many, where a playlist is coming. Zero for neither.
+    item: AtomicU32,
+    of: AtomicU32,
+    /// Set when the listener presses stop, read by the thread between lines.
+    stopping: AtomicBool,
     /// Set once, at the end.
     finished: Mutex<Option<Ended>>,
 }
@@ -1597,13 +1603,39 @@ impl Controller {
         self.after_library_change();
     }
 
-    /// Brings a track in from a pasted link.
+    /// Brings in the one track a link points at.
+    pub fn fetch_from_link(&self, link: &str) {
+        self.fetch(link, FetchWhat::OneTrack);
+    }
+
+    /// Brings in every track of the playlist a link carries.
+    ///
+    /// A button of its own rather than a guess at the address, because the two
+    /// readings of the same link are both reasonable and only the listener
+    /// knows which they meant.
+    pub fn fetch_playlist(&self, link: &str) {
+        self.fetch(link, FetchWhat::WholePlaylist);
+    }
+
+    /// Asks the download to end. It stops at the next line the downloader
+    /// prints, which is at most a second and usually less.
+    ///
+    /// What has already finished is kept, and yt-dlp's own record of it means
+    /// pressing the button again carries on rather than starting over.
+    pub fn stop_fetch(&self) {
+        self.fetching.stopping.store(true, Ordering::Relaxed);
+        if let Some(window) = self.window.upgrade() {
+            window.set_fetch_note("stopping…".into());
+        }
+    }
+
+    /// Brings a track, or a playlist, in from a pasted link.
     ///
     /// The work happens on a thread, because it is a download and a conversion
     /// and the window has to keep drawing through both. What comes back comes
     /// back the way everything off the event loop does: written into shared
     /// state and read by the tick.
-    pub fn fetch_from_link(&self, link: &str) {
+    fn fetch(&self, link: &str, what: FetchWhat) {
         // One at a time. Two downloads writing into one folder is a race for a
         // filename, and there is nowhere in this head to show a second
         // percentage anyway.
@@ -1616,6 +1648,9 @@ impl Controller {
         let state = Arc::clone(&self.fetching);
 
         state.percent.store(0, Ordering::Relaxed);
+        state.item.store(0, Ordering::Relaxed);
+        state.of.store(0, Ordering::Relaxed);
+        state.stopping.store(false, Ordering::Relaxed);
         *state
             .finished
             .lock()
@@ -1632,10 +1667,30 @@ impl Controller {
         }
 
         std::thread::spawn(move || {
-            let ended = match library.fetch_from_link(&link, &|percent| {
-                state.percent.store(percent, Ordering::Relaxed);
-            }) {
+            let watching = Arc::clone(&state);
+            let ended = match library.fetch_from_link(
+                &link,
+                what,
+                &|report| {
+                    state.percent.store(report.percent, Ordering::Relaxed);
+                    let (item, of) = report.item.unwrap_or_default();
+                    state.item.store(item, Ordering::Relaxed);
+                    state.of.store(of, Ordering::Relaxed);
+                },
+                &move || watching.stopping.load(Ordering::Relaxed),
+            ) {
                 Ok(Fetched::Landed(name)) => Ended::Landed(format!("{name} — in your library")),
+                Ok(Fetched::LandedMany(count)) => Ended::Landed(format!(
+                    "{count} {} — in your library",
+                    if count == 1 { "track" } else { "tracks" }
+                )),
+                // Two things arrive here and the difference is worth saying:
+                // one is a listener who pressed stop, the other is a link
+                // whose tracks are already here. Both leave the library as it
+                // was, and neither is a failure.
+                Ok(Fetched::NothingNew) => Ended::Landed(
+                    "nothing new — everything on that link is already in your library".to_owned(),
+                ),
                 Ok(Fetched::NeedsLocalFolder(path)) => Ended::NeedsFolder(format!(
                     "a track needs somewhere to land — Cadenza can make {}",
                     path.display()
@@ -1665,6 +1720,14 @@ impl Controller {
 
         if self.fetching.running.load(Ordering::Relaxed) {
             window.set_fetch_percent(i32::from(self.fetching.percent.load(Ordering::Relaxed)));
+
+            // "3 of 40" while a playlist is coming, because a percentage that
+            // goes back to nothing forty times answers no question anybody has.
+            let of = self.fetching.of.load(Ordering::Relaxed);
+            if of > 0 && !self.fetching.stopping.load(Ordering::Relaxed) {
+                let item = self.fetching.item.load(Ordering::Relaxed);
+                window.set_fetch_note(format!("track {item} of {of}").into());
+            }
             return;
         }
 

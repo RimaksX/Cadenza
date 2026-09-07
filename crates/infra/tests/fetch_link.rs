@@ -13,7 +13,7 @@
 
 use std::path::PathBuf;
 
-use cadenza_core::domain::ports::fetcher::FetchPort;
+use cadenza_core::domain::ports::fetcher::{FetchPort, FetchWhat};
 use cadenza_infra::library::fetcher::ExternalFetcher;
 
 /// The link a listener reported. Change it to whatever is being chased.
@@ -25,20 +25,32 @@ fn a_link_comes_in_as_a_file() {
     let into = std::env::temp_dir().join("cdz-fetch-test");
     std::fs::create_dir_all(&into).expect("somewhere to put it");
 
-    let landed: PathBuf = ExternalFetcher::new()
-        .fetch(LINK, &into, &|percent| {
-            if percent % 25 == 0 {
-                println!("{percent}%");
-            }
-        })
+    // No archive: this test asks for the same link every time it is run, and a
+    // record of having fetched it once would make every run after the first
+    // prove nothing.
+    let landed: Vec<PathBuf> = ExternalFetcher::new(None)
+        .fetch(
+            LINK,
+            &into,
+            FetchWhat::OneTrack,
+            &|report| {
+                if report.percent % 25 == 0 {
+                    println!("{}%", report.percent);
+                }
+            },
+            &|| false,
+        )
         .unwrap_or_else(|err| panic!("what it actually said: {err}"));
 
-    println!("landed at {}", landed.display());
-    assert!(landed.exists(), "the file is where it says it is");
+    let [file] = landed.as_slice() else {
+        panic!("one link, one track, and {} came back", landed.len());
+    };
+    println!("landed at {}", file.display());
+    assert!(file.exists(), "the file is where it says it is");
     assert_eq!(
-        landed.extension().and_then(|extension| extension.to_str()),
+        file.extension().and_then(|extension| extension.to_str()),
         Some("mp3")
     );
 
-    std::fs::remove_file(&landed).expect("tidied up");
+    std::fs::remove_file(file).expect("tidied up");
 }

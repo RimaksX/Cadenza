@@ -20,7 +20,7 @@ use crate::domain::policies::duplicate_policy::{self, DuplicateVerdict};
 use crate::domain::policies::link_policy::{is_a_link, locked_service};
 use crate::domain::ports::artwork_cache::{ArtworkCachePort, CoverOf};
 use crate::domain::ports::event_bus::DomainEvent;
-use crate::domain::ports::fetcher::{FetchPort, MissingTool};
+use crate::domain::ports::fetcher::{FetchPort, FetchProgress, FetchWhat, MissingTool};
 use crate::domain::ports::file_system::FileSystemPort;
 use crate::domain::ports::file_watcher::{FileChange, FileWatcherPort};
 use crate::domain::ports::folder_picker::FolderPickerPort;
@@ -110,6 +110,18 @@ pub struct ScanReport {
 pub enum Fetched {
     /// It is in the library, under this name.
     Landed(String),
+    /// A playlist came in: this many tracks are in the library.
+    ///
+    /// A count rather than a list of names, because forty names is not a thing
+    /// a line under a button can say — and the library below is already
+    /// showing them.
+    LandedMany(usize),
+    /// Nothing came, and nothing went wrong.
+    ///
+    /// Either the listener stopped it, or every track in the playlist was
+    /// already here — which is what a second press on the same link means once
+    /// yt-dlp's own record of what it has fetched is doing its work.
+    NothingNew,
     /// There is nowhere for it to land: this listener has no local folder.
     ///
     /// Carries the folder Cadenza would make, so the offer can name it.
@@ -285,7 +297,13 @@ impl LibraryService {
     /// tools exist is a five-minute install; whether there is a folder is one
     /// press. Discovering the third after waiting for a download would be a
     /// download thrown away.
-    pub fn fetch_from_link(&self, link: &str, progress: &dyn Fn(u8)) -> Result<Fetched> {
+    pub fn fetch_from_link(
+        &self,
+        link: &str,
+        what: FetchWhat,
+        progress: &dyn Fn(FetchProgress),
+        stop: &dyn Fn() -> bool,
+    ) -> Result<Fetched> {
         let profile_id = self.context.require_active_profile()?;
         let link = link.trim();
 
@@ -328,22 +346,34 @@ impl LibraryService {
             return Ok(Fetched::NeedsLocalFolder(would_be));
         };
 
-        let file = fetcher.fetch(link, &folder, progress)?;
+        let files = fetcher.fetch(link, &folder, what, progress, stop)?;
 
-        // From here it is an ordinary file that appeared in a watched folder,
-        // and it goes through the same import as one somebody copied in — the
-        // same tags, the same duplicate check, the same review queue when it
+        // From here they are ordinary files that appeared in a watched folder,
+        // and they go through the same import as one somebody copied in — the
+        // same tags, the same duplicate check, the same review queue when one
         // cannot be read. A track is a track however it arrived.
-        let metadata = self.ports.files.metadata(&file)?;
-        self.import_file(profile_id, &file, metadata.size, metadata.modified, true)?;
+        for file in &files {
+            let metadata = self.ports.files.metadata(file)?;
+            self.import_file(profile_id, file, metadata.size, metadata.modified, true)?;
+        }
+
+        if files.is_empty() {
+            return Ok(Fetched::NothingNew);
+        }
         self.context.events.publish(DomainEvent::LibraryChanged);
 
-        Ok(Fetched::Landed(
-            file.file_stem()
-                .unwrap_or_default()
-                .to_string_lossy()
-                .into_owned(),
-        ))
+        // One track is named; forty are counted. Naming the first of forty
+        // would be a line that answers a question nobody asked.
+        if let (FetchWhat::OneTrack, Some(file)) = (what, files.first()) {
+            return Ok(Fetched::Landed(
+                file.file_stem()
+                    .unwrap_or_default()
+                    .to_string_lossy()
+                    .into_owned(),
+            ));
+        }
+
+        Ok(Fetched::LandedMany(files.len()))
     }
 
     /// What dropping files and folders onto the window means.

@@ -294,6 +294,16 @@ fn wire(window: &AppWindow, controller: &Rc<Controller>) {
         move |link| controller.fetch_from_link(&link)
     });
 
+    window.on_fetch_playlist({
+        let controller = Rc::clone(controller);
+        move |link| controller.fetch_playlist(&link)
+    });
+
+    window.on_stop_fetch({
+        let controller = Rc::clone(controller);
+        move || controller.stop_fetch()
+    });
+
     window.on_make_local_folder({
         let controller = Rc::clone(controller);
         move || controller.make_local_folder()
