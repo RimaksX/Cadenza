@@ -411,6 +411,20 @@ impl LibraryService {
         ))
     }
 
+    /// The same cover in the size a list draws, made on the first ask.
+    ///
+    /// A row shows a cover at forty-odd pixels and the stored ones are
+    /// routinely a thousand square, so the list asks for this one and the
+    /// player bar — which draws one cover, large — asks for the other.
+    pub fn thumbnail_for(&self, media_file_id: MediaFileId) -> Result<Option<PathBuf>> {
+        let profile_id = self.context.require_active_profile()?;
+        Ok(CoverOf::thumbnail_shown_for(
+            self.ports.artwork.as_ref(),
+            profile_id,
+            media_file_id,
+        ))
+    }
+
     /// Asks the listener for a picture and makes it this track's cover.
     ///
     /// Theirs and not the file's: the image is stored under the profile, the

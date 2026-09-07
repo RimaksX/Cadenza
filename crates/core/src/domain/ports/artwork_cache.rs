@@ -78,4 +78,21 @@ impl CoverOf {
             .path_for(Self::ChosenTrack(profile_id, media_file_id))
             .or_else(|| cache.path_for(Self::Track(media_file_id)))
     }
+
+    /// The same choice, in the size a list draws.
+    ///
+    /// Separate from [`Self::shown_for`] rather than a flag on it, because the
+    /// precedence has to be applied to the *thumbnails*: asking which full
+    /// image wins and then shrinking that one would make a chosen cover with no
+    /// thumbnail yet fall back to the file's own, which is the wrong picture
+    /// rather than a slower one.
+    pub fn thumbnail_shown_for(
+        cache: &dyn ArtworkCachePort,
+        profile_id: ProfileId,
+        media_file_id: MediaFileId,
+    ) -> Option<PathBuf> {
+        cache
+            .thumbnail_for(Self::ChosenTrack(profile_id, media_file_id))
+            .or_else(|| cache.thumbnail_for(Self::Track(media_file_id)))
+    }
 }
