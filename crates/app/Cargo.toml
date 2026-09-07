@@ -16,3 +16,6 @@ path = "src/main.rs"
 cadenza-core.workspace = true
 cadenza-infra.workspace = true
 cadenza-ui.workspace = true
+
+[build-dependencies]
+winresource = "0.1.31"

@@ -19,7 +19,9 @@ networks, and no network client of its own.
 
 Milestones **M0 – M15** complete: everything in the feature list above works, in
 a window with nine screens, two themes and four sizes. **M16**, Windows
-packaging, has not started.
+packaging, is under way — the application icon and the WiX manifest are in
+`packaging/windows`, and what remains is building the MSI and proving install
+and uninstall on a clean machine.
 
 What was actually built in each milestone is in
 [docs/PROJECT_PLAN.md](docs/PROJECT_PLAN.md); every deviation from the master file

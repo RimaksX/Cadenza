@@ -1,0 +1,66 @@
+# What the dependency tree is allowed to contain.
+#
+# Deferred from M0, when there were three dependencies and nothing to check;
+# there are 682 of them now (MASTER_ISSUES 72). Run it with:
+#
+#     cargo deny check
+#
+# The list below was taken from the tree rather than guessed at: every licence
+# named here is one that some crate in this workspace actually declares. Adding
+# a dependency that introduces a new one is meant to fail, so that the decision
+# is made on purpose.
+
+[advisories]
+version = 2
+# A known vulnerability fails the check. Nothing is ignored here yet, and
+# anything added should carry the date and the reason beside it.
+ignore = []
+
+[licenses]
+version = 2
+allow = [
+    # Cadenza itself and the UI toolkit it is built on. Slint offers other
+    # terms as alternatives — `LicenseRef-Slint-*` below — and this project
+    # takes the GPL branch, which is why the whole work is GPL-3.0-only
+    # (docs/adr/0002-slint-ui.md).
+    "GPL-3.0-only",
+    "LGPL-2.1-or-later",
+
+    # Weak copyleft, per file rather than per work.
+    "MPL-2.0",
+
+    # Permissive.
+    "MIT",
+    "MIT-0",
+    "Apache-2.0",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "0BSD",
+    "ISC",
+    "Zlib",
+    "BSL-1.0",
+    "Unlicense",
+    "CC0-1.0",
+    "NCSA",
+    "Unicode-3.0",
+]
+
+# Slint's own alternative terms, which sit beside the GPL in an OR expression.
+# Named so that the check can see the whole expression is satisfiable; the
+# branch this project relies on is the GPL one above.
+[[licenses.clarify]]
+crate = "slint"
+expression = "GPL-3.0-only"
+license-files = []
+
+[bans]
+# A warning rather than a failure: two versions of one crate is untidy and
+# sometimes unavoidable while a dependency catches up. `cargo tree -d` is empty
+# today, and this is what says so if that changes.
+multiple-versions = "warn"
+# A version requirement of "*" is a dependency on whatever exists tomorrow.
+wildcards = "deny"
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"

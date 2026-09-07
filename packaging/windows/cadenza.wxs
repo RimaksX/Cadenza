@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The Windows installer, as PROJECT_MASTER 1.2 requires: "Дистрибуция: MSI".
+
+  Two decisions are worth reading before the markup.
+
+  It installs **for one person, without asking for administrator**. Cadenza
+  keeps everything it owns under %LOCALAPPDATA% — the database, the artwork, the
+  log — and a profile belongs to whoever is logged in. A player that demanded
+  elevation to put one executable on the disk would be asking for a permission
+  it has no use for. So the program lands beside its own data, and uninstalling
+  is the listener's to do rather than the machine's.
+
+  And it installs **the program and not the map of it**. The release profile
+  strips symbols, and a `.pdb` sits beside the executable in `target/release`.
+  Only `cadenza.exe` is named below, so the debug file cannot travel by
+  accident (MASTER_ISSUES 72).
+-->
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
+
+  <!-- Where the built executable is, so that a release build somewhere else can
+       be packaged without editing this file:
+         wix build cadenza.wxs -d Binaries=... -->
+  <?ifndef Binaries?>
+  <?define Binaries="..\..\target\release"?>
+  <?endif?>
+
+  <!-- The UpgradeCode below must never change. It is what tells Windows that a
+       later Cadenza is the same product as this one rather than a second copy
+       of it; a new value there means two entries in Add or remove programs and
+       two installations that do not know about each other. -->
+  <Package
+      Name="Cadenza"
+      Manufacturer="Cadenza"
+      Version="0.1.0"
+      Language="1033"
+      Scope="perUser"
+      Compressed="yes"
+      UpgradeCode="35448c8f-0d1d-4424-997c-6d307ba74a14">
+
+    <!-- Replaces an older version rather than standing beside it, and refuses
+         to install over a newer one. -->
+    <MajorUpgrade DowngradeErrorMessage="A newer version of Cadenza is already installed." />
+
+    <MediaTemplate EmbedCab="yes" />
+
+    <Icon Id="CadenzaIcon" SourceFile="..\..\resources\branding\cadenza.ico" />
+    <Property Id="ARPPRODUCTICON" Value="CadenzaIcon" />
+    <Property Id="ARPNOREPAIR" Value="1" />
+
+    <!-- %LOCALAPPDATA%\Programs\Cadenza, which is where Windows puts a program
+         that belongs to one person. -->
+    <StandardDirectory Id="LocalAppDataFolder">
+      <Directory Id="ProgramsFolder" Name="Programs">
+        <Directory Id="INSTALLFOLDER" Name="Cadenza" />
+      </Directory>
+    </StandardDirectory>
+
+    <StandardDirectory Id="ProgramMenuFolder">
+      <Directory Id="ShortcutFolder" Name="Cadenza" />
+    </StandardDirectory>
+
+    <Feature Id="Main" Title="Cadenza" Level="1">
+      <ComponentGroupRef Id="Program" />
+      <ComponentRef Id="StartMenuShortcut" />
+    </Feature>
+
+    <ComponentGroup Id="Program" Directory="INSTALLFOLDER">
+      <Component Id="Executable" Guid="*">
+        <File Id="CadenzaExe" Source="$(Binaries)\cadenza.exe" KeyPath="yes" />
+      </Component>
+    </ComponentGroup>
+
+    <Component Id="StartMenuShortcut" Directory="ShortcutFolder" Guid="*">
+      <Shortcut Id="CadenzaShortcut"
+                Name="Cadenza"
+                Description="Local music player"
+                Target="[INSTALLFOLDER]cadenza.exe"
+                WorkingDirectory="INSTALLFOLDER"
+                Icon="CadenzaIcon" />
+      <RemoveFolder Id="RemoveShortcutFolder" On="uninstall" />
+      <!-- A per-user component needs a key path under HKCU: the installer has
+           to be able to ask "is this still there?" without reading a place it
+           may not be allowed to read. -->
+      <RegistryValue Root="HKCU"
+                     Key="Software\Cadenza"
+                     Name="installed"
+                     Type="integer"
+                     Value="1"
+                     KeyPath="yes" />
+    </Component>
+
+    <!-- The listener's own data — the database, the artwork cache, the log —
+         lives in %LOCALAPPDATA%\Cadenza and is deliberately NOT removed by
+         uninstalling. Somebody who reinstalls next week expects their library
+         and their history to still be there, and a player that deletes a year
+         of listening because it was asked to remove a program has answered a
+         question nobody put to it. -->
+
+    <ui:WixUI Id="WixUI_InstallDir" InstallDirectory="INSTALLFOLDER" />
+    <WixVariable Id="WixUIBannerBmp" Value="assets\banner.bmp" />
+    <WixVariable Id="WixUIDialogBmp" Value="assets\dialog.bmp" />
+    <WixVariable Id="WixUILicenseRtf" Value="assets\license.rtf" />
+  </Package>
+</Wix>

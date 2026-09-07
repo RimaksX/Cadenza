@@ -2400,3 +2400,94 @@ pasted a link. Nothing in this session's tests could have told us that — they
 run against a fake downloader on purpose — so this is the first evidence that
 the whole path works: `yt-dlp` started, converted, the file landed in Cadenza's
 own folder, and the ordinary import picked it up as a track like any other.
+
+
+## 81. M16 begins: an icon that is measured, and an installer that asks for nothing
+
+The owner drew the mark, chose the branded MSI over a hand-written installer,
+and asked for the repository to be published. This is what was built for it.
+
+### The icon, and the size that decides
+
+The mark is eight petals around a centre dot. Rendered at the sizes Windows
+actually asks for — and rendered rather than reasoned about, with `resvg` built
+offline against the crate already in the cargo cache — it comes out like this:
+
+* **16 px**: fails. The petals become smudges, the structure is gone, and what
+  is left reads as a grey blob with a pattern in it.
+* **24 px**: recovers. The eight arms separate.
+* **32 px and up**: correct.
+
+That is worth stating plainly because 16 is not a hypothetical: it is the size
+in Explorer's list views and in a window's own title bar. The remedy, when the
+owner wants it, is not to redraw the mark but to draw a *second, simpler* one
+for the small entries — an `.ico` holds a separate image per size and they are
+under no obligation to be scalings of one another. Four arms and a dot at 16 px
+would say the same thing in the space available.
+
+The `.ico` carries seven sizes, each rendered at its own size rather than
+downsampled from one large one.
+
+### Into the executable, not only into the shortcut
+
+A shortcut's icon is set by whoever makes the shortcut. The icon Windows shows
+for `cadenza.exe` itself — in the folder, in the taskbar, in Alt+Tab, on the
+window — is a resource compiled into the binary, and without it the program is
+the blank sheet Windows draws for something it knows nothing about. `build.rs`
+in `crates/app` does it, and fails loudly if it cannot: a build that quietly
+produced an iconless executable would be found weeks later by somebody looking
+at a taskbar.
+
+Verified from the binary rather than from the build log: the 16, 32, 48 and
+256 pixel payloads are all present in `cadenza.exe` byte for byte, and so is
+the description string that the file's Properties panel shows.
+
+### The installer asks for nothing
+
+Two decisions in `packaging/windows/cadenza.wxs` are worth more than the rest
+of it.
+
+**It installs for one person and never asks for administrator.** Cadenza keeps
+everything it owns under `%LOCALAPPDATA%` — the database, the artwork, the log
+— and a profile belongs to whoever is logged in. The program goes beside that
+data, in `%LOCALAPPDATA%\Programs\Cadenza`. A player that demanded elevation to
+put one executable on a disk would be asking for a permission it has no use
+for, and every such request is one more thing a listener has to decide about
+something they only wanted to hear music with.
+
+**Uninstalling leaves the library alone.** The database, the artwork cache and
+the log stay. Somebody who reinstalls next week expects their library and their
+history to still be there, and a player that deletes a year of listening
+because it was asked to remove a program has answered a question nobody put to
+it. Removing that folder by hand is one gesture; getting it back is none.
+
+The two bitmaps WiX allows are drawn from the palette and set in the project's
+own faces — the dark tile and the mark, "Cadenza" in the serif, `LOCAL PLAYER`
+in the mono, on the light side of the palette because WiX writes its own text
+over that bitmap in the system's dark ink. That is the whole extent of what a
+standard MSI can be branded: the dialog set itself is fixed.
+
+**And the thing that matters more than any of it: the installer is not
+signed.** An unsigned installer meets a listener with SmartScreen's blue panel,
+and no amount of design inside the wizard answers that. A certificate costs
+money and requires the publisher to be verified. Until there is one, the
+warning is what everybody sees first — which is worth knowing before spending
+another day on bitmaps.
+
+### `deny.toml`, at last
+
+Deferred from M0 when there were three dependencies to check. The allow list
+was taken from the tree rather than guessed at: 682 packages, every one
+declaring a licence, and the exact set is MIT, Apache-2.0, Zlib, Unicode-3.0,
+GPL-3.0-only, MPL-2.0, BSD-2 and BSD-3, Unlicense, CC0-1.0, ISC, BSL-1.0,
+0BSD, MIT-0, NCSA and LGPL-2.1-or-later. A dependency that introduces a new one
+now fails the check, which is the point: the decision gets made on purpose.
+There is a CI job for it.
+
+### The old repository
+
+`github.com/RimaksX/Cadenza` held an earlier Cadenza — ten commits, M0 to M5.4,
+last touched on 6 August, 173 files. The owner asked for it to be cleared and
+replaced. It was looked at before it was overwritten, and it is what it was
+said to be. Its last commit is kept as the local tag `archive/pre-rewrite`, on
+this machine only: nothing is lost, and nothing about it is published.
