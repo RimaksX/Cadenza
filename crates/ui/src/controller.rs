@@ -22,6 +22,7 @@ use cadenza_core::domain::queue::RepeatMode;
 use cadenza_core::domain::radio::{MIN_BATCH_SIZE, RadioFeedback};
 use cadenza_core::domain::review::ReviewResolution;
 use cadenza_core::domain::settings::{CrossfadeDuration, InterfaceScale, ProfileFolder};
+use cadenza_core::domain::track::TrackSummary;
 use cadenza_core::domain::value_objects::theme_mode::ThemeMode;
 use cadenza_core::domain::value_objects::{DurationMs, GainDb, PlaybackPosition, Volume};
 use cadenza_core::{CoreError, Result};
@@ -110,6 +111,18 @@ pub struct Controller {
     profile: RefCell<Option<Profile>>,
     /// What the library is being filtered by, if anything.
     query: RefCell<String>,
+    /// The library as it was last read, which is what a search filters.
+    ///
+    /// Kept because searching used to read the whole table again for every
+    /// character typed. Measured at five thousand tracks — the top of the size
+    /// PROJECT_MASTER 1 names — that read is eight milliseconds of the fifteen
+    /// a keystroke costs, and it is the eight that buys nothing: the library
+    /// cannot have changed between two letters (`MASTER_ISSUES` 92).
+    ///
+    /// Every path that could have changed it goes through
+    /// [`Self::refresh_library`], which reads and replaces this. Nothing else
+    /// writes it.
+    shown_library: RefCell<Vec<TrackSummary>>,
     /// Whose cover the player bar is showing, so it is read from disk when the
     /// track changes rather than four times a second.
     showing_cover: RefCell<String>,
@@ -162,6 +175,7 @@ impl Controller {
             window,
             profile,
             query: RefCell::new(String::new()),
+            shown_library: RefCell::new(Vec::new()),
             showing_cover: RefCell::new(String::new()),
             open_playlist: RefCell::new(None),
             eq_bands: Rc::new(VecModel::default()),
@@ -224,11 +238,15 @@ impl Controller {
             return;
         };
 
-        let summaries = match self.services.library.summaries() {
-            Ok(summaries) => summaries,
+        match self.services.library.summaries() {
+            // Straight into the copy the search will filter, rather than into
+            // a local that is then cloned into it: five thousand rows is not a
+            // thing to hold twice for the sake of a shorter line.
+            Ok(summaries) => *self.shown_library.borrow_mut() = summaries,
             // Not an error worth reporting: it is the first-run state, and the
             // empty view already says what to do about it.
             Err(CoreError::NoActiveProfile) => {
+                self.shown_library.borrow_mut().clear();
                 window.set_tracks(ModelRc::new(VecModel::from(Vec::new())));
                 window.set_library_summary("no profile".into());
                 window.set_empty_hint(NO_PROFILE_HINT.into());
@@ -238,12 +256,21 @@ impl Controller {
                 self.report(&err);
                 return;
             }
-        };
+        }
 
         let query = self.query.borrow().clone();
-        let shown = library_vm::matching(&summaries, &query);
+        self.show_library(&window, &query);
+    }
 
-        window.set_library_summary(library_vm::found_line(&shown, &query, summaries.len()).into());
+    /// Draws the library that was last read, filtered by whatever is typed.
+    ///
+    /// Both callers pass the query rather than reading it, because one of them
+    /// is in the middle of writing it.
+    fn show_library(&self, window: &AppWindow, query: &str) {
+        let summaries = self.shown_library.borrow();
+        let shown = library_vm::matching(&summaries, query);
+
+        window.set_library_summary(library_vm::found_line(&shown, query, summaries.len()).into());
         window.set_empty_hint(if query.is_empty() {
             NO_TRACKS_HINT.into()
         } else {
@@ -259,9 +286,16 @@ impl Controller {
     ///
     /// In Rust rather than in the markup: what counts as a match is a decision,
     /// and decisions made here can be tested without a window.
+    ///
+    /// Filters what was already read rather than reading it again. A letter
+    /// typed cannot have changed the library, and the read is the expensive
+    /// half of the work (`MASTER_ISSUES` 92).
     pub fn search(&self, query: &str) {
         *self.query.borrow_mut() = query.to_owned();
-        self.refresh_library();
+
+        if let Some(window) = self.window.upgrade() {
+            self.show_library(&window, query);
+        }
     }
 
     /// Empties the queue, leaving what is playing where it is.

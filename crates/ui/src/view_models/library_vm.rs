@@ -122,6 +122,49 @@ pub fn summary_line(summaries: &[TrackSummary]) -> String {
 
 #[cfg(test)]
 mod tests {
+    /// What one keystroke costs on a library the size the project is sized for.
+    ///
+    /// Ignored: a measurement, not an assertion. Run it with
+    /// `cargo test -p cadenza-ui --release -- --ignored --nocapture` and read
+    /// the numbers; they are the other half of `library_size.rs`, which times
+    /// the database read that comes before this.
+    #[test]
+    #[ignore = "a measurement, not an assertion"]
+    fn what_a_keystroke_costs() {
+        let summaries: Vec<TrackSummary> = (0..5_000)
+            .map(|index| TrackSummary {
+                media_file_id: MediaFileId::new(),
+                title: format!(
+                    "{} song about {index}",
+                    char::from(b'a' + u8::try_from(index % 26).expect("under 26"))
+                ),
+                artist: Some(format!("artist {}", index % 400)),
+                album: Some(format!("album {}", index / 12)),
+                duration: DurationMs::from_secs(200),
+            })
+            .collect();
+
+        for query in ["", "s", "song ab", "song about 4999", "nothing matches"] {
+            let at = std::time::Instant::now();
+            let shown = matching(&summaries, query);
+            println!(
+                "matching {query:?} -> {} rows{:>12.1} ms",
+                shown.len(),
+                at.elapsed().as_secs_f64() * 1000.0
+            );
+        }
+
+        // And what turning them into rows costs, which is the other thing a
+        // keystroke pays for.
+        let at = std::time::Instant::now();
+        let built = rows(&summaries);
+        println!(
+            "rows({} summaries){:>24.1} ms",
+            built.len(),
+            at.elapsed().as_secs_f64() * 1000.0
+        );
+    }
+
     use cadenza_core::domain::ids::MediaFileId;
     use cadenza_core::domain::track::TrackSummary;
     use cadenza_core::domain::value_objects::DurationMs;
