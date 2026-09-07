@@ -29,6 +29,7 @@ use cadenza_core::domain::profile::Profile;
 
 mod app;
 mod controller;
+mod track_rows;
 pub mod view_models;
 mod winit_seam;
 

@@ -5,6 +5,8 @@ use cadenza_core::domain::ports::fetcher::MissingTool;
 use cadenza_core::domain::track::TrackSummary;
 use cadenza_core::domain::value_objects::DurationMs;
 
+use slint::Image;
+
 use crate::TrackRowData;
 use crate::view_models::clock;
 
@@ -23,13 +25,22 @@ pub fn rows(summaries: &[TrackSummary]) -> Vec<TrackRowData> {
     summaries
         .iter()
         .enumerate()
-        .map(|(index, summary)| TrackRowData {
-            id: summary.media_file_id.to_string().into(),
-            position: position(index).into(),
-            title: summary.title.as_str().into(),
-            artist: summary.artist.as_deref().unwrap_or(UNKNOWN_ARTIST).into(),
-            album: summary.album.as_deref().unwrap_or(NO_ALBUM).into(),
-            duration: clock(summary.duration).into(),
+        .map(|(index, summary)| {
+            let artist = summary.artist.as_deref().unwrap_or(UNKNOWN_ARTIST);
+            TrackRowData {
+                id: summary.media_file_id.to_string().into(),
+                position: position(index).into(),
+                title: summary.title.as_str().into(),
+                artist: artist.into(),
+                album: summary.album.as_deref().unwrap_or(NO_ALBUM).into(),
+                duration: clock(summary.duration).into(),
+                // The letter a row shows where there is no cover, and the same
+                // letter the player bar shows for the same reason.
+                initial: super::initial(artist).into(),
+                // Left empty here on purpose: what fills it is `TrackRows`,
+                // when the row is about to be drawn.
+                cover: Image::default(),
+            }
         })
         .collect()
 }

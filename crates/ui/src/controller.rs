@@ -27,6 +27,7 @@ use cadenza_core::domain::value_objects::{DurationMs, GainDb, PlaybackPosition, 
 use cadenza_core::{CoreError, Result};
 use slint::{ComponentHandle, Model, ModelRc, VecModel, Weak};
 
+use crate::track_rows::TrackRows;
 use crate::view_models::{
     self, eq_vm, library_vm, player_vm, playlist_vm, profile_vm, radio_vm, review_vm, stats_vm,
 };
@@ -240,7 +241,10 @@ impl Controller {
         } else {
             NO_MATCH_HINT.into()
         });
-        window.set_tracks(ModelRc::new(VecModel::from(library_vm::rows(&shown))));
+        window.set_tracks(ModelRc::new(TrackRows::new(
+            Arc::clone(&self.services.library),
+            &shown,
+        )));
     }
 
     /// Filters the library by what has been typed into its search field.
@@ -310,7 +314,10 @@ impl Controller {
 
         window.set_queue_hint(NO_QUEUE_HINT.into());
         window.set_queue_summary(library_vm::summary_line(&waiting).into());
-        window.set_queue_tracks(ModelRc::new(VecModel::from(library_vm::rows(&waiting))));
+        window.set_queue_tracks(ModelRc::new(TrackRows::new(
+            Arc::clone(&self.services.library),
+            &waiting,
+        )));
     }
 
     /// Re-reads the index of playlists.
@@ -488,7 +495,10 @@ impl Controller {
         window.set_playlist_name(playlist.name.as_str().into());
         window.set_playlist_hint(EMPTY_PLAYLIST_HINT.into());
         window.set_playlist_summary(library_vm::summary_line(&tracks).into());
-        window.set_playlist_tracks(ModelRc::new(VecModel::from(library_vm::rows(&tracks))));
+        window.set_playlist_tracks(ModelRc::new(TrackRows::new(
+            Arc::clone(&self.services.library),
+            &tracks,
+        )));
     }
 
     /// Starts a track from the open playlist, with the rest of the list behind

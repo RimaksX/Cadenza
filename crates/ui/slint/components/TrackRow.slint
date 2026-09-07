@@ -15,6 +15,12 @@ export struct TrackRowData {
     artist: string,
     album: string,
     duration: string,
+    /// The cover, at the size a row draws it. Empty where the track has
+    /// none, which is most tracks in most libraries.
+    cover: image,
+    /// What stands in for it then: the artist's first letter, the same way
+    /// the player bar stands in for a cover it has not got.
+    initial: string,
 }
 
 export component TrackRow inherits Rectangle {
@@ -121,6 +127,45 @@ export component TrackRow inherits Rectangle {
             hover-play := TouchArea {
                 clicked => {
                     root.activated();
+                }
+            }
+        }
+
+        // The cover, or the letter that stands in for one. Between the
+        // number and the title because that is where the eye goes next, and
+        // the same pairing the player bar uses — a picture when there is one,
+        // an initial when there is not, never an empty square.
+        //
+        // The picture itself arrives late: `TrackRows` reads it when the row is
+        // about to be drawn, so a library of thousands costs the dozen covers
+        // on screen rather than all of them.
+        Rectangle {
+            width: Theme.px(36);
+
+            Rectangle {
+                y: round((parent.height - Theme.px(36)) / 1px / 2) * 1px;
+                width: Theme.px(36);
+                height: Theme.px(36);
+                border-radius: Theme.radius;
+                background: Theme.bg-2;
+                clip: true;
+
+                Image {
+                    width: 100%;
+                    height: 100%;
+                    source: root.data.cover;
+                    image-fit: ImageFit.cover;
+                }
+
+                if root.data.cover.width == 0: Text {
+                    width: 100%;
+                    height: 100%;
+                    text: root.data.initial;
+                    font-family: Theme.serif;
+                    font-size: Theme.text-body;
+                    color: Theme.ink-mute;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
                 }
             }
         }

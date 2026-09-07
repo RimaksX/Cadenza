@@ -337,6 +337,14 @@ export component TrackList inherits Rectangle {
                     text: "№";
                     horizontal-alignment: right;
                 }
+                // Nothing is written over the covers — a heading there would
+                // name a column that is already obvious — but the space has to
+                // be kept, or every label below shifts left of what it labels.
+                ColumnLabel {
+                    width: Theme.px(36);
+                    text: "";
+                }
+
                 ColumnLabel {
                     text: "TITLE";
                     horizontal-stretch: 1;
