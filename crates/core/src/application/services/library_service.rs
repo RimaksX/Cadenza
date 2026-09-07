@@ -199,6 +199,34 @@ impl LibraryService {
             ));
         }
 
+        // Already a folder of this profile's, and that is the answer rather
+        // than a conflict: what the listener asked for is that this folder be
+        // in their library, and it is. Pressing the offer twice used to reach
+        // the unique index on `(profile_id, path)` and put its name in front
+        // of somebody — "unique constraint failed" is not a sentence anybody
+        // should be shown about a folder they can see (`MASTER_ISSUES` 97).
+        //
+        // Re-enabled if it had been switched off, because pressing "use this
+        // folder" about a folder that is switched off means switch it on.
+        //
+        // Compared as written, the way `local_folder` compares: two paths
+        // differing only in case are the same folder to Windows and two rows
+        // to SQLite, which is a smaller and separate wrong that nothing here
+        // has hit yet.
+        if let Some(mut existing) = self
+            .folders()?
+            .into_iter()
+            .find(|folder| folder.path == path)
+        {
+            if !existing.enabled || existing.include_subfolders != include_subfolders {
+                existing.enabled = true;
+                existing.include_subfolders = include_subfolders;
+                self.context.settings.save_folder(&existing)?;
+            }
+            self.watch(&existing)?;
+            return Ok(existing);
+        }
+
         let folder = ProfileFolder {
             id: ProfileFolderId::new(),
             profile_id,

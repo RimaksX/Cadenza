@@ -1245,3 +1245,28 @@ fn a_file_that_came_back_is_playable_again() {
         "a file the scan just read cannot still be missing"
     );
 }
+
+#[test]
+fn adding_a_folder_that_is_already_a_folder_is_not_a_conflict() {
+    let harness = harness("twice");
+    write_wav(&harness.music, "one.wav", 1, 10);
+
+    let first = harness
+        .library
+        .add_folder(&harness.music, true)
+        .expect("adding");
+    let again = harness
+        .library
+        .add_folder(&harness.music, true)
+        .expect("a folder already in the library is the answer, not a conflict");
+
+    // The same folder, not a second row: the listener asked for this folder to
+    // be in their library and it is. Pressing the offer twice used to reach the
+    // unique index and put its name in front of somebody.
+    assert_eq!(again.id, first.id);
+    assert_eq!(
+        harness.library.folders().expect("listing").len(),
+        1,
+        "and there is one of it"
+    );
+}
