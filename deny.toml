@@ -10,6 +10,18 @@
 # a dependency that introduces a new one is meant to fail, so that the decision
 # is made on purpose.
 
+# The one platform this program is built for.
+#
+# A lockfile holds every crate every target could need, and checking all of
+# them means answering for code this application never compiles. The first run
+# stopped on a vulnerability in `quick-xml`, four levels under
+# `accesskit_unix` — the Linux accessibility backend, which a Windows-only
+# player has no path to at all. Filtering the graph to the target is not
+# looking away: it is checking what actually ships, and it makes an advisory
+# that appears here something to act on rather than something to explain away.
+[graph]
+targets = ["x86_64-pc-windows-msvc"]
+
 [advisories]
 version = 2
 # A known vulnerability fails the check, wherever in the tree it is. Nothing is
@@ -71,6 +83,11 @@ license-files = []
 multiple-versions = "warn"
 # A version requirement of "*" is a dependency on whatever exists tomorrow.
 wildcards = "deny"
+# Except between the crates of this workspace, which refer to each other by
+# path and carry no version because none of them is published. Those are not a
+# dependency on whatever exists tomorrow; they are four parts of one program
+# that are always built together from the same commit.
+allow-wildcard-paths = true
 
 [sources]
 unknown-registry = "deny"
