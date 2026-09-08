@@ -6,6 +6,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use cadenza_core::domain::ports::event_bus::DomainEvent;
+use cadenza_core::domain::ports::log::{LogLevel, LogPort};
 use cadenza_core::{CoreError, Result};
 use slint::{ComponentHandle, Timer, TimerMode};
 
@@ -60,6 +61,10 @@ pub fn run(services: UiServices) -> Result<()> {
         }
     }));
 
+    // Taken before the services are handed to the controller, which owns them
+    // from here on.
+    let log: Arc<dyn LogPort> = Arc::clone(&services.log);
+
     let controller = Rc::new(Controller::new(services, window.as_weak()));
     controller.refresh_all();
 
@@ -70,6 +75,8 @@ pub fn run(services: UiServices) -> Result<()> {
     let ticker = Timer::default();
     ticker.start(TimerMode::Repeated, TICK, {
         let controller = Rc::clone(&controller);
+        let drops = drops.clone();
+        let log = Arc::clone(&log);
         move || {
             // Advance first, so that a track which ran out between two ticks is
             // replaced before the bar is drawn holding it.
@@ -83,6 +90,13 @@ pub fn run(services: UiServices) -> Result<()> {
             // A download running on its own thread, read the same way the
             // watcher is: nothing off the event loop touches the window.
             controller.poll_fetch();
+
+            // And what the window measured, when it measured something new.
+            // Once per change: this is four times a second, and a window that
+            // is not being dragged reports nothing.
+            if let Some(said) = drops.measured() {
+                log.write(LogLevel::Info, &said);
+            }
         }
     });
 

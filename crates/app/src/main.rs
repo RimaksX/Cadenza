@@ -348,6 +348,7 @@ fn run() -> std::result::Result<(), String> {
         stats: Arc::clone(&stats),
         profile: active,
         events: Arc::clone(&events),
+        log: Arc::clone(&log),
     });
 
     // Before the pool goes: the worker holds a connection, and a thread still

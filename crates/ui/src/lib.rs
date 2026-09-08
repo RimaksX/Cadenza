@@ -18,6 +18,8 @@
 
 use std::sync::Arc;
 
+use cadenza_core::domain::ports::log::LogPort;
+
 use cadenza_core::Result;
 use cadenza_core::application::ProfileService;
 use cadenza_core::application::services::{
@@ -69,6 +71,11 @@ pub struct UiServices {
     /// and editing them belong to the settings screen, and the service comes
     /// back when that does.
     pub profile: Option<Profile>,
+    /// Somewhere to write a line no window will show.
+    ///
+    /// The window has one thing to say that only it knows: how large it
+    /// actually is, and whether that agrees with the surface drawn into it.
+    pub log: Arc<dyn LogPort>,
     /// Where the application says something changed.
     ///
     /// The window reads its pages when it is asked to and after every command it

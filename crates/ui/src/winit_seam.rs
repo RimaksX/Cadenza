@@ -116,6 +116,18 @@ struct Carried {
     hovering: usize,
     /// Paths let go of and not yet collected.
     dropped: Vec<PathBuf>,
+    /// What the window measured, last time it changed.
+    ///
+    /// Written here rather than logged from the event loop, which has no log
+    /// and should not grow one: the loop records, the tick reports.
+    geometry: Option<String>,
+    /// Whether that measurement has been handed out yet.
+    ///
+    /// Kept beside the measurement rather than taken out of it: a reader that
+    /// emptied the field would leave the next event with nothing to compare
+    /// against, and every event after the first would look like a change. Four
+    /// identical lines a second is not a diagnostic, it is a log nobody reads.
+    fresh: bool,
 }
 
 /// The window's end of it, read once a frame from the event loop.
@@ -135,6 +147,26 @@ impl DropBox {
     /// Everything let go of since the last look.
     pub fn take(&self) -> Vec<PathBuf> {
         std::mem::take(&mut self.carried().dropped)
+    }
+
+    /// What the window measured, if it has changed since this was last asked.
+    ///
+    /// Returned once and then forgotten, so a size that never changes is one
+    /// line in the log rather than four a second.
+    ///
+    /// It exists because a window can be a different size from the surface
+    /// drawn into it, and when that happens every click lands on whatever is
+    /// drawn above what was pressed, while the bottom of the window falls off
+    /// the end. Nothing here can be reproduced on the machine that writes it,
+    /// so what is needed from the machine that has it is numbers rather than
+    /// impressions (`MASTER_ISSUES` 127).
+    pub fn measured(&self) -> Option<String> {
+        let mut carried = self.carried();
+        if !carried.fresh {
+            return None;
+        }
+        carried.fresh = false;
+        carried.geometry.clone()
     }
 }
 
@@ -160,6 +192,47 @@ struct Seam {
     showing: Option<ResizeDirection>,
 }
 
+impl Seam {
+    /// Records what the window and the surface inside it each think they are.
+    ///
+    /// Only when it changes. Both sides are asked, because the fault this is
+    /// here to catch is the two of them disagreeing: winit's `inner_size` is
+    /// the client area Windows gave us, and Slint's is the surface the
+    /// interface was laid out for. When those differ the interface is drawn to
+    /// a height the window does not have.
+    fn measure(&mut self, winit_window: Option<&Window>, slint_window: Option<&slint::Window>) {
+        let (Some(window), Some(slint)) = (winit_window, slint_window) else {
+            return;
+        };
+
+        let inner = window.inner_size();
+        let outer = window.outer_size();
+        let position = window.outer_position().unwrap_or_default();
+        let surface = slint.size();
+
+        let said = format!(
+            "window: client {}x{}, frame {}x{} at {},{}, dpi {:.2}; \
+             surface {}x{}, dpi {:.2}",
+            inner.width,
+            inner.height,
+            outer.width,
+            outer.height,
+            position.x,
+            position.y,
+            window.scale_factor(),
+            surface.width,
+            surface.height,
+            slint.scale_factor(),
+        );
+
+        let mut carried = self.drops.carried();
+        if carried.geometry.as_deref() != Some(said.as_str()) {
+            carried.geometry = Some(said);
+            carried.fresh = true;
+        }
+    }
+}
+
 impl CustomApplicationHandler for Seam {
     fn window_event(
         &mut self,
@@ -169,6 +242,8 @@ impl CustomApplicationHandler for Seam {
         slint_window: Option<&slint::Window>,
         event: &WindowEvent,
     ) -> EventResult {
+        self.measure(winit_window, slint_window);
+
         match event {
             WindowEvent::ModifiersChanged(state) => {
                 self.control = state.state().control_key();
