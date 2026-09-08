@@ -33,7 +33,7 @@
   <Package
       Name="Cadenza"
       Manufacturer="Cadenza"
-      Version="0.2.2"
+      Version="0.3.0"
       Language="1033"
       Scope="perUser"
       Compressed="yes"
