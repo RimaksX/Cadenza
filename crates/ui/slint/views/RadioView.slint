@@ -42,15 +42,10 @@ component SectionLabel inherits Rectangle {
                 height: Theme.px(18);
                 vertical-alignment: center;
                 letter-spacing: Theme.label-spacing;
-                color: Theme.ink-mute;
+                color: Theme.ink-furniture;
             }
         }
 
-        Rectangle {
-            y: Theme.px(8);
-            height: 1px;
-            background: Theme.line-soft;
-        }
     }
 }
 
@@ -136,7 +131,7 @@ export component RadioView inherits Rectangle {
                 height: Theme.px(18);
                 vertical-alignment: center;
                 letter-spacing: Theme.label-spacing;
-                color: Theme.ink-mute;
+                color: Theme.ink-furniture;
             }
 
             Text {
@@ -218,10 +213,16 @@ export component RadioView inherits Rectangle {
                         text: "WHAT IS PLAYING";
                     }
 
+                    // The name of a record, set the way this interface sets
+                    // the name of a record: the same face and the same size a
+                    // track has in the library. It was sans at body size, which
+                    // is the voice this page uses for its own explanations —
+                    // so the one thing the panel is about was saying itself in
+                    // the same tone as the sentence under it.
                     Text {
                         text: root.now-title == "" ? "nothing yet" : root.now-title;
-                        font-family: Theme.sans;
-                        font-size: Theme.text-body;
+                        font-family: Theme.serif;
+                        font-size: Theme.text-lead;
                         height: Theme.px(44);
                         vertical-alignment: center;
                         wrap: word-wrap;

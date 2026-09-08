@@ -27,9 +27,15 @@ export struct TakenOutRowData {
     gone: bool,
 }
 
-// A heading over a group of controls. Mono capitals and a rule to the edge —
-// the same device the sidebar uses to separate one group of destinations from
-// the next, because it is the same kind of statement.
+// A heading over a group of controls. Mono capitals in the furniture ink, and
+// nothing else.
+//
+// It used to carry a rule to the right edge of the page, borrowed from the
+// sidebar. In a 240-pixel column that rule is a tick beside a word; across the
+// full width of a page, seven of them at even intervals turn the screen into a
+// stack of stripes and stop meaning anything — and a line in this interface is
+// supposed to mean "something ends here" (`MASTER_ISSUES` 121). What separates
+// one group from the next is the space above it and the ink of the label.
 component SectionLabel inherits Rectangle {
     in property <string> text;
 
@@ -55,40 +61,40 @@ component SectionLabel inherits Rectangle {
                 height: Theme.px(18);
                 vertical-alignment: center;
                 letter-spacing: Theme.label-spacing;
-                color: Theme.ink-mute;
+                color: Theme.ink-furniture;
             }
-        }
-
-        Rectangle {
-            y: Theme.px(8);
-            height: 1px;
-            background: Theme.line-soft;
         }
     }
 }
 
 // A line of explanation under a group of controls.
+//
+// Body, at the body ink. It was `ink-mute` — the same ink as the label above
+// it, so the page had a label and a sentence saying the same thing in the same
+// voice, and nothing to tell the eye which was which.
 component SectionNote inherits Text {
     font-family: Theme.sans;
     font-size: Theme.text-body;
     height: Theme.px(22);
     vertical-alignment: center;
-    color: Theme.ink-mute;
+    color: Theme.ink-2;
     overflow: elide;
 }
 
 // One watched folder: where it is, and the two things that can be done to it.
 component FolderRow inherits Rectangle {
     in property <FolderRowData> data;
+    /// Set on the last row of the list, which draws no separator under it.
+    in property <bool> last;
 
     callback removed();
     callback synchronised();
 
-    height: Theme.px(46);
+    height: Theme.row-height;
 
     VerticalLayout {
-        y: round((parent.height - Theme.px(40)) / 1px / 2) * 1px;
-        height: Theme.px(40);
+        y: round((parent.height - Theme.px(48)) / 1px / 2) * 1px;
+        height: Theme.px(48);
 
         HorizontalLayout {
             spacing: Theme.space-4;
@@ -98,13 +104,16 @@ component FolderRow inherits Rectangle {
                 horizontal-stretch: 1;
                 spacing: Theme.px(2);
 
+                // The name of the row, at the level a track's name has in the
+                // library: this page is a list of things with captions under
+                // them, exactly as that one is (`MASTER_ISSUES` 121).
                 Text {
                     text: root.data.path;
-                    font-family: Theme.sans;
-                    font-size: Theme.text-body;
-                    height: Theme.px(22);
+                    font-family: Theme.serif;
+                    font-size: Theme.text-lead;
+                    height: Theme.px(26);
                     vertical-alignment: center;
-                    color: Theme.ink-0;
+                    color: Theme.ink-1;
                     overflow: elide;
                 }
                 Text {
@@ -146,8 +155,12 @@ component FolderRow inherits Rectangle {
         }
     }
 
-    // The same hairline every list in this interface puts under a row.
-    Rectangle {
+    // The same hairline every list in this interface puts *between* rows —
+    // and not under the last of them. A line here means "the next one starts
+    // below this"; under the only row of a list of one it ends nothing, and
+    // this page had two of those before it had any content
+    // (`MASTER_ISSUES` 121).
+    if !root.last: Rectangle {
         y: parent.height - 1px;
         height: 1px;
         background: Theme.line-soft;
@@ -157,14 +170,15 @@ component FolderRow inherits Rectangle {
 // One listener: their name, and the one thing to do about them.
 component ProfileRow inherits Rectangle {
     in property <ProfileRowData> data;
+    in property <bool> last;
 
     callback chosen();
 
-    height: Theme.px(46);
+    height: Theme.row-height;
 
     HorizontalLayout {
-        y: round((parent.height - Theme.px(40)) / 1px / 2) * 1px;
-        height: Theme.px(40);
+        y: round((parent.height - Theme.px(48)) / 1px / 2) * 1px;
+        height: Theme.px(48);
         spacing: Theme.space-4;
 
         VerticalLayout {
@@ -174,11 +188,11 @@ component ProfileRow inherits Rectangle {
 
             Text {
                 text: root.data.name;
-                font-family: Theme.sans;
-                font-size: Theme.text-body;
-                height: Theme.px(22);
+                font-family: Theme.serif;
+                font-size: Theme.text-lead;
+                height: Theme.px(26);
                 vertical-alignment: center;
-                color: root.data.active ? Theme.ink-0 : Theme.ink-2;
+                color: root.data.active ? Theme.ink-0 : Theme.ink-1;
                 overflow: elide;
             }
             Text {
@@ -208,7 +222,8 @@ component ProfileRow inherits Rectangle {
         }
     }
 
-    Rectangle {
+    // Between rows, never under the last: see `FolderRow`.
+    if !root.last: Rectangle {
         y: parent.height - 1px;
         height: 1px;
         background: Theme.line-soft;
@@ -218,14 +233,15 @@ component ProfileRow inherits Rectangle {
 // One track that was taken out of the library but not off the disk.
 component TakenOutRow inherits Rectangle {
     in property <TakenOutRowData> data;
+    in property <bool> last;
 
     callback restored();
 
-    height: Theme.px(46);
+    height: Theme.row-height;
 
     HorizontalLayout {
-        y: round((parent.height - Theme.px(40)) / 1px / 2) * 1px;
-        height: Theme.px(40);
+        y: round((parent.height - Theme.px(48)) / 1px / 2) * 1px;
+        height: Theme.px(48);
         spacing: Theme.space-4;
 
         VerticalLayout {
@@ -235,11 +251,11 @@ component TakenOutRow inherits Rectangle {
 
             Text {
                 text: root.data.title;
-                font-family: Theme.sans;
-                font-size: Theme.text-body;
-                height: Theme.line-body;
+                font-family: Theme.serif;
+                font-size: Theme.text-lead;
+                height: Theme.px(26);
                 vertical-alignment: center;
-                color: Theme.ink-2;
+                color: Theme.ink-1;
                 overflow: elide;
             }
             Text {
@@ -270,7 +286,8 @@ component TakenOutRow inherits Rectangle {
         }
     }
 
-    Rectangle {
+    // Between rows, never under the last: see `FolderRow`.
+    if !root.last: Rectangle {
         y: parent.height - 1px;
         height: 1px;
         background: Theme.line-soft;
@@ -333,7 +350,7 @@ export component SettingsView inherits Rectangle {
                 height: Theme.px(18);
                 vertical-alignment: center;
                 letter-spacing: Theme.label-spacing;
-                color: Theme.ink-mute;
+                color: Theme.ink-furniture;
             }
 
             Text {
@@ -401,8 +418,9 @@ export component SettingsView inherits Rectangle {
                             text: "Each has their own library and queue.";
                         }
 
-                        for profile in root.profiles: ProfileRow {
+                        for profile[index] in root.profiles: ProfileRow {
                             data: profile;
+                            last: index == root.profiles.length - 1;
                             chosen => {
                                 root.switch-profile(profile.id);
                             }
@@ -465,8 +483,9 @@ export component SettingsView inherits Rectangle {
                         // A plain repetition rather than a list of its own: the
                         // page already scrolls, and a scrolling list inside a
                         // scrolling page is two places to be lost in.
-                        for folder in root.folders: FolderRow {
+                        for folder[index] in root.folders: FolderRow {
                             data: folder;
+                            last: index == root.folders.length - 1;
                             removed => {
                                 root.remove-folder(folder.id);
                             }
@@ -534,8 +553,9 @@ export component SettingsView inherits Rectangle {
                             text: "Removed here, not deleted from disk.";
                         }
 
-                        for track in root.taken-out: TakenOutRow {
+                        for track[index] in root.taken-out: TakenOutRow {
                             data: track;
+                            last: index == root.taken-out.length - 1;
                             restored => {
                                 root.restore-track(track.id);
                             }

@@ -97,7 +97,7 @@ export component PlaylistCard inherits Rectangle {
                             height: Theme.px(18);
                             vertical-alignment: center;
                             letter-spacing: Theme.label-spacing;
-                            color: Theme.ink-mute;
+                            color: Theme.ink-furniture;
                         }
                     }
                     // The number steps aside for the menu rather than sharing
@@ -334,25 +334,39 @@ export component PlaylistsView inherits Rectangle {
                 height: Theme.px(18);
                 vertical-alignment: center;
                 letter-spacing: Theme.label-spacing;
-                color: Theme.ink-mute;
+                color: Theme.ink-furniture;
             }
 
-            // The title, and the one action the page itself offers. Beside the
-            // heading rather than in a toolbar: there is no toolbar, and a page
-            // with one verb does not need a strip to keep it in.
+            Text {
+                text: "Playlists";
+                font-family: Theme.serif;
+                font-size: Theme.text-display;
+                height: Theme.heading-box;
+                vertical-alignment: bottom;
+                color: Theme.ink-0;
+            }
+
+            // The quantities, and the one action the page itself offers, on the
+            // same line and in the same place as on every other screen. It
+            // stood beside the heading before, alone in the white space to the
+            // right of one word, belonging to neither the name above it nor the
+            // content below (`MASTER_ISSUES` 121).
             HorizontalLayout {
                 alignment: space-between;
+                spacing: Theme.space-5;
 
                 VerticalLayout {
                     alignment: center;
+                    horizontal-stretch: 1;
 
                     Text {
-                        text: "Playlists";
-                        font-family: Theme.serif;
-                        font-size: Theme.text-display;
-                        height: Theme.heading-box;
+                        text: root.summary;
+                        font-family: Theme.mono;
+                        font-size: Theme.text-label;
+                        height: Theme.px(18);
                         vertical-alignment: center;
-                        color: Theme.ink-0;
+                        letter-spacing: Theme.number-spacing;
+                        color: Theme.ink-2;
                     }
                 }
 
@@ -367,16 +381,6 @@ export component PlaylistsView inherits Rectangle {
                         }
                     }
                 }
-            }
-
-            Text {
-                text: root.summary;
-                font-family: Theme.mono;
-                font-size: Theme.text-label;
-                height: Theme.px(18);
-                vertical-alignment: center;
-                letter-spacing: Theme.number-spacing;
-                color: Theme.ink-2;
             }
         }
 

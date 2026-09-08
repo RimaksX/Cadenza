@@ -13,7 +13,10 @@ component ColumnLabel inherits Text {
     font-size: Theme.text-label;
     height: Theme.px(18);
     letter-spacing: Theme.label-spacing;
-    color: Theme.ink-mute;
+    // Furniture. `ARTIST` over a column is read once, on the first visit, and
+    // is scenery every time after — at `ink-mute` it sat eight steps under the
+    // names it labels and competed with them.
+    color: Theme.ink-furniture;
     overflow: elide;
     vertical-alignment: bottom;
 }
@@ -119,7 +122,7 @@ export component TrackList inherits Rectangle {
                 height: Theme.px(18);
                 vertical-alignment: center;
                 letter-spacing: Theme.label-spacing;
-                color: Theme.ink-mute;
+                color: Theme.ink-furniture;
             }
 
             if root.back-label != "": HorizontalLayout {
@@ -150,46 +153,60 @@ export component TrackList inherits Rectangle {
                 }
             }
 
-            // The heading, and whatever this page offers at the level of the
-            // page itself — one action or one field, on the same line, in the
+            // The heading has the width of the page to itself.
+            Text {
+                text: root.heading;
+                font-family: Theme.serif;
+                font-size: Theme.text-display;
+                height: Theme.heading-box;
+                color: Theme.ink-0;
+                vertical-alignment: bottom;
+                overflow: elide;
+            }
+
+            // The quantities, and whatever this page offers at the level of the
+            // page itself — one field or one action, on the same line, in the
             // same place on every screen.
+            //
+            // On this line rather than beside the heading, which is where it
+            // was. A lone bordered box in the white space to the right of a
+            // title belongs to nothing: it is not part of the name and it is
+            // not part of the content. Here it stands at the end of a line that
+            // already has words on it, directly above the thing it acts on
+            // (`MASTER_ISSUES` 121).
             HorizontalLayout {
                 alignment: space-between;
                 spacing: Theme.space-5;
 
-                // The heading is what gives way when the window is narrow. It
-                // can be read short; a search field pushed off the edge cannot
-                // be used at all.
+                // The quantities give way when the window is narrow. They can
+                // be read short; a search field pushed off the edge cannot be
+                // used at all.
                 VerticalLayout {
                     alignment: center;
                     horizontal-stretch: 1;
 
                     Text {
-                        text: root.heading;
-                        font-family: Theme.serif;
-                        font-size: Theme.text-display;
-                        height: Theme.heading-box;
-                        color: Theme.ink-0;
-                        vertical-alignment: bottom;
-                        overflow: elide;
+                        text: root.summary;
+                        font-family: Theme.mono;
+                        font-size: Theme.text-label;
+                        height: Theme.px(18);
+                        vertical-alignment: center;
+                        letter-spacing: Theme.number-spacing;
+                        color: Theme.ink-2;
                     }
                 }
 
-                // Bottom-aligned, so the field sits on the heading's own line
-                // rather than floating against the middle of a Theme.px(36) title.
                 VerticalLayout {
-                    alignment: end;
-                    padding-bottom: Theme.px(4);
+                    alignment: center;
 
                     // Built whether or not this page searches, because the
                     // alias above names it: an element inside a condition is
                     // out of scope everywhere else.
                     //
                     // Collapses in both directions where the page does not
-                    // search. Left at its full height it was an invisible Theme.px(34)
-                    // standing above the page's own button, the head grew by
-                    // that much, and the heading — centred in a taller row —
-                    // sat nine pixels lower on the queue than on the library.
+                    // search. Left at its full height it was an invisible
+                    // control standing above the page's own button, and the
+                    // head grew by that much.
                     search := Field {
                         width: root.searchable ? Theme.px(280) : 0px;
                         height: root.searchable ? Theme.control-height : 0px;
@@ -209,16 +226,6 @@ export component TrackList inherits Rectangle {
                         }
                     }
                 }
-            }
-
-            Text {
-                text: root.summary;
-                font-family: Theme.mono;
-                font-size: Theme.text-label;
-                height: Theme.px(18);
-                vertical-alignment: center;
-                letter-spacing: Theme.number-spacing;
-                color: Theme.ink-2;
             }
 
             // Bringing a track in from a link. On the page about what you have,

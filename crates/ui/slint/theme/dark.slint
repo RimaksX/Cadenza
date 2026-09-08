@@ -29,6 +29,18 @@ export global DarkPalette {
     // disappears into the background" means in numbers.
     out property <color> ink-mute: #7f7c79;
 
+    // Furniture: what a column is called, what a group is called, what a page
+    // is. Read once and then never again — the eye needs it to find its way in
+    // and needs it out of the way afterwards, which `ink-mute` at 52 could not
+    // do while sitting eight steps under the text it labels.
+    //
+    // 3.8:1 rather than the 4.5 the readable inks clear, and that is the whole
+    // decision: these are labels in wide capitals, not prose, and the rule they
+    // are exempted from is about text somebody has to read. It stays well clear
+    // of `ink-disabled`, because "furniture" and "unavailable" are two
+    // different sentences (`MASTER_ISSUES` 121).
+    out property <color> ink-furniture: #6f6c69;
+
     // Not a quieter ink but a different statement: this one means "not
     // available". It measures 2.8:1 on purpose — a disabled control is exempt
     // from the contrast minimum, and has to look unavailable, which it cannot

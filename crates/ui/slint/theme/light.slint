@@ -24,6 +24,9 @@ export global LightPalette {
     // 4.6:1 against the raised surfaces, where it was 3.58 — see the note in
     // `dark.slint`.
     out property <color> ink-mute: #716d6b;
+    // 3.6:1 against `bg-0`, and lighter than `ink-mute` rather than darker:
+    // on this side stepping back means stepping towards the paper.
+    out property <color> ink-furniture: #888482;
     out property <color> ink-disabled: #9a9694;
     out property <color> ink-2: #585452;
     out property <color> ink-1: #2b2826;
