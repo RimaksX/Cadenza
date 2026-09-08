@@ -41,9 +41,14 @@ jobs:
       # build map, and the `.pdb` beside the executable is the program's — both
       # are for diagnosing a broken build, and neither is something to hand a
       # listener.
+      # The list of what changed is composed by GitHub from the commits since
+      # the previous tag, and appended under the note below. Written here rather
+      # than by hand because a release note written by hand is a release note
+      # somebody forgets.
       - uses: softprops/action-gh-release@v2
         with:
           files: packaging/windows/out/*.msi
+          generate_release_notes: true
           body: |
             Windows 10 or 11, 64-bit.
 
