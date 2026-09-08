@@ -13,6 +13,9 @@ component TransportButton inherits Rectangle {
     in property <bool> quiet;
     in property <bool> active;
     in property <bool> enabled: true;
+    /// Moves the glyph off the geometric middle, for a glyph whose weight is
+    /// not in its middle. See the note on the play button below.
+    in property <length> nudge;
 
     callback pressed();
 
@@ -57,7 +60,7 @@ component TransportButton inherits Rectangle {
         // a mark rather than as a control.
         width: root.primary ? Theme.px(20) : (root.quiet ? Theme.px(16) : Theme.px(18));
         height: self.width;
-        x: round((parent.width - self.width) / 1px / 2) * 1px;
+        x: round((parent.width - self.width) / 1px / 2) * 1px + root.nudge;
         y: round((parent.height - self.height) / 1px / 2) * 1px;
         image-fit: contain;
         // Three answers, not two. `active` is a mode that is *on* — shuffle,
@@ -340,6 +343,26 @@ export component PlayerBar inherits Rectangle {
                         ? @image-url("../../../../resources/ui/icons/pause.svg")
                         : @image-url("../../../../resources/ui/icons/play.svg");
                     primary: true;
+                    // One pixel right, for the triangle only.
+                    //
+                    // A right-pointing triangle is centred by its box and looks
+                    // left of centre, because its weight is not where its box
+                    // says. Measured on the rendered window rather than guessed
+                    // at: the ink of the glyph, weighted by how far each pixel
+                    // stands above the disc behind it, has its centre 0.90
+                    // pixels left of the disc's own. One pixel leaves it 0.10
+                    // out, which is the closest a whole pixel gets — and a
+                    // fractional offset would put the glyph off the pixel grid
+                    // and soften it, which is the thing this interface refuses
+                    // to do anywhere else (`MASTER_ISSUES` 126).
+                    //
+                    // It stays one pixel at every size the interface can be
+                    // drawn at: the error is 4.5 per cent of the glyph, which
+                    // is between 0.81 and 1.17 pixels from 90 to 125 per cent.
+                    //
+                    // Pause gets none. Two bars either side of the middle are
+                    // their own centre.
+                    nudge: root.playing ? 0px : 1px;
                     enabled: root.loaded;
                     pressed => {
                         root.toggle-play();
