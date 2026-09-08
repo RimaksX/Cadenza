@@ -210,13 +210,14 @@ export component PlayerBar inherits Rectangle {
             VerticalLayout {
                 alignment: center;
 
-                // The square where a cover goes when a listener can choose one.
-                // Until then it holds a letter — and, while there is sound, what
-                // that sound is made of.
+                // The square where the cover goes, and a letter until there is
+                // one. Rounded like the covers in the rows: the same picture
+                // twice on one screen should not be two different shapes.
                 Rectangle {
                     width: Theme.px(56);
                     height: Theme.px(56);
                     background: Theme.bg-2;
+                    border-radius: Theme.radius;
                     border-width: 1px;
                     border-color: Theme.line-soft;
                     clip: true;
@@ -229,8 +230,7 @@ export component PlayerBar inherits Rectangle {
                     }
 
                     // The letter is what a square holds when it has no picture,
-                    // and it steps aside for one — as it already does for the
-                    // bars while there is sound to draw.
+                    // and it steps aside for one.
                     Text {
                         text: root.initial;
                         font-family: Theme.serif;
@@ -240,23 +240,15 @@ export component PlayerBar inherits Rectangle {
                         color: Theme.ink-1;
                         horizontal-alignment: center;
                         vertical-alignment: center;
-                        opacity: root.playing || root.cover.width > 0 ? 0.0 : 1.0;
+                        opacity: root.cover.width > 0 ? 0.0 : 1.0;
                         animate opacity { duration: 300ms; }
                     }
 
-                    // Eight bars standing on the floor of the square, in the
-                    // same ink and at the same widths as the equaliser's own —
-                    // the two are the same idea seen from opposite ends, one
-                    // asking for a sound and one showing it.
-                    for level[index] in root.spectrum: Rectangle {
-                        x: Theme.px(4) + index * Theme.px(6);
-                        y: parent.height - self.height - Theme.px(4);
-                        width: Theme.px(4);
-                        height: max(Theme.px(2), Theme.px(46) * level);
-                        background: Theme.ink-2;
-                        opacity: root.playing ? 1.0 : 0.0;
-                        animate opacity { duration: 300ms; }
-                    }
+                    // Nothing else is drawn here. Eight bars used to stand on
+                    // the floor of this square while something played, which
+                    // was worth looking at when the square was usually empty —
+                    // and became a lattice over the record's own cover once
+                    // every track had one (`MASTER_ISSUES` 115).
                 }
             }
 

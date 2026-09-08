@@ -325,42 +325,18 @@ export component Sidebar inherits Rectangle {
                 padding-right: Theme.space-5;
                 padding-top: Theme.space-4;
 
-                HorizontalLayout {
-                    spacing: Theme.space-3;
+                // Two lines and no disc. The disc held a letter standing in
+                // for a picture nobody can choose — this interface has no way
+                // to set one — so it was a portrait of nothing, and the only
+                // round object on a screen made of squares and rules
+                // (`MASTER_ISSUES` 115).
+                //
+                // What is left says the same thing in the shape everything else
+                // in this column is said: a name, and a label under it.
+                VerticalLayout {
+                    spacing: Theme.px(2);
 
-                    // The listener's initial in a disc. A face is the one thing
-                    // in this interface that is theirs, and a letter is what
-                    // there is until they can choose a picture.
-                    VerticalLayout {
-                        alignment: center;
-
-                        Rectangle {
-                            width: Theme.px(28);
-                            height: Theme.px(28);
-                            border-radius: Theme.px(14);
-                            background: @linear-gradient(135deg, Theme.bg-3, Theme.bg-1);
-                            border-width: 1px;
-                            border-color: Theme.line;
-
-                            Text {
-                                text: root.profile-initial;
-                                font-family: Theme.serif;
-                                font-italic: true;
-                                font-size: Theme.text-body;
-                                height: Theme.px(22);
-                                color: Theme.ink-1;
-                                horizontal-alignment: center;
-                                vertical-alignment: center;
-                            }
-                        }
-                    }
-
-                    VerticalLayout {
-                        alignment: center;
-                        spacing: Theme.px(2);
-                        horizontal-stretch: 1;
-
-                        Text {
+                    Text {
                             text: root.profile-name;
                             font-family: Theme.sans;
                             font-size: Theme.text-body;
@@ -375,9 +351,8 @@ export component Sidebar inherits Rectangle {
                             font-size: Theme.text-label;
                             height: Theme.px(18);
                             vertical-alignment: center;
-                            letter-spacing: Theme.label-spacing;
-                            color: Theme.ink-mute;
-                        }
+                        letter-spacing: Theme.label-spacing;
+                        color: Theme.ink-mute;
                     }
                 }
             }
