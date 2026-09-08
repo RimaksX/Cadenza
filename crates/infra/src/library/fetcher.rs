@@ -62,6 +62,16 @@ const PYTHON_PACKAGES: &str = "pip";
 /// hour for something that used to take thirteen minutes and arrive broken.
 const AT_ONCE: &str = "2";
 
+/// How many times a long list is asked for before giving up on the rest.
+///
+/// One is not enough and it is not a matter of patience: the same fifty-two
+/// tracks gave twenty, twenty-two and twenty-two across three runs at
+/// different speeds, and a second ask for what was left brought eighteen more.
+/// Three passes is where a list of this size finishes; a shorter one stops
+/// early on its own, because a pass that brings nothing ends the loop
+/// (`MASTER_ISSUES` 106).
+const PASSES: usize = 3;
+
 /// Where the matcher looks for a recording, in order.
 ///
 /// Its own default is YouTube Music alone, and a slice of the failures above
@@ -296,6 +306,18 @@ impl ExternalFetcher {
     /// can do: Spotify's audio is encrypted and nothing takes it out. So the
     /// sound is the same sound the other button gets, and what is gained is
     /// the names on it (`MASTER_ISSUES` 99).
+    ///
+    /// **In passes**, because the far end stops answering long before a long
+    /// list is finished. Measured three times on the same fifty-two tracks:
+    /// twenty, twenty-two, twenty-two — whatever the pace, whatever the number
+    /// fetched at once. Asked again for the thirty that were left, it brought
+    /// eighteen more. The tracks are not unavailable; there is a limit on how
+    /// many one run may have (`MASTER_ISSUES` 106).
+    ///
+    /// Each pass asks for the whole list and fetches only what is missing,
+    /// because the memory sees to that. It stops as soon as a pass brings
+    /// nothing, so a list that is genuinely finished costs one wasted ask
+    /// rather than three.
     fn fetch_matched(
         &self,
         link: &str,
@@ -310,14 +332,70 @@ impl ExternalFetcher {
 
         let workspace = workspace()?;
         let (list, listed) = self.ask_matcher(&matcher, link, &workspace);
-        let total = u32::try_from(listed.len()).unwrap_or(u32::MAX);
+        let wanted = u32::try_from(listed.len()).unwrap_or(u32::MAX);
 
-        let mut child = quietly(&matcher)
+        let mut landed: Vec<PathBuf> = Vec::new();
+        let mut said = Vec::new();
+
+        for _ in 0..PASSES {
+            let (mut brought, spoke, stopped) = self.one_pass(
+                &matcher, &converter, link, &workspace, into, wanted, &landed, progress, stop,
+            )?;
+            let came = brought.len();
+            landed.append(&mut brought);
+            said = spoke;
+
+            // Nothing new means the far end has nothing more to give this
+            // minute, and asking a third time would only be rude.
+            if stopped || came == 0 || landed.len() >= listed.len() {
+                break;
+            }
+        }
+
+        let _ = std::fs::remove_dir_all(&workspace);
+
+        if landed.is_empty() {
+            let reason = said
+                .iter()
+                .rev()
+                .find(|line| line.to_lowercase().contains("error"))
+                .map_or_else(
+                    || "the matcher found nothing for that link".to_owned(),
+                    |line| line.trim().to_owned(),
+                );
+            return Err(CoreError::invalid("link", reason));
+        }
+
+        progress(FetchProgress {
+            percent: 100,
+            item: None,
+        });
+        Ok(FetchedTracks {
+            files: landed,
+            listed,
+            playlist: list,
+        })
+    }
+
+    /// One run of the matcher: what it brought, what it said, and whether the
+    /// listener called it off.
+    #[allow(clippy::too_many_arguments)]
+    fn one_pass(
+        &self,
+        matcher: &Path,
+        converter: &Path,
+        link: &str,
+        workspace: &Path,
+        into: &Path,
+        wanted: u32,
+        already: &[PathBuf],
+        progress: &dyn Fn(FetchProgress),
+        stop: &dyn Fn() -> bool,
+    ) -> Result<(Vec<PathBuf>, Vec<String>, bool)> {
+        let mut child = quietly(matcher)
             // In UTF-8, and this is not optional: the matcher prints the name
             // of what it is fetching, and printing "европа плюс 2016" into a
-            // cp1252 stream kills it before it starts. Measured — the first
-            // playlist anybody tried was that one, and it died on its own
-            // title (`MASTER_ISSUES` 101, and the same shape as 90).
+            // cp1252 stream kills it before it starts (`MASTER_ISSUES` 101).
             .env("PYTHONIOENCODING", "utf-8")
             .arg("download")
             .arg(link)
@@ -333,9 +411,8 @@ impl ExternalFetcher {
             .args(["--threads", AT_ONCE])
             .arg("--audio")
             .args(LOOK_IN)
-            // And what it has already brought down, so that fetching the same
-            // list twice brings what is new rather than a second copy of
-            // everything (`MASTER_ISSUES` 104).
+            // And what it has already brought down — which is what makes a
+            // second pass ask only for what is missing (`MASTER_ISSUES` 104).
             .args(match self.remembers.as_ref() {
                 Some(directory) => vec![
                     std::ffi::OsStr::new("--archive").to_owned(),
@@ -347,7 +424,7 @@ impl ExternalFetcher {
             // works — and so that the matcher and the downloader convert with
             // the same program.
             .arg("--ffmpeg")
-            .arg(&converter)
+            .arg(converter)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .stdin(Stdio::null())
@@ -372,62 +449,28 @@ impl ExternalFetcher {
                 // works is not documented anywhere, and a parser written
                 // against strings nobody has seen is a parser that will be
                 // wrong in a language nobody here reads. Files that have
-                // appeared are a fact, and how many are coming was asked for
-                // before any of this started.
-                let done = finished_files(&workspace);
+                // appeared are a fact — and the passes before this one are
+                // added to them, so the number only ever climbs.
+                let done =
+                    finished_files(workspace) + u32::try_from(already.len()).unwrap_or(u32::MAX);
                 progress(FetchProgress {
-                    // Out of how many are coming, which is what the button
-                    // counts. It showed nothing but 0% before, because this
-                    // path never sent a percentage at all — the matcher does
-                    // not report one per file, so the honest number is how far
-                    // through the list it is (`MASTER_ISSUES` 102).
-                    percent: match total {
+                    percent: match wanted {
                         0 => 0,
-                        total => u8::try_from(done.saturating_mul(100) / total).unwrap_or(100),
+                        wanted => u8::try_from(done.saturating_mul(100) / wanted).unwrap_or(100),
                     },
-                    item: (done > 0).then_some((done, total)),
+                    item: (done > 0).then_some((done, wanted)),
                 });
             }
         }
 
-        let status = child
+        let _ = child
             .wait()
             .map_err(|err| CoreError::FileSystem(format!("{MATCHER} did not finish: {err}")))?;
         let said = complaints
             .and_then(|thread| thread.join().ok())
             .unwrap_or_default();
 
-        let landed = land(&workspace, into)?;
-        let _ = std::fs::remove_dir_all(&workspace);
-
-        if landed.is_empty() {
-            if stopped || status.success() {
-                return Ok(FetchedTracks::default());
-            }
-
-            let reason = said
-                .iter()
-                .rev()
-                .find(|line| line.to_lowercase().contains("error"))
-                .map_or_else(
-                    || "the matcher found nothing for that link".to_owned(),
-                    |line| line.trim().to_owned(),
-                );
-            return Err(CoreError::invalid("link", reason));
-        }
-
-        progress(FetchProgress {
-            percent: 100,
-            item: None,
-        });
-        // And the list it came from becomes a list here, under the name it has
-        // where it came from — which the matcher was asked for by name rather
-        // than guessed at from anything it printed.
-        Ok(FetchedTracks {
-            files: landed,
-            listed,
-            playlist: list,
-        })
+        Ok((land(workspace, into)?, said, stopped))
     }
 }
 
