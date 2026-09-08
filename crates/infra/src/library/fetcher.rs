@@ -48,6 +48,20 @@ const MATCHER: &str = "spotdl";
 /// Python's package manager, which is the only place `spotdl` comes from.
 const PYTHON_PACKAGES: &str = "pip";
 
+/// The language the matcher is written in.
+///
+/// Cadenza never runs it for its own sake: it runs `spotdl`, and `python -m
+/// pip` to put `spotdl` there. It is named here because it is the thing a
+/// machine that has never had a Python on it is missing, and being told
+/// "pip is not on this machine" is being told the symptom (`MASTER_ISSUES`
+/// 118).
+const PYTHON: &str = "python";
+
+/// Which Python. Any of several would do; this one is named so that the same
+/// version arrives on every machine and the instruction in the message is a
+/// command somebody can actually paste.
+const PYTHON_PACKAGE: &str = "Python.Python.3.11";
+
 /// Where a program is installed from.
 #[derive(Clone, Copy)]
 enum Source {
@@ -63,9 +77,13 @@ enum Source {
 }
 
 /// What this needs, and where each one comes from.
-const TOOLS: [(&str, Source); 3] = [
+///
+/// In the order they are installed, which is why Python is above the matcher:
+/// the matcher is installed *by* it.
+const TOOLS: [(&str, Source); 4] = [
     (DOWNLOADER, Source::Packages("yt-dlp.yt-dlp")),
     (CONVERTER, Source::Packages("Gyan.FFmpeg")),
+    (PYTHON, Source::Packages(PYTHON_PACKAGE)),
     (MATCHER, Source::Python("spotdl")),
 ];
 
@@ -82,15 +100,15 @@ impl Source {
 /// Which programs a link needs.
 ///
 /// Everything needs the downloader and the converter — the matcher hands its
-/// work to both. A Spotify link needs the matcher as well, and nothing else
-/// does: a listener who only ever pastes YouTube links must never be told to
-/// install it.
+/// work to both. A Spotify link needs the matcher as well, and the Python the
+/// matcher is written in; nothing else needs either. A listener who only ever
+/// pastes YouTube links must never be told to install a language.
 fn needed_for(link: &str) -> Vec<(&'static str, Source)> {
     let matching = matches!(handler_for(link), LinkHandler::Matcher);
 
     TOOLS
         .into_iter()
-        .filter(|(program, _)| matching || *program != MATCHER)
+        .filter(|(program, _)| matching || (*program != MATCHER && *program != PYTHON))
         .collect()
 }
 
@@ -160,21 +178,31 @@ impl ExternalFetcher {
     /// Installs or upgrades one package through Python's.
     ///
     /// `spotdl` is not in `winget` — searched rather than assumed — so this is
-    /// the only way it arrives. A machine with no Python has no `pip` either,
-    /// and the answer to that is a package manager away rather than something
-    /// this can do quietly.
+    /// the only way it arrives.
+    ///
+    /// Run as `python -m pip` rather than as `pip`. It is the same program, and
+    /// it is the one belonging to the Python that was found rather than
+    /// whichever `pip.exe` happens to be first on PATH — and on a machine where
+    /// Python has just been installed there is a `python.exe` to find before
+    /// there is a `pip.exe` on any path this process can see.
     fn install_with_python(&self, package: &str, upgrade: bool) -> Result<()> {
-        let pip = locate(PYTHON_PACKAGES).ok_or_else(|| {
+        let python = locate(PYTHON).ok_or_else(|| {
             CoreError::invalid(
                 "link",
                 format!(
-                    "{PYTHON_PACKAGES} is not on this machine — install Python first:                      {PACKAGES} install Python.Python.3.12"
+                    "{PYTHON} is not on this machine, and {PYTHON_PACKAGES} comes with it — \
+                     install it with `{PACKAGES} install {PYTHON_PACKAGE}`"
                 ),
             )
         })?;
 
-        let mut command = quietly(&pip);
-        command.args(["install", "--disable-pip-version-check"]);
+        let mut command = quietly(&python);
+        command.args([
+            "-m",
+            PYTHON_PACKAGES,
+            "install",
+            "--disable-pip-version-check",
+        ]);
         if upgrade {
             command.arg("--upgrade");
         }
@@ -518,14 +546,141 @@ fn locate(program: &str) -> Option<PathBuf> {
         .into_iter()
         .flat_map(|paths| std::env::split_paths(&paths).collect::<Vec<_>>())
         .map(|directory| directory.join(&file))
-        .find(|candidate| candidate.is_file());
+        .find(|candidate| usable(program, candidate));
 
-    on_path.or_else(|| {
-        std::env::current_exe()
-            .ok()
-            .and_then(|exe| exe.parent().map(|beside| beside.join(&file)))
-            .filter(|candidate| candidate.is_file())
-    })
+    on_path
+        .or_else(|| {
+            std::env::current_exe()
+                .ok()
+                .and_then(|exe| exe.parent().map(|beside| beside.join(&file)))
+                .filter(|candidate| usable(program, candidate))
+        })
+        // Last, and only when the two above found nothing, because it reads
+        // directories from the disk and the two above do not.
+        .or_else(|| {
+            installed_in()
+                .into_iter()
+                .map(|directory| directory.join(&file))
+                .find(|candidate| usable(program, candidate))
+        })
+}
+
+/// Whether a candidate is the program it is named after.
+///
+/// A file — and, for Python alone, a file that answers when asked.
+///
+/// Windows puts a `python.exe` on PATH on a machine that has never had a
+/// Python: an App Execution Alias which, run with an argument, prints "Python
+/// was not found" and exits 9009. Taken for a Python it turns "there is no
+/// Python here" into an error about `pip` that nobody can act on, which is what
+/// one listener saw (`MASTER_ISSUES` 118).
+///
+/// Asked rather than recognised by where it sits or how large it is. Those
+/// aliases are zero bytes long, but so is `winget`'s own entry on PATH, and
+/// that one works perfectly — a rule about aliases in general would take away
+/// the thing that installs everything else. The only certain question is
+/// whether it behaves like a Python, and it costs one process that exits
+/// immediately.
+fn usable(program: &str, candidate: &Path) -> bool {
+    if !candidate.is_file() {
+        return false;
+    }
+
+    program != PYTHON || answers(candidate)
+}
+
+/// Whether this `python.exe` is a Python.
+fn answers(python: &Path) -> bool {
+    quietly(python)
+        .arg("-V")
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .stdin(Stdio::null())
+        .status()
+        .is_ok_and(|spoke| spoke.success())
+}
+
+/// Where a program installed a minute ago is, while PATH still says it is not.
+///
+/// A process keeps the environment it started with. `winget` installs Python
+/// and the installer adds it to *the machine's* PATH, which this process will
+/// not see until it is restarted — so a listener who pressed install, waited,
+/// and pressed again would be told to install it again, forever.
+///
+/// These are the folders those installers use, looked in directly: `winget`'s
+/// own shims, and every Python under the two places one is put.
+fn installed_in() -> Vec<PathBuf> {
+    let mut roots = Vec::new();
+
+    if let Some(local) = std::env::var_os("LOCALAPPDATA").map(PathBuf::from) {
+        let winget = local.join("Microsoft").join("WinGet");
+        roots.push(winget.join("Links"));
+        unpacked_in(&winget.join("Packages"), &mut roots);
+        pythons_in(&local.join("Programs").join("Python"), &mut roots);
+    }
+
+    // Where it lands instead when the install was made for everybody.
+    if let Some(files) = std::env::var_os("ProgramFiles").map(PathBuf::from) {
+        pythons_in(&files, &mut roots);
+    }
+
+    roots
+}
+
+/// Where `winget` unpacks the packages that are an archive rather than an
+/// installer.
+///
+/// Those get no shim in `Links`: `winget` puts the extracted folder on PATH
+/// instead, which is a PATH this process cannot see. `ffmpeg` is one of them,
+/// and it is the one every download needs — measured on this machine, where
+/// `Links` holds `yt-dlp.exe` and nothing else while `ffmpeg` lives three
+/// folders deep under `Packages` (`MASTER_ISSUES` 118).
+///
+/// Two levels and no further: `Packages/<package>/<what was in the archive>`,
+/// with `bin` inside it where there is one.
+fn unpacked_in(root: &Path, into: &mut Vec<PathBuf>) {
+    let Ok(packages) = std::fs::read_dir(root) else {
+        return;
+    };
+
+    for package in packages.flatten() {
+        let package = package.path();
+        into.push(package.clone());
+
+        let Ok(inside) = std::fs::read_dir(&package) else {
+            continue;
+        };
+        for entry in inside.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                into.push(path.join("bin"));
+                into.push(path);
+            }
+        }
+    }
+}
+
+/// Every Python directly under `root`, and the `Scripts` folder inside each.
+///
+/// `Scripts` first: `python.exe` is in the Python's own folder, and everything
+/// installed *by* it — `pip`, `spotdl`, and a `yt-dlp` somebody installed that
+/// way — is in `Scripts`.
+fn pythons_in(root: &Path, into: &mut Vec<PathBuf>) {
+    let Ok(entries) = std::fs::read_dir(root) else {
+        return;
+    };
+
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .is_some_and(|name| name.starts_with("Python"))
+        {
+            into.push(path.join("Scripts"));
+            into.push(path);
+        }
+    }
 }
 
 /// A command that runs without a console window of its own.
@@ -1002,7 +1157,14 @@ impl FetchPort for ExternalFetcher {
 
 #[cfg(test)]
 mod tests {
-    use super::{MATCHER, explain, free_name, needed_for, percentage};
+    use std::fs;
+
+    use cadenza_testkit::TempDir;
+
+    use super::{
+        MATCHER, PYTHON, explain, free_name, needed_for, percentage, pythons_in, unpacked_in,
+        usable,
+    };
 
     #[test]
     fn a_link_needs_only_what_it_needs() {
@@ -1013,14 +1175,110 @@ mod tests {
             .map(|(program, _)| program)
             .collect();
         assert!(!ordinary.contains(&MATCHER));
+        assert!(
+            !ordinary.contains(&PYTHON),
+            "and never to install a language"
+        );
         assert_eq!(ordinary.len(), 2, "the downloader and the converter");
 
         let named: Vec<&str> = needed_for("https://open.spotify.com/track/abc")
             .into_iter()
             .map(|(program, _)| program)
             .collect();
-        assert!(named.contains(&MATCHER), "and this one needs all three");
-        assert_eq!(named.len(), 3);
+        assert!(named.contains(&MATCHER), "and this one needs all four");
+        assert!(
+            named.contains(&PYTHON),
+            "including what the matcher runs on"
+        );
+        assert_eq!(named.len(), 4);
+
+        // The order is the order they are installed in, and the matcher is
+        // installed by Python: the other way round is a failure every time.
+        let order: Vec<&str> = needed_for("https://open.spotify.com/track/abc")
+            .into_iter()
+            .map(|(program, _)| program)
+            .collect();
+        let python = order.iter().position(|name| *name == PYTHON);
+        let matcher = order.iter().position(|name| *name == MATCHER);
+        assert!(python < matcher, "Python comes first: {order:?}");
+    }
+
+    #[test]
+    fn a_python_that_cannot_answer_is_not_a_python() {
+        let directory = TempDir::new("locate-python");
+
+        // Not a program at all, which is the cheap end of what Windows offers
+        // in place of a Python. It has to fail the question.
+        let pretend = directory.path().join("python.exe");
+        fs::write(&pretend, b"MZ not really").expect("written");
+        assert!(!usable(PYTHON, &pretend), "it was asked and did not answer");
+
+        // And the rule stops there. `winget`'s own entry on PATH is a stub of
+        // exactly the kind this is guarding against, and it works: asking every
+        // program to prove itself would take away the installer.
+        let alias = directory.path().join("winget.exe");
+        fs::write(&alias, b"").expect("written");
+        assert!(
+            usable("winget", &alias),
+            "everything else is taken as it is"
+        );
+
+        assert!(!usable("winget", &directory.path().join("absent.exe")));
+        assert!(
+            !usable("winget", directory.path()),
+            "a directory is not one"
+        );
+    }
+
+    #[test]
+    fn an_unpacked_package_is_looked_in_where_it_was_unpacked() {
+        let directory = TempDir::new("locate-unpacked");
+        let packages = directory.path();
+
+        // The shape `winget` leaves behind for an archive: a folder per
+        // package, and whatever was inside the archive within it.
+        let package = packages.join("Gyan.FFmpeg_Microsoft.Winget.Source");
+        fs::create_dir_all(package.join("ffmpeg-8.1.1-full_build").join("bin")).expect("made");
+
+        let mut found = Vec::new();
+        unpacked_in(packages, &mut found);
+
+        assert!(
+            found.contains(&package.join("ffmpeg-8.1.1-full_build").join("bin")),
+            "the bin folder is where the program is: {found:?}"
+        );
+        assert!(found.contains(&package), "and the package folder itself");
+
+        let mut none = Vec::new();
+        unpacked_in(&packages.join("nowhere"), &mut none);
+        assert!(none.is_empty(), "a machine that has never used winget");
+    }
+
+    #[test]
+    fn every_python_under_a_root_is_looked_in_twice() {
+        let directory = TempDir::new("locate-pythons");
+        let root = directory.path();
+
+        fs::create_dir_all(root.join("Python311")).expect("made");
+        fs::create_dir_all(root.join("Launcher")).expect("made");
+
+        let mut found = Vec::new();
+        pythons_in(root, &mut found);
+
+        assert_eq!(
+            found,
+            vec![
+                root.join("Python311").join("Scripts"),
+                root.join("Python311"),
+            ],
+            "the Scripts folder first, and nothing that is not a Python"
+        );
+
+        // A root that is not there at all is not an error: most machines have
+        // only one of the two this looks in.
+        let mut none = Vec::new();
+        pythons_in(&root.join("nowhere"), &mut none);
+        assert!(none.is_empty());
     }
 
     #[test]
