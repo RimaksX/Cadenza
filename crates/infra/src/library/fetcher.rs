@@ -48,30 +48,6 @@ const MATCHER: &str = "spotdl";
 /// Python's package manager, which is the only place `spotdl` comes from.
 const PYTHON_PACKAGES: &str = "pip";
 
-/// How many tracks of a list the matcher fetches at once.
-///
-/// Its own default is four, and four is what fails: measured on a
-/// fifty-two-track playlist, thirty of them came back
-/// `AudioProviderError: YT-DLP download error` — **fifty-eight per cent** — and
-/// the same tracks download perfectly one at a time. It is not the track, the
-/// version or the link; it is how many are asked for at once
-/// (`MASTER_ISSUES` 103).
-///
-/// One is the other end: nine per cent failed, and it took eight minutes to
-/// bring ten tracks. A listener waiting on forty of them is waiting half an
-/// hour for something that used to take thirteen minutes and arrive broken.
-const AT_ONCE: &str = "2";
-
-/// How many times a long list is asked for before giving up on the rest.
-///
-/// One is not enough and it is not a matter of patience: the same fifty-two
-/// tracks gave twenty, twenty-two and twenty-two across three runs at
-/// different speeds, and a second ask for what was left brought eighteen more.
-/// Three passes is where a list of this size finishes; a shorter one stops
-/// early on its own, because a pass that brings nothing ends the loop
-/// (`MASTER_ISSUES` 106).
-const PASSES: usize = 3;
-
 /// Where the matcher looks for a recording, in order.
 ///
 /// Its own default is YouTube Music alone, and a slice of the failures above
@@ -145,9 +121,6 @@ pub struct ExternalFetcher {
 
 /// What the downloader has fetched, in its format.
 const DOWNLOADER_MEMORY: &str = "fetched.txt";
-
-/// What the matcher has fetched, in its own.
-const MATCHER_MEMORY: &str = "matched.txt";
 
 impl ExternalFetcher {
     /// Remembers what it has fetched, in `remembers`, which is a directory.
@@ -301,23 +274,23 @@ impl ExternalFetcher {
 
     /// Fetches what a Spotify link *names*, which is not what it holds.
     ///
-    /// The matcher reads the title, artist and album from the link and finds
-    /// that recording on YouTube — its own words, and the only thing anybody
-    /// can do: Spotify's audio is encrypted and nothing takes it out. So the
-    /// sound is the same sound the other button gets, and what is gained is
-    /// the names on it (`MASTER_ISSUES` 99).
+    /// **The matcher no longer downloads anything.** It is asked what the link
+    /// names and where each of those recordings can be had — which is what it
+    /// is actually good at — and the downloader fetches them, because that is
+    /// what *it* is good at and because Cadenza already drives it properly:
+    /// its own memory of what it has fetched, its own progress, and a failure
+    /// that costs one track rather than the rest of the list.
     ///
-    /// **In passes**, because the far end stops answering long before a long
-    /// list is finished. Measured three times on the same fifty-two tracks:
-    /// twenty, twenty-two, twenty-two — whatever the pace, whatever the number
-    /// fetched at once. Asked again for the thirty that were left, it brought
-    /// eighteen more. The tracks are not unavailable; there is a limit on how
-    /// many one run may have (`MASTER_ISSUES` 106).
+    /// The measurements that led here, in order: the matcher brings about
+    /// twenty tracks per run whatever the pace (`MASTER_ISSUES` 106), it dies
+    /// outright on a track whose Spotify metadata is incomplete, and it will
+    /// hand over the YouTube addresses if simply asked — fifty-two of them,
+    /// bare, one per line (`MASTER_ISSUES` 107).
     ///
-    /// Each pass asks for the whole list and fetches only what is missing,
-    /// because the memory sees to that. It stops as soon as a pass brings
-    /// nothing, so a list that is genuinely finished costs one wasted ask
-    /// rather than three.
+    /// What is given up is the tags: these files carry whatever the video
+    /// carried. What is kept is the name, which is the half a listener reads —
+    /// the file is called what the *record* is called, from the metadata, and
+    /// a file with no title tag is titled by its name.
     fn fetch_matched(
         &self,
         link: &str,
@@ -327,43 +300,55 @@ impl ExternalFetcher {
     ) -> Result<FetchedTracks> {
         let matcher = locate(MATCHER)
             .ok_or_else(|| CoreError::invalid("link", format!("{MATCHER} is not installed")))?;
+        let downloader = locate(DOWNLOADER)
+            .ok_or_else(|| CoreError::invalid("link", format!("{DOWNLOADER} is not installed")))?;
         let converter = locate(CONVERTER)
             .ok_or_else(|| CoreError::invalid("link", format!("{CONVERTER} is not installed")))?;
 
         let workspace = workspace()?;
         let (list, listed) = self.ask_matcher(&matcher, link, &workspace);
-        let wanted = u32::try_from(listed.len()).unwrap_or(u32::MAX);
+        let addresses = self.ask_addresses(&matcher, link);
 
-        let mut landed: Vec<PathBuf> = Vec::new();
-        let mut said = Vec::new();
-
-        for _ in 0..PASSES {
-            let (mut brought, spoke, stopped) = self.one_pass(
-                &matcher, &converter, link, &workspace, into, wanted, &landed, progress, stop,
-            )?;
-            let came = brought.len();
-            landed.append(&mut brought);
-            said = spoke;
-
-            // Nothing new means the far end has nothing more to give this
-            // minute, and asking a third time would only be rude.
-            if stopped || came == 0 || landed.len() >= listed.len() {
-                break;
-            }
+        // Both lists are the playlist's own order, so the address at a place
+        // belongs to the track at that place. Where the two disagree in length
+        // — a track the matcher could not place at all — the shorter one wins
+        // and the extra is skipped rather than named after somebody else.
+        let together: Vec<_> = addresses.iter().zip(listed.iter()).collect();
+        if together.is_empty() {
+            let _ = std::fs::remove_dir_all(&workspace);
+            return Err(CoreError::invalid(
+                "link",
+                format!("{MATCHER} found nothing for that link"),
+            ));
         }
 
+        let wanted = u32::try_from(together.len()).unwrap_or(u32::MAX);
+        for (done, (address, track)) in together.into_iter().enumerate() {
+            if stop() {
+                break;
+            }
+
+            let done = u32::try_from(done).unwrap_or(u32::MAX);
+            progress(FetchProgress {
+                percent: u8::try_from(done.saturating_mul(100) / wanted).unwrap_or(100),
+                item: Some((done + 1, wanted)),
+            });
+
+            // One at a time, and a failure is one track. The matcher's own way
+            // of doing this loses everything after the first refusal; the
+            // downloader is asked once per recording, so a track that cannot
+            // be had costs itself and nothing else.
+            let _ = self.fetch_one(&downloader, &converter, address, track, &workspace);
+        }
+
+        let landed = land(&workspace, into)?;
         let _ = std::fs::remove_dir_all(&workspace);
 
         if landed.is_empty() {
-            let reason = said
-                .iter()
-                .rev()
-                .find(|line| line.to_lowercase().contains("error"))
-                .map_or_else(
-                    || "the matcher found nothing for that link".to_owned(),
-                    |line| line.trim().to_owned(),
-                );
-            return Err(CoreError::invalid("link", reason));
+            return Err(CoreError::invalid(
+                "link",
+                "nothing on that list could be fetched",
+            ));
         }
 
         progress(FetchProgress {
@@ -377,100 +362,120 @@ impl ExternalFetcher {
         })
     }
 
-    /// One run of the matcher: what it brought, what it said, and whether the
-    /// listener called it off.
-    #[allow(clippy::too_many_arguments)]
-    fn one_pass(
-        &self,
-        matcher: &Path,
-        converter: &Path,
-        link: &str,
-        workspace: &Path,
-        into: &Path,
-        wanted: u32,
-        already: &[PathBuf],
-        progress: &dyn Fn(FetchProgress),
-        stop: &dyn Fn() -> bool,
-    ) -> Result<(Vec<PathBuf>, Vec<String>, bool)> {
-        let mut child = quietly(matcher)
-            // In UTF-8, and this is not optional: the matcher prints the name
-            // of what it is fetching, and printing "европа плюс 2016" into a
-            // cp1252 stream kills it before it starts (`MASTER_ISSUES` 101).
+    /// Where each recording on the list can be had, in the list's own order.
+    ///
+    /// One search per track, and it is not quick — about sixteen seconds each,
+    /// because it is a real search rather than a lookup. It is also the whole
+    /// of what the matcher is for.
+    ///
+    /// Bare addresses, one to a line, mixed in with a few lines about what it
+    /// is doing; anything that is not an address is not one of ours.
+    fn ask_addresses(&self, matcher: &Path, link: &str) -> Vec<String> {
+        let asked = quietly(matcher)
             .env("PYTHONIOENCODING", "utf-8")
-            .arg("download")
-            .arg(link)
-            // Its own template language rather than yt-dlp's, and the names in
-            // it are the point of the whole exercise: what lands is called
-            // what the record is called.
-            .arg("--output")
-            .arg(workspace.join("{artists} - {title}.{output-ext}"))
-            .args(["--format", "mp3"])
-            // Two at a time rather than its own four, and two places to look
-            // rather than its own one. Both numbers were measured on the
-            // playlist that reported this, not chosen.
-            .args(["--threads", AT_ONCE])
+            .arg("url")
+            // Two places to look, not its own one: twenty-two of the searches
+            // on the list that reported this came back empty from the first
+            // and were caught by the second (`MASTER_ISSUES` 103).
             .arg("--audio")
             .args(LOOK_IN)
-            // And what it has already brought down — which is what makes a
-            // second pass ask only for what is missing (`MASTER_ISSUES` 104).
-            .args(match self.remembers.as_ref() {
-                Some(directory) => vec![
-                    std::ffi::OsStr::new("--archive").to_owned(),
-                    directory.join(MATCHER_MEMORY).into_os_string(),
-                ],
-                None => Vec::new(),
-            })
-            // The one we found, so a machine with ffmpeg in a folder of its own
-            // works — and so that the matcher and the downloader convert with
-            // the same program.
-            .arg("--ffmpeg")
-            .arg(converter)
+            .arg(link)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .stdin(Stdio::null())
-            .spawn()
-            .map_err(|err| CoreError::FileSystem(format!("{MATCHER} would not start: {err}")))?;
+            .output();
 
-        let complaints = child
-            .stderr
-            .take()
-            .map(|stderr| std::thread::spawn(move || lines_of(stderr).collect::<Vec<_>>()));
+        let Ok(spoke) = asked else {
+            return Vec::new();
+        };
 
-        let mut stopped = false;
-        if let Some(stdout) = child.stdout.take() {
-            for _ in lines_of(stdout) {
-                if stop() {
-                    let _ = child.kill();
-                    stopped = true;
-                    break;
-                }
+        String::from_utf8_lossy(&spoke.stdout)
+            .lines()
+            .map(str::trim)
+            .filter(|line| {
+                line.starts_with("https://")
+                    && (line.contains("youtube.com/watch") || line.contains("youtu.be/"))
+            })
+            .map(str::to_owned)
+            .collect()
+    }
 
-                // Counted rather than read. What the matcher prints while it
-                // works is not documented anywhere, and a parser written
-                // against strings nobody has seen is a parser that will be
-                // wrong in a language nobody here reads. Files that have
-                // appeared are a fact — and the passes before this one are
-                // added to them, so the number only ever climbs.
-                let done =
-                    finished_files(workspace) + u32::try_from(already.len()).unwrap_or(u32::MAX);
-                progress(FetchProgress {
-                    percent: match wanted {
-                        0 => 0,
-                        wanted => u8::try_from(done.saturating_mul(100) / wanted).unwrap_or(100),
-                    },
-                    item: (done > 0).then_some((done, wanted)),
-                });
-            }
+    /// Brings one recording down and names it after the record.
+    ///
+    /// No `--embed-metadata` here, and that is deliberate: what the video calls
+    /// itself would land in the title tag and the library would show it. With
+    /// no title tag a track is titled by its filename, and the filename is the
+    /// one the list gave us.
+    fn fetch_one(
+        &self,
+        downloader: &Path,
+        converter: &Path,
+        address: &str,
+        track: &ListedTrack,
+        workspace: &Path,
+    ) -> Result<()> {
+        let name = safe_name(&format!("{} - {}", track.artist, track.title));
+
+        let spoke = quietly(downloader)
+            .env("PYTHONIOENCODING", "utf-8")
+            .args(["--extract-audio", "--audio-format", "mp3"])
+            .args(["--audio-quality", "0"])
+            .arg("--no-playlist")
+            .arg("--embed-thumbnail")
+            .arg("--ffmpeg-location")
+            .arg(converter)
+            .args(match self.remembers.as_ref() {
+                Some(directory) => vec![
+                    std::ffi::OsStr::new("--download-archive").to_owned(),
+                    directory.join(DOWNLOADER_MEMORY).into_os_string(),
+                ],
+                None => Vec::new(),
+            })
+            .arg("--output")
+            .arg(workspace.join(format!("{name}.%(ext)s")))
+            .arg(address)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .stdin(Stdio::null())
+            .output()
+            .map_err(|err| CoreError::FileSystem(format!("{DOWNLOADER} would not start: {err}")))?;
+
+        finished(&spoke, DOWNLOADER)
+    }
+}
+
+/// A name Windows will accept, from a name a record label chose.
+///
+/// The characters a path may not hold become spaces rather than disappearing:
+/// `AC/DC` reads better as `AC DC` than as `ACDC`. Trailing dots and spaces go
+/// too — Windows accepts them in an argument and then cannot open the file it
+/// made, which is a very quiet way to lose a track.
+fn safe_name(wanted: &str) -> String {
+    let cleaned: String = wanted
+        .chars()
+        .map(|character| match character {
+            '<' | '>' | ':' | '"' | '/' | '\\' | '|' | '?' | '*' => ' ',
+            other if (other as u32) < 0x20 => ' ',
+            other => other,
+        })
+        .collect();
+
+    // Capped for the same reason the other route caps it: everything before it
+    // is a folder somebody chose, and the whole path has to stay inside what
+    // Windows will accept (`MASTER_ISSUES` 90).
+    let trimmed = cleaned.trim().trim_end_matches('.').trim();
+    let mut short = String::new();
+    for character in trimmed.chars() {
+        if short.len() + character.len_utf8() > 150 {
+            break;
         }
+        short.push(character);
+    }
 
-        let _ = child
-            .wait()
-            .map_err(|err| CoreError::FileSystem(format!("{MATCHER} did not finish: {err}")))?;
-        let said = complaints
-            .and_then(|thread| thread.join().ok())
-            .unwrap_or_default();
-
-        Ok((land(workspace, into)?, said, stopped))
+    if short.is_empty() {
+        "track".to_owned()
+    } else {
+        short
     }
 }
 
@@ -490,25 +495,6 @@ fn workspace() -> Result<PathBuf> {
     std::fs::create_dir_all(&path)
         .map_err(|err| CoreError::FileSystem(format!("nowhere to download to: {err}")))?;
     Ok(path)
-}
-
-/// How many finished tracks are sitting in the workspace.
-fn finished_files(workspace: &Path) -> u32 {
-    std::fs::read_dir(workspace)
-        .map(|entries| {
-            entries
-                .flatten()
-                .filter(|entry| {
-                    entry
-                        .path()
-                        .extension()
-                        .is_some_and(|extension| extension.eq_ignore_ascii_case("mp3"))
-                })
-                .count()
-        })
-        .unwrap_or_default()
-        .try_into()
-        .unwrap_or(u32::MAX)
 }
 
 /// Moves every finished track out of the workspace and into the listener's
