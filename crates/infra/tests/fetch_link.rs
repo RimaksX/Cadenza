@@ -37,6 +37,8 @@ fn a_link_comes_in_as_a_file() {
                 }
             },
             &|| false,
+            // Nothing is already here: this test starts from an empty folder.
+            &|_| false,
         )
         .unwrap_or_else(|err| panic!("what it actually said: {err}"));
 

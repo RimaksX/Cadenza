@@ -119,8 +119,11 @@ pub trait FetchPort: Send + Sync {
     ///
     /// `progress` is called as reports arrive, and `stop` is asked between
     /// them: a playlist somebody changed their mind about has to end when they
-    /// say so and not when it finishes. Both run on whatever thread called
-    /// this, which is never the one drawing the window.
+    /// say so and not when it finishes. `have` is asked before each track of a
+    /// list, and a track it recognises is not fetched at all — what counts as
+    /// *already here* is the library's decision and not this port's
+    /// (`MASTER_ISSUES` 111). All three run on whatever thread called this,
+    /// which is never the one drawing the window.
     /// Installs whatever [`Self::missing_for`] reported for this link, and says
     /// what is still missing afterwards.
     ///
@@ -150,5 +153,6 @@ pub trait FetchPort: Send + Sync {
         what: FetchWhat,
         progress: &dyn Fn(FetchProgress),
         stop: &dyn Fn() -> bool,
+        have: &dyn Fn(&ListedTrack) -> bool,
     ) -> Result<FetchedTracks>;
 }

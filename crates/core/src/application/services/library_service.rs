@@ -398,7 +398,17 @@ impl LibraryService {
             return Ok(Fetched::NeedsLocalFolder(would_be));
         };
 
-        let brought = match fetcher.fetch(link, &folder, what, progress, stop) {
+        // What this listener already has, by the same rule the playlist uses
+        // to find them: the tags a track carries, compared with the names the
+        // list gives. Read once rather than per track.
+        let library = self.ports.tracks.summaries_for_profile(profile_id)?;
+        let have = |track: &ListedTrack| {
+            library
+                .iter()
+                .any(|summary| summary_is(summary, &track.title, &track.artist))
+        };
+
+        let brought = match fetcher.fetch(link, &folder, what, progress, stop, &have) {
             Ok(brought) => brought,
             // A refusal that reads like a stale copy is an offer rather than an
             // error: the listener can fix it by pressing one thing, and being
@@ -420,10 +430,6 @@ impl LibraryService {
             self.import_file(profile_id, file, metadata.size, metadata.modified, true)?;
         }
 
-        if files.is_empty() {
-            return Ok(Fetched::NothingNew);
-        }
-
         // A playlist that came in as a playlist becomes one here, under the
         // name it had where it came from. Forty tracks landing loose in a
         // library is forty tracks somebody has to gather up by hand — and the
@@ -439,6 +445,12 @@ impl LibraryService {
             ));
         }
 
+        // Nothing new on the disk, and that is not nothing done: the list
+        // above was still rebuilt from what the listener already has, which is
+        // the whole point of pressing it a second time (`MASTER_ISSUES` 111).
+        if files.is_empty() {
+            return Ok(Fetched::NothingNew);
+        }
         self.context.events.publish(DomainEvent::LibraryChanged);
 
         // One track is named; forty are counted. Naming the first of forty
@@ -510,13 +522,9 @@ impl LibraryService {
             .collect();
 
         for track in listed {
-            let found = library.iter().find(|summary| {
-                summary.title.eq_ignore_ascii_case(&track.title)
-                    && summary
-                        .artist
-                        .as_deref()
-                        .is_some_and(|artist| artist.eq_ignore_ascii_case(&track.artist))
-            });
+            let found = library
+                .iter()
+                .find(|summary| summary_is(summary, &track.title, &track.artist));
 
             if let Some(summary) = found
                 && added.insert(summary.media_file_id)
@@ -1657,6 +1665,20 @@ fn has_supported_extension(path: &Path) -> bool {
     path.extension()
         .and_then(|extension| extension.to_str())
         .is_some_and(is_supported_extension)
+}
+
+/// Whether a library row is the recording a list names.
+///
+/// Title and artist, both ignoring case. Written once because two places ask
+/// it — what to skip fetching, and what to put in the playlist — and they must
+/// never disagree: a track skipped as already here and then not found for the
+/// playlist would be a track the listener paid for and cannot see.
+fn summary_is(summary: &TrackSummary, title: &str, artist: &str) -> bool {
+    summary.title.eq_ignore_ascii_case(title)
+        && summary
+            .artist
+            .as_deref()
+            .is_some_and(|known| known.eq_ignore_ascii_case(artist))
 }
 
 /// The title to show for a file whose tags did not provide one.

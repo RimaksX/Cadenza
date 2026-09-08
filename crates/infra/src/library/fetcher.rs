@@ -285,6 +285,7 @@ impl ExternalFetcher {
         into: &Path,
         progress: &dyn Fn(FetchProgress),
         stop: &dyn Fn() -> bool,
+        have: &dyn Fn(&ListedTrack) -> bool,
     ) -> Result<FetchedTracks> {
         let matcher = locate(MATCHER)
             .ok_or_else(|| CoreError::invalid("link", format!("{MATCHER} is not installed")))?;
@@ -315,6 +316,16 @@ impl ExternalFetcher {
                 percent: u8::try_from(done.saturating_mul(100) / wanted).unwrap_or(100),
                 item: Some((done + 1, wanted)),
             });
+
+            // Already here, so not fetched again — and this is the guard
+            // that makes a second press predictable. The downloader's own
+            // memory covers the usual case, but it remembers *videos*: a
+            // search that lands on a different video for a track the listener
+            // already has would download it a second time under a second name
+            // (`MASTER_ISSUES` 111).
+            if have(track) {
+                continue;
+            }
 
             // One at a time, and a failure is one track.
             let _ = self.fetch_one(&downloader, &converter, track, &workspace);
@@ -751,13 +762,14 @@ impl FetchPort for ExternalFetcher {
         what: FetchWhat,
         progress: &dyn Fn(FetchProgress),
         stop: &dyn Fn() -> bool,
+        have: &dyn Fn(&ListedTrack) -> bool,
     ) -> Result<FetchedTracks> {
         // A link that names a recording without holding one goes to the
         // program that finds it. `what` does not apply there: a Spotify
         // address is a track or an album or a playlist by its own shape, and
         // both buttons fetch what it names.
         if matches!(handler_for(link), LinkHandler::Matcher) {
-            return self.fetch_matched(link, into, progress, stop);
+            return self.fetch_matched(link, into, progress, stop, have);
         }
 
         let downloader = locate(DOWNLOADER)

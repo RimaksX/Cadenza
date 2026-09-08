@@ -87,6 +87,7 @@ impl FetchPort for FakeFetcher {
         what: FetchWhat,
         progress: &dyn Fn(FetchProgress),
         stop: &dyn Fn() -> bool,
+        have: &dyn Fn(&ListedTrack) -> bool,
     ) -> cadenza_core::Result<FetchedTracks> {
         self.ran.store(true, Ordering::Relaxed);
         self.asked.lock().expect("the record").push(link.to_owned());
@@ -124,16 +125,29 @@ impl FetchPort for FakeFetcher {
 
         let mut landed = Vec::new();
         for index in 1..=how_many {
+            // What the listener already has is not fetched again — the fake
+            // answers the question the real one answers, or the guard would be
+            // untested.
+            if have(&ListedTrack {
+                title: format!("A Fetched Track {index}"),
+                artist: "Nobody".to_owned(),
+            }) {
+                continue;
+            }
+
             progress(FetchProgress {
                 percent: 50,
                 item: (how_many > 1).then_some((index, how_many)),
             });
             // Numbered only where there are several, so that the one-track
             // case is still called what every other test calls it.
+            // Named the way the real one names them — `Artist - Title` — so
+            // that what the import reads back is what the list said, which is
+            // what the guard against fetching it twice compares.
             let name = if how_many == 1 {
                 "A Fetched Track.wav".to_owned()
             } else {
-                format!("A Fetched Track {index}.wav")
+                format!("Nobody - A Fetched Track {index}.wav")
             };
             // A different fill per track, so that three of them are three
             // recordings rather than one file written three times: the import
@@ -153,12 +167,22 @@ impl FetchPort for FakeFetcher {
             item: None,
         });
 
+        // The list is named whether or not anything was fetched from it, the
+        // way the real matcher names it: what is on the list is a fact about
+        // the link, not about this run.
+        let listed: Vec<ListedTrack> = match what {
+            FetchWhat::OneTrack => Vec::new(),
+            FetchWhat::WholePlaylist => (1..=how_many)
+                .map(|index| ListedTrack {
+                    title: format!("A Fetched Track {index}"),
+                    artist: "Nobody".to_owned(),
+                })
+                .collect(),
+        };
+
         Ok(FetchedTracks {
             files: landed,
-            // The fake names no list of its own: what these tests are about is
-            // what the service does with what it is handed, and the list is
-            // the matcher's business.
-            listed: Vec::new(),
+            listed,
             // Named only when a playlist is what was asked for, the way the
             // downloader only prints a name when there is one.
             playlist: matches!(what, FetchWhat::WholePlaylist)
@@ -742,5 +766,42 @@ fn a_list_fetched_again_keeps_its_tracks_without_doubling_them() {
     assert_eq!(
         rebuilt[0].track_count, 3,
         "a list rebuilt from what the listener already has"
+    );
+}
+
+#[test]
+fn a_second_press_fetches_nothing_it_already_has() {
+    let harness = harness("no-copies", FakeFetcher::default());
+    harness
+        .library
+        .use_suggested_folder()
+        .expect("the local folder");
+
+    let link = "https://example.com/watch?v=abc&list=xyz";
+    let fetch = || {
+        harness
+            .library
+            .fetch_from_link(link, FetchWhat::WholePlaylist, &nothing, &carry_on)
+            .expect("a fetch")
+    };
+
+    fetch();
+    let first = harness.library.tracks().expect("the library").len();
+    assert_eq!(first, 3);
+
+    // The same list again. Everything on it is already here, so nothing is
+    // fetched and nothing is written beside what is there — which is the whole
+    // of the promise: pressing twice costs nothing and copies nothing.
+    let outcome = fetch();
+    assert_eq!(outcome, Fetched::NothingNew);
+    assert_eq!(
+        harness.library.tracks().expect("the library").len(),
+        first,
+        "no second copy of anything"
+    );
+    assert_eq!(
+        harness.playlists.list().expect("the playlists")[0].track_count,
+        3,
+        "and the playlist is the list, still"
     );
 }
