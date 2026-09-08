@@ -97,6 +97,57 @@ impl Source {
     }
 }
 
+/// Whether a program this needs is on the machine.
+///
+/// For everything but the matcher that means finding the executable. The
+/// matcher is a Python *package*, and where `pip` puts its little launcher is
+/// not something anybody can rely on: a `pip install` that cannot write to
+/// `site-packages` quietly does a user install instead, and the launcher then
+/// lands in `%APPDATA%\Python\Python3xx\Scripts` — a folder Windows does not
+/// put on PATH and nothing here was looking in. A listener pressed install,
+/// pip said it had done it, and this said the program was still missing, round
+/// and round, and a reboot changed nothing because the folder is not on PATH at
+/// all (`MASTER_ISSUES` 130).
+///
+/// So the matcher is asked of Python instead: can it import it. That is what
+/// "installed" means for a package, and it is true wherever the package landed.
+fn present(program: &str) -> bool {
+    if program != MATCHER {
+        return locate(program).is_some();
+    }
+
+    let Some(python) = locate(PYTHON) else {
+        return false;
+    };
+
+    // `find_spec` rather than importing it: this is asked on every press, and
+    // importing `spotdl` takes two seconds where finding it takes thirty
+    // milliseconds — measured, both.
+    quietly(&python)
+        .args([
+            "-c",
+            "import importlib.util, sys; \
+             sys.exit(0 if importlib.util.find_spec('spotdl') else 1)",
+        ])
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .stdin(Stdio::null())
+        .status()
+        .is_ok_and(|spoke| spoke.success())
+}
+
+/// The matcher, ready to be given its arguments.
+///
+/// `python -m spotdl` rather than `spotdl.exe`, for the reason in [`present`]:
+/// the module is where the package is, and the launcher is wherever `pip` felt
+/// like putting it. Measured equivalent — `--version` answers 4.5.2 either way.
+fn matcher() -> Option<Command> {
+    let python = locate(PYTHON)?;
+    let mut command = quietly(&python);
+    command.args(["-m", MATCHER]);
+    Some(command)
+}
+
 /// Which programs a link needs.
 ///
 /// Everything needs the downloader and the converter — the matcher hands its
@@ -237,13 +288,13 @@ impl ExternalFetcher {
     /// no playlist made from it.
     fn ask_matcher(
         &self,
-        matcher: &Path,
+        matcher: &mut Command,
         link: &str,
         workspace: &Path,
     ) -> (Option<String>, Vec<ListedTrack>) {
         let file = workspace.join("list.spotdl");
 
-        let asked = quietly(matcher)
+        let asked = matcher
             .env("PYTHONIOENCODING", "utf-8")
             .arg("save")
             .arg(link)
@@ -315,7 +366,7 @@ impl ExternalFetcher {
         stop: &dyn Fn() -> bool,
         have: &dyn Fn(&ListedTrack) -> bool,
     ) -> Result<FetchedTracks> {
-        let matcher = locate(MATCHER)
+        let mut matcher = matcher()
             .ok_or_else(|| CoreError::invalid("link", format!("{MATCHER} is not installed")))?;
         let downloader = locate(DOWNLOADER)
             .ok_or_else(|| CoreError::invalid("link", format!("{DOWNLOADER} is not installed")))?;
@@ -323,7 +374,7 @@ impl ExternalFetcher {
             .ok_or_else(|| CoreError::invalid("link", format!("{CONVERTER} is not installed")))?;
 
         let workspace = workspace()?;
-        let (list, listed) = self.ask_matcher(&matcher, link, &workspace);
+        let (list, listed) = self.ask_matcher(&mut matcher, link, &workspace);
 
         if listed.is_empty() {
             let _ = std::fs::remove_dir_all(&workspace);
@@ -619,6 +670,14 @@ fn installed_in() -> Vec<PathBuf> {
         pythons_in(&local.join("Programs").join("Python"), &mut roots);
     }
 
+    // Where `pip` puts a launcher when it cannot write to `site-packages`
+    // and defaults to a user installation: the roaming profile rather than
+    // the local one, and never on PATH. A `yt-dlp` installed that way lives
+    // here too.
+    if let Some(roaming) = std::env::var_os("APPDATA").map(PathBuf::from) {
+        pythons_in(&roaming.join("Python"), &mut roots);
+    }
+
     // Where it lands instead when the install was made for everybody.
     if let Some(files) = std::env::var_os("ProgramFiles").map(PathBuf::from) {
         pythons_in(&files, &mut roots);
@@ -839,7 +898,7 @@ impl FetchPort for ExternalFetcher {
     fn missing_for(&self, link: &str) -> Vec<MissingTool> {
         needed_for(link)
             .into_iter()
-            .filter(|(program, _)| locate(program).is_none())
+            .filter(|(program, _)| !present(program))
             .map(|(program, source)| MissingTool {
                 name: program.to_owned(),
                 install: source.command(),
@@ -849,7 +908,7 @@ impl FetchPort for ExternalFetcher {
 
     fn install(&self, link: &str, said: &dyn Fn(&str)) -> Result<Vec<MissingTool>> {
         for (program, source) in needed_for(link) {
-            if locate(program).is_some() {
+            if present(program) {
                 continue;
             }
 
@@ -905,7 +964,7 @@ impl FetchPort for ExternalFetcher {
         // And the matcher, where it is installed. It has no updater of its
         // own — it is a Python package, and the thing that installed it is the
         // thing that updates it.
-        if locate(MATCHER).is_some() {
+        if present(MATCHER) {
             said(&format!("updating {MATCHER}…"));
             match self.install_with_python("spotdl", true) {
                 Ok(()) => last = format!("{last}; {MATCHER} up to date"),
