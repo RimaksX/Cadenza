@@ -704,7 +704,7 @@ export component AppShell inherits Rectangle {
             ? "There are no lists yet. Making one puts this track in it."
             : "";
         options: root.playlist-options;
-        create-label: "+ NEW PLAYLIST";
+        create-label: "NEW PLAYLIST";
 
         picked(playlist) => {
             root.add-to-playlist(root.dialog-target, playlist);

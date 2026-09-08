@@ -82,7 +82,11 @@ component Scrubber inherits Rectangle {
     in property <float> progress;
     in property <bool> enabled: true;
     in property <bool> live;
-    in property <color> fill: Theme.ink-1;
+    // The accent's home. What is playing and how far through it are the one
+    // thing this window is about, and the ten per cent of a screen that may
+    // carry a colour is spent here rather than spread over controls that would
+    // then all be asking for attention at once.
+    in property <color> fill: Theme.accent;
 
     callback moved(float);
 

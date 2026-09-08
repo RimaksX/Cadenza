@@ -26,7 +26,7 @@ export component Field inherits Rectangle {
     // hairline, and further where an icon stands in front of them.
     private property <length> inset: root.icon.width > 0 ? Theme.px(38) : Theme.space-3;
 
-    height: Theme.px(40);
+    height: Theme.control-height;
     // A field is as wide as it is given, never as wide as what is in it.
     //
     // Without this the typed text sets the *minimum* width, and a pasted link

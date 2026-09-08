@@ -320,10 +320,15 @@ export component Sidebar inherits Rectangle {
                 background: Theme.line-soft;
             }
 
+            // As tall as a row in the library, and its two lines centred in
+            // it. The height is borrowed rather than chosen: this block and a
+            // track row are the two places where a name sits over a caption,
+            // and two names for one shape is one of them drifting later.
             VerticalLayout {
+                height: Theme.row-height;
+                alignment: center;
                 padding-left: Theme.space-5;
                 padding-right: Theme.space-5;
-                padding-top: Theme.space-4;
 
                 // Two lines and no disc. The disc held a letter standing in
                 // for a picture nobody can choose — this interface has no way

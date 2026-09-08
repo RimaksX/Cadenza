@@ -105,7 +105,10 @@ export component TrackRow inherits Rectangle {
                 font-size: Theme.text-label;
                 height: Theme.px(18);
                 letter-spacing: Theme.number-spacing;
-                color: root.playing ? Theme.ink-0 : Theme.ink-mute;
+                // The same accent as the line in the player bar, and for the
+                // same reason: these are the two places that answer "which one
+                // is playing".
+                color: root.playing ? Theme.accent : Theme.ink-mute;
                 vertical-alignment: center;
                 horizontal-alignment: right;
                 width: parent.width;

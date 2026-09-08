@@ -44,7 +44,7 @@ export component TextButton inherits Rectangle {
     width: root.fixed-width > 0
         ? root.fixed-width
         : round((label.preferred-width + 2 * Theme.space-4) / Theme.px(2)) * Theme.px(2);
-    height: Theme.px(34);
+    height: Theme.control-height;
     border-radius: Theme.radius;
     border-width: 1px;
     border-color: !root.enabled

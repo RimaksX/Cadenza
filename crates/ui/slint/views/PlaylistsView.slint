@@ -323,8 +323,8 @@ export component PlaylistsView inherits Rectangle {
             vertical-stretch: 0;
             padding-left: Theme.page-inset;
             padding-right: Theme.page-inset;
-            padding-top: Theme.space-6;
-            padding-bottom: Theme.space-5;
+            padding-top: Theme.page-top;
+            padding-bottom: Theme.page-bottom;
             spacing: Theme.space-2;
 
             Text {
@@ -350,7 +350,7 @@ export component PlaylistsView inherits Rectangle {
                         text: "Playlists";
                         font-family: Theme.serif;
                         font-size: Theme.text-display;
-                        height: Theme.px(56);
+                        height: Theme.heading-box;
                         vertical-alignment: center;
                         color: Theme.ink-0;
                     }
@@ -360,7 +360,7 @@ export component PlaylistsView inherits Rectangle {
                     alignment: center;
 
                     TextButton {
-                        label: "+ NEW PLAYLIST";
+                        label: "NEW PLAYLIST";
                         primary: true;
                         pressed => {
                             root.create();
@@ -394,7 +394,7 @@ export component PlaylistsView inherits Rectangle {
                     text: "No lists yet";
                     font-family: Theme.serif;
                     font-size: Theme.text-display;
-                    height: Theme.px(56);
+                    height: Theme.heading-box;
                     vertical-alignment: center;
                     color: Theme.ink-2;
                     horizontal-alignment: center;

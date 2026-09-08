@@ -8,8 +8,8 @@ import { LightPalette } from "light.slint";
 // every view (PROJECT_MASTER 14).
 //
 // This file is the normative form of the design. What it cannot carry — why a
-// number is that number — is written down in docs/design/DESIGN_PRINCIPLES.md,
-// which describes what shipped rather than briefing something to come.
+// number is that number — is written down in docs/DESIGN_SYSTEM.md, which is
+// the design this interface is built to rather than a brief for one to come.
 
 // One rule holds this file together beyond the values themselves: **every
 // length here is even**. Half of what the interface does is centring one thing
@@ -72,6 +72,7 @@ export global Theme {
     out property <color> ink-2: dark ? DarkPalette.ink-2 : LightPalette.ink-2;
     out property <color> ink-1: dark ? DarkPalette.ink-1 : LightPalette.ink-1;
     out property <color> ink-0: dark ? DarkPalette.ink-0 : LightPalette.ink-0;
+    out property <color> accent: dark ? DarkPalette.accent : LightPalette.accent;
     out property <color> danger: dark ? DarkPalette.danger : LightPalette.danger;
 
     // Three faces, three jobs: serif names things, sans explains them, mono
@@ -118,6 +119,28 @@ export global Theme {
     out property <length> space-4: root.px(16);
     out property <length> space-5: root.px(24);
     out property <length> space-6: root.px(32);
+
+    // One height for everything that can be pressed or typed in.
+    //
+    // A field and the buttons beside it are two halves of one question, and
+    // the difference between a 40-pixel box and a 34-pixel button was visible
+    // on the library page long before anybody worked out which of the two was
+    // wrong. Named here so the question cannot be answered twice.
+    out property <length> control-height: root.px(34);
+
+    // The page head, stated once because ten screens draw it.
+    //
+    // Every screen opens the same way — an eyebrow, a heading, and whatever
+    // that page offers at its own level — and every one of these numbers used
+    // to be written out again in each view. Ten places to keep in agreement is
+    // ten places for one of them to drift.
+    out property <length> page-top: root.px(24);
+    out property <length> page-bottom: root.px(16);
+    // The heading's own line box. This serif asks about 1.21 of its size, so a
+    // 40-pixel display needs 49 and is given 50: the first even number above
+    // it and no more, because every pixel here pushes the content further down
+    // the page.
+    out property <length> heading-box: root.px(50);
 
     out property <length> radius: root.px(4);
     out property <length> sidebar-width: root.px(240);

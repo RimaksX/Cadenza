@@ -105,8 +105,8 @@ export component TrackList inherits Rectangle {
             vertical-stretch: 0;
             padding-left: Theme.page-inset;
             padding-right: Theme.page-inset;
-            padding-top: Theme.space-6;
-            padding-bottom: Theme.space-5;
+            padding-top: Theme.page-top;
+            padding-bottom: Theme.page-bottom;
             spacing: Theme.space-2;
 
             // The eyebrow, or the way back where there is one. The same line in
@@ -168,7 +168,7 @@ export component TrackList inherits Rectangle {
                         text: root.heading;
                         font-family: Theme.serif;
                         font-size: Theme.text-display;
-                        height: Theme.px(56);
+                        height: Theme.heading-box;
                         color: Theme.ink-0;
                         vertical-alignment: bottom;
                         overflow: elide;
@@ -192,7 +192,7 @@ export component TrackList inherits Rectangle {
                     // sat nine pixels lower on the queue than on the library.
                     search := Field {
                         width: root.searchable ? Theme.px(280) : 0px;
-                        height: root.searchable ? Theme.px(34) : 0px;
+                        height: root.searchable ? Theme.control-height : 0px;
                         icon: @image-url("../../../../resources/ui/icons/search.svg");
                         placeholder: "Search";
                         edited => {
@@ -247,11 +247,11 @@ export component TrackList inherits Rectangle {
                     }
                 }
 
-                // As tall as the field beside them, rather than the button
-                // height everywhere else. Two controls on one line that answer
-                // the same question should be one object with a seam in it,
-                // and a button six pixels shorter than the box it belongs to
-                // reads as something dropped next to it.
+                // No height of their own. They and the field are all one
+                // control height, which is what makes the line read as one
+                // object rather than as a box with two larger things beside
+                // it — the field used to be six pixels taller than every
+                // button in the interface, and these two matched the field.
                 TextButton {
                     // The percentage stands in the button rather than in a
                     // bar of its own: it is the same object that started
@@ -259,7 +259,6 @@ export component TrackList inherits Rectangle {
                     // thing you pressed.
                     label: root.fetching ? root.fetch-percent + "%" : "GET";
                     fixed-width: Theme.px(100);
-                    height: Theme.px(40);
                     enabled: !root.fetching && root.link != "";
                     pressed => {
                         root.fetch(root.link);
@@ -276,7 +275,6 @@ export component TrackList inherits Rectangle {
                 if !root.fetching: TextButton {
                     label: "PLAYLIST";
                     fixed-width: Theme.px(140);
-                    height: Theme.px(40);
                     enabled: root.link != "";
                     pressed => {
                         root.fetch-playlist(root.link);
@@ -290,7 +288,6 @@ export component TrackList inherits Rectangle {
                 if root.fetching: TextButton {
                     label: "STOP";
                     fixed-width: Theme.px(140);
-                    height: Theme.px(40);
                     destructive: true;
                     pressed => {
                         root.stop-fetch();
@@ -302,7 +299,6 @@ export component TrackList inherits Rectangle {
                 if !root.fetching && root.fetch-offer != "": TextButton {
                     label: root.fetch-offer;
                     fixed-width: Theme.px(140);
-                    height: Theme.px(40);
                     primary: true;
                     pressed => {
                         root.fix-fetch();
@@ -312,7 +308,6 @@ export component TrackList inherits Rectangle {
                 if root.fetch-needs-folder: TextButton {
                     label: "MAKE A FOLDER";
                     fixed-width: Theme.px(176);
-                    height: Theme.px(40);
                     primary: true;
                     pressed => {
                         root.make-local-folder();
@@ -424,7 +419,7 @@ export component TrackList inherits Rectangle {
                     text: root.empty-title;
                     font-family: Theme.serif;
                     font-size: Theme.text-display;
-                    height: Theme.px(56);
+                    height: Theme.heading-box;
                     vertical-alignment: center;
                     color: Theme.ink-2;
                     horizontal-alignment: center;
