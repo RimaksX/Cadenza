@@ -57,10 +57,10 @@ turn what arrives into an mp3, and **spotDL** to read what a Spotify link names.
 **It installs those itself.** The first link that needs a program it has not got
 comes back with an offer and an install button instead of a download; a link
 that fails because yt-dlp has fallen behind comes back with an offer to update
-it. yt-dlp, ffmpeg and — for a Spotify link on a machine that has never had one
-— Python come from winget; spotDL comes from Python's own pip, which is the
-only place it exists. Nothing is installed without that press, and no restart is
-needed after one. They are not shipped inside Cadenza deliberately: they are
+it. yt-dlp and ffmpeg come from winget, and so does Python, when a Spotify link
+needs it on a machine that has never had one; spotDL comes from Python's own
+pip, which is the only place it exists. Nothing is installed without that press,
+and no restart is needed after one. They are not shipped inside Cadenza deliberately: they are
 kept current by the people who watch the sites they fetch from, so the feature
 does not quietly stop working between releases here.
 
