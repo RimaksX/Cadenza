@@ -207,8 +207,12 @@ export component TrackList inherits Rectangle {
                     // search. Left at its full height it was an invisible
                     // control standing above the page's own button, and the
                     // head grew by that much.
+                    // Exactly the two buttons below it: GET at 100, PLAYLIST
+                    // at 140, and the twelve between them. Two controls in a
+                    // column that nearly line up read as a mistake; the same
+                    // two that line up exactly read as a grid.
                     search := Field {
-                        width: root.searchable ? Theme.px(280) : 0px;
+                        width: root.searchable ? Theme.px(252) : 0px;
                         height: root.searchable ? Theme.control-height : 0px;
                         icon: @image-url("../../../../resources/ui/icons/search.svg");
                         placeholder: "Search";

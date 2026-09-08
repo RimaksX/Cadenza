@@ -55,11 +55,19 @@ component TransportButton inherits Rectangle {
         x: round((parent.width - self.width) / 1px / 2) * 1px;
         y: round((parent.height - self.height) / 1px / 2) * 1px;
         image-fit: contain;
+        // Three answers, not two. `active` is a mode that is *on* — shuffle,
+        // repeat — and it takes the accent, the same colour as the progress
+        // line and the number of the row that is sounding: this interface says
+        // "in force" in one colour. Hover is only where the pointer is, and
+        // says so in the loudest ink. They were the same before, so a mode
+        // that was on looked like a button being pointed at.
         colorize: !root.enabled
             ? Theme.ink-disabled
             : (root.primary
                 ? Theme.bg-0
-                : (root.active || touch.has-hover ? Theme.ink-0 : Theme.ink-2));
+                : (root.active
+                    ? Theme.accent
+                    : (touch.has-hover ? Theme.ink-0 : Theme.ink-2)));
         animate colorize { duration: 120ms; }
         // Shuffle and repeat sit a step back from the three that move the
         // music: they change how it continues, not whether it is playing.

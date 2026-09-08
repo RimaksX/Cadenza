@@ -52,11 +52,22 @@ component SectionLabel inherits Rectangle {
         // rule sat low in its box and whatever came next stood too close under
         // it. Same arithmetic as `ProfileRow`, which had it right.
         y: round((parent.height - Theme.px(18)) / 1px / 2) * 1px;
+        // At the left edge of the page, not centred in it: a child given a
+        // width of its own is placed in the middle of its parent unless it is
+        // told where to stand.
+        x: 0;
+        // The block is a fixed width and the rule takes whatever the words
+        // leave of it, so every rule on the page ends at the same x whatever
+        // its label is called. A rule of a *fixed* length after a label of a
+        // variable one ends somewhere different every time, which is a ragged
+        // edge with no meaning in it (`MASTER_ISSUES` 123).
+        width: Theme.px(360);
         height: Theme.px(18);
         spacing: Theme.space-2;
 
         VerticalLayout {
             alignment: center;
+            horizontal-stretch: 0;
 
             Text {
                 text: root.text;
@@ -69,18 +80,12 @@ component SectionLabel inherits Rectangle {
             }
         }
 
-        // Its own width, like every other part here, rather than whatever is
-        // left of the page.
         Rectangle {
             y: Theme.px(8);
-            width: Theme.px(120);
+            horizontal-stretch: 1;
             height: 1px;
             background: Theme.line-soft;
         }
-
-        // And the rest of the line is empty, which is what keeps the rule
-        // short: a layout with two children shares its width between them.
-        Rectangle { }
     }
 }
 
