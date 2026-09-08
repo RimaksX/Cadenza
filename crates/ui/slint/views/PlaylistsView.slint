@@ -68,6 +68,12 @@ export component PlaylistCard inherits Rectangle {
                 background: @linear-gradient(150deg, Theme.bg-2 0%, Theme.bg-1 55%, Theme.bg-0 100%);
                 border-width: 1px;
                 border-color: root.hovered ? Theme.line : Theme.line-soft;
+                // The same corner the same object has at 36 pixels in a row and
+                // at 56 in the player bar. It was the one sleeve on the screen
+                // with square corners, which made it a different kind of thing
+                // at a different size (`MASTER_ISSUES` 124). The clip below is
+                // what carries the corner into the picture inside.
+                border-radius: Theme.radius;
                 clip: true;
                 animate y, border-color { duration: 300ms; easing: ease-out; }
 

@@ -143,7 +143,14 @@ export global Theme {
     // the page.
     out property <length> heading-box: root.px(50);
 
-    out property <length> radius: root.px(4);
+    // Six, not four and not eight. Four was a chamfer that most people could
+    // not see; eight, on the shortest control this interface has — a 34-pixel
+    // button — turns the corner arc into nearly a quarter of the height and the
+    // button starts drifting towards a pill, which is a different family of
+    // shape from the one everything else here belongs to. Six is visibly softer
+    // than four while the straight run of the side still dominates
+    // (`MASTER_ISSUES` 124).
+    out property <length> radius: root.px(6);
     out property <length> sidebar-width: root.px(240);
     out property <length> player-height: root.px(92);
 
