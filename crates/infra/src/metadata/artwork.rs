@@ -61,6 +61,20 @@ impl FileArtworkCache {
     }
 }
 
+impl FileArtworkCache {
+    /// Writes the small copy of a cover, and says whether it managed to.
+    fn shrink(&self, cover: CoverOf, from: &Path) -> bool {
+        let Ok(picture) = image::open(from) else {
+            return false;
+        };
+
+        picture
+            .thumbnail(THUMBNAIL_PX, THUMBNAIL_PX)
+            .save(self.thumbnail_file(cover))
+            .is_ok()
+    }
+}
+
 impl ArtworkCachePort for FileArtworkCache {
     fn store(&self, cover: CoverOf, image: &[u8]) -> Result<()> {
         let Some(extension) = image_extension(image) else {
@@ -77,7 +91,19 @@ impl ArtworkCachePort for FileArtworkCache {
         let path = self.file_for(cover, extension);
         fs::write(&path, image).map_err(|err| {
             CoreError::FileSystem(format!("could not write {}: {err}", path.display()))
-        })
+        })?;
+
+        // And the small copy now, on whichever thread imported the track,
+        // rather than on the one drawing the window the first time somebody
+        // scrolls past this row. Resizing a picture is tens of milliseconds;
+        // fifty of them in a row is the list stuttering under the hand
+        // (`MASTER_ISSUES` 114).
+        //
+        // Ignored if it fails: the thumbnail is an optimisation, the cover is
+        // the fact, and the lazy path below still makes one on demand for
+        // every cover stored before this existed.
+        let _ = self.shrink(cover, &path);
+        Ok(())
     }
 
     fn path_for(&self, cover: CoverOf) -> Option<PathBuf> {
@@ -93,17 +119,11 @@ impl ArtworkCachePort for FileArtworkCache {
             return Some(small);
         }
 
-        // Made on the first ask rather than when the cover is stored: most
-        // covers are never looked at in a list, and the ones that are get asked
-        // for once and then found.
+        // Still made on demand, for every cover that was stored before `store`
+        // began making one — an existing library must not have to be rebuilt to
+        // scroll smoothly.
         let full = self.path_for(cover)?;
-        let picture = image::open(&full).ok()?;
-        picture
-            .thumbnail(THUMBNAIL_PX, THUMBNAIL_PX)
-            .save(&small)
-            .ok()?;
-
-        Some(small)
+        self.shrink(cover, &full).then_some(small)
     }
 
     fn remove(&self, cover: CoverOf) -> Result<()> {

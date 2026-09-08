@@ -12,6 +12,7 @@
 
 use std::cell::RefCell;
 use std::collections::HashMap;
+use std::rc::Rc;
 use std::sync::Arc;
 
 use cadenza_core::application::services::LibraryService;
@@ -32,6 +33,15 @@ use crate::view_models::library_vm;
 /// years.
 const KEPT_COVERS: usize = 512;
 
+/// Every cover this window has decoded, by the track it belongs to.
+///
+/// Shared rather than owned, and keyed by the track rather than by the row it
+/// happens to be on. A model is built fresh for every change to the library —
+/// one track added, one search typed — and a cache inside it would be thrown
+/// away with it, so adding a song would cost the decoding of every cover on
+/// screen (`MASTER_ISSUES` 114).
+pub type Covers = Rc<RefCell<HashMap<MediaFileId, Image>>>;
+
 /// A list of tracks that finds each cover the first time it is drawn.
 pub struct TrackRows {
     /// Everything about a row except its cover, built once.
@@ -39,13 +49,13 @@ pub struct TrackRows {
     /// Which track each row is, so a cover can be found for it.
     ids: Vec<MediaFileId>,
     library: Arc<LibraryService>,
-    covers: RefCell<HashMap<usize, Image>>,
+    covers: Covers,
     notify: ModelNotify,
 }
 
 impl TrackRows {
     /// Builds the rows, and nothing else. No picture is read here.
-    pub fn new(library: Arc<LibraryService>, summaries: &[TrackSummary]) -> Self {
+    pub fn new(library: Arc<LibraryService>, covers: Covers, summaries: &[TrackSummary]) -> Self {
         Self {
             rows: library_vm::rows(summaries),
             ids: summaries
@@ -53,7 +63,7 @@ impl TrackRows {
                 .map(|summary| summary.media_file_id)
                 .collect(),
             library,
-            covers: RefCell::new(HashMap::new()),
+            covers,
             notify: ModelNotify::default(),
         }
     }
@@ -65,18 +75,19 @@ impl TrackRows {
     /// absence: the row draws its fallback either way, and a listener who adds
     /// a cover should see it without restarting.
     fn cover(&self, row: usize) -> Option<Image> {
-        if let Some(image) = self.covers.borrow().get(&row) {
+        let id = *self.ids.get(row)?;
+        if let Some(image) = self.covers.borrow().get(&id) {
             return Some(image.clone());
         }
 
-        let path = self.library.thumbnail_for(*self.ids.get(row)?).ok()??;
+        let path = self.library.thumbnail_for(id).ok()??;
         let image = Image::load_from_path(&path).ok()?;
 
         let mut covers = self.covers.borrow_mut();
         if covers.len() >= KEPT_COVERS {
             covers.clear();
         }
-        covers.insert(row, image.clone());
+        covers.insert(id, image.clone());
 
         Some(image)
     }

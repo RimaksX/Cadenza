@@ -29,7 +29,7 @@ use cadenza_core::domain::value_objects::{DurationMs, GainDb, PlaybackPosition, 
 use cadenza_core::{CoreError, Result};
 use slint::{ComponentHandle, Model, ModelRc, VecModel, Weak};
 
-use crate::track_rows::TrackRows;
+use crate::track_rows::{Covers, TrackRows};
 use crate::view_models::{
     self, eq_vm, library_vm, player_vm, playlist_vm, profile_vm, radio_vm, review_vm, stats_vm,
 };
@@ -144,6 +144,11 @@ pub struct Controller {
     profile: RefCell<Option<Profile>>,
     /// What the library is being filtered by, if anything.
     query: RefCell<String>,
+    /// Every cover this window has decoded, kept across the models that come
+    /// and go. Adding one track used to cost the decoding of every cover on
+    /// screen, because the cache lived inside a model that was thrown away
+    /// (`MASTER_ISSUES` 114).
+    covers: Covers,
     /// What the offered button would do, while one is offered.
     offer: Cell<Option<Offer>>,
     /// What the last press asked for, so that fixing the reason it failed can
@@ -213,6 +218,7 @@ impl Controller {
             window,
             profile,
             query: RefCell::new(String::new()),
+            covers: Covers::default(),
             offer: Cell::new(None),
             asked_for: Cell::new(FetchWhat::OneTrack),
             shown_library: RefCell::new(Vec::new()),
@@ -318,6 +324,7 @@ impl Controller {
         });
         window.set_tracks(ModelRc::new(TrackRows::new(
             Arc::clone(&self.services.library),
+            Rc::clone(&self.covers),
             &shown,
         )));
     }
@@ -398,6 +405,7 @@ impl Controller {
         window.set_queue_summary(library_vm::summary_line(&waiting).into());
         window.set_queue_tracks(ModelRc::new(TrackRows::new(
             Arc::clone(&self.services.library),
+            Rc::clone(&self.covers),
             &waiting,
         )));
     }
@@ -579,6 +587,7 @@ impl Controller {
         window.set_playlist_summary(library_vm::summary_line(&tracks).into());
         window.set_playlist_tracks(ModelRc::new(TrackRows::new(
             Arc::clone(&self.services.library),
+            Rc::clone(&self.covers),
             &tracks,
         )));
     }
