@@ -50,7 +50,12 @@ component TransportButton inherits Rectangle {
 
     Image {
         source: root.glyph;
-        width: root.primary ? Theme.px(16) : (root.quiet ? Theme.px(14) : Theme.px(16));
+        // Twenty for the one that starts the music, eighteen for the ones
+        // beside it, sixteen for the two modes that sit a step back. The three
+        // steps are the ones this bar always had — 16, 16 and 14 — moved up
+        // together, because at those sizes a glyph in a 40-pixel circle read as
+        // a mark rather than as a control.
+        width: root.primary ? Theme.px(20) : (root.quiet ? Theme.px(16) : Theme.px(18));
         height: self.width;
         x: round((parent.width - self.width) / 1px / 2) * 1px;
         y: round((parent.height - self.height) / 1px / 2) * 1px;
@@ -223,13 +228,16 @@ export component PlayerBar inherits Rectangle {
                 // The square where the cover goes, and a letter until there is
                 // one. Rounded like the covers in the rows: the same picture
                 // twice on one screen should not be two different shapes.
+                // No border. A cover is a picture, and a hairline drawn round
+                // it is a line across the edge of somebody's artwork — the same
+                // square in a library row never had one, and the two are the
+                // same object (`MASTER_ISSUES` 125). The surface underneath is
+                // what shows while there is no picture.
                 Rectangle {
                     width: Theme.px(56);
                     height: Theme.px(56);
                     background: Theme.bg-2;
                     border-radius: Theme.radius;
-                    border-width: 1px;
-                    border-color: Theme.line-soft;
                     clip: true;
 
                     Image {

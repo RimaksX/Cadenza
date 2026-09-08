@@ -66,7 +66,11 @@ export component PlaylistCard inherits Rectangle {
                 height: 100%;
                 y: root.hovered ? -Theme.px(4) : 0;
                 background: @linear-gradient(150deg, Theme.bg-2 0%, Theme.bg-1 55%, Theme.bg-0 100%);
-                border-width: 1px;
+                // The hairline belongs to the stand-in, not to the sleeve. With
+                // no cover it is what gives the gradient an edge; over a cover
+                // it is a line drawn across somebody's artwork. The tile still
+                // answers the pointer by lifting, which it does either way.
+                border-width: root.data.has-cover ? 0px : 1px;
                 border-color: root.hovered ? Theme.line : Theme.line-soft;
                 // The same corner the same object has at 36 pixels in a row and
                 // at 56 in the player bar. It was the one sleeve on the screen
