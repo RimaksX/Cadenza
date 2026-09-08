@@ -379,13 +379,19 @@ impl ExternalFetcher {
             .arg("--embed-thumbnail")
             .arg("--ffmpeg-location")
             .arg(converter)
-            .args(match self.remembers.as_ref() {
-                Some(directory) => vec![
-                    std::ffi::OsStr::new("--download-archive").to_owned(),
-                    directory.join(DOWNLOADER_MEMORY).into_os_string(),
-                ],
-                None => Vec::new(),
-            })
+            // No archive on this route, and the reason was measured. The
+            // downloader records a video the moment it has downloaded it —
+            // before the conversion, before the tagging, before anything here
+            // moves the file anywhere. A track that falls over after that
+            // point is remembered as fetched and never tried again: three of
+            // fifty-two were stuck that way, present in the memory and absent
+            // from the disk, and every run afterwards skipped them
+            // (`MASTER_ISSUES` 112).
+            //
+            // This route needs no such memory. It knows the whole list and
+            // asks the library about every track on it, so what is skipped is
+            // what the listener actually has rather than what the downloader
+            // believes it once fetched.
             .arg("--output")
             .arg(workspace.join(format!("{name}.%(ext)s")))
             .arg(&looking)
