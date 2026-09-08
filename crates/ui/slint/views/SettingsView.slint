@@ -27,15 +27,19 @@ export struct TakenOutRowData {
     gone: bool,
 }
 
-// A heading over a group of controls. Mono capitals in the furniture ink, and
-// nothing else.
+// A heading over a group of controls: mono capitals in the furniture ink, and a
+// short rule going right from them.
 //
-// It used to carry a rule to the right edge of the page, borrowed from the
-// sidebar. In a 240-pixel column that rule is a tick beside a word; across the
-// full width of a page, seven of them at even intervals turn the screen into a
-// stack of stripes and stop meaning anything — and a line in this interface is
-// supposed to mean "something ends here" (`MASTER_ISSUES` 121). What separates
-// one group from the next is the space above it and the ink of the label.
+// The rule used to run to the right edge of the page. Seven of those at even
+// intervals turned the screen into a stack of stripes, and a line in this
+// interface is supposed to mean "something ends here". Taking them away
+// entirely was worse in the other direction — the page became one unbroken
+// column of content with nothing to say where a group started
+// (`MASTER_ISSUES` 121, 122).
+//
+// So: the sidebar's mark, at the sidebar's length. A tick beside a word, which
+// is what it always was in a 240-pixel column; it only became a stripe when it
+// was given a whole page to cross.
 component SectionLabel inherits Rectangle {
     in property <string> text;
 
@@ -64,6 +68,19 @@ component SectionLabel inherits Rectangle {
                 color: Theme.ink-furniture;
             }
         }
+
+        // Its own width, like every other part here, rather than whatever is
+        // left of the page.
+        Rectangle {
+            y: Theme.px(8);
+            width: Theme.px(120);
+            height: 1px;
+            background: Theme.line-soft;
+        }
+
+        // And the rest of the line is empty, which is what keeps the rule
+        // short: a layout with two children shares its width between them.
+        Rectangle { }
     }
 }
 

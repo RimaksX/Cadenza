@@ -180,7 +180,11 @@ export component Sidebar inherits Rectangle {
 
     VerticalLayout {
         padding-top: Theme.space-6;
-        padding-bottom: Theme.space-5;
+        // None at the foot. The listener's block below sets its own, and the
+        // two together put twenty-four pixels under a caption that had eight
+        // above it — which is what "the bottom gap is bigger than the top one"
+        // looks like in numbers.
+        padding-bottom: 0px;
         spacing: Theme.space-6;
 
         // Wordmark. The name is the only place the serif is set this large.
@@ -320,12 +324,12 @@ export component Sidebar inherits Rectangle {
                 background: Theme.line-soft;
             }
 
-            // As tall as a row in the library, and its two lines centred in
-            // it. The height is borrowed rather than chosen: this block and a
-            // track row are the two places where a name sits over a caption,
-            // and two names for one shape is one of them drifting later.
+            // Its two lines, with eight pixels above them and eight below —
+            // the same gap on both sides of the block, which a row height
+            // borrowed from the library did not give it once the column's own
+            // padding was counted too.
             VerticalLayout {
-                height: Theme.row-height;
+                height: Theme.px(58);
                 alignment: center;
                 padding-left: Theme.space-5;
                 padding-right: Theme.space-5;
