@@ -48,14 +48,6 @@ const MATCHER: &str = "spotdl";
 /// Python's package manager, which is the only place `spotdl` comes from.
 const PYTHON_PACKAGES: &str = "pip";
 
-/// Where the matcher looks for a recording, in order.
-///
-/// Its own default is YouTube Music alone, and a slice of the failures above
-/// are not downloads at all but *searches*: "YouTube Music returned no usable
-/// results for … after 3 attempts". Plain YouTube behind it is the answer to
-/// those, and it is the same place the other button fetches from anyway.
-const LOOK_IN: [&str; 2] = ["youtube-music", "youtube"];
-
 /// Where a program is installed from.
 #[derive(Clone, Copy)]
 enum Source {
@@ -274,23 +266,19 @@ impl ExternalFetcher {
 
     /// Fetches what a Spotify link *names*, which is not what it holds.
     ///
-    /// **The matcher no longer downloads anything.** It is asked what the link
-    /// names and where each of those recordings can be had — which is what it
-    /// is actually good at — and the downloader fetches them, because that is
-    /// what *it* is good at and because Cadenza already drives it properly:
-    /// its own memory of what it has fetched, its own progress, and a failure
-    /// that costs one track rather than the rest of the list.
+    /// **The matcher only says what is on the list.** Where each recording can
+    /// be had is the downloader's own question and it answers it itself:
+    /// `ytsearch1:` hands it a name and it takes the first thing YouTube
+    /// offers, which is what every program in this business does.
     ///
-    /// The measurements that led here, in order: the matcher brings about
-    /// twenty tracks per run whatever the pace (`MASTER_ISSUES` 106), it dies
-    /// outright on a track whose Spotify metadata is incomplete, and it will
-    /// hand over the YouTube addresses if simply asked — fifty-two of them,
-    /// bare, one per line (`MASTER_ISSUES` 107).
+    /// Asking the matcher for the addresses instead cost three things, all
+    /// measured: about sixteen seconds per track before a byte was downloaded,
+    /// a limit that left the tail of a fifty-two-track list unresolved — ten
+    /// of them — and a pairing between two lists that goes wrong for every
+    /// track after any one it skipped (`MASTER_ISSUES` 110).
     ///
-    /// What is given up is the tags: these files carry whatever the video
-    /// carried. What is kept is the name, which is the half a listener reads —
-    /// the file is called what the *record* is called, from the metadata, and
-    /// a file with no title tag is titled by its name.
+    /// Now there is one list, and each search is built from the track it is
+    /// for. A track that cannot be found costs itself.
     fn fetch_matched(
         &self,
         link: &str,
@@ -307,23 +295,17 @@ impl ExternalFetcher {
 
         let workspace = workspace()?;
         let (list, listed) = self.ask_matcher(&matcher, link, &workspace);
-        let addresses = self.ask_addresses(&matcher, link);
 
-        // Both lists are the playlist's own order, so the address at a place
-        // belongs to the track at that place. Where the two disagree in length
-        // — a track the matcher could not place at all — the shorter one wins
-        // and the extra is skipped rather than named after somebody else.
-        let together: Vec<_> = addresses.iter().zip(listed.iter()).collect();
-        if together.is_empty() {
+        if listed.is_empty() {
             let _ = std::fs::remove_dir_all(&workspace);
             return Err(CoreError::invalid(
                 "link",
-                format!("{MATCHER} found nothing for that link"),
+                format!("{MATCHER} found nothing on that link"),
             ));
         }
 
-        let wanted = u32::try_from(together.len()).unwrap_or(u32::MAX);
-        for (done, (address, track)) in together.into_iter().enumerate() {
+        let wanted = u32::try_from(listed.len()).unwrap_or(u32::MAX);
+        for (done, track) in listed.iter().enumerate() {
             if stop() {
                 break;
             }
@@ -334,11 +316,8 @@ impl ExternalFetcher {
                 item: Some((done + 1, wanted)),
             });
 
-            // One at a time, and a failure is one track. The matcher's own way
-            // of doing this loses everything after the first refusal; the
-            // downloader is asked once per recording, so a track that cannot
-            // be had costs itself and nothing else.
-            let _ = self.fetch_one(&downloader, &converter, address, track, &workspace);
+            // One at a time, and a failure is one track.
+            let _ = self.fetch_one(&downloader, &converter, track, &workspace);
         }
 
         let landed = land(&workspace, into)?;
@@ -362,50 +341,6 @@ impl ExternalFetcher {
         })
     }
 
-    /// Where each recording on the list can be had, in the list's own order.
-    ///
-    /// One search per track, and it is not quick — about sixteen seconds each,
-    /// because it is a real search rather than a lookup. It is also the whole
-    /// of what the matcher is for.
-    ///
-    /// Bare addresses, one to a line, mixed in with a few lines about what it
-    /// is doing; anything that is not an address is not one of ours.
-    fn ask_addresses(&self, matcher: &Path, link: &str) -> Vec<String> {
-        let asked = quietly(matcher)
-            .env("PYTHONIOENCODING", "utf-8")
-            .arg("url")
-            // The link before the options, and that is not a matter of taste:
-            // `--audio` takes a *list*, so a link after it is swallowed as
-            // another value and the program is left with nothing to look up.
-            // It answers that with its usage message and no addresses at all,
-            // which arrives here as "found nothing for that link"
-            // (`MASTER_ISSUES` 108).
-            .arg(link)
-            // Two places to look, not its own one: twenty-two of the searches
-            // on the list that reported this came back empty from the first
-            // and were caught by the second (`MASTER_ISSUES` 103).
-            .arg("--audio")
-            .args(LOOK_IN)
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .stdin(Stdio::null())
-            .output();
-
-        let Ok(spoke) = asked else {
-            return Vec::new();
-        };
-
-        String::from_utf8_lossy(&spoke.stdout)
-            .lines()
-            .map(str::trim)
-            .filter(|line| {
-                line.starts_with("https://")
-                    && (line.contains("youtube.com/watch") || line.contains("youtu.be/"))
-            })
-            .map(str::to_owned)
-            .collect()
-    }
-
     /// Brings one recording down and names it after the record.
     ///
     /// No `--embed-metadata` here, and that is deliberate: what the video calls
@@ -416,11 +351,14 @@ impl ExternalFetcher {
         &self,
         downloader: &Path,
         converter: &Path,
-        address: &str,
         track: &ListedTrack,
         workspace: &Path,
     ) -> Result<()> {
         let name = safe_name(&format!("{} - {}", track.artist, track.title));
+        // The downloader's own search, and the first thing it offers. One
+        // result rather than a list, because a chooser would need somebody to
+        // choose and there is nobody here: this runs while a listener waits.
+        let looking = format!("ytsearch1:{} {}", track.artist, track.title);
 
         let spoke = quietly(downloader)
             .env("PYTHONIOENCODING", "utf-8")
@@ -439,7 +377,7 @@ impl ExternalFetcher {
             })
             .arg("--output")
             .arg(workspace.join(format!("{name}.%(ext)s")))
-            .arg(address)
+            .arg(&looking)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .stdin(Stdio::null())
