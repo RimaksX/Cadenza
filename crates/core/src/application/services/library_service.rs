@@ -19,6 +19,7 @@ use crate::domain::policies::artwork_policy::looks_like_an_image;
 use crate::domain::policies::duplicate_policy::{self, DuplicateVerdict};
 use crate::domain::policies::fetch_policy::looks_out_of_date;
 use crate::domain::policies::link_policy::{LinkHandler, handler_for, is_a_link};
+use crate::domain::policies::naming_policy;
 use crate::domain::ports::artwork_cache::{ArtworkCachePort, CoverOf};
 use crate::domain::ports::event_bus::DomainEvent;
 use crate::domain::ports::fetcher::{
@@ -1332,14 +1333,19 @@ impl LibraryService {
             return Ok(Imported::Unchanged);
         }
 
-        let artist_id = self.resolve_artist(read.tags.artist.as_deref(), now)?;
-        let album_artist_id = self.resolve_artist(
-            read.tags
-                .album_artist
-                .as_deref()
-                .or(read.tags.artist.as_deref()),
-            now,
-        )?;
+        // What the file is called, for the parts its tags do not carry.
+        //
+        // A track fetched from a link arrives with no tags on purpose — what
+        // the video calls itself is not what the record is called — and the
+        // name we gave it holds both facts (`MASTER_ISSUES` 109). Every other
+        // untagged file in the world is named the same way.
+        let named = title_from_path(&media_file.path);
+        let (named_artist, named_title) = naming_policy::artist_and_title(&named);
+
+        let artist = read.tags.artist.as_deref().or(named_artist);
+        let artist_id = self.resolve_artist(artist, now)?;
+        let album_artist_id =
+            self.resolve_artist(read.tags.album_artist.as_deref().or(artist), now)?;
         let album_id = self.resolve_album(
             read.tags.album.as_deref(),
             album_artist_id,
@@ -1352,7 +1358,7 @@ impl LibraryService {
             .tags
             .title
             .clone()
-            .unwrap_or_else(|| title_from_path(&media_file.path));
+            .unwrap_or_else(|| named_title.to_owned());
 
         let track = Track {
             profile_id,

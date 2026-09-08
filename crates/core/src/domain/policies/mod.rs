@@ -17,6 +17,7 @@ pub mod eq_policy;
 pub mod fetch_policy;
 pub mod history_policy;
 pub mod link_policy;
+pub mod naming_policy;
 pub mod playback_policy;
 pub mod radio_policy;
 pub mod retention_policy;
