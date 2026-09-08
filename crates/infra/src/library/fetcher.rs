@@ -374,12 +374,18 @@ impl ExternalFetcher {
         let asked = quietly(matcher)
             .env("PYTHONIOENCODING", "utf-8")
             .arg("url")
+            // The link before the options, and that is not a matter of taste:
+            // `--audio` takes a *list*, so a link after it is swallowed as
+            // another value and the program is left with nothing to look up.
+            // It answers that with its usage message and no addresses at all,
+            // which arrives here as "found nothing for that link"
+            // (`MASTER_ISSUES` 108).
+            .arg(link)
             // Two places to look, not its own one: twenty-two of the searches
             // on the list that reported this came back empty from the first
             // and were caught by the second (`MASTER_ISSUES` 103).
             .arg("--audio")
             .args(LOOK_IN)
-            .arg(link)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .stdin(Stdio::null())
