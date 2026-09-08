@@ -1,0 +1,221 @@
+import { Theme } from "../theme/tokens.slint";
+import { Field } from "../components/Field.slint";
+import { TextButton } from "../components/Dialog.slint";
+
+// The first run, and the only screen that exists before there is a listener.
+//
+// What it replaces: an empty library saying "open Settings and add a listener",
+// which is an instruction to go somewhere else and do the thing this screen
+// does. Somebody who has just installed a music player wants to hear music, and
+// the two things standing between them and that — who they are, and where the
+// music goes — are asked here rather than discovered one error at a time
+// (`MASTER_ISSUES` 128).
+//
+// It is a screen and not a dialog because there is nothing behind it: without a
+// profile the sidebar leads nowhere, the library is empty and the player bar
+// has nothing to play. A dialog over that would be a box over a blank.
+//
+// Nothing here is new. The name makes a profile, the folder is the one the
+// settings screen offers, and both remain there afterwards — this only puts
+// them in the order somebody needs them the first time.
+export component WelcomeView inherits Rectangle {
+    /// Where this machine keeps music, which is what the folder offer makes.
+    in property <string> suggested;
+
+    /// The name, and whether to make that folder.
+    ///
+    /// Not called `start`: a layout's `alignment: start` resolves to a callback
+    /// of that name before it resolves to the keyword, and the error it gives
+    /// says nothing about either.
+    callback begin(string, bool);
+
+    private property <bool> making: true;
+
+    background: Theme.bg-0;
+
+    // The one picture in the application, and it is here because this is the
+    // one screen with nothing else on it: no library to look at, no list, no
+    // player. A photograph behind a working page would be a page with a
+    // photograph behind it; behind a first run it is the only thing to look at
+    // while somebody types their name (`MASTER_ISSUES` 128).
+    //
+    // `cover` rather than `fill`: the frame is resizable and a stretched
+    // picture is visibly stretched, where a cropped one is only cropped.
+    Image {
+        width: 100%;
+        height: 100%;
+        source: @image-url("../../../../resources/ui/background/Background.jpeg");
+        image-fit: cover;
+    }
+
+    VerticalLayout {
+        alignment: center;
+
+        HorizontalLayout {
+            alignment: center;
+
+            // The same card a dialog is drawn as: a raised surface, a hairline
+            // and the one radius. Opaque rather than tinted over the picture —
+            // this interface has no scrims and no shadows, and a panel that
+            // lets its background through is a panel whose text contrast
+            // depends on what happens to be behind it.
+            Rectangle {
+                // Stated here rather than on the column inside it: a rectangle
+                // in a layout takes the width its children prefer, and a
+                // column that has been given one still prefers to fill what it
+                // is offered — so the card grew to the window and the text sat
+                // in a corner of it.
+                width: Theme.px(584);
+                background: Theme.bg-1;
+                border-width: 1px;
+                border-color: Theme.line;
+                border-radius: Theme.radius;
+
+                VerticalLayout {
+                    padding: Theme.space-6;
+                    spacing: Theme.space-2;
+
+                    Text {
+                        text: "FIRST RUN";
+                        font-family: Theme.mono;
+                        font-size: Theme.text-label;
+                        height: Theme.px(18);
+                        vertical-alignment: center;
+                        letter-spacing: Theme.label-spacing;
+                        color: Theme.ink-furniture;
+                    }
+
+                    Text {
+                        text: "Let's get started";
+                        font-family: Theme.serif;
+                        font-size: Theme.text-display;
+                        height: Theme.heading-box;
+                        vertical-alignment: bottom;
+                        color: Theme.ink-0;
+                    }
+
+                    Text {
+                        text: "Cadenza keeps a library for each listener, so it needs to know whose this one is. You can add more later.";
+                        font-family: Theme.sans;
+                        font-size: Theme.text-body;
+                        height: Theme.px(48);
+                        wrap: word-wrap;
+                        color: Theme.ink-2;
+                    }
+
+                    // The name. Focused when the screen appears, because it is the
+                    // only thing on it that has to be answered and somebody who
+                    // types their name and presses Enter should be finished.
+                    VerticalLayout {
+                        padding-top: Theme.space-4;
+                        spacing: Theme.space-2;
+
+                        Text {
+                            text: "WHAT SHOULD I CALL YOU";
+                            font-family: Theme.mono;
+                            font-size: Theme.text-label;
+                            height: Theme.px(18);
+                            vertical-alignment: center;
+                            letter-spacing: Theme.label-spacing;
+                            color: Theme.ink-furniture;
+                        }
+
+                        name := Field {
+                            placeholder: "Your name";
+                            // Ready to type into. It is the only thing on this
+                            // screen that must be answered, and somebody who types
+                            // their name and presses Enter is finished.
+                            init => {
+                                self.focus();
+                            }
+                            accepted => {
+                                if (self.text != "") {
+                                    root.begin(self.text, root.making);
+                                }
+                            }
+                        }
+                    }
+
+                    // And where what it downloads is put. Asked rather than done:
+                    // a player that makes folders while nobody is looking is one
+                    // that has to be forgiven for it later, and this is the press
+                    // that makes it a decision.
+                    VerticalLayout {
+                        padding-top: Theme.space-5;
+                        spacing: Theme.space-2;
+
+                        Text {
+                            text: "A FOLDER TO KEEP MUSIC IN";
+                            font-family: Theme.mono;
+                            font-size: Theme.text-label;
+                            height: Theme.px(18);
+                            vertical-alignment: center;
+                            letter-spacing: Theme.label-spacing;
+                            color: Theme.ink-furniture;
+                        }
+
+                        Text {
+                            text: "Anything you download goes here. Music you already have stays where it is — point Cadenza at it in Settings, and nothing of yours is moved or copied.";
+                            font-family: Theme.sans;
+                            font-size: Theme.text-body;
+                            height: Theme.px(48);
+                            wrap: word-wrap;
+                            color: Theme.ink-2;
+                        }
+
+                        HorizontalLayout {
+                            alignment: start;
+                            spacing: Theme.space-2;
+
+                            TextButton {
+                                label: "MAKE ONE";
+                                fixed-width: Theme.px(132);
+                                selected: root.making;
+                                pressed => {
+                                    root.making = true;
+                                }
+                            }
+                            TextButton {
+                                label: "NOT NOW";
+                                fixed-width: Theme.px(132);
+                                selected: !root.making;
+                                pressed => {
+                                    root.making = false;
+                                }
+                            }
+                        }
+
+                        Text {
+                            text: root.suggested;
+                            font-family: Theme.mono;
+                            font-size: Theme.text-label;
+                            height: Theme.px(18);
+                            vertical-alignment: center;
+                            letter-spacing: Theme.number-spacing;
+                            color: root.making ? Theme.ink-mute : Theme.ink-disabled;
+                            overflow: elide;
+                        }
+                    }
+
+                    HorizontalLayout {
+                        alignment: start;
+                        padding-top: Theme.space-5;
+
+                        TextButton {
+                            label: "START LISTENING";
+                            fixed-width: Theme.px(200);
+                            primary: true;
+                            // A name is the one thing this screen cannot do
+                            // without. The button is shown rather than hidden, so
+                            // the screen does not change shape as somebody types.
+                            enabled: name.text != "";
+                            pressed => {
+                                root.begin(name.text, root.making);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

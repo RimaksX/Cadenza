@@ -37,13 +37,6 @@ use crate::{
     TakenOutRowData, Theme, TopTrackData, UiServices,
 };
 
-/// What to do when there is no profile to be a library for.
-///
-/// This and the next used to name commands — `cadenza create <your name>`,
-/// `cadenza add-folder <path> -r`. The command line went with the console, and
-/// a hint telling somebody to run what no longer exists is worse than none.
-const NO_PROFILE_HINT: &str = "open Settings and add a listener\nto start a library";
-
 /// What to do when there is a profile but nothing in it.
 const NO_TRACKS_HINT: &str =
     "drop a file on this window, paste a link above,\nor point Cadenza at a folder in Settings";
@@ -231,6 +224,11 @@ impl Controller {
             return;
         };
 
+        // Which decides whether there is an application at all yet: with
+        // nobody created, the shell is replaced by the one screen that asks
+        // (`MASTER_ISSUES` 128).
+        window.set_first_run(self.profile.borrow().is_none());
+
         match self.profile.borrow().as_ref() {
             Some(profile) => {
                 window.set_profile_name(profile.name.as_str().into());
@@ -259,13 +257,16 @@ impl Controller {
             // a local that is then cloned into it: five thousand rows is not a
             // thing to hold twice for the sake of a shorter line.
             Ok(summaries) => *self.shown_library.borrow_mut() = summaries,
-            // Not an error worth reporting: it is the first-run state, and the
-            // empty view already says what to do about it.
+            // Not an error worth reporting: it is the first-run state, and
+            // the window is showing the welcome screen rather than this page.
+            // A hint used to be set here telling somebody to open Settings and
+            // add a listener, which is the thing that screen now does - a
+            // sentence nobody could reach and which had stopped being true
+            // (`MASTER_ISSUES` 128).
             Err(CoreError::NoActiveProfile) => {
                 self.shown_library.borrow_mut().clear();
                 window.set_tracks(ModelRc::new(VecModel::from(Vec::new())));
                 window.set_library_summary("no profile".into());
-                window.set_empty_hint(NO_PROFILE_HINT.into());
                 return;
             }
             Err(err) => {
@@ -1061,6 +1062,32 @@ impl Controller {
         match created {
             Ok(profile) => self.switch_profile(&profile.id.to_string()),
             Err(err) => self.report(&err),
+        }
+    }
+
+    /// The first run, answered: a listener, and somewhere to put music.
+    ///
+    /// Both already exist as commands on the settings screen; this is the order
+    /// they are needed in the first time, which is the only thing the welcome
+    /// screen adds. The folder comes second because it belongs to a profile,
+    /// and is made only if it was asked for — a player that writes to somebody's
+    /// disk unbidden has to be forgiven for it later.
+    pub fn start_here(&self, name: &str, folder: bool) {
+        let created = self.services.profiles.create(name);
+        let Ok(profile) = created else {
+            if let Err(err) = created {
+                self.report(&err);
+            }
+            return;
+        };
+
+        // Switching refreshes everything, so the shell is standing before the
+        // folder is made — and a failure there is then reported into a window
+        // that can show it.
+        self.switch_profile(&profile.id.to_string());
+
+        if folder {
+            self.use_suggested_folder();
         }
     }
 

@@ -12,6 +12,7 @@ import { SettingsView, FolderRowData, ProfileRowData, TakenOutRowData } from "..
 import { RadioView, MoodRowData } from "../views/RadioView.slint";
 import { ListeningView, TopTrackData } from "../views/ListeningView.slint";
 import { ReviewsView, ReviewRowData } from "../views/ReviewsView.slint";
+import { WelcomeView } from "../views/WelcomeView.slint";
 import { Dialog, PickDialog, EditTrackDialog } from "Dialog.slint";
 import { MenuItemData } from "RowMenu.slint";
 
@@ -52,6 +53,9 @@ export component AppShell inherits Rectangle {
     in property <int> ui-scale;
     in property <bool> history-on;
     in property <[FolderRowData]> folders;
+    /// True while nobody has been created yet, which is the one state where
+    /// none of the rest of this shell means anything.
+    in property <bool> first-run;
     in property <[TakenOutRowData]> taken-out;
     in property <int> gone-for-good;
     in property <int> outside-folders;
@@ -194,6 +198,8 @@ export component AppShell inherits Rectangle {
     callback remove-folder(string);
     callback synchronise-folder(string);
     callback restore-track(string);
+    /// A name, and whether to make the folder that was offered with it.
+    callback start-here(string, bool);
     callback forget-gone();
     callback scan-now();
     callback widen-eq-band(int, float);
@@ -230,7 +236,17 @@ export component AppShell inherits Rectangle {
             }
         }
 
-        HorizontalLayout {
+        // Everything below the title bar, and only once there is somebody for
+        // it to belong to. Before that there is one screen and it asks for
+        // exactly what is missing (`MASTER_ISSUES` 128).
+        if root.first-run: WelcomeView {
+            suggested: root.suggested-folder;
+            begin(name, folder) => {
+                root.start-here(name, folder);
+            }
+        }
+
+        if !root.first-run: HorizontalLayout {
             Sidebar {
                 pending-reviews: root.reviews.length;
                 profile-name: root.profile-name;
@@ -534,7 +550,7 @@ export component AppShell inherits Rectangle {
             }
         }
 
-        PlayerBar {
+        if !root.first-run: PlayerBar {
             title: root.now-title;
             subtitle: root.now-subtitle;
             initial: root.now-initial;
