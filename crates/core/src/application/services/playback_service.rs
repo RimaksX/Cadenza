@@ -687,6 +687,9 @@ mod tests {
         fn restore(&self, _profile: ProfileId, _file: MediaFileId) -> Result<()> {
             unreachable!("playback does not restore tracks")
         }
+        fn forget(&self, _profile: ProfileId, _file: MediaFileId) -> Result<()> {
+            unreachable!("playback does not forget tracks")
+        }
     }
 
     struct FixedClock;

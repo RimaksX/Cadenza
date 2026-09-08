@@ -98,6 +98,7 @@ export component AppWindow inherits Window {
     in property <bool> history-on;
     in property <[FolderRowData]> folders;
     in property <[TakenOutRowData]> taken-out;
+    in property <int> gone-for-good;
     in property <int> outside-folders;
     in property <[ProfileRowData]> profiles;
     in property <string> editing-id;
@@ -209,6 +210,7 @@ export component AppWindow inherits Window {
     callback remove-folder(string);
     callback synchronise-folder(string);
     callback restore-track(string);
+    callback forget-gone();
     callback scan-now();
     callback showing(string);
     callback decide-review(string, string);
@@ -269,6 +271,7 @@ export component AppWindow inherits Window {
         history-on: root.history-on;
         folders: root.folders;
         taken-out: root.taken-out;
+        gone-for-good: root.gone-for-good;
         outside-folders: root.outside-folders;
         profiles: root.profiles;
         editing-id: root.editing-id;
@@ -470,6 +473,9 @@ export component AppWindow inherits Window {
         }
         restore-track(id) => {
             root.restore-track(id);
+        }
+        forget-gone => {
+            root.forget-gone();
         }
         showing(name) => {
             root.showing(name);

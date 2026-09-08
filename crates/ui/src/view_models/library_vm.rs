@@ -321,9 +321,38 @@ pub fn tools_needed(missing: &[MissingTool]) -> String {
     )
 }
 
+/// What forgetting a pile of removals came to.
+#[must_use]
+pub fn forgotten(count: usize) -> String {
+    if count == 0 {
+        return "nothing to forget: every one of these still has its file".to_owned();
+    }
+
+    format!("{count} {} forgotten", tracks(count))
+}
+
 /// "track" or "tracks", so a count reads as a sentence.
 fn tracks(count: usize) -> &'static str {
     if count == 1 { "track" } else { "tracks" }
+}
+
+#[cfg(test)]
+mod forget_tests {
+    use super::forgotten;
+
+    #[test]
+    fn a_count_reads_as_a_sentence() {
+        assert_eq!(forgotten(1), "1 track forgotten");
+        assert_eq!(forgotten(52), "52 tracks forgotten");
+    }
+
+    #[test]
+    fn none_says_why_rather_than_zero() {
+        // The button is only offered when there is something to forget, so
+        // this is the race: a file came back between the drawing and the
+        // press. Saying "0 tracks forgotten" would read as a failure.
+        assert!(forgotten(0).contains("still has its file"));
+    }
 }
 
 #[cfg(test)]

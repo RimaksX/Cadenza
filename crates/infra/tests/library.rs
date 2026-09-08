@@ -1150,6 +1150,68 @@ fn what_was_taken_out_can_be_listed_and_put_back() {
     assert!(harness.library.taken_out().expect("the list").is_empty());
 }
 
+/// A removal with no file behind it can be taken off the list, and a removal
+/// with one cannot: the second is the removal itself.
+#[test]
+fn what_cannot_come_back_can_be_forgotten_and_the_rest_is_left_alone() {
+    let harness = harness("forget-gone");
+    write_wav(&harness.music, "kept.wav", 1, 59);
+    write_wav(&harness.music, "vanishing.wav", 1, 61);
+    write_wav(&harness.music, "staying.wav", 1, 63);
+    harness.scan(true);
+
+    let by_title = |title: &str| {
+        harness
+            .library
+            .summaries()
+            .expect("the library")
+            .into_iter()
+            .find(|summary| summary.title.as_str() == title)
+            .expect("imported")
+    };
+
+    let vanishing = by_title("vanishing");
+    let staying = by_title("staying");
+
+    harness
+        .library
+        .remove_track(vanishing.media_file_id)
+        .expect("taken out");
+    harness
+        .library
+        .remove_track(staying.media_file_id)
+        .expect("taken out");
+    assert_eq!(harness.library.gone_for_good().expect("counted"), 0);
+
+    // And now one of the two files leaves the disk, which is the whole of the
+    // listener's case: a folder deleted outside the application.
+    std::fs::remove_file(harness.music.join("vanishing.wav")).expect("deleted");
+
+    assert_eq!(
+        harness.library.gone_for_good().expect("counted"),
+        1,
+        "only the one with nothing behind it"
+    );
+
+    assert_eq!(harness.library.forget_gone().expect("forgotten"), 1);
+
+    let left = harness.library.taken_out().expect("the list");
+    assert_eq!(left.len(), 1, "the other removal is untouched");
+    assert_eq!(left[0].title.as_str(), "staying");
+
+    // Nothing happened to the library itself.
+    assert_eq!(harness.titles(), vec!["kept"]);
+
+    // And the removal that was kept still does its job: a scan does not put it
+    // back. That is why the other one had to be the only one forgotten.
+    harness.scan(true);
+    assert_eq!(harness.titles(), vec!["kept"]);
+    assert_eq!(harness.library.taken_out().expect("the list").len(), 1);
+
+    // Pressing it again with nothing to forget is not an error.
+    assert_eq!(harness.library.forget_gone().expect("nothing"), 0);
+}
+
 /// Synchronising says what it will do before it does it, and then does that.
 #[test]
 fn synchronising_brings_back_what_is_there_and_drops_what_is_not() {

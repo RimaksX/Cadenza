@@ -53,6 +53,7 @@ export component AppShell inherits Rectangle {
     in property <bool> history-on;
     in property <[FolderRowData]> folders;
     in property <[TakenOutRowData]> taken-out;
+    in property <int> gone-for-good;
     in property <int> outside-folders;
     in property <[ProfileRowData]> profiles;
 
@@ -193,6 +194,7 @@ export component AppShell inherits Rectangle {
     callback remove-folder(string);
     callback synchronise-folder(string);
     callback restore-track(string);
+    callback forget-gone();
     callback scan-now();
     callback widen-eq-band(int, float);
     callback pick-eq-preset(string);
@@ -384,6 +386,7 @@ export component AppShell inherits Rectangle {
                 history-on: root.history-on;
                 folders: root.folders;
                 taken-out: root.taken-out;
+                gone-for-good: root.gone-for-good;
                 outside-folders: root.outside-folders;
                 suggested: root.suggested-folder;
                 summary: root.settings-summary;
@@ -414,6 +417,9 @@ export component AppShell inherits Rectangle {
                 }
                 restore-track(id) => {
                     root.restore-track(id);
+                }
+                forget-gone => {
+                    root.forget-gone();
                 }
                 scan-now => {
                     root.scan-now();

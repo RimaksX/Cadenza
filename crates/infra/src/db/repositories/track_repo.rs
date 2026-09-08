@@ -206,6 +206,21 @@ impl TrackRepositoryPort for SqliteTrackRepository {
             .map_err(db_error_in("restoring a track"))?;
         Ok(())
     }
+
+    fn forget(&self, profile_id: ProfileId, media_file_id: MediaFileId) -> Result<()> {
+        let connection = self.pool.get()?;
+        connection
+            .execute(
+                // `removed_at IS NOT NULL` is the guard, in the one place that
+                // cannot be bypassed by a caller who forgot: a track still in
+                // somebody's library is never deleted by this.
+                "DELETE FROM profile_tracks
+                 WHERE profile_id = ?1 AND media_file_id = ?2 AND removed_at IS NOT NULL",
+                (profile_id.to_string(), media_file_id.to_string()),
+            )
+            .map_err(db_error_in("forgetting a track"))?;
+        Ok(())
+    }
 }
 
 /// Column values as stored, before domain validation.

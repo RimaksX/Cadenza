@@ -163,6 +163,16 @@ pub trait TrackRepositoryPort: Send + Sync {
     /// Restores a tombstoned track, for when a listener re-adds a file they
     /// removed earlier. Their title and artist edits come back with it.
     fn restore(&self, profile_id: ProfileId, media_file_id: MediaFileId) -> Result<()>;
+
+    /// Deletes a tombstone, so the removal stops being on record at all.
+    ///
+    /// **Only ever for a track whose file has gone.** The tombstone is what
+    /// keeps a removed track out of the library when its folder is scanned
+    /// again; deleting one for a file still on disk would undo the removal at
+    /// the next scan, quietly and days later (`MASTER_ISSUES` 119). Whose job
+    /// it is to check that is the caller's — but this refuses a live row
+    /// anyway, because a delete is not a thing to be wrong about twice.
+    fn forget(&self, profile_id: ProfileId, media_file_id: MediaFileId) -> Result<()>;
 }
 
 /// The global artist catalogue.

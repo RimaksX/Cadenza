@@ -953,6 +953,58 @@ impl LibraryService {
         Ok(())
     }
 
+    /// Takes every removal whose file has gone off the list for good.
+    ///
+    /// Returns how many it forgot.
+    ///
+    /// **Only the ones with no file left, and that is the whole design.** A
+    /// tombstone is two things at once: an offer to undo, and the record that
+    /// keeps a removed track out when its folder is scanned again. Where the
+    /// file is gone it is neither — nothing can be brought back to it and no
+    /// scan will ever find it — so it is only a row nobody can act on, and a
+    /// listener who deleted a folder of fifty-two tracks is left with
+    /// fifty-two of them. Where the file is still there the row is doing its
+    /// job, and forgetting it would put the track back at the next scan
+    /// (`MASTER_ISSUES` 119).
+    ///
+    /// Never automatic, for the same reason. A folder on a drive that is
+    /// unplugged looks exactly like a folder that was deleted, and the
+    /// difference shows up when the drive comes back.
+    pub fn forget_gone(&self) -> Result<usize> {
+        let profile_id = self.context.require_active_profile()?;
+
+        let mut forgotten = 0;
+        for summary in self.ports.tracks.removed_for_profile(profile_id)? {
+            if self.still_there(summary.media_file_id) {
+                continue;
+            }
+
+            self.ports
+                .tracks
+                .forget(profile_id, summary.media_file_id)?;
+            forgotten += 1;
+        }
+
+        if forgotten > 0 {
+            self.context.events.publish(DomainEvent::LibraryChanged);
+        }
+
+        Ok(forgotten)
+    }
+
+    /// How many of this listener's removals have no file left behind them.
+    pub fn gone_for_good(&self) -> Result<usize> {
+        let profile_id = self.context.require_active_profile()?;
+
+        Ok(self
+            .ports
+            .tracks
+            .removed_for_profile(profile_id)?
+            .into_iter()
+            .filter(|summary| !self.still_there(summary.media_file_id))
+            .count())
+    }
+
     /// Makes the library match the folder.
     ///
     /// Everything the folder holds is in the library, including what was taken

@@ -443,6 +443,11 @@ fn wire(window: &AppWindow, controller: &Rc<Controller>) {
         move |id| controller.restore_track(&id)
     });
 
+    window.on_forget_gone({
+        let controller = Rc::clone(controller);
+        move || controller.forget_gone()
+    });
+
     window.on_scan_now({
         let controller = Rc::clone(controller);
         move || controller.scan_now()

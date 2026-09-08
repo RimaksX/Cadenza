@@ -287,6 +287,8 @@ export component SettingsView inherits Rectangle {
     in property <bool> history-on;
     in property <[FolderRowData]> folders;
     in property <[TakenOutRowData]> taken-out;
+    /// How many of those have no file behind them any more.
+    in property <int> gone-for-good;
     /// How many tracks came from outside every folder.
     in property <int> outside-folders;
     in property <[ProfileRowData]> profiles;
@@ -305,6 +307,7 @@ export component SettingsView inherits Rectangle {
     callback remove-folder(string);
     callback synchronise-folder(string);
     callback restore-track(string);
+    callback forget-gone();
     callback scan-now();
 
     background: Theme.bg-0;
@@ -535,6 +538,33 @@ export component SettingsView inherits Rectangle {
                             data: track;
                             restored => {
                                 root.restore-track(track.id);
+                            }
+                        }
+
+                        // Only where at least one of them has nothing left to
+                        // come back to. A row whose file is still on the disk
+                        // is not clutter — it is the removal itself, and it is
+                        // what keeps that track out the next time the folder is
+                        // scanned. This offers the other kind and says which.
+                        if root.gone-for-good > 0: VerticalLayout {
+                            spacing: Theme.space-2;
+
+                            SectionNote {
+                                text: root.gone-for-good == 1
+                                    ? "One of these has no file left. Forgetting it takes it off this list for good."
+                                    : root.gone-for-good + " of these have no file left. Forgetting them takes them off this list for good.";
+                            }
+
+                            HorizontalLayout {
+                                alignment: start;
+
+                                TextButton {
+                                    label: "FORGET THE GONE";
+                                    fixed-width: Theme.px(180);
+                                    pressed => {
+                                        root.forget-gone();
+                                    }
+                                }
                             }
                         }
                     }

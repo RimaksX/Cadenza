@@ -1456,6 +1456,9 @@ impl Controller {
             })
             .collect();
         window.set_taken_out(ModelRc::new(VecModel::from(taken_out)));
+        window.set_gone_for_good(
+            i32::try_from(self.services.library.gone_for_good().unwrap_or(0)).unwrap_or(0),
+        );
         window.set_outside_folders(
             i32::try_from(self.services.library.outside_folders().unwrap_or(0)).unwrap_or(0),
         );
@@ -1586,6 +1589,22 @@ impl Controller {
             return;
         };
         self.run(|| self.services.library.restore_track(media_file_id));
+        self.after_library_change();
+    }
+
+    /// Takes every removal with no file behind it off the list for good.
+    pub fn forget_gone(&self) {
+        let said = match self.services.library.forget_gone() {
+            Ok(count) => library_vm::forgotten(count),
+            Err(err) => {
+                self.report(&err);
+                return;
+            }
+        };
+
+        if let Some(window) = self.window.upgrade() {
+            window.set_message(said.into());
+        }
         self.after_library_change();
     }
 
