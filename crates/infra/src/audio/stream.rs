@@ -68,13 +68,6 @@ const IDLE_NAP: Duration = Duration::from_millis(3);
 /// output will not reach this one in any listening lifetime.
 const NO_BOUNDARY: u64 = u64::MAX;
 
-/// How much of what was played the visualiser can look back at.
-///
-/// A fifth of a second at any rate anyone plays. The reader takes the newest
-/// window it needs and throws the rest away, so this only has to cover the gap
-/// between two of its readings without the callback running out of room.
-const TAP_FRAMES: usize = 8_192;
-
 /// How many samples the decoder mixes in one pass.
 ///
 /// Small enough that a crossfade's gain is recomputed often, large enough that
@@ -172,18 +165,6 @@ pub(crate) struct Shared {
     /// fade is running — is rebuilt by the queue four times a second, so a
     /// moment after a swap it says the opposite of what is true.
     pub(crate) joined: AtomicBool,
-    /// A copy of what actually went to the device, for the visualiser.
-    ///
-    /// The end of the chain rather than the middle of it: what is drawn is what
-    /// is heard, equaliser, fades and volume included (PROJECT_MASTER 8.1 puts
-    /// the tap last for the same reason).
-    pub(crate) tap: SampleRing,
-    /// Whether anybody is looking.
-    ///
-    /// Nothing is copied while the answer is no. Section 2.9 asks for the work
-    /// to stop when the visualiser is hidden or the window is away, and the
-    /// cheapest place to stop it is before it starts.
-    pub(crate) tapping: AtomicBool,
     /// Bumped by the decoder to ask the callback to discard the ring.
     flush_seq: AtomicU64,
     /// Echoed by the callback once it has.
@@ -229,8 +210,6 @@ impl Shared {
             loaded: AtomicBool::new(false),
             armed: AtomicBool::new(false),
             joined: AtomicBool::new(false),
-            tap: SampleRing::new(TAP_FRAMES, channels),
-            tapping: AtomicBool::new(false),
             flush_seq: AtomicU64::new(0),
             flush_ack: AtomicU64::new(0),
             flush_base: AtomicU64::new(0),
@@ -492,14 +471,6 @@ pub(crate) fn fill_output(shared: &Shared, out: &mut [f32], gain: &mut f32, eq: 
         for sample in frame {
             *sample *= *gain;
         }
-    }
-
-    // The tap, last of all: what is copied is exactly what left, after the
-    // equaliser and after the gain. Gated, because nothing should be paid for
-    // while nobody is looking — and it is a copy of a buffer, which is the one
-    // thing section 8.2 allows here.
-    if shared.tapping.load(Ordering::Relaxed) {
-        shared.tap.push(out);
     }
 
     let frames = taken / usize::from(shared.channels);

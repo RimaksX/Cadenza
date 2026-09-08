@@ -19,14 +19,6 @@ use cpal::{SampleFormat, StreamConfig};
 
 use super::eq::EqChain;
 use super::stream::{Command, Shared, decode_loop, fill_output};
-use super::visualizer::Visualiser;
-
-/// How many bars the spectrum is folded into.
-///
-/// Eight, because that is what fits the square the interface draws it in at a
-/// width the eye can still separate. The reader takes the count from its
-/// caller; this is only what the engine builds itself for.
-pub const SPECTRUM_BARS: usize = 8;
 
 /// How wide the simple mode's mid bell is, and the shelves' nominal width.
 ///
@@ -59,12 +51,6 @@ pub struct CpalAudioEngine {
     keepalive: Mutex<Option<Sender<()>>>,
     output_thread: Mutex<Option<JoinHandle<()>>>,
     decode_thread: Mutex<Option<JoinHandle<()>>>,
-    /// Turns what was played into something to draw.
-    ///
-    /// Behind a mutex because it is asked for from whichever thread is drawing,
-    /// and it holds a transform plan and its scratch. The audio callback never
-    /// touches it: its whole part in this is a copy into the tap.
-    visualiser: Mutex<Visualiser>,
     /// Device name, rate and channel count, for diagnostics.
     description: String,
 }
@@ -99,7 +85,6 @@ impl CpalAudioEngine {
             keepalive: Mutex::new(Some(alive_tx)),
             output_thread: Mutex::new(Some(output_thread)),
             decode_thread: Mutex::new(Some(decode_thread)),
-            visualiser: Mutex::new(Visualiser::new(shared.rate, shared.channels, SPECTRUM_BARS)),
             description,
         })
     }
@@ -248,27 +233,6 @@ impl AudioEnginePort for CpalAudioEngine {
         // fixed array of atomics inside `Shared`.
         self.shared.set_eq(setting.mode, &bands);
         Ok(())
-    }
-
-    fn set_visualising(&self, on: bool) {
-        self.shared.tapping.store(on, Ordering::Relaxed);
-        if !on {
-            // What is in the tap is what was playing when somebody stopped
-            // looking. Left there, it would be the first thing drawn the next
-            // time they looked.
-            self.shared.tap.drain();
-        }
-    }
-
-    fn spectrum(&self, bars: &mut [f32]) -> bool {
-        if !self.shared.tapping.load(Ordering::Relaxed) {
-            return false;
-        }
-
-        self.visualiser
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .read(&self.shared, bars)
     }
 
     fn position(&self) -> PlaybackPosition {

@@ -146,7 +146,6 @@ export component AppWindow inherits Window {
     in property <bool> muted;
     in property <float> volume: 1.0;
     in property <string> message;
-    in property <[float]> spectrum;
     // Named apart from the window's own `maximized`, which 1.17 added and
     // which this would otherwise shadow. Ours says what the title bar should
     // draw; the window's says what the window is.
@@ -316,7 +315,6 @@ export component AppWindow inherits Window {
         muted: root.muted;
         volume: root.volume;
         message: root.message;
-        spectrum: root.spectrum;
         shuffle: root.shuffle;
         repeating: root.repeating;
         repeat-one: root.repeat-one;

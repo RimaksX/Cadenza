@@ -15,7 +15,6 @@ use cadenza_core::domain::eq::{EqBand, EqMode};
 use cadenza_core::domain::ids::{
     EqPresetId, ImportReviewId, MediaFileId, MoodId, PlaylistId, ProfileId,
 };
-use cadenza_core::domain::playback::PlaybackState;
 use cadenza_core::domain::policies::eq_policy::{MAX_BAND_HZ, MAX_BAND_Q, MIN_BAND_HZ, MIN_BAND_Q};
 use cadenza_core::domain::ports::fetcher::FetchWhat;
 use cadenza_core::domain::profile::Profile;
@@ -37,18 +36,6 @@ use crate::{
     AppWindow, EqBandData, FolderRowData, MoodRowData, ProfileRowData, ReviewRowData,
     TakenOutRowData, Theme, TopTrackData, UiServices,
 };
-
-/// How many bars the player bar draws.
-///
-/// The engine folds the spectrum into exactly as many as it is asked for; this
-/// is what the square in the player bar has room to separate.
-const SPECTRUM_BARS: usize = 8;
-
-/// How many heights a bar can take.
-///
-/// The square gives it forty-six pixels, so anything finer is a difference the
-/// window would round away anyway — and every write is a repaint.
-const BAR_STEPS: f32 = 46.0;
 
 /// What to do when there is no profile to be a library for.
 ///
@@ -183,21 +170,11 @@ pub struct Controller {
     /// why a fader could only ever be clicked: the first movement threw away
     /// the target that was following it.
     eq_bands: Rc<VecModel<EqBandData>>,
-    /// What is being heard, as the player bar draws it.
-    ///
-    /// Kept alive for the same reason the equaliser's bands are: handing the
-    /// window a new model thirty times a second would rebuild eight elements
-    /// thirty times a second.
-    spectrum: Rc<VecModel<f32>>,
     /// Which bell the equaliser's numbers are about.
     ///
     /// Interface state and nothing else: which band is being looked at changes
     /// nothing about the sound, so nothing outside the window needs telling.
     selected_band: Cell<usize>,
-    /// Whether the tap is on, so it is only switched when it changes.
-    visualising: Cell<bool>,
-    /// The heights the window is already showing, to the pixel.
-    shown_bars: RefCell<[f32; SPECTRUM_BARS]>,
     /// The size the window has been given room for.
     ///
     /// The window is created before anybody knows whose it is, so it opens at
@@ -225,10 +202,7 @@ impl Controller {
             showing_cover: RefCell::new(String::new()),
             open_playlist: RefCell::new(None),
             eq_bands: Rc::new(VecModel::default()),
-            spectrum: Rc::new(VecModel::from(vec![0.0; SPECTRUM_BARS])),
             selected_band: Cell::new(0),
-            visualising: Cell::new(false),
-            shown_bars: RefCell::new([0.0; SPECTRUM_BARS]),
             sized_for: Cell::new(1.0),
             fetching: Arc::new(Fetching::default()),
         }
@@ -249,10 +223,6 @@ impl Controller {
         self.refresh_listening();
         self.refresh_reviews();
         self.refresh_player();
-
-        if let Some(window) = self.window.upgrade() {
-            window.set_spectrum(ModelRc::from(Rc::clone(&self.spectrum)));
-        }
     }
 
     /// Who is listening, and in which theme.
@@ -1957,57 +1927,6 @@ impl Controller {
         self.refresh_library();
         self.refresh_reviews();
         self.refresh_settings();
-    }
-
-    /// Reads what is being heard and hands it to the player bar.
-    ///
-    /// Called on its own timer rather than the transport's: section 2.9 caps
-    /// this at thirty a second, and the transport is happy at four. Nothing is
-    /// read while nothing is playing — and nothing is copied out of the audio
-    /// callback either, because the tap is turned off with it.
-    pub fn refresh_spectrum(&self) {
-        let Some(window) = self.window.upgrade() else {
-            return;
-        };
-
-        // Playing is not enough. PROJECT_MASTER 2.9 asks for the work to stop
-        // when the window is away as well, and a minimised window is the case
-        // where every frame drawn is a frame nobody can see — the tap, the
-        // transform and the repaint all paid for an audience of none.
-        let playing = self.services.playback.view().state == PlaybackState::Playing;
-        let watching = playing && !window.window().is_minimized();
-
-        if watching != self.visualising.get() {
-            self.visualising.set(watching);
-            self.services.playback.set_visualising(watching);
-            if !watching {
-                window.set_spectrum(ModelRc::from(Rc::clone(&self.spectrum)));
-            }
-        }
-        if !watching {
-            return;
-        }
-
-        let mut bars = [0.0_f32; SPECTRUM_BARS];
-        if !self.services.playback.spectrum(&mut bars) {
-            return;
-        }
-
-        // Rounded to the pixel it will be drawn at, and written only where that
-        // pixel moved. Touching the model is what makes the window repaint, and
-        // a repaint is the whole cost of this: the engine and the transform
-        // together are a third of a per cent of one core, and drawing thirty
-        // frames a second is twenty-six times that. A bar that has not visibly
-        // changed is a frame nobody needs.
-        let mut shown = self.shown_bars.borrow_mut();
-        for (index, height) in bars.into_iter().enumerate() {
-            let stepped = (height * BAR_STEPS).round() / BAR_STEPS;
-            if (stepped - shown[index]).abs() < f32::EPSILON {
-                continue;
-            }
-            shown[index] = stepped;
-            self.spectrum.set_row_data(index, stepped);
-        }
     }
 
     /// Silences output, or restores it.

@@ -67,21 +67,6 @@ pub trait AudioEnginePort: Send + Sync {
     /// control silent (PROJECT_MASTER 2.8).
     fn set_eq(&self, setting: &EqSetting) -> Result<()>;
 
-    /// Turns the visualiser's tap on or off.
-    ///
-    /// Nothing is copied out of the audio callback while it is off, which is
-    /// what PROJECT_MASTER 2.9 asks for when the visualiser is hidden or the
-    /// window is away: the work does not get cheaper, it stops.
-    fn set_visualising(&self, on: bool);
-
-    /// Fills `bars` with the spectrum of what was last played, from zero to one.
-    ///
-    /// Returns false when there was nothing new to look at, so a caller can
-    /// leave the last picture up rather than blink it away. The transform runs
-    /// on the calling thread — the callback may pass frames to a tap and
-    /// nothing more (PROJECT_MASTER 8.2).
-    fn spectrum(&self, bars: &mut [f32]) -> bool;
-
     /// The current position, as last reported by the engine.
     fn position(&self) -> PlaybackPosition;
 

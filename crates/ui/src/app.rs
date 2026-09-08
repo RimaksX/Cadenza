@@ -16,19 +16,14 @@ use crate::{AppWindow, Transfer, UiServices};
 ///
 /// Four times a second: fast enough that a progress line does not visibly step,
 /// slow enough to be free. The engine is the clock; this only asks it what time
-/// it is (PROJECT_MASTER 2.9 caps the far more expensive visualiser at 30 Hz).
+/// it is.
 const TICK: Duration = Duration::from_millis(250);
 
-/// How often the spectrum is read.
+/// How often the pointer is asked what it is carrying.
 ///
-/// Twenty a second, under the ceiling of thirty PROJECT_MASTER 2.9 sets. The
-/// cap is not the cost: reading the spectrum is a tenth of a per cent of one
-/// core, and *drawing* it is eight per cent, because every change repaints the
-/// window. Twenty is where a row of bars still moves like sound and the price
-/// is a third off.
-///
-/// Nothing is read while nothing is playing, and while nothing is read nothing
-/// is copied out of the audio callback either.
+/// Twenty a second. This answers a hand, not a clock: somebody holding a file
+/// over a window that takes a quarter of a second to admit it reaches for the
+/// title bar instead. Asking costs an atomic read.
 const FRAME: Duration = Duration::from_millis(50);
 
 /// Opens the window and blocks until it closes.
@@ -91,19 +86,13 @@ pub fn run(services: UiServices) -> Result<()> {
         }
     });
 
-    // The visualiser has a clock of its own: section 2.9 caps it at thirty a
-    // second, and the transport above is happy at four. Kept alive alongside
-    // that one, for the same reason.
+    // A clock of its own, because a drop answers a hand rather than a
+    // playhead: twenty a second where the transport above is happy at four.
+    // Kept alive alongside that one, for the same reason.
     let frames = Timer::default();
     frames.start(TimerMode::Repeated, FRAME, {
         let controller = Rc::clone(&controller);
         move || {
-            controller.refresh_spectrum();
-
-            // Twenty times a second rather than four: this one answers a
-            // pointer, and a hand holding a file over a window that takes a
-            // quarter of a second to admit it has been reaches for the
-            // title bar instead.
             controller.carrying_files(drops.hovering());
 
             let dropped = drops.take();

@@ -113,19 +113,6 @@ impl PlaybackService {
         self.ports.engine.preload_next(&media_file.path, transition)
     }
 
-    /// Turns the visualiser's tap on or off.
-    ///
-    /// The window says when it is drawing and when it is not; nothing is copied
-    /// out of the audio callback in between (PROJECT_MASTER 2.9).
-    pub fn set_visualising(&self, on: bool) {
-        self.ports.engine.set_visualising(on);
-    }
-
-    /// The spectrum of what was last played, from zero to one.
-    pub fn spectrum(&self, bars: &mut [f32]) -> bool {
-        self.ports.engine.spectrum(bars)
-    }
-
     /// Whether a following track is already open and waiting.
     pub fn armed(&self) -> bool {
         self.ports.engine.armed()
@@ -625,10 +612,6 @@ mod tests {
         }
         fn set_eq(&self, _setting: &crate::domain::eq::EqSetting) -> Result<()> {
             Ok(())
-        }
-        fn set_visualising(&self, _on: bool) {}
-        fn spectrum(&self, _bars: &mut [f32]) -> bool {
-            false
         }
         fn position(&self) -> PlaybackPosition {
             *self.position.lock().expect("not poisoned")
