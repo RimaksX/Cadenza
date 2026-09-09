@@ -246,9 +246,16 @@ export component TrackList inherits Rectangle {
                 // order it is in, and what is being looked for in it. They
                 // used to be stacked, which was invisible while only one page
                 // ever showed one.
+                //
+                // Twelve between them, which is what the design calls the gap
+                // between controls on one line — and what the two buttons under
+                // the search box have always had between them. It was eight,
+                // which is the gap for parts of one thing, and the two lines
+                // disagreed by four pixels in a place where one sits directly
+                // above the other (`MASTER_ISSUES` 134).
                 HorizontalLayout {
                     alignment: end;
-                    spacing: Theme.space-2;
+                    spacing: Theme.space-3;
 
                     // Not inside a condition: a `PopupWindow` cannot be one,
                     // and the alias below names it. Collapsed in both
@@ -329,6 +336,14 @@ export component TrackList inherits Rectangle {
             // in their folder like any other (`MASTER_ISSUES` 76).
             if root.fetchable: HorizontalLayout {
                 spacing: Theme.space-3;
+                // The head sets eight between its lines, which is the gap for
+                // lines of type. Between two rows of controls the gap is
+                // twelve, the same as the gap along each of them, so this row
+                // makes up the difference itself: every space in this block —
+                // sort to search, field to GET, GET to PLAYLIST, and the two
+                // rows to each other — is now the same twelve
+                // (`MASTER_ISSUES` 134).
+                padding-top: Theme.space-1;
 
                 Field {
                     horizontal-stretch: 1;
