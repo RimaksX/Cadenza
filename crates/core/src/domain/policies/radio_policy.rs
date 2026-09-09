@@ -98,6 +98,76 @@ impl RankingWeights {
     };
 }
 
+/// Where the library's own values fall, so a band can mean a part of it.
+///
+/// The three `0.0..=1.0` features are the extractor's own invented scale, and
+/// on a real library that scale collapses. Measured on the owner's 93 analysed
+/// tracks: **danceability runs 0.87 / 0.95 / 0.98 across the quartiles and
+/// energy 0.66 / 0.72 / 0.77.** Eighty per cent of the library sits inside a
+/// tenth of the range. Read against absolute bands that is not a library with
+/// quiet music in it — Focus (energy up to 0.45) and Sleep (up to 0.25) matched
+/// nothing at all, while Driving (0.45 to 0.9) took eighty-three tracks of
+/// ninety-three, and the moods stopped meaning different things
+/// (`MASTER_ISSUES` 137).
+///
+/// So a value is scored by where it stands among the listener's own, not by the
+/// number the extractor printed. Sleep becomes "as slow and as quiet as this
+/// library has", which is what the mood's own comment always said it meant.
+/// Two properties come free: a library where a feature is constant maps every
+/// track to the middle rather than to an end, so a broken extractor makes a
+/// term say nothing instead of saying something false; and a track cannot be in
+/// the top tenth for energy and the bottom tenth at once, so moods that ask for
+/// opposite things stop overlapping by construction.
+///
+/// **Tempo is left alone.** Beats per minute is a measurement in real units
+/// that means the same thing in every library, and it measured well here — 65
+/// to 159, with a median of 115. Ranking it would throw away the one feature
+/// that did not need saving.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct LibraryScale {
+    energy: Vec<f32>,
+    valence: Vec<f32>,
+    danceability: Vec<f32>,
+}
+
+impl LibraryScale {
+    /// Reads the distribution of every analysed track.
+    pub fn of<'a>(features: impl IntoIterator<Item = &'a TrackFeatures>) -> Self {
+        let mut scale = Self::default();
+        for row in features {
+            scale.energy.push(row.energy);
+            scale.valence.push(row.valence);
+            scale.danceability.push(row.danceability);
+        }
+        for column in [
+            &mut scale.energy,
+            &mut scale.valence,
+            &mut scale.danceability,
+        ] {
+            column.sort_by(f32::total_cmp);
+        }
+        scale
+    }
+
+    /// Where `value` stands among `sorted`, `0.0..=1.0`.
+    ///
+    /// The mid-rank: half the ties count as below and half as above, so a
+    /// column with the same number in every row puts every track at 0.5 instead
+    /// of all of them at one end.
+    ///
+    /// An empty column means there is no library to compare against — a unit
+    /// test of a band, or a profile with nothing analysed — and then the value
+    /// stands for itself, which is what it did before there was a scale.
+    fn place(sorted: &[f32], value: f32) -> f32 {
+        if sorted.is_empty() || !value.is_finite() {
+            return value;
+        }
+        let below = sorted.partition_point(|other| *other < value);
+        let up_to = sorted.partition_point(|other| *other <= value);
+        (below + up_to) as f32 / (2.0 * sorted.len() as f32)
+    }
+}
+
 /// How well a track fits a mood, `0.0..=1.0`.
 ///
 /// The mean of the bands the mood actually states. A mood that states nothing
@@ -105,7 +175,14 @@ impl RankingWeights {
 /// character — and a track nobody has analysed fits neutrally rather than
 /// badly, so that an unanalysed library still produces radio instead of
 /// silence.
-pub fn mood_score(rules: &MoodRules, features: Option<&TrackFeatures>) -> f32 {
+///
+/// `scale` is the library the track is being judged against; see
+/// [`LibraryScale`] for why the judging is relative.
+pub fn mood_score(
+    rules: &MoodRules,
+    features: Option<&TrackFeatures>,
+    scale: &LibraryScale,
+) -> f32 {
     if rules.is_unconstrained() {
         return 1.0;
     }
@@ -127,9 +204,21 @@ pub fn mood_score(rules: &MoodRules, features: Option<&TrackFeatures>) -> f32 {
     };
 
     term(rules.bpm, features.bpm.map(Bpm::as_f32));
-    term(rules.energy, Some(features.energy));
-    term(rules.valence, Some(features.valence));
-    term(rules.danceability, Some(features.danceability));
+    term(
+        rules.energy,
+        Some(LibraryScale::place(&scale.energy, features.energy)),
+    );
+    term(
+        rules.valence,
+        Some(LibraryScale::place(&scale.valence, features.valence)),
+    );
+    term(
+        rules.danceability,
+        Some(LibraryScale::place(
+            &scale.danceability,
+            features.danceability,
+        )),
+    );
 
     if counted == 0.0 {
         return 1.0;
@@ -275,7 +364,7 @@ mod tests {
         }
     }
 
-    use super::{RankingWeights, mood_score, rank};
+    use super::{LibraryScale, RankingWeights, mood_score, rank};
     use crate::domain::ids::MediaFileId;
     use crate::domain::mood::{FeatureBand, MoodRules};
     use crate::domain::track::TrackFeatures;
@@ -300,6 +389,12 @@ mod tests {
         }
     }
 
+    /// No library to be ranked against, so a value stands for itself - which
+    /// is what a test about a band is asking about.
+    fn raw() -> LibraryScale {
+        LibraryScale::default()
+    }
+
     /// Something like Workout: fast and loud.
     fn energetic() -> MoodRules {
         MoodRules {
@@ -311,29 +406,29 @@ mod tests {
 
     #[test]
     fn a_track_the_mood_asked_for_scores_top_marks() {
-        let score = mood_score(&energetic(), Some(&features(Some(150.0), 0.8, 0.5)));
+        let score = mood_score(&energetic(), Some(&features(Some(150.0), 0.8, 0.5)), &raw());
         assert!((score - 1.0).abs() < 1e-6, "got {score}");
     }
 
     #[test]
     fn a_track_the_mood_did_not_ask_for_scores_badly() {
-        let lullaby = mood_score(&energetic(), Some(&features(Some(60.0), 0.1, 0.3)));
+        let lullaby = mood_score(&energetic(), Some(&features(Some(60.0), 0.1, 0.3)), &raw());
         assert!(lullaby < 0.1, "got {lullaby}");
     }
 
     #[test]
     fn a_mood_that_asks_for_nothing_is_happy_with_anything() {
         let anything = MoodRules::default();
-        assert_eq!(mood_score(&anything, None), 1.0);
+        assert_eq!(mood_score(&anything, None, &raw()), 1.0);
         assert_eq!(
-            mood_score(&anything, Some(&features(Some(60.0), 0.1, 0.1))),
+            mood_score(&anything, Some(&features(Some(60.0), 0.1, 0.1)), &raw()),
             1.0
         );
     }
 
     #[test]
     fn a_track_nobody_has_analysed_is_neither_favoured_nor_blacklisted() {
-        let unknown = mood_score(&energetic(), None);
+        let unknown = mood_score(&energetic(), None, &raw());
         assert!(
             (unknown - 0.5).abs() < 1e-6,
             "an unanalysed library must still make radio, got {unknown}"
@@ -344,7 +439,7 @@ mod tests {
     fn a_missing_tempo_costs_only_the_term_it_belongs_to() {
         // Energy right, tempo unknown: half the terms are perfect and half are
         // neutral, so the answer sits between them rather than at either end.
-        let score = mood_score(&energetic(), Some(&features(None, 0.8, 0.5)));
+        let score = mood_score(&energetic(), Some(&features(None, 0.8, 0.5)), &raw());
         assert!((score - 0.75).abs() < 1e-6, "got {score}");
     }
 
@@ -403,5 +498,77 @@ mod tests {
         let weights = RankingWeights::DEFAULT;
         let score = rank(&weights, 50.0, -20.0, f32::NAN, 3.0, false, f32::NAN);
         assert!(score.is_finite() && score <= 1.0, "got {score}");
+    }
+
+    #[test]
+    fn a_value_is_placed_by_how_much_of_the_library_is_below_it() {
+        let library: Vec<TrackFeatures> = [0.1, 0.2, 0.3, 0.4]
+            .into_iter()
+            .map(|energy| features(None, energy, 0.5))
+            .collect();
+        let scale = LibraryScale::of(&library);
+
+        // The mid-rank: below the lowest of four is an eighth, above the
+        // highest is seven eighths, and the two in between are evenly spread.
+        let placed: Vec<f32> = library
+            .iter()
+            .map(|row| LibraryScale::place(&scale.energy, row.energy))
+            .collect();
+        assert_eq!(placed, vec![0.125, 0.375, 0.625, 0.875]);
+    }
+
+    #[test]
+    fn a_feature_that_never_varies_says_nothing_instead_of_everything() {
+        // What the owner's danceability column looks like: 0.87 / 0.95 / 0.98
+        // across the quartiles, which read absolutely means every track is at
+        // the top of the scale. Ranked, they are all in the middle of a
+        // distribution that has no shape - which is the truth about it.
+        let library: Vec<TrackFeatures> = std::iter::repeat_n(0.95, 5)
+            .map(|dance| TrackFeatures {
+                danceability: dance,
+                ..features(None, 0.5, 0.5)
+            })
+            .collect();
+        let scale = LibraryScale::of(&library);
+
+        assert_eq!(LibraryScale::place(&scale.danceability, 0.95), 0.5);
+    }
+
+    #[test]
+    fn opposite_moods_cannot_both_want_the_same_track() {
+        // Read absolutely, this library is loud: every track sits inside
+        // Driving's energy band and none inside Focus's, so one mood took
+        // everything and the other took nothing (`MASTER_ISSUES` 137). Ranked,
+        // the quietest of them is the quiet one.
+        let library: Vec<TrackFeatures> = [0.62, 0.66, 0.72, 0.77, 0.82]
+            .into_iter()
+            .map(|energy| features(Some(100.0), energy, 0.5))
+            .collect();
+        let scale = LibraryScale::of(&library);
+
+        let quiet = MoodRules {
+            energy: Some(FeatureBand::new(0.0, 0.45, 0.2)),
+            ..MoodRules::default()
+        };
+        let loud = MoodRules {
+            energy: Some(FeatureBand::new(0.65, 1.0, 0.25)),
+            ..MoodRules::default()
+        };
+
+        let quietest = &library[0];
+        let loudest = &library[4];
+
+        assert!(
+            mood_score(&quiet, Some(quietest), &scale) > mood_score(&quiet, Some(loudest), &scale),
+            "the quiet mood wants the quietest of them"
+        );
+        assert!(
+            mood_score(&loud, Some(loudest), &scale) > mood_score(&loud, Some(quietest), &scale),
+            "and the loud mood wants the loudest"
+        );
+        assert!(
+            mood_score(&quiet, Some(loudest), &scale) < 0.5,
+            "which is what the two moods disagreeing looks like"
+        );
     }
 }

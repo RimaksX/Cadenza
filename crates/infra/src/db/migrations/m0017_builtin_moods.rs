@@ -11,6 +11,13 @@
 //! because a hard cut-off in a library of two hundred tracks is a mood that
 //! produces nothing (`MoodRules` in `cadenza-core`).
 //!
+//! **The tempo band is in beats per minute; the other three are parts of the
+//! listener's own library.** Energy, valence and danceability are scored by
+//! where a track stands among the rest of theirs, not by the number the
+//! extractor printed, so Sleep's `[0, 0.25]` reads "the quietest quarter of
+//! what you own" rather than a claim about an absolute scale that turned out
+//! not to hold (`LibraryScale`, `MASTER_ISSUES` 137).
+//!
 //! What the bands leave out is deliberate. Focus says nothing about valence —
 //! concentrating is not a happy or a sad activity — and Driving says nothing
 //! about danceability. A mood states what it cares about and stays quiet about

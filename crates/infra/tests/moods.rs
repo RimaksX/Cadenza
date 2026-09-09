@@ -10,7 +10,7 @@ use cadenza_core::application::{AppContext, ProfileService};
 use cadenza_core::domain::ids::{MediaFileId, MoodId};
 use cadenza_core::domain::mood::{BUILTIN_MOOD_NAMES, FeatureBand, MoodPreset, MoodRules};
 use cadenza_core::domain::playback::TransitionProfile;
-use cadenza_core::domain::policies::radio_policy::mood_score;
+use cadenza_core::domain::policies::radio_policy::{LibraryScale, mood_score};
 use cadenza_core::domain::ports::repositories::MoodRepositoryPort;
 use cadenza_core::domain::profile::Profile;
 use cadenza_core::domain::track::TrackFeatures;
@@ -44,6 +44,29 @@ fn harness() -> Harness {
         profile,
         _db: db,
     }
+}
+
+/// A library with a shape: slow and quiet at one end, fast and loud at the
+/// other, and the middle filled in.
+///
+/// A mood is now judged against the library it is choosing from
+/// (`MASTER_ISSUES` 137), so a test of what a mood means needs one. Two tracks
+/// on their own would put both of them in the middle of their own distribution,
+/// which is true and useless.
+fn library() -> Vec<TrackFeatures> {
+    [
+        (55.0, 0.10),
+        (70.0, 0.20),
+        (85.0, 0.30),
+        (100.0, 0.45),
+        (115.0, 0.55),
+        (130.0, 0.70),
+        (145.0, 0.80),
+        (160.0, 0.90),
+    ]
+    .into_iter()
+    .map(|(bpm, energy)| track(bpm, energy))
+    .collect()
 }
 
 /// A track with a tempo and an intensity, and nothing else worth mentioning.
@@ -101,15 +124,18 @@ fn every_mood_the_specification_names_is_there_and_asks_for_something() {
 fn the_moods_mean_what_their_names_say() {
     let harness = harness();
 
-    let sprint = track(160.0, 0.9);
-    let lullaby = track(55.0, 0.1);
+    let library = library();
+    let scale = LibraryScale::of(&library);
+    let lullaby = library.first().expect("the slow end");
+    let sprint = library.last().expect("the fast one");
 
-    for (name, expected) in [("Workout", &sprint), ("Sleep", &lullaby)] {
+    for (name, expected) in [("Workout", sprint), ("Sleep", lullaby)] {
         let mood = harness.mood(name);
-        let wanted = mood_score(&mood.rules, Some(expected));
+        let wanted = mood_score(&mood.rules, Some(expected), &scale);
         let other = mood_score(
             &mood.rules,
-            Some(if name == "Workout" { &lullaby } else { &sprint }),
+            Some(if name == "Workout" { lullaby } else { sprint }),
+            &scale,
         );
 
         assert!(
@@ -126,10 +152,12 @@ fn the_moods_mean_what_their_names_say() {
 #[test]
 fn a_quiet_mood_and_a_loud_one_disagree_about_the_same_track() {
     let harness = harness();
-    let banger = track(140.0, 0.85);
+    let library = library();
+    let scale = LibraryScale::of(&library);
+    let banger = library.last().expect("the loud end");
 
-    let party = mood_score(&harness.mood("Party").rules, Some(&banger));
-    let focus = mood_score(&harness.mood("Focus").rules, Some(&banger));
+    let party = mood_score(&harness.mood("Party").rules, Some(banger), &scale);
+    let focus = mood_score(&harness.mood("Focus").rules, Some(banger), &scale);
 
     assert!(
         party > focus + 0.5,

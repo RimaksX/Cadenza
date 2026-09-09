@@ -17,7 +17,7 @@ use uuid::Uuid;
 use crate::application::context::AppContext;
 use crate::domain::ids::{MediaFileId, MoodId, ProfileId, RadioSessionId, RadioSessionItemId};
 use crate::domain::mood::MoodPreset;
-use crate::domain::policies::radio_policy::{RankingWeights, mood_score, rank};
+use crate::domain::policies::radio_policy::{LibraryScale, RankingWeights, mood_score, rank};
 use crate::domain::policies::shuffle_policy::ARTIST_COOLDOWN;
 use crate::domain::policies::transition_policy::transition_score;
 use crate::domain::ports::repositories::{
@@ -183,6 +183,17 @@ impl RadioService {
             .collect();
 
         let find = |id: MediaFileId| features.iter().find(|row| row.media_file_id == id);
+
+        // The distribution this listener's own library has, read once for the
+        // batch: every candidate is judged against the same one, and sorting it
+        // per pick would be the same answer worked out fifteen times. Their
+        // library and not every analysed file, because a mood asks for the
+        // quiet end of what *they* own and another profile's music is not it.
+        let scale = LibraryScale::of(
+            library
+                .iter()
+                .filter_map(|summary| find(summary.media_file_id)),
+        );
         let mut previous: Option<&TrackFeatures> = session.seed_media_file_id.and_then(find);
         let mut artists: Vec<Option<&str>> = Vec::new();
         let mut chosen = Vec::new();
@@ -196,6 +207,7 @@ impl RadioService {
                 &preferences,
                 &recent,
                 &artists,
+                &scale,
                 find,
             ) else {
                 break;
@@ -263,6 +275,7 @@ impl RadioService {
         preferences: &[(MediaFileId, f32)],
         recent: &[(MediaFileId, Timestamp)],
         artists: &[Option<&str>],
+        scale: &LibraryScale,
         find: impl Fn(MediaFileId) -> Option<&'a TrackFeatures>,
     ) -> Option<(&'a TrackSummary, PickReason)> {
         let weights = RankingWeights::DEFAULT;
@@ -275,7 +288,7 @@ impl RadioService {
 
             let features = find(summary.media_file_id);
             let reason = PickReason {
-                mood: mood_score(&mood.rules, features),
+                mood: mood_score(&mood.rules, features, scale),
                 transition: match (previous, features) {
                     (Some(previous), Some(features)) => transition_score(previous, features),
                     // Nothing to follow, or nothing to follow it with: the term
