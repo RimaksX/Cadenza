@@ -409,6 +409,7 @@ impl Controller {
         // player changes: a track that finishes moves the answer
         // (`MASTER_ISSUES` 133).
         window.set_playing_row(self.playing_row(&shown.playing_id));
+        window.set_now_favourite(self.is_favourite(&shown.playing_id));
         window.set_progress(shown.progress);
         window.set_playing(shown.playing);
         window.set_loaded(shown.loaded);
@@ -673,6 +674,44 @@ impl Controller {
             Ok(false) => {}
             Err(err) => self.report(&err),
         }
+    }
+
+    /// Whether what is playing is in the favourites.
+    ///
+    /// Read on every player refresh rather than kept: the list changes from
+    /// four places - the heart, the row menu, the playlist page, and the count
+    /// rebuilding itself when a track ends - and a remembered answer would be
+    /// wrong after any of them. It costs one read of a list of at most fifty.
+    ///
+    /// A failure here is a heart drawn empty, which is what it would be drawn
+    /// as anyway before anything is playing.
+    fn is_favourite(&self, playing_id: &str) -> bool {
+        MediaFileId::parse(playing_id)
+            .and_then(|media_file_id| self.services.playlists.is_favourite(media_file_id))
+            .unwrap_or(false)
+    }
+
+    /// Puts what is playing in the favourites, or takes it out.
+    pub fn toggle_favourite(&self) {
+        let Some(media_file_id) = self
+            .services
+            .playback
+            .view()
+            .track
+            .map(|track| track.media_file_id)
+        else {
+            return;
+        };
+
+        let wanted = !self
+            .services
+            .playlists
+            .is_favourite(media_file_id)
+            .unwrap_or(false);
+
+        self.run(|| self.services.playlists.set_favourite(media_file_id, wanted));
+        self.refresh_player();
+        self.refresh_playlists();
     }
 
     /// Rebuilds the played part of the favourites list.

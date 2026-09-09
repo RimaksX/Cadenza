@@ -323,6 +323,63 @@ impl PlaylistService {
         Ok(playlist)
     }
 
+    /// True when a track is in the profile's favourites, however it got there.
+    ///
+    /// However it got there, because that is what the heart on the player bar
+    /// is asked to say: the listener wants to know whether this song is in
+    /// their favourites, and "yes, but by arithmetic" is not a different
+    /// answer to that question (`MASTER_ISSUES` 140).
+    pub fn is_favourite(&self, media_file_id: MediaFileId) -> Result<bool> {
+        let playlist = self.favourites()?;
+        Ok(self
+            .ports
+            .playlists
+            .items(playlist.id)?
+            .iter()
+            .any(|item| item.media_file_id == media_file_id))
+    }
+
+    /// Puts a track in the favourites, or takes it out again.
+    ///
+    /// Taking out means taking the pin off. A track the count put there cannot
+    /// be taken out at all - it would come back the next time a track ended -
+    /// and this refuses in the same words the playlist page does rather than
+    /// appearing to work. A track that was both pinned and earned stays in the
+    /// list when its pin comes off, because it is still something the listener
+    /// keeps playing.
+    pub fn set_favourite(&self, media_file_id: MediaFileId, wanted: bool) -> Result<()> {
+        let playlist = self.favourites()?;
+
+        if wanted {
+            return self.add_track(playlist.id, media_file_id);
+        }
+
+        let mut items = self.ports.playlists.items(playlist.id)?;
+        let pinned = items
+            .iter()
+            .any(|item| item.media_file_id == media_file_id && item.by_hand);
+
+        if !pinned {
+            return if items.iter().any(|item| item.media_file_id == media_file_id) {
+                Err(CoreError::invalid(
+                    "favourites",
+                    "this one is here because you keep playing it",
+                ))
+            } else {
+                // Not in the list at all: there is nothing to undo, and saying
+                // so would be an error message about a state the listener is
+                // already in.
+                Ok(())
+            };
+        }
+
+        items.retain(|item| !(item.media_file_id == media_file_id && item.by_hand));
+        self.write_items(&playlist, &mut items)?;
+        // What the pin was holding up may still be earned by the count, and
+        // the rebuild is what works that out.
+        self.refresh_favourites()
+    }
+
     /// Rebuilds the played part of the favourites list.
     ///
     /// Cheap enough to call whenever a track finishes: one grouped count over a

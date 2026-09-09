@@ -194,6 +194,8 @@ export component PlayerBar inherits Rectangle {
     in property <bool> repeat-one;
     in property <bool> has-next;
     in property <bool> has-previous;
+    /// Whether what is playing is in the listener's favourites.
+    in property <bool> favourite;
 
     callback toggle-play();
     /// Take me to what this is describing.
@@ -205,6 +207,7 @@ export component PlayerBar inherits Rectangle {
     callback previous();
     callback toggle-shuffle();
     callback cycle-repeat();
+    callback toggle-favourite();
 
     height: Theme.player-height;
     background: Theme.bg-1;
@@ -334,6 +337,33 @@ export component PlayerBar inherits Rectangle {
                 }
             }
         }
+        }
+
+        // Whether this one is a favourite, and the way to say so.
+        //
+        // Beside what is playing rather than among the transport controls: it
+        // is a statement about this track, and the five buttons in the middle
+        // are all statements about the music going forwards. Filled and in the
+        // accent when the track is in the list, which is the same colour this
+        // interface uses for everything that is in force.
+        //
+        // Outside the block on its left, so the title keeps its width. The
+        // column on the far side carries the same 52 back, or the transport
+        // would no longer sit on the window's middle.
+        VerticalLayout {
+            alignment: center;
+
+            TransportButton {
+                glyph: root.favourite
+                    ? @image-url("../../../../resources/ui/icons/heart-filled.svg")
+                    : @image-url("../../../../resources/ui/icons/heart.svg");
+                active: root.favourite;
+                quiet: true;
+                enabled: root.loaded;
+                pressed => {
+                    root.toggle-favourite();
+                }
+            }
         }
 
         // Transport, and the progress line under it. Both centred, and the line
@@ -475,9 +505,14 @@ export component PlayerBar inherits Rectangle {
         }
 
         // Level. Fixed width to match the left block, so the middle is centred
-        // on the window rather than on what is left over.
+        // on the window rather than on what is left over. The 52 is the heart
+        // and its gap on the other side, plus the eight the two ends were
+        // already apart: a button added to one end moves the middle unless the
+        // other end is told about it. Measured on the rendered window rather
+        // than reasoned about - the group's outermost lit pixels sit on 590.0
+        // of a 1180-wide window, which is the middle.
         HorizontalLayout {
-            width: Theme.px(260);
+            width: Theme.px(320);
             alignment: end;
             spacing: Theme.space-3;
 

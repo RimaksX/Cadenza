@@ -627,3 +627,108 @@ fn a_favourite_whose_file_has_left_the_library_leaves_with_it() {
         "there is nothing left to play, so it is not a favourite"
     );
 }
+
+#[test]
+fn the_heart_is_lit_for_a_track_that_is_in_the_favourites_either_way() {
+    let harness = harness();
+
+    assert!(
+        !harness
+            .playlists
+            .is_favourite(harness.tracks[0])
+            .expect("asked"),
+        "nothing is a favourite yet"
+    );
+
+    // One arrives by being pressed, the other by being played.
+    harness
+        .playlists
+        .set_favourite(harness.tracks[0], true)
+        .expect("pinned");
+    harness.played(harness.tracks[1], 4);
+    harness.playlists.refresh_favourites().expect("rebuilt");
+
+    for track in [harness.tracks[0], harness.tracks[1]] {
+        assert!(
+            harness.playlists.is_favourite(track).expect("asked"),
+            "the heart says what is in the list, not how it got there"
+        );
+    }
+    assert!(
+        !harness
+            .playlists
+            .is_favourite(harness.tracks[2])
+            .expect("asked")
+    );
+}
+
+#[test]
+fn pressing_the_heart_twice_leaves_things_where_they_were() {
+    let harness = harness();
+
+    harness
+        .playlists
+        .set_favourite(harness.tracks[0], true)
+        .expect("pinned");
+    assert_eq!(harness.favourites(), vec!["one"]);
+
+    harness
+        .playlists
+        .set_favourite(harness.tracks[0], false)
+        .expect("unpinned");
+    assert!(
+        harness.favourites().is_empty(),
+        "and it is out again: a switch that cannot be switched back is a trap"
+    );
+}
+
+#[test]
+fn the_heart_will_not_pretend_to_remove_what_the_count_put_there() {
+    let harness = harness();
+    harness.played(harness.tracks[0], 4);
+    harness.playlists.refresh_favourites().expect("rebuilt");
+
+    let refused = harness.playlists.set_favourite(harness.tracks[0], false);
+    assert!(
+        refused.is_err(),
+        "it would come back the next time a track ended"
+    );
+    assert_eq!(harness.favourites(), vec!["one"]);
+
+    // Nothing to undo is not a failure, though: a track that was never in the
+    // list is already in the state the press was asking for.
+    harness
+        .playlists
+        .set_favourite(harness.tracks[3], false)
+        .expect("already out");
+}
+
+#[test]
+fn unpinning_a_track_the_count_also_earns_leaves_it_in_the_list() {
+    let harness = harness();
+    harness.played(harness.tracks[0], 4);
+    harness.playlists.refresh_favourites().expect("rebuilt");
+
+    // Pinned on top of being earned, then unpinned. The count still holds it.
+    harness
+        .playlists
+        .set_favourite(harness.tracks[0], true)
+        .expect("pinned");
+    harness
+        .playlists
+        .set_favourite(harness.tracks[0], false)
+        .expect("unpinned");
+
+    assert_eq!(
+        harness.favourites(),
+        vec!["one"],
+        "the pin came off; what the listener keeps playing did not"
+    );
+    assert!(
+        harness
+            .playlists
+            .is_favourite(harness.tracks[0])
+            .expect("asked"),
+        "so the heart stays lit, which is the truth about the list"
+    );
+}

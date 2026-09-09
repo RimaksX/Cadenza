@@ -178,6 +178,10 @@ export component AppWindow inherits Window {
     callback create-playlist(string);
     callback rename-playlist(string, string);
     callback delete-playlist(string);
+    /// Put what is playing in the favourites, or take it out again.
+    callback toggle-favourite();
+    /// Whether what is playing is in them already.
+    in property <bool> now-favourite;
     callback add-to-playlist(string, string);
     callback create-playlist-with(string, string);
     callback remove-from-playlist(int);
@@ -339,6 +343,7 @@ export component AppWindow inherits Window {
         repeat-one: root.repeat-one;
         has-next: root.has-next;
         has-previous: root.has-previous;
+        now-favourite: root.now-favourite;
 
         play(id) => {
             root.play(id);
@@ -363,6 +368,9 @@ export component AppWindow inherits Window {
         }
         rename-playlist(id, name) => {
             root.rename-playlist(id, name);
+        }
+        toggle-favourite => {
+            root.toggle-favourite();
         }
         delete-playlist(id) => {
             root.delete-playlist(id);
