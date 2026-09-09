@@ -126,6 +126,7 @@ fn run() -> std::result::Result<(), String> {
             artwork: Arc::clone(&artwork),
             picker: Arc::new(SystemFolderPicker),
             files: Arc::new(LocalFileSystem),
+            stats: Arc::new(SqliteHistoryRepository::new(pool.clone())),
         },
     ));
 

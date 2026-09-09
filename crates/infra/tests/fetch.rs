@@ -21,7 +21,7 @@ use cadenza_core::domain::ports::fetcher::{
 };
 use cadenza_core::domain::ports::folder_picker::FolderPickerPort;
 use cadenza_infra::db::repositories::{
-    SqliteAlbumRepository, SqliteArtistRepository, SqliteGenreRepository,
+    SqliteAlbumRepository, SqliteArtistRepository, SqliteGenreRepository, SqliteHistoryRepository,
     SqliteImportReviewRepository, SqliteMediaFileRepository, SqlitePlaylistRepository,
     SqliteProfileRepository, SqliteSettingsRepository, SqliteTrackRepository,
 };
@@ -241,6 +241,7 @@ fn harness(tag: &str, fetcher: FakeFetcher) -> Harness {
             artwork: Arc::new(FileArtworkCache::new(db.directory().join("art")).expect("a cache")),
             picker: Arc::new(Suggesting(local.clone())),
             files: Arc::new(LocalFileSystem),
+            stats: Arc::new(SqliteHistoryRepository::new(db.pool().clone())),
         },
     ));
 

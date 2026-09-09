@@ -218,6 +218,10 @@ impl Controller {
         self.refresh_interface_scale();
         self.refresh_library();
         self.refresh_queue();
+        // Before the lists are drawn, so the favourites list is in them and is
+        // current: a month of listening may have happened in another session,
+        // or in this one before an upgrade brought the list into existence.
+        self.refresh_favourites();
         self.refresh_playlists();
         self.refresh_eq();
         self.refresh_settings();
@@ -658,8 +662,29 @@ impl Controller {
         match self.services.queue.poll() {
             // Only when a track actually changed, so the tick does not turn a
             // listing query into a background load.
-            Ok(true) => self.refresh_queue(),
+            Ok(true) => {
+                self.refresh_queue();
+                // A track that ended is a listen that was just written down,
+                // which is the only thing that can move the favourites list.
+                // It writes nothing when the order has not changed, so most of
+                // these cost two reads.
+                self.refresh_favourites();
+            }
             Ok(false) => {}
+            Err(err) => self.report(&err),
+        }
+    }
+
+    /// Rebuilds the played part of the favourites list.
+    ///
+    /// A first run with nobody listening yet has nothing to rebuild, which is
+    /// a state rather than a failure. Anything else is reported the way every
+    /// other failure here is - the list is rebuilt from the counts whenever a
+    /// track ends, so a listener who sees this once and not again has already
+    /// had it put right.
+    fn refresh_favourites(&self) {
+        match self.services.playlists.refresh_favourites() {
+            Ok(()) | Err(CoreError::NoActiveProfile) => {}
             Err(err) => self.report(&err),
         }
     }

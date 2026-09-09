@@ -107,7 +107,7 @@ impl PlaylistRepositoryPort for SqlitePlaylistRepository {
         let connection = self.pool.get()?;
         let mut statement = connection
             .prepare(
-                "SELECT id, playlist_id, media_file_id, position, added_at
+                "SELECT id, playlist_id, media_file_id, position, added_at, by_hand
                  FROM playlist_items WHERE playlist_id = ?1
                  ORDER BY position",
             )
@@ -139,8 +139,8 @@ impl PlaylistRepositoryPort for SqlitePlaylistRepository {
             let mut insert = transaction
                 .prepare(
                     "INSERT INTO playlist_items
-                         (id, playlist_id, media_file_id, position, added_at)
-                     VALUES (?1, ?2, ?3, ?4, ?5)",
+                         (id, playlist_id, media_file_id, position, added_at, by_hand)
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
                 )
                 .map_err(db_error_in("rewriting a playlist"))?;
 
@@ -155,6 +155,7 @@ impl PlaylistRepositoryPort for SqlitePlaylistRepository {
                         item.media_file_id.to_string(),
                         i64::from(item.position),
                         item.added_at.as_millis(),
+                        i64::from(item.by_hand),
                     ])
                     .map_err(db_error_in("rewriting a playlist"))?;
             }
@@ -224,6 +225,7 @@ struct ItemRow {
     media_file_id: String,
     position: i64,
     added_at: i64,
+    by_hand: i64,
 }
 
 impl ItemRow {
@@ -234,6 +236,7 @@ impl ItemRow {
             media_file_id: row.get("media_file_id")?,
             position: row.get("position")?,
             added_at: row.get("added_at")?,
+            by_hand: row.get("by_hand")?,
         })
     }
 
@@ -246,6 +249,7 @@ impl ItemRow {
             // not fit is a database written by something else.
             position: u32::try_from(self.position).unwrap_or(0),
             added_at: Timestamp::from_millis(self.added_at),
+            by_hand: self.by_hand != 0,
         })
     }
 }

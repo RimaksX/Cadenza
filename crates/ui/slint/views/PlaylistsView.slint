@@ -16,6 +16,9 @@ export struct PlaylistCardData {
     cover: image,
     /// Whether there is a cover to take off again.
     has-cover: bool,
+    /// Whether this is the automatic favourites list, which cannot be renamed
+    /// or deleted and so is offered neither.
+    automatic: bool,
 }
 
 // One playlist as a tile: a square, and its name and size beneath.
@@ -215,8 +218,20 @@ export component PlaylistCard inherits Rectangle {
                             { action: "" },
                             { action: "delete", label: "Delete playlist", destructive: true },
                         ];
+                        // The favourites list keeps its name and its place. It
+                        // may still be given a picture: that is a decoration,
+                        // not a change to what the list is.
+                        property <[MenuItemData]> automatic-without-cover: [
+                            { action: "cover", label: "Choose a cover…" },
+                        ];
+                        property <[MenuItemData]> automatic-with-cover: [
+                            { action: "cover", label: "Change the cover…" },
+                            { action: "uncover", label: "Remove the cover" },
+                        ];
 
-                        items: root.data.has-cover ? self.with-cover : self.without-cover;
+                        items: root.data.automatic
+                            ? (root.data.has-cover ? self.automatic-with-cover : self.automatic-without-cover)
+                            : (root.data.has-cover ? self.with-cover : self.without-cover);
                         chosen(action) => {
                             root.acted(action);
                         }

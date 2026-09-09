@@ -10,19 +10,22 @@ use std::sync::Arc;
 use cadenza_core::CoreError;
 use cadenza_core::application::services::{PlaylistPorts, PlaylistService};
 use cadenza_core::application::{AppContext, ProfileService};
-use cadenza_core::domain::ids::{MediaFileId, ProfileId};
+use cadenza_core::domain::ids::{MediaFileId, PlayEventId, ProfileId};
 use cadenza_core::domain::media_file::{AudioFormat, AudioProperties, FileState, MediaFile};
-use cadenza_core::domain::ports::repositories::{MediaFileRepositoryPort, TrackRepositoryPort};
+use cadenza_core::domain::ports::repositories::{
+    MediaFileRepositoryPort, PlayEventRepositoryPort, TrackRepositoryPort,
+};
+use cadenza_core::domain::stats::{PlayEvent, PlayOutcome, PlaySource};
 use cadenza_core::domain::track::Track;
 use cadenza_core::domain::value_objects::{DurationMs, Timestamp};
 use cadenza_infra::db::repositories::{
-    SqliteMediaFileRepository, SqlitePlaylistRepository, SqliteProfileRepository,
-    SqliteSettingsRepository, SqliteTrackRepository,
+    SqliteHistoryRepository, SqliteMediaFileRepository, SqlitePlaylistRepository,
+    SqliteProfileRepository, SqliteSettingsRepository, SqliteTrackRepository,
 };
 use cadenza_infra::events::InProcessEventBus;
 use cadenza_infra::library::LocalFileSystem;
 use cadenza_infra::metadata::FileArtworkCache;
-use cadenza_testkit::{TempDb, TestClock};
+use cadenza_testkit::{TempDb, TestClock, test_clock::DEFAULT_START};
 
 /// A profile with a four-track library and a playlist service over it.
 struct Harness {
@@ -92,6 +95,7 @@ fn service(db: &TempDb, profile_id: ProfileId) -> PlaylistService {
             ),
             picker: Arc::new(NoPicker),
             files: Arc::new(LocalFileSystem),
+            stats: Arc::new(SqliteHistoryRepository::new(db.pool().clone())),
         },
     )
 }
@@ -378,5 +382,248 @@ fn a_track_the_profile_does_not_have_cannot_be_added() {
             .add_track(playlist.id, MediaFileId::new())
             .is_err(),
         "a playlist entry has to stand for something the profile can play"
+    );
+}
+
+impl Harness {
+    /// Writes down `times` finished listens of a track.
+    ///
+    /// Through the real repository, because what the favourites list counts is
+    /// what `top_tracks` counts, and a test that inserted its own rows would be
+    /// asserting against its own idea of the schema.
+    fn played(&self, media_file_id: MediaFileId, times: u32) {
+        let history = SqliteHistoryRepository::new(self.db.pool().clone());
+        for index in 0..times {
+            history
+                .append(&PlayEvent {
+                    id: PlayEventId::new(),
+                    profile_id: self.profile_id,
+                    media_file_id,
+                    source: PlaySource::Library,
+                    // Inside the retained window, which is what the count
+                    // covers: an event stamped at the epoch is a month of
+                    // listening the history has already forgotten.
+                    started_at: Timestamp::from_millis(
+                        DEFAULT_START.as_millis() - 1_000 + i64::from(index),
+                    ),
+                    ended_at: Some(Timestamp::from_millis(DEFAULT_START.as_millis())),
+                    played: DurationMs::from_secs(180),
+                    duration: DurationMs::from_secs(200),
+                    outcome: PlayOutcome::Completed,
+                })
+                .expect("recorded");
+        }
+    }
+
+    /// Skipped listens, which are listens and are not favourites.
+    fn skipped(&self, media_file_id: MediaFileId, times: u32) {
+        let history = SqliteHistoryRepository::new(self.db.pool().clone());
+        for index in 0..times {
+            history
+                .append(&PlayEvent {
+                    id: PlayEventId::new(),
+                    profile_id: self.profile_id,
+                    media_file_id,
+                    source: PlaySource::Library,
+                    started_at: Timestamp::from_millis(
+                        DEFAULT_START.as_millis() - 1_000 + i64::from(index),
+                    ),
+                    ended_at: Some(Timestamp::from_millis(DEFAULT_START.as_millis())),
+                    played: DurationMs::from_secs(2),
+                    duration: DurationMs::from_secs(200),
+                    outcome: PlayOutcome::Skipped,
+                })
+                .expect("recorded");
+        }
+    }
+
+    /// The titles in the favourites list, in the order it holds them.
+    fn favourites(&self) -> Vec<String> {
+        let list = self.playlists.favourites().expect("a favourites list");
+        self.playlists
+            .tracks_of(list.id)
+            .expect("its tracks")
+            .into_iter()
+            .map(|summary| summary.title)
+            .collect()
+    }
+}
+
+#[test]
+fn the_favourites_list_is_there_without_anybody_making_it() {
+    let harness = harness();
+
+    let list = harness.playlists.favourites().expect("a favourites list");
+    assert_eq!(list.name, "Favourites");
+    assert!(list.is_favourites());
+    assert!(
+        !list.is_manually_ordered(),
+        "its order is the play count's, so nothing may be dragged in it"
+    );
+
+    // Asking twice is asking about the same list, not making a second one.
+    let again = harness.playlists.favourites().expect("the same list");
+    assert_eq!(again.id, list.id);
+    assert_eq!(
+        harness.playlists.list().expect("a listing").len(),
+        1,
+        "one list, however many times it was asked for"
+    );
+}
+
+#[test]
+fn the_favourites_list_cannot_be_renamed_or_deleted() {
+    let harness = harness();
+    let list = harness.playlists.favourites().expect("a favourites list");
+
+    assert!(
+        harness.playlists.rename(list.id, "Rubbish").is_err(),
+        "it is the list a listener gets back to"
+    );
+    assert!(harness.playlists.delete(list.id).is_err());
+    assert_eq!(
+        harness.playlists.get(list.id).expect("still there").name,
+        "Favourites"
+    );
+}
+
+#[test]
+fn a_track_played_twice_is_a_favourite_and_one_played_once_is_not() {
+    let harness = harness();
+
+    harness.played(harness.tracks[0], 5);
+    harness.played(harness.tracks[1], 2);
+    harness.played(harness.tracks[2], 1);
+    harness.skipped(harness.tracks[3], 9);
+
+    harness.playlists.refresh_favourites().expect("rebuilt");
+
+    assert_eq!(
+        harness.favourites(),
+        vec!["one", "two"],
+        "most played first; once is not coming back to it, and nine skips are          not a favourite however many there are"
+    );
+}
+
+#[test]
+fn what_was_pinned_stays_when_the_counts_move() {
+    let harness = harness();
+    let list = harness.playlists.favourites().expect("a favourites list");
+
+    // Pinned by hand, and never played.
+    harness
+        .playlists
+        .add_track(list.id, harness.tracks[3])
+        .expect("pinned");
+    harness.played(harness.tracks[0], 4);
+    harness.playlists.refresh_favourites().expect("rebuilt");
+
+    assert_eq!(
+        harness.favourites(),
+        vec!["four", "one"],
+        "what was pinned is on top, and what is played follows it"
+    );
+
+    // A second rebuild is the same answer, not a growing list.
+    harness
+        .playlists
+        .refresh_favourites()
+        .expect("rebuilt again");
+    assert_eq!(harness.favourites(), vec!["four", "one"]);
+}
+
+#[test]
+fn pinning_a_track_that_is_already_there_makes_it_stay() {
+    let harness = harness();
+    let list = harness.playlists.favourites().expect("a favourites list");
+
+    harness.played(harness.tracks[0], 3);
+    harness.playlists.refresh_favourites().expect("rebuilt");
+    assert_eq!(harness.favourites(), vec!["one"]);
+
+    // The listener says so themselves. Nothing visible changes - and then the
+    // history goes, as a thirty-day history does, and the difference shows.
+    harness
+        .playlists
+        .add_track(list.id, harness.tracks[0])
+        .expect("pinned");
+    assert_eq!(harness.favourites(), vec!["one"], "still one row, not two");
+
+    SqliteHistoryRepository::new(harness.db.pool().clone())
+        .purge_all(harness.profile_id)
+        .expect("a month went by");
+    harness.playlists.refresh_favourites().expect("rebuilt");
+
+    assert_eq!(
+        harness.favourites(),
+        vec!["one"],
+        "a pinned track outlives the count that first put it there"
+    );
+}
+
+#[test]
+fn a_track_that_is_there_because_it_is_played_cannot_be_taken_out() {
+    let harness = harness();
+    let list = harness.playlists.favourites().expect("a favourites list");
+
+    harness.played(harness.tracks[0], 4);
+    harness
+        .playlists
+        .add_track(list.id, harness.tracks[3])
+        .expect("pinned");
+    harness.playlists.refresh_favourites().expect("rebuilt");
+    assert_eq!(harness.favourites(), vec!["four", "one"]);
+
+    // Row 1 is there because of the count, and removing it would only bring it
+    // back the next time a track ended.
+    assert!(
+        harness.playlists.remove_at(list.id, 1).is_err(),
+        "there is nothing this could mean that would last"
+    );
+
+    // Row 0 was pinned by hand, and unpinning it is a thing a listener can do.
+    harness.playlists.remove_at(list.id, 0).expect("unpinned");
+    assert_eq!(harness.favourites(), vec!["one"]);
+}
+
+#[test]
+fn a_listener_who_already_has_a_list_called_favourites_keeps_it() {
+    let harness = harness();
+    let mine = harness.playlists.create("Favourites").expect("my own list");
+
+    let automatic = harness.playlists.favourites().expect("a favourites list");
+
+    assert_ne!(automatic.id, mine.id);
+    assert_eq!(automatic.name, "Favourites 2");
+    assert_eq!(
+        harness.playlists.get(mine.id).expect("still mine").name,
+        "Favourites",
+        "and theirs is untouched"
+    );
+}
+
+#[test]
+fn a_favourite_whose_file_has_left_the_library_leaves_with_it() {
+    let harness = harness();
+    harness.played(harness.tracks[0], 4);
+    harness.played(harness.tracks[1], 3);
+    harness.playlists.refresh_favourites().expect("rebuilt");
+    assert_eq!(harness.favourites(), vec!["one", "two"]);
+
+    // Removed from the library the way the library removes things.
+    let tracks = SqliteTrackRepository::new(harness.db.pool().clone());
+    tracks
+        .remove(
+            harness.profile_id,
+            harness.tracks[0],
+            Timestamp::from_millis(DEFAULT_START.as_millis()),
+        )
+        .expect("gone from the library");
+
+    harness.playlists.refresh_favourites().expect("rebuilt");
+    assert_eq!(
+        harness.favourites(),
+        vec!["two"],
+        "there is nothing left to play, so it is not a favourite"
     );
 }

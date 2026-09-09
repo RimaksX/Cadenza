@@ -387,6 +387,7 @@ impl Harness {
                 media_file_id: *media_file_id,
                 position: position as u32,
                 added_at: Timestamp::from_millis(0),
+                by_hand: true,
             })
             .collect();
         repository

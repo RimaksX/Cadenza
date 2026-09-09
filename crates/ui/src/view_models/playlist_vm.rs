@@ -34,8 +34,14 @@ pub fn cards(summaries: &[PlaylistSummary]) -> Vec<PlaylistCardData> {
                 // arrive as capitals.
                 position: format!("№ {:02}", index + 1).into(),
                 // What the album tile puts here is the artist. A playlist has no
-                // artist; what it has is whose list it is.
-                maker: "MADE BY YOU".into(),
+                // artist; what it has is whose list it is - or, for the one
+                // nobody made, where it came from.
+                maker: if summary.playlist.is_favourites() {
+                    "FROM WHAT YOU PLAY".into()
+                } else {
+                    "MADE BY YOU".into()
+                },
+                automatic: summary.playlist.is_favourites(),
                 meta: meta(summary).into(),
                 // Asked of the picture rather than of the path: a file that
                 // will not decode is not a cover, and a tile that hides its

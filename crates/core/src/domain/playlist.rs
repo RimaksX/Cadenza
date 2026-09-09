@@ -7,6 +7,30 @@ use crate::{CoreError, Result};
 /// Longest playlist name accepted, in characters.
 pub const MAX_PLAYLIST_NAME_CHARS: usize = 128;
 
+/// What the automatic favourites list is called.
+pub const FAVOURITES_NAME: &str = "Favourites";
+
+/// The rule that marks a playlist as the automatic favourites list.
+///
+/// One exact string rather than a rule language. `rule_json` is still opaque to
+/// the domain - nothing here parses it - and this is a comparison, not a
+/// parser. When a second kind of automatic list exists there will be a reason
+/// to invent the language; there is not one yet (`MASTER_ISSUES` 139).
+pub const FAVOURITES_RULE: &str = "{\"auto\":\"favourites\"}";
+
+/// How many played tracks the favourites list holds at most.
+///
+/// Enough to be a record of a season's listening and few enough to still be a
+/// recommendation. Pinned tracks are on top of this, not inside it.
+pub const FAVOURITES_SIZE: u32 = 50;
+
+/// How many finished listens a track needs before it counts as a favourite.
+///
+/// Two, not one. Everything gets played once; coming back to it is the thing
+/// worth recording, and a threshold of one would make the list a list of the
+/// library in the order it was imported.
+pub const FAVOURITES_MIN_PLAYS: u32 = 2;
+
 /// A playlist belonging to one profile.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Playlist {
@@ -58,6 +82,15 @@ impl Playlist {
     pub const fn is_manually_ordered(&self) -> bool {
         !self.is_smart
     }
+
+    /// True when this is the profile's automatic favourites list.
+    ///
+    /// It cannot be renamed or deleted, for the reason the built-in moods
+    /// cannot: it is the thing a listener gets back to, and a list that has
+    /// been quietly turned into something else is not that.
+    pub fn is_favourites(&self) -> bool {
+        self.is_smart && self.rule_json.as_deref() == Some(FAVOURITES_RULE)
+    }
 }
 
 /// One entry in a manually curated playlist.
@@ -76,6 +109,13 @@ pub struct PlaylistItem {
     pub position: u32,
     /// When the entry was added.
     pub added_at: Timestamp,
+    /// True when a listener put this entry here.
+    ///
+    /// Always true for an ordinary playlist: somebody added every row of one.
+    /// The favourites list is the only place the two can differ, and there the
+    /// difference is what lets the played part be rebuilt without disturbing
+    /// what was pinned (`MASTER_ISSUES` 139).
+    pub by_hand: bool,
 }
 
 #[cfg(test)]

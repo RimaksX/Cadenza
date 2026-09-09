@@ -9,14 +9,20 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use crate::application::context::AppContext;
-use crate::domain::ids::{MediaFileId, PlaylistId, PlaylistItemId};
-use crate::domain::playlist::{Playlist, PlaylistItem};
+use crate::domain::ids::{MediaFileId, PlaylistId, PlaylistItemId, ProfileId};
+use crate::domain::playlist::{
+    FAVOURITES_MIN_PLAYS, FAVOURITES_NAME, FAVOURITES_RULE, FAVOURITES_SIZE, Playlist, PlaylistItem,
+};
 use crate::domain::policies::artwork_policy::looks_like_an_image;
+use crate::domain::policies::retention_policy;
 use crate::domain::ports::artwork_cache::{ArtworkCachePort, CoverOf};
 use crate::domain::ports::event_bus::DomainEvent;
 use crate::domain::ports::file_system::FileSystemPort;
 use crate::domain::ports::folder_picker::FolderPickerPort;
-use crate::domain::ports::repositories::{PlaylistRepositoryPort, TrackRepositoryPort};
+use crate::domain::ports::repositories::{
+    PlaylistRepositoryPort, StatsRepositoryPort, TrackRepositoryPort,
+};
+use crate::domain::profile::HISTORY_RETENTION_DAYS;
 use crate::domain::track::TrackSummary;
 use crate::domain::value_objects::DurationMs;
 use crate::{CoreError, Result};
@@ -33,6 +39,8 @@ pub struct PlaylistPorts {
     pub picker: Arc<dyn FolderPickerPort>,
     /// For reading the picture that was chosen, and nothing else.
     pub files: Arc<dyn FileSystemPort>,
+    /// What has been played, for the favourites list to be built from.
+    pub stats: Arc<dyn StatsRepositoryPort>,
 }
 
 /// Creating, editing and reading playlists.
@@ -106,7 +114,15 @@ impl PlaylistService {
                     duration,
                 })
             })
-            .collect()
+            .collect::<Result<Vec<PlaylistSummary>>>()
+            .map(|mut summaries| {
+                // The favourites list first, because it is the one a listener
+                // did not have to make and the one they will reach for most.
+                // A stable sort, so everything else keeps the order the
+                // repository gave it.
+                summaries.sort_by_key(|summary| !summary.playlist.is_favourites());
+                summaries
+            })
     }
 
     /// Creates an empty playlist.
@@ -144,6 +160,7 @@ impl PlaylistService {
     /// Changes a playlist's name.
     pub fn rename(&self, id: PlaylistId, name: &str) -> Result<Playlist> {
         let mut playlist = self.owned(id)?;
+        Self::not_the_favourites(&playlist, "renamed")?;
         let name = Playlist::validate_name(name)?;
 
         if let Some(existing) = self.find_by_name(playlist.profile_id, &name)?
@@ -165,6 +182,7 @@ impl PlaylistService {
     /// Deletes a playlist. The tracks stay in the library.
     pub fn delete(&self, id: PlaylistId) -> Result<()> {
         let playlist = self.owned(id)?;
+        Self::not_the_favourites(&playlist, "deleted")?;
         self.ports.playlists.delete(playlist.id)?;
         self.announce();
         Ok(())
@@ -179,12 +197,24 @@ impl PlaylistService {
         self.in_library(media_file_id)?;
 
         let mut items = self.ports.playlists.items(playlist.id)?;
+        // A track already in the favourites list because it is played a lot
+        // becomes a pinned one: the listener has now said so themselves, and
+        // that outranks a count that could fall.
+        if let Some(existing) = items
+            .iter_mut()
+            .find(|item| item.media_file_id == media_file_id && !item.by_hand)
+        {
+            existing.by_hand = true;
+            return self.write_items(&playlist, &mut items);
+        }
+
         items.push(PlaylistItem {
             id: PlaylistItemId::new(),
             playlist_id: playlist.id,
             media_file_id,
             position: u32::try_from(items.len()).unwrap_or(u32::MAX),
             added_at: self.context.clock.now(),
+            by_hand: true,
         });
 
         self.write_items(&playlist, &mut items)
@@ -195,8 +225,18 @@ impl PlaylistService {
         let playlist = self.owned(id)?;
         let mut items = self.ports.playlists.items(playlist.id)?;
 
-        if position >= items.len() {
+        let Some(item) = items.get(position) else {
             return Err(CoreError::not_found("playlist entry", position));
+        };
+
+        // A row that is in the favourites list because it is played a lot
+        // cannot be taken out of it: it would come back the next time the
+        // counts moved, which is a worse answer than not offering.
+        if playlist.is_favourites() && !item.by_hand {
+            return Err(CoreError::invalid(
+                "favourites",
+                "this one is here because you keep playing it",
+            ));
         }
         items.remove(position);
 
@@ -249,6 +289,146 @@ impl PlaylistService {
         self.owned(id)
     }
 
+    /// The profile's favourites list, made if it is not there yet.
+    ///
+    /// Made on demand rather than by a migration, because it belongs to a
+    /// profile and a migration cannot know how many of those there will be.
+    pub fn favourites(&self) -> Result<Playlist> {
+        let profile_id = self.context.require_active_profile()?;
+
+        if let Some(existing) = self
+            .ports
+            .playlists
+            .list_for_profile(profile_id)?
+            .into_iter()
+            .find(Playlist::is_favourites)
+        {
+            return Ok(existing);
+        }
+
+        let now = self.context.clock.now();
+        let playlist = Playlist {
+            id: PlaylistId::new(),
+            profile_id,
+            name: self.free_name(profile_id, FAVOURITES_NAME)?,
+            description: None,
+            is_smart: true,
+            rule_json: Some(FAVOURITES_RULE.to_owned()),
+            created_at: now,
+            updated_at: now,
+        };
+
+        self.ports.playlists.save(&playlist)?;
+        self.announce();
+        Ok(playlist)
+    }
+
+    /// Rebuilds the played part of the favourites list.
+    ///
+    /// Cheap enough to call whenever a track finishes: one grouped count over a
+    /// month of listens and one rewrite of at most fifty rows. It writes
+    /// nothing when the answer has not changed, so the ordinary case costs two
+    /// reads and raises no event.
+    ///
+    /// What was pinned stays pinned and stays on top, in the order it was
+    /// pinned. What follows is what the listener has actually come back to,
+    /// most-played first. Only finished listens count - `top_tracks` is where
+    /// that is decided - so a track skipped forty times is not a favourite.
+    pub fn refresh_favourites(&self) -> Result<()> {
+        let profile_id = self.context.require_active_profile()?;
+        let playlist = self.favourites()?;
+
+        let existing = self.ports.playlists.items(playlist.id)?;
+        let pinned: Vec<PlaylistItem> = existing
+            .iter()
+            .filter(|item| item.by_hand)
+            .cloned()
+            .collect();
+
+        // The whole retained window, which is the whole of what is known: the
+        // history is thirty days by policy and this counts what is inside it. A
+        // count that outlived the history would be a record of listening kept
+        // after the listening itself was forgotten, and that is not a decision
+        // to take quietly (`MASTER_ISSUES` 139).
+        let cutoff = retention_policy::cutoff(self.context.clock.now(), HISTORY_RETENTION_DAYS);
+
+        let library = self.ports.tracks.summaries_for_profile(profile_id)?;
+        let now = self.context.clock.now();
+        let played: Vec<PlaylistItem> = self
+            .ports
+            .stats
+            .top_tracks(profile_id, cutoff, FAVOURITES_SIZE)?
+            .into_iter()
+            .filter(|(_, plays)| *plays >= FAVOURITES_MIN_PLAYS)
+            // A track that has left the library is not a favourite any more:
+            // there is nothing left to play.
+            .filter(|(media_file_id, _)| {
+                library
+                    .iter()
+                    .any(|summary| summary.media_file_id == *media_file_id)
+            })
+            .filter(|(media_file_id, _)| {
+                !pinned
+                    .iter()
+                    .any(|item| item.media_file_id == *media_file_id)
+            })
+            .map(|(media_file_id, _)| PlaylistItem {
+                id: PlaylistItemId::new(),
+                playlist_id: playlist.id,
+                media_file_id,
+                position: 0,
+                added_at: now,
+                by_hand: false,
+            })
+            .collect();
+
+        let mut wanted = pinned;
+        wanted.extend(played);
+
+        // Identifiers are fresh every time this runs, so comparing the rows
+        // themselves would always find a difference. What matters is which
+        // tracks are there and in what order.
+        let before: Vec<MediaFileId> = existing.iter().map(|item| item.media_file_id).collect();
+        let after: Vec<MediaFileId> = wanted.iter().map(|item| item.media_file_id).collect();
+        if before == after {
+            return Ok(());
+        }
+
+        self.write_items(&playlist, &mut wanted)
+    }
+
+    /// Refuses an edit that would turn the favourites list into something else.
+    fn not_the_favourites(playlist: &Playlist, what: &str) -> Result<()> {
+        if playlist.is_favourites() {
+            return Err(CoreError::invalid(
+                "favourites",
+                format!("the favourites list cannot be {what}"),
+            ));
+        }
+        Ok(())
+    }
+
+    /// `wanted`, or the first free name after it.
+    ///
+    /// Names are unique per profile in the schema, and a listener may already
+    /// have a list called Favourites - made by hand, before this existed. Theirs
+    /// is theirs; the automatic one takes the next name along.
+    fn free_name(&self, profile_id: ProfileId, wanted: &str) -> Result<String> {
+        if self.find_by_name(profile_id, wanted)?.is_none() {
+            return Ok(wanted.to_owned());
+        }
+        for suffix in 2..100 {
+            let candidate = format!("{wanted} {suffix}");
+            if self.find_by_name(profile_id, &candidate)?.is_none() {
+                return Ok(candidate);
+            }
+        }
+        Err(CoreError::invalid(
+            "playlist name",
+            "every name this list could take is taken",
+        ))
+    }
+
     /// Renumbers and stores the entries.
     fn write_items(&self, playlist: &Playlist, items: &mut [PlaylistItem]) -> Result<()> {
         for (position, item) in items.iter_mut().enumerate() {
@@ -280,11 +460,7 @@ impl PlaylistService {
             .ok_or_else(|| CoreError::not_found("playlist", id))
     }
 
-    fn find_by_name(
-        &self,
-        profile_id: crate::domain::ids::ProfileId,
-        name: &str,
-    ) -> Result<Option<Playlist>> {
+    fn find_by_name(&self, profile_id: ProfileId, name: &str) -> Result<Option<Playlist>> {
         Ok(self
             .ports
             .playlists
