@@ -265,14 +265,20 @@ impl QueueService {
         };
 
         self.write_queue(|queue| {
+            // Everything stepped over has had its turn in this round as well
+            // as gone into the back-stack: shuffle must not offer a track the
+            // listener has just skipped past.
             if let Some(leaving) = queue.current.take() {
                 queue.history.push(leaving);
+                queue.round.push(leaving);
             }
 
             // A target in the continuation means the whole manual queue was
             // stepped over on the way to it.
             if lane == Lane::Upcoming {
-                queue.history.extend(queue.manual.drain(..));
+                let skipped: Vec<QueueEntry> = queue.manual.drain(..).collect();
+                queue.round.extend(skipped.iter().copied());
+                queue.history.extend(skipped);
             }
 
             let lane = match lane {
@@ -281,6 +287,7 @@ impl QueueService {
             };
             let mut passed: Vec<QueueEntry> = lane.drain(..=index).collect();
             let target = passed.pop().expect("the range ends at the target");
+            queue.round.extend(passed.iter().copied());
             queue.history.extend(passed);
             queue.current = Some(target);
         });
@@ -376,9 +383,15 @@ impl QueueService {
         let profile_id = self.context.require_active_profile()?;
         let library = self.ports.tracks.summaries_for_profile(profile_id)?;
 
+        // The round, not the back-stack. What shuffle must not offer again is
+        // what this pass has already played; where the listener has been over
+        // every session is a different question, and answering it here is what
+        // left a library of forty-one with a hundred and thirty-seven tracks
+        // "already heard" and shuffle with nothing to choose
+        // (`MASTER_ISSUES` 135).
         let (played, shuffle, repeat) = self.with_queue(|queue| {
             let played: Vec<MediaFileId> = queue
-                .history
+                .round
                 .iter()
                 .map(|entry| entry.media_file_id)
                 .collect();

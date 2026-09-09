@@ -100,7 +100,24 @@ pub struct Queue {
     /// radio batch.
     pub upcoming: VecDeque<QueueEntry>,
     /// Recently played entries, most recent last.
+    ///
+    /// The back-stack `previous` walks, and nothing else. It must survive
+    /// everything, which is why the round below is not kept here
+    /// (`MASTER_ISSUES` 135).
     pub history: Vec<QueueEntry>,
+    /// What the round now playing has already been through.
+    ///
+    /// A round is one pass over whatever is playing — the library, a playlist,
+    /// a radio batch — and it ends when nothing in it is left unheard. Shuffle
+    /// asks this what it has already played, and repeat-all rewinds it.
+    ///
+    /// It used to be the same list as `history`, and the two want opposite
+    /// lifetimes. For a playlist the rewind *consumed* the history, so going
+    /// back after a round ended had nowhere to go; for the library nothing
+    /// consumed it at all, so once every track had been heard the round never
+    /// ended and shuffle stopped for good — on this machine, 137 entries of
+    /// history over a library of 41 (`MASTER_ISSUES` 135).
+    pub round: Vec<QueueEntry>,
     /// What is playing now, if anything.
     pub current: Option<QueueEntry>,
     /// Repeat behaviour.
@@ -117,6 +134,7 @@ impl Queue {
             manual: VecDeque::new(),
             upcoming: VecDeque::new(),
             history: Vec::new(),
+            round: Vec::new(),
             current: None,
             repeat: RepeatMode::default(),
             shuffle: false,
@@ -182,8 +200,8 @@ impl Queue {
 
         if self.repeat == RepeatMode::All && self.holds_its_own_round() {
             // What played first plays first again, and a list of one is still a
-            // list: with no history to rewind, the current track follows itself.
-            return self.history.first().copied().or(self.current);
+            // list: with no round to rewind, the current track follows itself.
+            return self.round.first().copied().or(self.current);
         }
 
         None
@@ -213,7 +231,7 @@ impl Queue {
             // was doing exactly that (`MASTER_ISSUES` 94). The track that is
             // ending is not among them yet: it is pushed below, and so leads
             // the round after this one.
-            let mut round = std::mem::take(&mut self.history);
+            let mut round = std::mem::take(&mut self.round);
             if self.shuffle {
                 crate::domain::policies::shuffle_policy::shuffle(&mut round, seed);
             }
@@ -231,9 +249,11 @@ impl Queue {
             .pop_front()
             .or_else(|| self.upcoming.pop_front());
 
-        // A track that ran out is history whether or not anything follows it.
+        // A track that ran out is history whether or not anything follows it,
+        // and it has had its turn in this round either way.
         if let Some(finished) = self.current.take() {
             self.history.push(finished);
+            self.round.push(finished);
         }
         self.current = next;
         next
@@ -266,6 +286,12 @@ impl Queue {
     pub fn start(&mut self, entry: QueueEntry, continuation: Vec<QueueEntry>) {
         self.upcoming = continuation.into();
         self.move_to(entry);
+
+        // After the move, not before: `move_to` puts the track being left into
+        // the round, and that track belongs to the round that is ending. A new
+        // round has heard nothing yet — the track now starting joins it when it
+        // finishes, like every other (`MASTER_ISSUES` 135).
+        self.begin_round();
     }
 
     /// Moves to an entry that was never waiting in either lane.
@@ -276,8 +302,23 @@ impl Queue {
     pub fn move_to(&mut self, entry: QueueEntry) {
         if let Some(leaving) = self.current.take() {
             self.history.push(leaving);
+            self.round.push(leaving);
         }
         self.current = Some(entry);
+    }
+
+    /// Begins a round: what is about to play is the first of a new pass.
+    ///
+    /// Called when the listener starts something — a track, a playlist, a
+    /// station — rather than when one ends. A round that only ever ended would
+    /// be a round that, once finished, stayed finished: which is what happened
+    /// to the library's, and why shuffle had nothing left to choose
+    /// (`MASTER_ISSUES` 135).
+    ///
+    /// The back-stack is left alone. Starting something new is not forgetting
+    /// where you have been.
+    pub fn begin_round(&mut self) {
+        self.round.clear();
     }
 }
 
@@ -302,7 +343,9 @@ mod tests {
             let mut queue = Queue::new(ProfileId::new());
             queue.repeat = RepeatMode::All;
             queue.shuffle = true;
-            queue.history = played.clone();
+            // The round, which is what a rewind rewinds. It used to be the
+            // back-stack, and the two are separate now (`MASTER_ISSUES` 135).
+            queue.round = played.clone();
             queue.current = Some(entry(list));
 
             // `advance` refills and then takes the first of the refill, so

@@ -716,6 +716,81 @@ fn shuffle_plays_the_library_in_some_order_without_repeating_itself() {
 }
 
 #[test]
+fn a_shuffled_library_played_to_the_end_can_be_played_again() {
+    // The defect this is here for: what shuffle had already heard was read from
+    // the back-stack, which nothing ever cleared. So a library played through
+    // once was a library where every track was "heard" for ever, and every
+    // press of play afterwards ended at the first track — the listener saw one
+    // song play and then silence, with no way back short of deleting the
+    // database (`MASTER_ISSUES` 135).
+    let harness = harness();
+    harness
+        .queue
+        .play_from_library(harness.tracks[0])
+        .expect("played");
+    harness.queue.toggle_shuffle().expect("shuffled");
+
+    // The whole library, and then one more finish with nowhere to go.
+    for _ in 0..4 {
+        harness.engine.finish();
+        harness.queue.poll().expect("polled");
+    }
+    assert_eq!(
+        harness.engine.heard().len(),
+        4,
+        "every track had its turn and then it stopped"
+    );
+
+    // Starting again is a new round, and a new round has heard nothing.
+    harness
+        .queue
+        .play_from_library(harness.tracks[0])
+        .expect("played again");
+    for _ in 0..3 {
+        harness.engine.finish();
+        harness.queue.poll().expect("polled");
+    }
+
+    let second = &harness.engine.heard()[4..];
+    assert_eq!(
+        second.len(),
+        4,
+        "the second round played the library through as well"
+    );
+    let mut sorted = second.to_vec();
+    sorted.sort();
+    assert_eq!(
+        sorted,
+        vec!["four", "one", "three", "two"],
+        "all four of them, and none twice"
+    );
+}
+
+#[test]
+fn the_back_stack_survives_a_round_ending() {
+    // The other half of the same separation. A playlist that reaches its end
+    // under repeat-all rewinds the round — and that rewind used to consume the
+    // back-stack, so the previous-track button went dead exactly when somebody
+    // had most reason to press it.
+    let harness = harness();
+    harness
+        .queue
+        .play_from_library(harness.tracks[0])
+        .expect("played");
+    harness.queue.cycle_repeat().expect("repeat all");
+
+    for _ in 0..4 {
+        harness.engine.finish();
+        harness.queue.poll().expect("polled");
+    }
+
+    assert!(
+        harness.queue.view().has_previous,
+        "four tracks have played, so there is somewhere to go back to"
+    );
+}
+
+#[test]
 fn shuffle_does_not_jump_the_queue() {
     let harness = harness();
     harness

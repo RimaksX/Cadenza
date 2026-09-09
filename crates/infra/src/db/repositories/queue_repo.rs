@@ -74,6 +74,7 @@ impl QueueRepositoryPort for SqliteQueueRepository {
                 "manual" => queue.manual.push_back(entry),
                 "upcoming" => queue.upcoming.push_back(entry),
                 "history" => queue.history.push(entry),
+                "round" => queue.round.push(entry),
                 other => {
                     return Err(CoreError::invalid(
                         "queue lane",
@@ -127,6 +128,7 @@ impl QueueRepositoryPort for SqliteQueueRepository {
                 ("manual", queue.manual.iter().collect()),
                 ("upcoming", queue.upcoming.iter().collect()),
                 ("history", queue.history.iter().collect()),
+                ("round", queue.round.iter().collect()),
             ];
 
             for (lane, entries) in lanes {
