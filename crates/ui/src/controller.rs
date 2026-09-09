@@ -26,14 +26,15 @@ use cadenza_core::domain::track::TrackSummary;
 use cadenza_core::domain::value_objects::theme_mode::ThemeMode;
 use cadenza_core::domain::value_objects::{DurationMs, GainDb, PlaybackPosition, Volume};
 use cadenza_core::{CoreError, Result};
-use slint::{ComponentHandle, Model, ModelRc, VecModel, Weak};
+use slint::{ComponentHandle, Model, ModelRc, SharedString, VecModel, Weak};
 
 use crate::track_rows::{Covers, TrackRows};
+use crate::view_models::library_vm::Order;
 use crate::view_models::{
     self, eq_vm, library_vm, player_vm, playlist_vm, profile_vm, radio_vm, review_vm, stats_vm,
 };
 use crate::{
-    AppWindow, EqBandData, FolderRowData, MoodRowData, ProfileRowData, ReviewRowData,
+    AppWindow, EqBandData, FolderRowData, MenuItemData, MoodRowData, ProfileRowData, ReviewRowData,
     TakenOutRowData, Theme, TopTrackData, UiServices,
 };
 
@@ -177,6 +178,13 @@ pub struct Controller {
     sized_for: Cell<f32>,
     /// The fetch in progress, if there is one.
     fetching: Arc<Fetching>,
+    /// The order the library is shown in.
+    ///
+    /// Interface state, like the search query beside it: which way a list is
+    /// turned is nobody's business but the window's, and it is not worth a
+    /// column in the database until somebody asks for it to be remembered
+    /// between runs (`MASTER_ISSUES` 132).
+    order: Cell<Order>,
 }
 
 impl Controller {
@@ -198,6 +206,7 @@ impl Controller {
             selected_band: Cell::new(0),
             sized_for: Cell::new(1.0),
             fetching: Arc::new(Fetching::default()),
+            order: Cell::new(Order::default()),
         }
     }
 
@@ -228,6 +237,22 @@ impl Controller {
         // nobody created, the shell is replaced by the one screen that asks
         // (`MASTER_ISSUES` 128).
         window.set_first_run(self.profile.borrow().is_none());
+
+        // The orders on offer, and the one in force. Built here rather than in
+        // the markup: what a library can be sorted by is a decision, and the
+        // markup is where decisions are drawn rather than made.
+        window.set_order_label(self.order.get().label().into());
+        window.set_orders(ModelRc::new(VecModel::from(
+            Order::all()
+                .into_iter()
+                .map(|order| MenuItemData {
+                    action: order.name().into(),
+                    label: order.label().into(),
+                    meta: SharedString::new(),
+                    destructive: false,
+                })
+                .collect::<Vec<_>>(),
+        )));
 
         match self.profile.borrow().as_ref() {
             Some(profile) => {
@@ -279,13 +304,36 @@ impl Controller {
         self.show_library(&window, &query);
     }
 
+    /// Which row of the library as it is shown is the one playing, or -1.
+    ///
+    /// The library as *shown*: an order and a search both move it, and pointing
+    /// at where a track would be in some other arrangement would scroll to the
+    /// wrong row.
+    fn playing_row(&self, playing_id: &str) -> i32 {
+        if playing_id.is_empty() {
+            return -1;
+        }
+
+        let summaries = self.shown_library.borrow();
+        let query = self.query.borrow().clone();
+        let mut shown = library_vm::matching(&summaries, &query);
+        library_vm::arrange(&mut shown, self.order.get());
+
+        shown
+            .iter()
+            .position(|row| row.media_file_id.to_string() == playing_id)
+            .and_then(|at| i32::try_from(at).ok())
+            .unwrap_or(-1)
+    }
+
     /// Draws the library that was last read, filtered by whatever is typed.
     ///
     /// Both callers pass the query rather than reading it, because one of them
     /// is in the middle of writing it.
     fn show_library(&self, window: &AppWindow, query: &str) {
         let summaries = self.shown_library.borrow();
-        let shown = library_vm::matching(&summaries, query);
+        let mut shown = library_vm::matching(&summaries, query);
+        library_vm::arrange(&mut shown, self.order.get());
 
         window.set_library_summary(library_vm::found_line(&shown, query, summaries.len()).into());
         window.set_empty_hint(if query.is_empty() {
@@ -298,6 +346,20 @@ impl Controller {
             Rc::clone(&self.covers),
             &shown,
         )));
+    }
+
+    /// Turns the library another way round.
+    ///
+    /// Re-sorts what was already read rather than reading it again, for the
+    /// same reason searching does: an order is not a change to the library.
+    pub fn set_order(&self, name: &str) {
+        self.order.set(Order::from_name(name));
+
+        if let Some(window) = self.window.upgrade() {
+            window.set_order_label(self.order.get().label().into());
+            let query = self.query.borrow().clone();
+            self.show_library(&window, &query);
+        }
     }
 
     /// Filters the library by what has been typed into its search field.
@@ -336,6 +398,13 @@ impl Controller {
         window.set_now_position(shown.position.as_str().into());
         window.set_now_duration(shown.duration.as_str().into());
         window.set_playing_id(shown.playing_id.as_str().into());
+
+        // And where that row is in the list as it is currently ordered and
+        // filtered, so that the player bar can point at it. Counted here
+        // because the markup cannot search a model, and recounted whenever the
+        // player changes: a track that finishes moves the answer
+        // (`MASTER_ISSUES` 133).
+        window.set_playing_row(self.playing_row(&shown.playing_id));
         window.set_progress(shown.progress);
         window.set_playing(shown.playing);
         window.set_loaded(shown.loaded);

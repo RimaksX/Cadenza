@@ -56,6 +56,13 @@ export component AppShell inherits Rectangle {
     /// True while nobody has been created yet, which is the one state where
     /// none of the rest of this shell means anything.
     in property <bool> first-run;
+    /// What the library is ordered by, and what it may be ordered by.
+    in-out property <string> query;
+    in-out property <int> reach-for-search;
+    in property <int> playing-row;
+    in-out property <int> reach-for-playing;
+    in property <string> order-label;
+    in property <[MenuItemData]> orders;
     in property <[TakenOutRowData]> taken-out;
     in property <int> gone-for-good;
     in property <int> outside-folders;
@@ -98,7 +105,9 @@ export component AppShell inherits Rectangle {
 
     /// The screen showing. Held here rather than passed in, because navigation
     /// changes nothing outside the window.
-    property <string> section: "library";
+    // In-out, so the window can move somebody to a page: pressing what is
+    // playing takes you to the library whichever page you were on.
+    in-out property <string> section: "library";
 
     /// Which question is open, if any: "" while none is. The shell owns this
     /// because a modal covers the whole window, and because what it asks about
@@ -198,6 +207,7 @@ export component AppShell inherits Rectangle {
     callback remove-folder(string);
     callback synchronise-folder(string);
     callback restore-track(string);
+    callback set-order(string);
     /// A name, and whether to make the folder that was offered with it.
     callback start-here(string, bool);
     callback forget-gone();
@@ -266,6 +276,16 @@ export component AppShell inherits Rectangle {
             // screen being opened re-reads what it draws.
             if root.section == "library": LibraryView {
                 searchable: true;
+                query <=> root.query;
+                reach-for-search: root.reach-for-search;
+                playing-row: root.playing-row;
+                reach-for-playing: root.reach-for-playing;
+                sortable: true;
+                order-label: root.order-label;
+                orders: root.orders;
+                set-order(order) => {
+                    root.set-order(order);
+                }
                 fetchable: true;
                 link <=> root.link;
                 fetching: root.fetching;
@@ -551,6 +571,11 @@ export component AppShell inherits Rectangle {
         }
 
         if !root.first-run: PlayerBar {
+            show-playing => {
+                root.section = "library";
+                root.showing("library");
+                root.reach-for-playing += 1;
+            }
             title: root.now-title;
             subtitle: root.now-subtitle;
             initial: root.now-initial;

@@ -260,10 +260,18 @@ component Fader inherits Rectangle {
     callback chosen();
     callback settled();
 
-    // Always the same width, whatever its numbers read. A column sized by its
-    // label is a column that changes width when the value does, and a bank of
-    // them shuffles under the hand as it is being used.
-    width: Theme.px(64);
+    // Always the same width as its neighbours, whatever its numbers read: a
+    // column sized by its label changes width when the value does, and a bank
+    // of them shuffles under the hand as it is being used.
+    //
+    // A preferred width and a floor rather than one number, which is the whole
+    // of the fix for a window at its smallest. Eight of these at 64 with their
+    // gaps want 540, and the smallest window leaves the left column 408 — a
+    // stated width cannot shrink, so the bank ran off the page and took the
+    // last two bands with it (`MASTER_ISSUES` 131). Between 46 and 64 they
+    // divide what there is and stay a bank.
+    preferred-width: Theme.px(64);
+    min-width: Theme.px(46);
 
     VerticalLayout {
         spacing: Theme.space-2;
@@ -737,28 +745,28 @@ export component EqualiserView inherits Rectangle {
 
                         TextButton {
                             label: "LOWER";
-                            fixed-width: Theme.px(98);
+                            fixed-width: Theme.px(94);
                             pressed => {
                                 root.tune-band(root.selected, -1);
                             }
                         }
                         TextButton {
                             label: "HIGHER";
-                            fixed-width: Theme.px(98);
+                            fixed-width: Theme.px(94);
                             pressed => {
                                 root.tune-band(root.selected, 1);
                             }
                         }
                         TextButton {
                             label: "WIDER";
-                            fixed-width: Theme.px(98);
+                            fixed-width: Theme.px(94);
                             pressed => {
                                 root.widen-band(root.selected, -0.3);
                             }
                         }
                         TextButton {
                             label: "NARROWER";
-                            fixed-width: Theme.px(98);
+                            fixed-width: Theme.px(94);
                             pressed => {
                                 root.widen-band(root.selected, 0.3);
                             }

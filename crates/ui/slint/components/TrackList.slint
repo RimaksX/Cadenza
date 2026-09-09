@@ -1,5 +1,6 @@
 import { ListView } from "std-widgets.slint";
 import { Theme } from "../theme/tokens.slint";
+import { RowMenu, MenuItemData } from "RowMenu.slint";
 import { TrackRow, TrackRowData } from "TrackRow.slint";
 import { Transfer } from "Transfer.slint";
 import { TextButton } from "Dialog.slint";
@@ -32,6 +33,11 @@ export component TrackList inherits Rectangle {
     in property <string> heading;
     in property <string> summary;
     in property <string> playing-id;
+    /// Which row that is, or -1. Counted in Rust, where the rows are built:
+    /// the markup has no way to search a model for one.
+    in property <int> playing-row: -1;
+    /// Bumped when somebody asks to be shown the row that is playing.
+    in-out property <int> reach-for-playing;
     in property <string> empty-title;
     in property <string> empty-hint;
     /// Set to make the eyebrow a way back. Empty means this page is a
@@ -49,6 +55,18 @@ export component TrackList inherits Rectangle {
     /// Whether the head carries a search field. Only the library does: it is
     /// the only list long enough to lose something in.
     in property <bool> searchable;
+    /// Bumped when somebody asks for the search field by keyboard.
+    ///
+    /// A counter rather than a flag, because a flag can only be raised once:
+    /// the second Ctrl+F would set `true` to `true` and change nothing. What
+    /// matters is that it moved, and `changed` says so.
+    in-out property <int> reach-for-search;
+    /// Whether this page can be put in a different order. The library can; a
+    /// queue and a playlist are already in the order somebody meant.
+    in property <bool> sortable;
+    /// What the order control reads, and what the menu offers.
+    in property <string> order-label;
+    in property <[MenuItemData]> orders;
     in-out property <string> query <=> search.text;
     /// Whether the head carries the line that brings a track in from a link.
     /// Only the library does: it is the page about what you have, and this is
@@ -87,6 +105,7 @@ export component TrackList inherits Rectangle {
     callback back();
     callback act-on-page();
     callback searched(string);
+    callback set-order(string);
     callback fetch(string);
     /// Everything the playlist on the end of that link holds.
     callback fetch-playlist(string);
@@ -97,6 +116,33 @@ export component TrackList inherits Rectangle {
     callback make-local-folder();
 
     background: Theme.bg-0;
+
+    // Asked for from the keyboard. Only where there is a field to reach: on a
+    // page that does not search, Ctrl+F is a press with nothing behind it.
+    /// Where the list has been scrolled to.
+    ///
+    /// Bound both ways to the list's own offset: the list writes it as somebody
+    /// scrolls, and writing it scrolls the list. It exists because the list is
+    /// built inside a condition — a page with no tracks draws no list at all —
+    /// and an element inside a condition cannot be reached by name from out
+    /// here (`MASTER_ISSUES` 133).
+    in-out property <length> offset;
+
+    // Two rows above the one that is playing, rather than hard against the
+    // ceiling: a row at the very top reads as the beginning of the list rather
+    // than as a place in it, and what is above it is part of the answer to
+    // "where am I".
+    changed reach-for-playing => {
+        if (root.playing-row >= 0) {
+            root.offset = -(max(0, root.playing-row - 2) * Theme.row-height);
+        }
+    }
+
+    changed reach-for-search => {
+        if (root.searchable) {
+            search.focus();
+        }
+    }
 
     VerticalLayout {
         // The page head. One title, set large, with the count beneath it in the
@@ -196,6 +242,47 @@ export component TrackList inherits Rectangle {
                     }
                 }
 
+                // Side by side, because the library has two of them: the
+                // order it is in, and what is being looked for in it. They
+                // used to be stacked, which was invisible while only one page
+                // ever showed one.
+                HorizontalLayout {
+                    alignment: end;
+                    spacing: Theme.space-2;
+
+                    // Not inside a condition: a `PopupWindow` cannot be one,
+                    // and the alias below names it. Collapsed in both
+                    // directions where the page cannot be reordered, the same
+                    // way the search field is.
+                    VerticalLayout {
+                        alignment: center;
+
+                        Rectangle {
+                            width: root.sortable ? Theme.px(176) : 0px;
+                            height: root.sortable ? Theme.control-height : 0px;
+
+                            // A menu rather than a list drawn in place, for the
+                            // reason `RowMenu` gives: it has to cover what is
+                            // under it instead of pushing the page down.
+                            picker := RowMenu {
+                                x: 0;
+                                y: parent.height + Theme.px(4);
+                                items: root.orders;
+                                chosen(order) => {
+                                    root.set-order(order);
+                                }
+                            }
+
+                            if root.sortable: TextButton {
+                                label: root.order-label;
+                                fixed-width: Theme.px(176);
+                                pressed => {
+                                    picker.show();
+                                }
+                            }
+                        }
+                    }
+
                 VerticalLayout {
                     alignment: center;
 
@@ -229,6 +316,7 @@ export component TrackList inherits Rectangle {
                             root.act-on-page();
                         }
                     }
+                }
                 }
             }
 
@@ -454,7 +542,15 @@ export component TrackList inherits Rectangle {
             padding-left: Theme.page-inset;
             padding-right: Theme.page-inset;
 
-            ListView {
+            list := ListView {
+                viewport-y <=> root.offset;
+
+                // Not animated, and it was tried. `viewport-y` is the property
+                // the `Flickable` writes on every wheel notch, so an animation
+                // on it animates scrolling itself — and the owner, who has the
+                // wheel this window cannot test, took it back out
+                // (`MASTER_ISSUES` 133).
+
                 // Wrapped rather than made part of the row, because what a row
                 // is stays one question and where it can be carried is another.
                 //

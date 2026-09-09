@@ -81,9 +81,18 @@ impl TrackRepositoryPort for SqliteTrackRepository {
         let connection = self.pool.get()?;
         let mut statement = connection
             .prepare(&format!(
+                // What arrived last, first. A library is read far more often
+                // just after something was added to it than at any other time,
+                // and alphabetical order scatters a fresh download of fifty
+                // tracks through everything that was already there — the
+                // listener who just fetched a playlist could not see it
+                // (`MASTER_ISSUES` 132).
+                //
+                // The title breaks the tie, and there are many: a folder scan
+                // stamps every file it takes in with the same second.
                 "{SUMMARY_SELECT}
                  WHERE pt.profile_id = ?1 AND pt.removed_at IS NULL
-                 ORDER BY pt.title COLLATE NOCASE"
+                 ORDER BY pt.added_at DESC, pt.title COLLATE NOCASE"
             ))
             .map_err(db_error_in("listing a library"))?;
 

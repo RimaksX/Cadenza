@@ -196,6 +196,8 @@ export component PlayerBar inherits Rectangle {
     in property <bool> has-previous;
 
     callback toggle-play();
+    /// Take me to what this is describing.
+    callback show-playing();
     callback seek(float);
     callback set-volume(float);
     callback toggle-mute();
@@ -207,21 +209,49 @@ export component PlayerBar inherits Rectangle {
     height: Theme.player-height;
     background: Theme.bg-1;
 
-    Rectangle {
-        y: 0;
-        height: 1px;
-        background: Theme.line-soft;
-    }
-
     HorizontalLayout {
-        padding-left: Theme.space-5;
+        // No padding on the near side. The block that says what is playing
+        // carries its own, so that the highlight behind it can reach the edge
+        // of the window while the cover still stands where it always did
+        // (`MASTER_ISSUES` 133).
         padding-right: Theme.space-5;
         spacing: Theme.space-6;
 
-        // What is playing. A fixed width, so the transport in the middle stays
-        // in the middle whatever the title is.
+        // What is playing, and the way back to it.
+        //
+        // The block that says what is playing is the thing to press to be shown
+        // it — the same gesture every music player has, and the one place where
+        // it needs no button of its own. It lights as a whole under the pointer,
+        // which is this interface's own way of saying a thing can be pressed,
+        // and it does nothing at all while nothing is playing
+        // (`MASTER_ISSUES` 133).
+        //
+        // The same 284 the volume column takes on the other side, so the
+        // transport between them stays on the window's own middle. What
+        // changed is where the 24 goes: it used to be the layout's padding,
+        // outside the highlight, and is now the block's own — the same gap
+        // before the cover and after the words, with the mark itself running
+        // to the edge.
+        Rectangle {
+            width: Theme.px(284);
+            background: root.loaded && now-touch.has-hover ? Theme.bg-2 : transparent;
+            // No radius. Everything this mark touches is square — the window's
+            // corner, the bar's own seam, the edge of the screen — and a
+            // rounded box against three straight edges reads as a sticker
+            // rather than as part of the bar.
+            animate background { duration: 120ms; }
+
+            now-touch := TouchArea {
+                enabled: root.loaded;
+                mouse-cursor: pointer;
+                clicked => {
+                    root.show-playing();
+                }
+            }
+
         HorizontalLayout {
-            width: Theme.px(260);
+            padding-left: Theme.space-5;
+            padding-right: Theme.space-5;
             spacing: Theme.space-3;
             alignment: start;
 
@@ -303,6 +333,7 @@ export component PlayerBar inherits Rectangle {
                     overflow: elide;
                 }
             }
+        }
         }
 
         // Transport, and the progress line under it. Both centred, and the line
@@ -478,5 +509,15 @@ export component PlayerBar inherits Rectangle {
                 }
             }
         }
+    }
+
+    // The seam between the bar and the page, drawn last so that it is drawn on
+    // top. It used to be first, and the highlight behind what is playing —
+    // which runs the full height of the bar — painted over it
+    // (`MASTER_ISSUES` 133).
+    Rectangle {
+        y: 0;
+        height: 1px;
+        background: Theme.line-soft;
     }
 }

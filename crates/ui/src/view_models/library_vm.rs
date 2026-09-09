@@ -321,6 +321,88 @@ pub fn tools_needed(missing: &[MissingTool]) -> String {
     )
 }
 
+/// The orders a library can be shown in.
+///
+/// Four, and each is a way somebody actually looks for a record: what I just
+/// added, by name, by who made it, by what it came from. Length was considered
+/// and left out — nobody has ever looked for a song by how long it is.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Order {
+    /// What arrived last, first. The order the database hands rows over in.
+    #[default]
+    Added,
+    Title,
+    Artist,
+    Album,
+}
+
+impl Order {
+    /// The name the interface calls it by, and calls back with.
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::Added => "added",
+            Self::Title => "title",
+            Self::Artist => "artist",
+            Self::Album => "album",
+        }
+    }
+
+    /// What the control reads while this one is in force.
+    #[must_use]
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::Added => "NEWEST FIRST",
+            Self::Title => "BY TITLE",
+            Self::Artist => "BY ARTIST",
+            Self::Album => "BY ALBUM",
+        }
+    }
+
+    /// Every order, in the sequence the menu offers them.
+    #[must_use]
+    pub const fn all() -> [Self; 4] {
+        [Self::Added, Self::Title, Self::Artist, Self::Album]
+    }
+
+    /// The order that answers to a name, or the default for anything else.
+    #[must_use]
+    pub fn from_name(name: &str) -> Self {
+        Self::all()
+            .into_iter()
+            .find(|order| order.name() == name)
+            .unwrap_or_default()
+    }
+}
+
+/// Puts a library in the order asked for.
+///
+/// `Added` does nothing: the rows arrive in it, and re-sorting by a field the
+/// summary does not carry would mean carrying it. Everything else sorts on what
+/// is already there, ignoring case, and falls back to the title so that two
+/// records by the same artist keep a stable order between them.
+///
+/// A missing artist or album sorts last rather than first. An empty string
+/// sorts before every letter, which would put everything unlabelled at the top
+/// of a list somebody opened to find something labelled.
+pub fn arrange(rows: &mut [TrackSummary], order: Order) {
+    let key = |value: Option<&str>| match value {
+        Some(text) if !text.trim().is_empty() => (false, text.to_lowercase()),
+        _ => (true, String::new()),
+    };
+
+    match order {
+        Order::Added => {}
+        Order::Title => rows.sort_by_key(|row| row.title.to_lowercase()),
+        Order::Artist => {
+            rows.sort_by_key(|row| (key(row.artist.as_deref()), row.title.to_lowercase()))
+        }
+        Order::Album => {
+            rows.sort_by_key(|row| (key(row.album.as_deref()), row.title.to_lowercase()))
+        }
+    }
+}
+
 /// What forgetting a pile of removals came to.
 #[must_use]
 pub fn forgotten(count: usize) -> String {
@@ -334,6 +416,87 @@ pub fn forgotten(count: usize) -> String {
 /// "track" or "tracks", so a count reads as a sentence.
 fn tracks(count: usize) -> &'static str {
     if count == 1 { "track" } else { "tracks" }
+}
+
+#[cfg(test)]
+mod order_tests {
+    use cadenza_core::domain::ids::MediaFileId;
+    use cadenza_core::domain::track::TrackSummary;
+    use cadenza_core::domain::value_objects::DurationMs;
+
+    use super::{Order, arrange};
+
+    fn row(title: &str, artist: Option<&str>, album: Option<&str>) -> TrackSummary {
+        TrackSummary {
+            media_file_id: MediaFileId::new(),
+            title: title.to_owned(),
+            artist: artist.map(str::to_owned),
+            album: album.map(str::to_owned),
+            duration: DurationMs::from_millis(1000),
+        }
+    }
+
+    fn titles(rows: &[TrackSummary]) -> Vec<&str> {
+        rows.iter().map(|row| row.title.as_str()).collect()
+    }
+
+    #[test]
+    fn the_order_it_arrived_in_is_left_alone() {
+        // What the database hands over is newest first, and nothing here knows
+        // when a row was added — so this order is the absence of sorting, and
+        // has to stay that way or it would quietly become alphabetical.
+        let mut rows = vec![row("Zebra", None, None), row("Apple", None, None)];
+        arrange(&mut rows, Order::Added);
+        assert_eq!(titles(&rows), vec!["Zebra", "Apple"]);
+    }
+
+    #[test]
+    fn by_title_ignores_case() {
+        let mut rows = vec![row("banana", None, None), row("Apple", None, None)];
+        arrange(&mut rows, Order::Title);
+        assert_eq!(titles(&rows), vec!["Apple", "banana"]);
+    }
+
+    #[test]
+    fn what_has_no_artist_sorts_last_rather_than_first() {
+        // An empty string sorts before every letter, which would put every
+        // untagged file at the top of a list somebody opened to find a tagged
+        // one. Blank counts as absent for the same reason.
+        let mut rows = vec![
+            row("nothing", None, None),
+            row("blank", Some("   "), None),
+            row("zara", Some("Zara"), None),
+            row("miyagi", Some("miyagi"), None),
+        ];
+        arrange(&mut rows, Order::Artist);
+        // And among the unlabelled, by title — the same tie-break as
+        // everywhere else, so the tail of the list is not in whatever order
+        // the database happened to hand it over in.
+        assert_eq!(titles(&rows), vec!["miyagi", "zara", "blank", "nothing"]);
+    }
+
+    #[test]
+    fn the_title_breaks_a_tie() {
+        let mut rows = vec![
+            row("Second", Some("One Artist"), None),
+            row("First", Some("One Artist"), None),
+        ];
+        arrange(&mut rows, Order::Artist);
+        assert_eq!(titles(&rows), vec!["First", "Second"]);
+    }
+
+    #[test]
+    fn a_name_that_is_not_an_order_is_the_default_one() {
+        assert_eq!(Order::from_name("title"), Order::Title);
+        assert_eq!(Order::from_name("nonsense"), Order::Added);
+        assert_eq!(Order::from_name(""), Order::Added);
+
+        // Every order can be named and found again, which is the whole of the
+        // contract between the menu and the controller.
+        for order in Order::all() {
+            assert_eq!(Order::from_name(order.name()), order);
+        }
+    }
 }
 
 #[cfg(test)]

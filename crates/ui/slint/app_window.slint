@@ -98,6 +98,12 @@ export component AppWindow inherits Window {
     in property <bool> history-on;
     in property <[FolderRowData]> folders;
     in property <bool> first-run;
+    in-out property <string> query;
+    in-out property <int> reach-for-search;
+    in property <int> playing-row;
+    in-out property <int> reach-for-playing;
+    in property <string> order-label;
+    in property <[MenuItemData]> orders;
     in property <[TakenOutRowData]> taken-out;
     in property <int> gone-for-good;
     in property <int> outside-folders;
@@ -211,6 +217,7 @@ export component AppWindow inherits Window {
     callback remove-folder(string);
     callback synchronise-folder(string);
     callback restore-track(string);
+    callback set-order(string);
     callback start-here(string, bool);
     callback forget-gone();
     callback scan-now();
@@ -273,6 +280,12 @@ export component AppWindow inherits Window {
         history-on: root.history-on;
         folders: root.folders;
         first-run: root.first-run;
+        query <=> root.query;
+        reach-for-search: root.reach-for-search;
+        playing-row: root.playing-row;
+        reach-for-playing <=> root.reach-for-playing;
+        order-label: root.order-label;
+        orders: root.orders;
         taken-out: root.taken-out;
         gone-for-good: root.gone-for-good;
         outside-folders: root.outside-folders;
@@ -477,6 +490,9 @@ export component AppWindow inherits Window {
         restore-track(id) => {
             root.restore-track(id);
         }
+        set-order(order) => {
+            root.set-order(order);
+        }
         start-here(name, folder) => {
             root.start-here(name, folder);
         }
@@ -602,10 +618,38 @@ export component AppWindow inherits Window {
         width: 0px;
         height: 0px;
         key-pressed(event) => {
+            // Play, because a music player is the one program where the space
+            // bar has an obvious meaning.
             if (event.text == " ") {
                 root.toggle-play();
                 return accept;
             }
+
+            // The search field, from anywhere. The shortcut every list in
+            // every program has, and the only one worth spending a modifier on
+            // here (`MASTER_ISSUES` 132).
+            // It reaches the field on whichever page has one, which today is
+            // the library. Moving to that page as well would need the shell's
+            // own `section`, which is private to it, and a shortcut that
+            // navigates is a bigger promise than one that focuses.
+            if (event.modifiers.control && event.text == "f") {
+                root.reach-for-search += 1;
+                return accept;
+            }
+
+            // And out of it. Escape empties the search rather than only losing
+            // the focus: a field that keeps filtering the library after
+            // somebody has plainly finished with it is a field they have to go
+            // back and clear by hand.
+            if (event.text == Key.Escape) {
+                if (root.query != "") {
+                    root.query = "";
+                    root.search("");
+                    return accept;
+                }
+                return reject;
+            }
+
             return reject;
         }
     }

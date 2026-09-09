@@ -15,27 +15,40 @@ component Figure inherits Rectangle {
     in property <string> label;
 
     // Wide enough for the longest thing it holds — "SKIPPED" under "2h 05m" —
-    // and stated here rather than left to the layout, which is how every other
-    // control in this interface is sized. A row of four is what gives the page
-    // a width worth opening at.
-    width: Theme.px(176);
-    height: Theme.px(86);
+    // with a floor under it, because four of these at 176 and their gaps want
+    // 728 and the smallest window offers 648. A stated width cannot shrink, so
+    // the fourth figure hung off the edge — and, worse, the column they sit in
+    // took their width, so every row of the standings below hung off it too
+    // (`MASTER_ISSUES` 131).
+    preferred-width: Theme.px(176);
+    min-width: Theme.px(140);
+    height: Theme.px(78);
+    // The one radius. These were the last square corners in the interface, on
+    // a card standing beside eight rounded ones everywhere else.
+    border-radius: Theme.radius;
     border-width: 1px;
     border-color: Theme.line-soft;
     background: Theme.bg-1;
 
     VerticalLayout {
         x: Theme.space-4;
-        y: round((parent.height - Theme.px(70)) / 1px / 2) * 1px;
+        y: round((parent.height - Theme.px(54)) / 1px / 2) * 1px;
         width: parent.width - Theme.space-4 * 2;
-        height: Theme.px(70);
+        height: Theme.px(54);
         spacing: Theme.px(2);
 
+        // Mono, and this is not a preference. The serif's figures are
+        // old-style: 6 and 8 rise, 3 and 5 drop, 1 and 2 sit at x-height. In a
+        // name that is a grace and in a column of statistics it is a fence
+        // falling over — measured on the rendered page, the 6 of "26" stood
+        // seven pixels above its own 2 (`MASTER_ISSUES` 131). Mono's figures
+        // are lining and tabular, which is what this face is here for: the
+        // design says numbers are its job, and this page predates the rule.
         Text {
             text: root.value;
-            font-family: Theme.serif;
-            font-size: Theme.text-display;
-            height: Theme.heading-box;
+            font-family: Theme.mono;
+            font-size: Theme.text-title;
+            height: Theme.px(34);
             vertical-alignment: center;
             color: Theme.ink-0;
             overflow: elide;
@@ -58,11 +71,14 @@ component Figure inherits Rectangle {
 component TopRow inherits Rectangle {
     in property <TopTrackData> data;
 
-    height: Theme.px(46);
+    // The shape of a library row, because it is one: a track's name, who made
+    // it, and a number about it. It was shorter and set in the sans, which made
+    // the same object look like two different kinds of thing on two pages.
+    height: Theme.px(52);
 
     HorizontalLayout {
-        y: round((parent.height - Theme.px(22)) / 1px / 2) * 1px;
-        height: Theme.px(22);
+        y: round((parent.height - Theme.px(26)) / 1px / 2) * 1px;
+        height: Theme.px(26);
         spacing: Theme.space-4;
 
         VerticalLayout {
@@ -73,7 +89,7 @@ component TopRow inherits Rectangle {
                 text: root.data.rank;
                 font-family: Theme.mono;
                 font-size: Theme.text-label;
-                height: Theme.px(22);
+                height: Theme.px(26);
                 horizontal-alignment: right;
                 vertical-alignment: center;
                 letter-spacing: Theme.number-spacing;
@@ -87,24 +103,25 @@ component TopRow inherits Rectangle {
 
             Text {
                 text: root.data.title;
-                font-family: Theme.sans;
-                font-size: Theme.text-body;
-                height: Theme.px(22);
+                font-family: Theme.serif;
+                font-size: Theme.text-lead;
+                height: Theme.px(26);
                 vertical-alignment: center;
-                color: Theme.ink-0;
+                color: Theme.ink-1;
                 overflow: elide;
             }
         }
 
         VerticalLayout {
-            width: Theme.px(240);
+            preferred-width: Theme.px(240);
+            min-width: Theme.px(120);
             alignment: center;
 
             Text {
                 text: root.data.subtitle;
                 font-family: Theme.sans;
                 font-size: Theme.text-body;
-                height: Theme.px(22);
+                height: Theme.px(26);
                 vertical-alignment: center;
                 color: Theme.ink-2;
                 overflow: elide;
@@ -119,7 +136,7 @@ component TopRow inherits Rectangle {
                 text: root.data.plays;
                 font-family: Theme.mono;
                 font-size: Theme.text-label;
-                height: Theme.px(22);
+                height: Theme.px(26);
                 horizontal-alignment: right;
                 vertical-alignment: center;
                 letter-spacing: Theme.number-spacing;

@@ -457,6 +457,11 @@ fn wire(window: &AppWindow, controller: &Rc<Controller>) {
         move |id| controller.restore_track(&id)
     });
 
+    window.on_set_order({
+        let controller = Rc::clone(controller);
+        move |order| controller.set_order(&order)
+    });
+
     window.on_start_here({
         let controller = Rc::clone(controller);
         move |name, folder| controller.start_here(&name, folder)
