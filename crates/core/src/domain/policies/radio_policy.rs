@@ -192,14 +192,19 @@ pub fn mood_score(
 
     let mut total = 0.0;
     let mut counted = 0.0f32;
+    let mut met = 0.0f32;
 
     let mut term = |band: Option<FeatureBand>, value: Option<f32>| {
         if let Some(band) = band {
             // A stated band with nothing to measure against is the one case
             // that scores neutrally rather than zero: the track is not known to
             // be wrong, it is simply not known.
-            total += value.map_or(NEUTRAL_SCORE, |value| band.fits(value));
+            let fit = value.map_or(NEUTRAL_SCORE, |value| band.fits(value));
+            total += fit;
             counted += 1.0;
+            if fit > 0.0 {
+                met += 1.0;
+            }
         }
     };
 
@@ -223,7 +228,22 @@ pub fn mood_score(
     if counted == 0.0 {
         return 1.0;
     }
-    (total / counted).clamp(0.0, 1.0)
+
+    // The mean, scaled by how many of the stated bands the track met at all.
+    //
+    // A band missed *outright* - far enough outside that even the falloff has
+    // run out - is different in kind from one it merely bends. The mean cannot
+    // see that difference: a track that is right about two things out of three
+    // and impossible on the third scores the same 0.67 as one that is
+    // three-quarters right about all of them. In a library with nothing slow
+    // in it that put a 141 BPM track fourth in Sleep, behind two that were
+    // genuinely slow and ahead of nothing (`MASTER_ISSUES` 138).
+    //
+    // Scaling rather than zeroing, which a geometric mean would do: measured
+    // on the same library, zeroing flattened every ranking underneath and left
+    // a station with nothing to order its fallbacks by. This keeps the order
+    // and moves the outright misses below everything that fits.
+    (total / counted * (met / counted)).clamp(0.0, 1.0)
 }
 
 /// The final score a candidate is ranked by (PROJECT_MASTER 10.4).

@@ -14,6 +14,7 @@
 //! whole thing so that a library being analysed is a library nobody notices
 //! being analysed.
 
+pub mod activity;
 pub mod bpm;
 pub mod danceability;
 pub mod decode;

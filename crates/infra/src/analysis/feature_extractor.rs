@@ -11,7 +11,7 @@ use cadenza_core::domain::value_objects::Bpm;
 use std::sync::Arc;
 
 use super::dsp::Spectra;
-use super::{bpm, danceability, decode, energy, key, spectral, valence};
+use super::{activity, bpm, danceability, decode, energy, key, spectral, valence};
 
 /// Which algorithm produced a row of features.
 ///
@@ -20,7 +20,7 @@ use super::{bpm, danceability, decode, energy, key, spectral, valence};
 /// window length, a different profile, a fixed bug — because a library holding
 /// two versions of a feature is a library where similarity compares one track's
 /// measurement with another track's mistake.
-pub const VERSION: &str = "dsp-1";
+pub const VERSION: &str = "dsp-2";
 
 /// Local DSP feature extraction.
 pub struct DspFeatureExtractor {
@@ -49,7 +49,8 @@ impl FeatureExtractorPort for DspFeatureExtractor {
         // danceability and valence are read off the tempo rather than
         // recomputed from the signal.
         let brightness = spectral::measure(&spectra);
-        let level = energy::measure(&window, &brightness);
+        let busy = activity::measure(&spectra);
+        let level = energy::measure(&window, &brightness, &busy);
         let tempo = bpm::measure(&spectra);
         let estimate = key::measure(&spectra);
 

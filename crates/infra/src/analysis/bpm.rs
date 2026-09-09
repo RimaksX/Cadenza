@@ -13,6 +13,14 @@ pub const MIN_BPM: f32 = 60.0;
 /// The fastest. Above this, what is being measured is usually half a bar.
 pub const MAX_BPM: f32 = 200.0;
 
+/// How much an envelope must repeat at the winning tempo to count as having a
+/// clear beat, as the autocorrelation peak over the mean of the curve.
+///
+/// Measured over a real library, where it runs from 1.7 to 11.1.
+const TYPICAL_PULSE: f32 = 6.0;
+/// How far either side of that fills the range.
+const PULSE_SPAN: f32 = 3.0;
+
 /// How many frames the running mean of the onset envelope covers.
 ///
 /// Subtracting a local mean is what turns "loud" into "louder than it was a
@@ -56,17 +64,25 @@ pub fn measure(spectra: &Spectra) -> Tempo {
     };
 
     let bpm = fold(60.0 / (lag * seconds));
-    let confidence = if mean > 0.0 {
-        squash(peak / mean, 1.6, 0.5)
-    } else {
-        0.0
-    };
+    if mean <= 0.0 {
+        return Tempo::NONE;
+    }
+    let confidence = squash(peak / mean, 1.6, 0.5);
 
     Tempo {
         bpm: Some(bpm),
         confidence,
         stability: stability(&envelope, seconds, bpm),
-        beat_strength: beat_strength(&envelope),
+        // How strongly the envelope repeats at the tempo that won, which is
+        // what "a clear beat" means. It used to be the tallest peak of the
+        // envelope over its mean, and a single transient anywhere in ninety
+        // seconds makes that ratio large: measured across the owner's library
+        // it ran from 12.8 to 26.7 and every one of them squashed to about 1,
+        // so danceability - which is built on it - came out between 0.87 and
+        // 0.99 for the whole library and said nothing (`MASTER_ISSUES` 138).
+        // The autocorrelation ratio spreads properly on the same files: 1.7
+        // for a piece with no pulse to 11.1 for one that is all pulse.
+        beat_strength: squash(peak / mean, TYPICAL_PULSE, PULSE_SPAN),
     }
 }
 
@@ -74,7 +90,7 @@ pub fn measure(spectra: &Spectra) -> Tempo {
 ///
 /// Only rises count: a note stopping is not an onset, and counting it would put
 /// a second peak half a beat after every real one.
-fn onsets(spectra: &Spectra) -> Vec<f32> {
+pub(super) fn onsets(spectra: &Spectra) -> Vec<f32> {
     let frames = spectra.frames();
     if frames.len() < 2 {
         return Vec::new();
@@ -118,7 +134,7 @@ fn running_mean(values: &[f32], span: usize) -> Vec<f32> {
 /// Returns the lag in frames — interpolated, so the answer is not limited to
 /// whole frames — along with the height of the peak and the average, which is
 /// what makes it a confidence rather than just a winner.
-fn strongest_lag(envelope: &[f32], seconds: f32) -> Option<(f32, f32, f32)> {
+pub(super) fn strongest_lag(envelope: &[f32], seconds: f32) -> Option<(f32, f32, f32)> {
     let shortest = (60.0 / MAX_BPM / seconds).round().max(2.0) as usize;
     let longest = ((60.0 / MIN_BPM / seconds).round() as usize).min(envelope.len() / 2);
     if longest <= shortest {
@@ -243,16 +259,6 @@ fn stability(envelope: &[f32], seconds: f32, bpm: f32) -> f32 {
         return 0.0;
     }
     (agreement / counted).clamp(0.0, 1.0)
-}
-
-/// How far the onsets stand above the ordinary level of the envelope.
-fn beat_strength(envelope: &[f32]) -> f32 {
-    let mean = envelope.iter().sum::<f32>() / envelope.len() as f32;
-    if mean <= 0.0 {
-        return 0.0;
-    }
-    let peak = envelope.iter().copied().fold(0.0f32, f32::max);
-    squash(peak / mean, 6.0, 3.0)
 }
 
 #[cfg(test)]

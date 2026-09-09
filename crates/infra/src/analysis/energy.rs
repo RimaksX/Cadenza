@@ -1,5 +1,6 @@
 //! How loud a track is, how hard it pushes, and how much room it leaves.
 
+use super::activity::Activity;
 use super::decode::Window;
 use super::dsp::{percentile, rms, squash};
 use super::spectral::Brightness;
@@ -43,13 +44,32 @@ impl Level {
     };
 }
 
+/// What perceived level is worth in the energy blend.
+///
+/// Small, and it used to be two thirds. On a library of files mastered by
+/// different people in different decades, integrated level is mostly a
+/// measurement of the loudness war: the calmest track the owner has - bowed
+/// strings and a choir, brickwalled to 3.7 dB of range - sat at -11 dBFS,
+/// louder than the bass-led remix it was being ranked against
+/// (`MASTER_ISSUES` 138). It still belongs in the answer, because a genuinely
+/// quiet recording is genuinely less intense; it does not belong in charge.
+const LEVEL_WEIGHT: f32 = 0.15;
+/// What the top end is worth. Timbre, which is one of the five things Spotify
+/// names behind its own energy.
+const DRIVE_WEIGHT: f32 = 0.15;
+/// What "how often something happens" is worth. Spotify's onset rate, and the
+/// largest share, because it is what a listener means by an active track.
+const ONSET_WEIGHT: f32 = 0.45;
+/// What "how much events stand out" is worth. Spotify's general entropy.
+const VARIATION_WEIGHT: f32 = 0.25;
+
 /// Measures level over a window.
 ///
-/// Brightness comes in rather than being measured again because energy is not
-/// loudness: a bass drone at −12 dBFS is loud and inert, and a mix with the
-/// same level and a top end is not. The two are weighted rather than one
-/// standing for the other.
-pub fn measure(window: &Window, brightness: &Brightness) -> Level {
+/// Brightness and activity come in rather than being measured again: energy is
+/// not loudness, and the parts of it that are not loudness are measured
+/// elsewhere. A bass drone at −12 dBFS is loud and inert; a mix at the same
+/// level with a top end and a stick hitting something is not.
+pub fn measure(window: &Window, brightness: &Brightness, activity: &Activity) -> Level {
     let block = (u64::from(window.rate) * BLOCK_MS / 1_000).max(1) as usize;
     if window.samples.len() < block {
         return Level::SILENT;
@@ -76,9 +96,13 @@ pub fn measure(window: &Window, brightness: &Brightness) -> Level {
     let loudness = squash(mean, TYPICAL_DBFS, LEVEL_SPAN);
 
     Level {
-        // Two parts level, one part drive. Loud is most of what makes a track
-        // feel energetic, but not all of it.
-        energy: (loudness * 2.0 + brightness.drive) / 3.0,
+        // Four parts, and level is the smallest of them. The weights sum to
+        // one, so the answer stays inside the column whatever the parts do.
+        energy: (ONSET_WEIGHT * activity.onsets
+            + VARIATION_WEIGHT * activity.variation
+            + LEVEL_WEIGHT * loudness
+            + DRIVE_WEIGHT * brightness.drive)
+            .clamp(0.0, 1.0),
         loudness,
         dynamic_range: squash(loud - quiet, TYPICAL_RANGE_DB, TYPICAL_RANGE_DB / 2.0),
     }
@@ -97,8 +121,18 @@ fn decibels(amplitude: f32) -> f32 {
 #[cfg(test)]
 mod tests {
     use super::{Level, decibels, measure};
+    use crate::analysis::activity::Activity;
     use crate::analysis::decode::Window;
     use crate::analysis::spectral::Brightness;
+
+    /// A track that is doing nothing in particular, so that a test about level
+    /// is about level.
+    fn still() -> Activity {
+        Activity {
+            onsets: 0.5,
+            variation: 0.5,
+        }
+    }
 
     fn steady(amplitude: f32) -> Window {
         let rate = 22_050;
@@ -120,8 +154,8 @@ mod tests {
 
     #[test]
     fn a_louder_track_measures_louder() {
-        let quiet = measure(&steady(0.05), &flat_brightness(0.5));
-        let loud = measure(&steady(0.8), &flat_brightness(0.5));
+        let quiet = measure(&steady(0.05), &flat_brightness(0.5), &still());
+        let loud = measure(&steady(0.8), &flat_brightness(0.5), &still());
 
         assert!(loud.loudness > quiet.loudness);
         assert!(loud.energy > quiet.energy);
@@ -130,9 +164,43 @@ mod tests {
     }
 
     #[test]
+    fn what_is_happening_counts_for_more_than_what_it_measures_on_a_meter() {
+        // The defect this is here for: a brickwalled calm recording measured
+        // louder than a dynamic busy one, and energy was two thirds level, so
+        // the calm one won (`MASTER_ISSUES` 138).
+        let calm_but_loud = measure(
+            &steady(0.9),
+            &flat_brightness(0.5),
+            &Activity {
+                onsets: 0.05,
+                variation: 0.1,
+            },
+        );
+        let busy_but_quiet = measure(
+            &steady(0.1),
+            &flat_brightness(0.5),
+            &Activity {
+                onsets: 0.9,
+                variation: 0.8,
+            },
+        );
+
+        assert!(
+            busy_but_quiet.energy > calm_but_loud.energy,
+            "the busy one is the energetic one: {} vs {}",
+            busy_but_quiet.energy,
+            calm_but_loud.energy
+        );
+        assert!(
+            calm_but_loud.loudness > busy_but_quiet.loudness,
+            "even though the meter says otherwise"
+        );
+    }
+
+    #[test]
     fn drive_separates_energy_from_mere_volume() {
-        let inert = measure(&steady(0.5), &flat_brightness(0.0));
-        let driving = measure(&steady(0.5), &flat_brightness(1.0));
+        let inert = measure(&steady(0.5), &flat_brightness(0.0), &still());
+        let driving = measure(&steady(0.5), &flat_brightness(1.0), &still());
 
         assert!(driving.energy > inert.energy);
         assert_eq!(
@@ -143,7 +211,7 @@ mod tests {
 
     #[test]
     fn a_steady_tone_has_almost_no_dynamic_range() {
-        let level = measure(&steady(0.5), &flat_brightness(0.5));
+        let level = measure(&steady(0.5), &flat_brightness(0.5), &still());
         assert!(
             level.dynamic_range < 0.2,
             "nothing changes, so there is no range: {}",
@@ -157,13 +225,19 @@ mod tests {
             rate: 22_050,
             samples: vec![0.0; 22_050],
         };
-        assert_eq!(measure(&silent, &flat_brightness(0.0)), Level::SILENT);
+        assert_eq!(
+            measure(&silent, &flat_brightness(0.0), &still()),
+            Level::SILENT
+        );
 
         let too_short = Window {
             rate: 22_050,
             samples: vec![0.5; 10],
         };
-        assert_eq!(measure(&too_short, &flat_brightness(0.0)), Level::SILENT);
+        assert_eq!(
+            measure(&too_short, &flat_brightness(0.0), &still()),
+            Level::SILENT
+        );
     }
 
     #[test]
