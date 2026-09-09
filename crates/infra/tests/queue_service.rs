@@ -15,13 +15,16 @@ use cadenza_core::application::services::{
 };
 use cadenza_core::application::{AppContext, ProfileService};
 use cadenza_core::domain::eq::EqSetting;
-use cadenza_core::domain::ids::{MediaFileId, PlaylistId, ProfileId};
+use cadenza_core::domain::ids::{
+    MediaFileId, PlaylistId, PlaylistItemId, ProfileId, RadioSessionId,
+};
 use cadenza_core::domain::media_file::{AudioFormat, AudioProperties, FileState, MediaFile};
 use cadenza_core::domain::playback::{PlaybackState, TransitionProfile};
+use cadenza_core::domain::playlist::{Playlist, PlaylistItem};
 use cadenza_core::domain::ports::audio_engine::AudioEnginePort;
 use cadenza_core::domain::ports::repositories::TrackFeaturesRepositoryPort;
 use cadenza_core::domain::ports::repositories::{
-    MediaFileRepositoryPort, SettingsRepositoryPort, TrackRepositoryPort,
+    MediaFileRepositoryPort, PlaylistRepositoryPort, SettingsRepositoryPort, TrackRepositoryPort,
 };
 use cadenza_core::domain::queue::RepeatMode;
 use cadenza_core::domain::radio::MIN_BATCH_SIZE;
@@ -32,8 +35,9 @@ use cadenza_core::domain::value_objects::{
 };
 use cadenza_infra::db::repositories::{
     SqliteHistoryRepository, SqliteMediaFileRepository, SqliteMoodRepository,
-    SqliteProfileRepository, SqliteQueueRepository, SqliteRadioRepository,
-    SqliteSettingsRepository, SqliteTrackFeaturesRepository, SqliteTrackRepository,
+    SqlitePlaylistRepository, SqliteProfileRepository, SqliteQueueRepository,
+    SqliteRadioRepository, SqliteSettingsRepository, SqliteTrackFeaturesRepository,
+    SqliteTrackRepository,
 };
 use cadenza_infra::events::InProcessEventBus;
 use cadenza_testkit::{TempDb, TestClock};
@@ -301,6 +305,7 @@ fn services_with_radio(
         QueuePorts {
             queue: Arc::new(SqliteQueueRepository::new(db.pool().clone())),
             tracks: track_repo as _,
+            playlists: Arc::new(SqlitePlaylistRepository::new(db.pool().clone())),
             features: Arc::new(SqliteTrackFeaturesRepository::new(db.pool().clone())),
             radio: Some(Arc::clone(&radio)),
             // No filters in a test about repeat modes and shuffle. The
@@ -353,6 +358,44 @@ fn in_library(profile_id: ProfileId, media_file_id: MediaFileId, title: &str) ->
 }
 
 impl Harness {
+    /// A manual playlist over the given tracks, in the order they are given.
+    ///
+    /// Written to the real repository rather than handed to the queue, because
+    /// that is where the queue now reads a playlist from: naming a list that
+    /// does not exist gets an empty one, which is what it is
+    /// (`MASTER_ISSUES` 136).
+    fn playlist(&self, tracks: &[MediaFileId]) -> PlaylistId {
+        let repository = SqlitePlaylistRepository::new(self.db.pool().clone());
+        let playlist = Playlist {
+            id: PlaylistId::new(),
+            profile_id: self.profile_id,
+            name: "A list".to_owned(),
+            description: None,
+            is_smart: false,
+            rule_json: None,
+            created_at: Timestamp::from_millis(0),
+            updated_at: Timestamp::from_millis(0),
+        };
+        repository.save(&playlist).expect("a playlist");
+
+        let items: Vec<PlaylistItem> = tracks
+            .iter()
+            .enumerate()
+            .map(|(position, media_file_id)| PlaylistItem {
+                id: PlaylistItemId::new(),
+                playlist_id: playlist.id,
+                media_file_id: *media_file_id,
+                position: position as u32,
+                added_at: Timestamp::from_millis(0),
+            })
+            .collect();
+        repository
+            .replace_items(playlist.id, &items)
+            .expect("its tracks");
+
+        playlist.id
+    }
+
     /// The library in the order a listing shows it.
     fn listed(&self) -> Vec<String> {
         self.queue
@@ -610,30 +653,105 @@ fn an_entry_can_be_taken_out_of_the_queue_by_where_it_is_shown() {
 }
 
 #[test]
-fn removing_counts_the_manual_queue_first_because_that_is_how_it_is_drawn() {
+fn removing_counts_the_manual_queue_and_leaves_the_station_alone() {
     let harness = harness();
 
-    // A playlist is the one continuation the queue holds itself, so this is
-    // where the two lanes can be told apart.
-    let library = SqliteTrackRepository::new(harness.db.pool().clone())
-        .summaries_for_profile(harness.profile_id)
-        .expect("a library");
+    // A station is the one continuation the queue holds itself, so this is
+    // where the two lanes can be told apart. Its picks are not drawn, so a
+    // position on screen can only ever mean a row of the manual queue.
     harness
         .queue
-        .play_playlist(PlaylistId::new(), &library, harness.tracks[0])
-        .expect("played");
+        .play_radio(
+            RadioSessionId::new(),
+            &[harness.tracks[0], harness.tracks[1]],
+        )
+        .expect("the station is playing");
     harness.queue.enqueue(harness.tracks[3]).expect("queued");
-
-    // The manual entry is drawn at the top, so position 0 is that one and not
-    // the first of the continuation.
-    harness.queue.remove_at(0).expect("removed");
 
     assert_eq!(
         harness.listed(),
-        vec!["three", "two", "four"],
-        "the manually queued copy went; the library's own copy is still last"
+        vec!["four"],
+        "one row, and it is the one somebody put there"
     );
-    assert_eq!(harness.queue.view().pending, 3);
+
+    harness.queue.remove_at(0).expect("removed");
+
+    assert!(harness.listed().is_empty(), "the row that was drawn went");
+    assert_eq!(harness.queue.view().pending, 0);
+
+    // And the station's own pick, which was never on screen, is untouched.
+    harness.engine.finish();
+    harness.queue.poll().expect("polled");
+    assert_eq!(
+        harness.engine.heard(),
+        vec!["one", "two"],
+        "removing a queued track did not take the station's next pick with it"
+    );
+}
+
+#[test]
+fn a_playlist_plays_itself_through_without_filling_the_queue() {
+    // What the separation is for. Starting a list used to deal the rest of it
+    // into the queue, so a listener who pressed play on a forty-track playlist
+    // was shown a queue of thirty-nine tracks nobody had put there, and had no
+    // way to tell their own three from the list's (`MASTER_ISSUES` 136).
+    let harness = harness();
+
+    // Three of the four, and in an order that is neither the catalogue's nor
+    // the listing's - so an order that comes out right can only have come from
+    // the list.
+    let list = harness.playlist(&[harness.tracks[2], harness.tracks[0], harness.tracks[3]]);
+    harness
+        .queue
+        .play_playlist(list, harness.tracks[2])
+        .expect("played");
+
+    assert!(
+        harness.listed().is_empty(),
+        "the queue is the listener's own list, and starting a playlist is not writing in it"
+    );
+    assert_eq!(harness.queue.view().pending, 0);
+
+    for _ in 0..2 {
+        harness.engine.finish();
+        harness.queue.poll().expect("polled");
+    }
+    assert_eq!(
+        harness.engine.heard(),
+        vec!["three", "one", "four"],
+        "the list played through in its own order"
+    );
+
+    // And it ends where it ends: "two" is in the library but not in the list.
+    harness.engine.finish();
+    harness.queue.poll().expect("polled");
+    assert_eq!(
+        harness.engine.heard().len(),
+        3,
+        "a list that has run out has said everything it had to say"
+    );
+}
+
+#[test]
+fn repeat_all_takes_a_playlist_back_to_its_first_track() {
+    // The rewind used to belong to the queue, because the queue was holding the
+    // list. It has to still happen now that the list holds itself.
+    let harness = harness();
+    let list = harness.playlist(&[harness.tracks[2], harness.tracks[0], harness.tracks[3]]);
+    harness
+        .queue
+        .play_playlist(list, harness.tracks[3])
+        .expect("played the last of them");
+    harness.queue.cycle_repeat().expect("repeat all");
+
+    harness.engine.finish();
+    harness.queue.poll().expect("polled");
+
+    assert_eq!(
+        harness.engine.heard(),
+        vec!["four", "three"],
+        "the track after the last one is the first one"
+    );
 }
 
 #[test]
@@ -954,12 +1072,10 @@ fn the_transition_follows_what_is_playing_rather_than_the_switch_alone() {
         "an ordinary track fades"
     );
 
-    let library = SqliteTrackRepository::new(harness.db.pool().clone())
-        .summaries_for_profile(harness.profile_id)
-        .expect("a library");
+    let list = harness.playlist(&harness.tracks);
     harness
         .queue
-        .play_playlist(PlaylistId::new(), &library, harness.tracks[0])
+        .play_playlist(list, harness.tracks[0])
         .expect("played");
     harness.queue.poll().expect("polled");
     assert_eq!(
@@ -1229,51 +1345,50 @@ fn switching_listener_puts_the_other_ones_queue_away() {
 }
 
 #[test]
-fn pressing_shuffle_reorders_the_playlist_already_playing() {
+fn pressing_shuffle_changes_what_follows_in_the_playlist_already_playing() {
     let harness = harness();
-    let library = SqliteTrackRepository::new(harness.db.pool().clone())
-        .summaries_for_profile(harness.profile_id)
-        .expect("a library");
-
+    // one, two, three, four - the order they were catalogued in, which is not
+    // the order a listing shows them in, so an in-order successor here can only
+    // have come from the list.
+    let list = harness.playlist(&harness.tracks);
     harness
         .queue
-        .play_playlist(PlaylistId::new(), &library, harness.tracks[0])
+        .play_playlist(list, harness.tracks[0])
         .expect("played");
+    harness.queue.poll().expect("polled");
 
-    let order = |harness: &Harness| -> Vec<MediaFileId> {
-        harness
-            .queue
-            .upcoming()
-            .expect("queued")
-            .iter()
-            .map(|track| track.media_file_id)
-            .collect()
-    };
+    // Nothing is dealt into the queue any more, so what shuffle changes is not
+    // a lane's order but the answer to "what comes after this one" - which the
+    // tick has already asked, and armed.
+    assert_eq!(
+        harness.engine.armed_name().as_deref(),
+        Some("two"),
+        "in its own order, the track after the first is the second"
+    );
 
-    let before = order(&harness);
-    assert!(before.len() > 1, "there has to be something to reorder");
-
-    // Six goes, because a shuffle is allowed to return the order it was given
-    // and a test that fails one run in twenty-four is a test nobody trusts.
-    // What is being asserted is that pressing it does something, not that any
-    // particular permutation comes out.
+    // Eight goes, because a draw of one in three is allowed to come up the same
+    // way twice and a test that fails one run in a few hundred is a test nobody
+    // trusts. What is asserted is that pressing it does something, not that any
+    // particular track comes out.
     let mut moved = false;
-    for _ in 0..6 {
+    for _ in 0..8 {
         harness.queue.toggle_shuffle().expect("shuffled");
-        let after = order(&harness);
+        harness.queue.poll().expect("polled");
 
-        assert_eq!(
-            after.len(),
-            before.len(),
-            "shuffling loses nothing and invents nothing"
-        );
+        let after = harness.engine.armed_name().expect("something is armed");
         assert!(
-            after.iter().all(|track| before.contains(track)),
-            "and it is the same tracks in a different order"
+            ["two", "three", "four"].contains(&after.as_str()),
+            "shuffle picks out of the list and nowhere else: {after}"
         );
+        moved |= after != "two";
 
-        moved |= after != before;
         harness.queue.toggle_shuffle().expect("unshuffled");
+        harness.queue.poll().expect("polled");
+        assert_eq!(
+            harness.engine.armed_name().as_deref(),
+            Some("two"),
+            "and turning it off puts the list back in its own order"
+        );
     }
 
     assert!(moved, "pressing shuffle left the playlist in its own order");

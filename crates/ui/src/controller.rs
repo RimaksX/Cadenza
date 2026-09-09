@@ -507,7 +507,7 @@ impl Controller {
 
             self.services
                 .queue
-                .play_playlist(playlist_id, &tracks, first.media_file_id)
+                .play_playlist(playlist_id, first.media_file_id)
         });
         self.refresh_queue();
     }
@@ -641,10 +641,9 @@ impl Controller {
 
         self.run(|| {
             let media_file_id = MediaFileId::parse(id)?;
-            let tracks = self.services.playlists.tracks_of(playlist_id)?;
             self.services
                 .queue
-                .play_playlist(playlist_id, &tracks, media_file_id)
+                .play_playlist(playlist_id, media_file_id)
         });
         self.refresh_queue();
         self.refresh_radio();

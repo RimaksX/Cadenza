@@ -1,9 +1,12 @@
 import { TrackList } from "../components/TrackList.slint";
 
-// What is waiting, in the order it will play.
+// What the listener queued by hand, in the order they queued it.
 //
-// The manual queue first and the continuation behind it, which is the order the
-// queue itself keeps — the view does not sort, it lists.
+// Only that. What follows the current track when this is empty - the rest of
+// the library, the rest of a playlist, a station's next pick - is the source
+// playing, not a list anybody wrote, and putting it here made the queue look
+// like something that fills itself (MASTER_ISSUES 136). The view does not sort,
+// it lists.
 export component QueueView inherits TrackList {
     eyebrow: "UP NEXT";
     heading: "What follows";

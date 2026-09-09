@@ -251,6 +251,7 @@ fn run() -> std::result::Result<(), String> {
         QueuePorts {
             queue: Arc::new(SqliteQueueRepository::new(pool.clone())),
             tracks: Arc::new(SqliteTrackRepository::new(pool.clone())),
+            playlists: Arc::new(SqlitePlaylistRepository::new(pool.clone())),
             features: Arc::new(SqliteTrackFeaturesRepository::new(pool.clone())),
             radio: Some(Arc::clone(&radio)),
             eq: Some(Arc::clone(&eq)),

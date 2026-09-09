@@ -164,16 +164,21 @@ impl Queue {
 
     /// True when the round being played is a list the queue is holding.
     ///
-    /// A playlist puts its remaining tracks in [`Self::upcoming`], so the queue
-    /// knows where that round begins and can start it again. Library playback
-    /// puts nothing there: its round is the library itself, which is a set of
-    /// rows only the service can read. Repeat all therefore means two different
-    /// things, and this is which of them applies.
+    /// Only a station is, now. A station generates in batches and keeps a few
+    /// ahead of the needle, because scoring the library is not something to do
+    /// between two tracks — so the queue does hold its round.
+    ///
+    /// The library and a playlist hold nothing: their round is a set of rows,
+    /// and the service reads the row after this one when it needs it. A
+    /// playlist used to be dealt into `upcoming` like a hand of cards, which is
+    /// what made starting one look like it had filled the listener's queue
+    /// (`MASTER_ISSUES` 136). Repeat all therefore means two different things,
+    /// and this is which of them applies.
     fn holds_its_own_round(&self) -> bool {
-        !matches!(
+        matches!(
             self.current,
             Some(QueueEntry {
-                origin: QueueOrigin::Library,
+                origin: QueueOrigin::Radio(_),
                 ..
             })
         )
@@ -331,10 +336,13 @@ mod tests {
 
     #[test]
     fn a_second_round_under_shuffle_is_not_the_first_round_again() {
-        // A playlist, because a library track continues by itself: repeat all
-        // over the library means the next row, not the round just played, and
-        // `holds_its_own_round` is where that is decided.
-        let list = QueueOrigin::Playlist(PlaylistId::new());
+        // A station, because it is the only source whose round the queue
+        // holds. The library and a playlist both continue by themselves — the
+        // service reads the row after this one — so repeat all over either of
+        // them means the next row rather than the round just played, and
+        // `holds_its_own_round` is where that is decided
+        // (`MASTER_ISSUES` 136).
+        let list = QueueOrigin::Radio(RadioSessionId::new());
         let played: Vec<QueueEntry> = (0..8).map(|_| entry(list)).collect();
 
         // The state at the end of a list: everything has played, repeat all is
@@ -375,7 +383,7 @@ mod tests {
     }
 
     use super::{MediaFileId, Queue, QueueEntry, QueueOrigin, RepeatMode};
-    use crate::domain::ids::{PlaylistId, ProfileId};
+    use crate::domain::ids::{ProfileId, RadioSessionId};
 
     fn entry(origin: QueueOrigin) -> QueueEntry {
         QueueEntry {
@@ -398,7 +406,7 @@ mod tests {
     #[test]
     fn manual_entries_outrank_the_automatic_continuation() {
         let mut queue = Queue::new(ProfileId::new());
-        let automatic = entry(QueueOrigin::Playlist(PlaylistId::new()));
+        let automatic = entry(QueueOrigin::Radio(RadioSessionId::new()));
         let manual = entry(QueueOrigin::Library);
         queue.upcoming.push_back(automatic);
         queue.manual.push_back(manual);
@@ -441,7 +449,7 @@ mod tests {
     #[test]
     fn repeat_all_starts_the_list_again_in_the_order_it_played() {
         let mut queue = Queue::new(ProfileId::new());
-        let list = QueueOrigin::Playlist(PlaylistId::new());
+        let list = QueueOrigin::Radio(RadioSessionId::new());
         let (a, b, c) = (entry(list), entry(list), entry(list));
         queue.repeat = RepeatMode::All;
         queue.start(a, vec![b, c]);
@@ -456,7 +464,7 @@ mod tests {
     #[test]
     fn repeat_all_with_one_track_plays_it_again() {
         let mut queue = Queue::new(ProfileId::new());
-        let only = entry(QueueOrigin::Playlist(PlaylistId::new()));
+        let only = entry(QueueOrigin::Radio(RadioSessionId::new()));
         queue.repeat = RepeatMode::All;
         queue.start(only, Vec::new());
 
@@ -483,7 +491,7 @@ mod tests {
     #[test]
     fn what_follows_is_what_advancing_would_reach() {
         let mut queue = Queue::new(ProfileId::new());
-        let list = QueueOrigin::Playlist(PlaylistId::new());
+        let list = QueueOrigin::Radio(RadioSessionId::new());
         let (a, b, c) = (entry(list), entry(list), entry(list));
         queue.start(a, vec![b, c]);
 
