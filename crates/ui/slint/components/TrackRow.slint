@@ -185,7 +185,7 @@ export component TrackRow inherits Rectangle {
 
                     Image {
                         source: @image-url("../../../../resources/ui/icons/play.svg");
-                        width: Theme.px(12);
+                        width: Theme.icon-inline;
                         height: self.width;
                         // Not nudged. The player bar's triangle is moved one
                         // pixel right because its ink sits 0.90 left of its box
@@ -351,7 +351,7 @@ export component TrackRow inherits Rectangle {
                             source: root.queued
                                 ? @image-url("../../../../resources/ui/icons/trash.svg")
                                 : @image-url("../../../../resources/ui/icons/queue.svg");
-                            width: Theme.px(12);
+                            width: Theme.icon-inline;
                             height: self.width;
                             colorize: pill.accent;
                             animate colorize { duration: 120ms; }
@@ -407,7 +407,7 @@ export component TrackRow inherits Rectangle {
                 // and a mark stacked upright asks for less of its width.
                 Image {
                     source: @image-url("../../../../resources/ui/icons/dots-vertical.svg");
-                    width: Theme.px(18);
+                    width: Theme.icon;
                     height: self.width;
                     x: round((parent.width - self.width) / 1px / 2) * 1px;
                     y: round((parent.height - self.height) / 1px / 2) * 1px;

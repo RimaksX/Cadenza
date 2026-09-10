@@ -381,7 +381,7 @@ component Fader inherits Rectangle {
                 source: root.selected
                     ? @image-url("../../../../resources/ui/icons/circle-dot.svg")
                     : @image-url("../../../../resources/ui/icons/circle.svg");
-                width: Theme.px(14);
+                width: Theme.icon;
                 height: self.width;
                 x: round((parent.width - self.width) / 1px / 2) * 1px;
                 y: round((parent.height - self.height) / 1px / 2) * 1px;
@@ -489,7 +489,7 @@ component PresetRow inherits Rectangle {
 
         Image {
             source: @image-url("../../../../resources/ui/icons/dots-vertical.svg");
-            width: Theme.px(18);
+            width: Theme.icon;
             height: self.width;
             x: round((parent.width - self.width) / 1px / 2) * 1px;
             y: round((parent.height - self.height) / 1px / 2) * 1px;
@@ -625,7 +625,7 @@ export component EqualiserView inherits Rectangle {
 
                             Image {
                                 source: @image-url("../../../../resources/ui/icons/circle-question-mark.svg");
-                                width: Theme.px(16);
+                                width: Theme.icon;
                                 height: self.width;
                                 x: round((parent.width - self.width) / 1px / 2) * 1px;
                                 y: round((parent.height - self.height) / 1px / 2) * 1px;

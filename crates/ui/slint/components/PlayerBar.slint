@@ -20,8 +20,8 @@ component TransportButton inherits Rectangle {
     /// it stands apart from the group, so it is not a step back from anything,
     /// and at the quiet 16 it read as a mark rather than as a button.
     in property <length> glyph-size: root.primary
-        ? Theme.px(20)
-        : (root.quiet ? Theme.px(16) : Theme.px(18));
+        ? Theme.icon-large
+        : (root.quiet ? Theme.icon : Theme.px(18));
     /// Moves the glyph off the geometric middle, for a glyph whose weight is
     /// not in its middle. See the note on the play button below.
     in property <length> nudge;
@@ -380,7 +380,7 @@ export component PlayerBar inherits Rectangle {
                                 : @image-url("../../../../resources/ui/icons/heart.svg");
                             active: root.favourite;
                             quiet: true;
-                            glyph-size: Theme.px(20);
+                            glyph-size: Theme.icon-large;
                             // Two, measured. On a rendered window the title's
                             // ink centred on row 711.0 and the heart's on
                             // 713.5, so it sat two and a half low. Two rather

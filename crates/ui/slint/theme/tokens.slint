@@ -151,6 +151,24 @@ export global Theme {
     // than four while the straight run of the side still dominates
     // (`MASTER_ISSUES` 124).
     out property <length> radius: root.px(6);
+    // What an icon is drawn at, and it is three numbers because an icon is
+    // sized by what it stands beside rather than by a rule of its own.
+    //
+    // The weight follows the size and cannot be set apart from it: every file
+    // is stroked 1.5 in a 24 viewBox, so the line that reaches the screen is
+    // `1.5 × size / 24` — a twelve draws at 0.75 and a twenty at 1.25, which is
+    // exactly what "some are thin and some are fat" was (`MASTER_ISSUES` 157).
+    // Fewer sizes is therefore also fewer weights.
+    //
+    // `icon-inline` 12 — beside a word, where it must not outshout the label it
+    // belongs to: the `QUEUE` pill in a row is a glyph and 12px mono capitals.
+    // `icon` 16 — standing alone as a control: the sidebar, a field, a menu's
+    // dots, a tile's play button. **The default, and it needs no argument.**
+    // `icon-large` 20 — the one button you reach for without looking.
+    out property <length> icon-inline: root.px(12);
+    out property <length> icon: root.px(16);
+    out property <length> icon-large: root.px(20);
+
     out property <length> sidebar-width: root.px(240);
     // The band the favourites list is drawn as, across the width of the page.
     //
