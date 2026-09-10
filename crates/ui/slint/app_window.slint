@@ -73,6 +73,16 @@ export component AppWindow inherits Window {
     in property <string> library-summary;
     in property <string> empty-hint;
     in-out property <string> link;
+    /// What the link in the box can be asked for. Worked out in Rust, because
+    /// which readings an address offers is a rule and rules live in the domain.
+    in property <bool> offers-a-track;
+    in property <bool> offers-a-list;
+    /// The box changed. Declared here because a `changed` handler has to live
+    /// where the property does.
+    callback link-typed();
+    changed link => {
+        root.link-typed();
+    }
     in property <bool> fetching;
     in property <int> fetch-percent;
     in property <string> fetch-note;
@@ -406,6 +416,8 @@ export component AppWindow inherits Window {
             root.search(text);
         }
         link <=> root.link;
+        offers-a-track: root.offers-a-track;
+        offers-a-list: root.offers-a-list;
         fetching: root.fetching;
         fetch-percent: root.fetch-percent;
         fetch-note: root.fetch-note;

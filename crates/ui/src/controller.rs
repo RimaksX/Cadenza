@@ -16,6 +16,7 @@ use cadenza_core::domain::ids::{
     EqPresetId, ImportReviewId, MediaFileId, MoodId, PlaylistId, ProfileId,
 };
 use cadenza_core::domain::policies::eq_policy::{MAX_BAND_HZ, MAX_BAND_Q, MIN_BAND_HZ, MIN_BAND_Q};
+use cadenza_core::domain::policies::link_policy::readings_of;
 use cadenza_core::domain::ports::fetcher::FetchWhat;
 use cadenza_core::domain::profile::Profile;
 use cadenza_core::domain::queue::RepeatMode;
@@ -712,6 +713,20 @@ impl Controller {
         self.run(|| self.services.playlists.set_favourite(media_file_id, wanted));
         self.refresh_player();
         self.refresh_playlists();
+    }
+
+    /// Says which of the two buttons the link in the box can answer.
+    ///
+    /// Read from the domain rather than decided here: which readings an address
+    /// offers is a rule, and the interface's job is to draw the answer. Called
+    /// on every change to the box, which costs four substring searches.
+    pub fn link_typed(&self) {
+        let Some(window) = self.window.upgrade() else {
+            return;
+        };
+        let readings = readings_of(&window.get_link());
+        window.set_offers_a_track(readings.track);
+        window.set_offers_a_list(readings.list);
     }
 
     /// Rebuilds the played part of the favourites list.

@@ -174,6 +174,11 @@ fn wire(window: &AppWindow, controller: &Rc<Controller>) {
         move |id| controller.delete_playlist(&id)
     });
 
+    window.on_link_typed({
+        let controller = Rc::clone(controller);
+        move || controller.link_typed()
+    });
+
     window.on_toggle_favourite({
         let controller = Rc::clone(controller);
         move || controller.toggle_favourite()

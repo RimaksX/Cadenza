@@ -21,12 +21,15 @@ export global LightPalette {
     out property <color> line: #bab7b5;
     out property <color> line-soft: #d8d5d3;
 
-    // 4.6:1 against the raised surfaces, where it was 3.58 — see the note in
-    // `dark.slint`.
-    out property <color> ink-mute: #716d6b;
-    // 3.6:1 against `bg-0`, and lighter than `ink-mute` rather than darker:
-    // on this side stepping back means stepping towards the paper.
-    out property <color> ink-furniture: #888482;
+    // 5.71:1 against `bg-0`, where it was 4.92 — the same re-spacing the dark
+    // side had, walked the other way. See the note in `dark.slint`.
+    out property <color> ink-mute: #676361;
+    // 4.51:1 against `bg-0`, where it was 3.56, and lighter than `ink-mute`
+    // rather than darker: on this side stepping back means stepping towards the
+    // paper. The ladder here is 36.0 / 42.3 / 48.7 in lightness, six apart -
+    // wider than the dark side's five, because a light page needs more
+    // separation to say the same thing (`MASTER_ISSUES` 141).
+    out property <color> ink-furniture: #777371;
     out property <color> ink-disabled: #9a9694;
     out property <color> ink-2: #585452;
     out property <color> ink-1: #2b2826;

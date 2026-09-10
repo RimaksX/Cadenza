@@ -76,6 +76,11 @@ export component TrackList inherits Rectangle {
     /// inside a condition, and an element inside a condition is out of scope
     /// for a name at this level. The binding goes the other way instead.
     in-out property <string> link;
+    /// Whether the link in the box names one recording, and whether it names a
+    /// list. Both, for an address that could be either — which is most of them
+    /// (`domain::policies::link_policy::readings_of`).
+    in property <bool> offers-a-track;
+    in property <bool> offers-a-list;
     /// True while a fetch is running. What it costs the listener is the field
     /// and the button: one at a time, because two downloads writing into one
     /// folder is a race nobody asked for.
@@ -280,9 +285,15 @@ export component TrackList inherits Rectangle {
                                 }
                             }
 
+                            // The one control in the interface that carries a
+                            // glyph. It opens a menu, and drawn without the
+                            // chevron it was the same object as the button
+                            // beside it that does something instead
+                            // (`MASTER_ISSUES` 142).
                             if root.sortable: TextButton {
                                 label: root.order-label;
                                 fixed-width: Theme.px(176);
+                                opens: @image-url("../../../../resources/ui/icons/chevron-down.svg");
                                 pressed => {
                                     picker.show();
                                 }
@@ -327,6 +338,24 @@ export component TrackList inherits Rectangle {
                 }
             }
 
+            // The line between what the library is and what to add to it.
+            //
+            // Four bordered boxes stacked two by two read as one toolbar of
+            // four equal things, and they are not: the row above searches and
+            // orders what is already here, and the row below brings something
+            // in from outside. The rule is the interface's own way of ending
+            // one thing and starting another, and it is the width of the
+            // content like every other rule here (`MASTER_ISSUES` 142).
+            if root.fetchable: Rectangle {
+                height: Theme.space-4;
+
+                Rectangle {
+                    y: round((parent.height - 1px) / 1px / 2) * 1px;
+                    height: 1px;
+                    background: Theme.line-soft;
+                }
+            }
+
             // Bringing a track in from a link. On the page about what you have,
             // because that is where somebody stands when they want more of it —
             // and on one line, because it is one field and one press.
@@ -336,14 +365,6 @@ export component TrackList inherits Rectangle {
             // in their folder like any other (`MASTER_ISSUES` 76).
             if root.fetchable: HorizontalLayout {
                 spacing: Theme.space-3;
-                // The head sets eight between its lines, which is the gap for
-                // lines of type. Between two rows of controls the gap is
-                // twelve, the same as the gap along each of them, so this row
-                // makes up the difference itself: every space in this block —
-                // sort to search, field to GET, GET to PLAYLIST, and the two
-                // rows to each other — is now the same twelve
-                // (`MASTER_ISSUES` 134).
-                padding-top: Theme.space-1;
 
                 Field {
                     horizontal-stretch: 1;
@@ -371,9 +392,13 @@ export component TrackList inherits Rectangle {
                     // bar of its own: it is the same object that started
                     // the download, and watching it count is watching the
                     // thing you pressed.
-                    label: root.fetching ? root.fetch-percent + "%" : "GET";
-                    fixed-width: Theme.px(100);
-                    enabled: !root.fetching && root.link != "";
+                    //
+                    // `ADD TRACK` rather than `GET`, which named no object and
+                    // left the button beside it to imply what the first one
+                    // must have meant.
+                    label: root.fetching ? root.fetch-percent + "%" : "ADD TRACK";
+                    fixed-width: Theme.px(140);
+                    enabled: !root.fetching && root.offers-a-track;
                     pressed => {
                         root.fetch(root.link);
                     }
@@ -383,13 +408,18 @@ export component TrackList inherits Rectangle {
                 // guess at the address: a YouTube link that carries a playlist
                 // is a reasonable request for one track and a reasonable
                 // request for forty, and only the listener knows which they
-                // meant. Standing here, named, it also answers the question
-                // nobody would have asked — that a playlist can be pasted at
-                // all.
+                // meant.
+                //
+                // What the link *cannot* be is switched off rather than hidden,
+                // so the ambiguity is shown instead of guessed at: paste a bare
+                // `watch?v=` and only one of these lives; paste `…&list=…` and
+                // both do, because both readings are real (`MASTER_ISSUES`
+                // 142). It also answers the question nobody would have asked —
+                // that a playlist can be pasted at all.
                 if !root.fetching: TextButton {
-                    label: "PLAYLIST";
+                    label: "ADD PLAYLIST";
                     fixed-width: Theme.px(140);
-                    enabled: root.link != "";
+                    enabled: root.offers-a-list;
                     pressed => {
                         root.fetch-playlist(root.link);
                     }

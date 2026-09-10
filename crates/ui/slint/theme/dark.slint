@@ -22,24 +22,34 @@ export global DarkPalette {
 
     // Text, quietest to loudest.
     //
+    // The three caption levels are an even ladder in perceived lightness -
+    // 60.5, 55.3, 50.6 - rather than three numbers that happened to look right.
+    // Five L* apart is above the just-noticeable difference at caption size and
+    // close enough that the three read as one family (`MASTER_ISSUES` 141).
+    //
     // `ink-mute` carries every mono caption in the interface — column labels,
     // times, the profile's line — which is the smallest type there is, so it
     // clears 4.5:1 against the surfaces it sits on rather than merely looking
     // quiet. It was two steps darker and measured 3.06, which is what "the text
     // disappears into the background" means in numbers.
-    out property <color> ink-mute: #7f7c79;
+    //
+    // 5.38:1 against `bg-0`, 5.18 against `bg-1` where the player bar puts it.
+    out property <color> ink-mute: #878481;
 
     // Furniture: what a column is called, what a group is called, what a page
     // is. Read once and then never again — the eye needs it to find its way in
     // and needs it out of the way afterwards, which `ink-mute` at 52 could not
     // do while sitting eight steps under the text it labels.
     //
-    // 3.8:1 rather than the 4.5 the readable inks clear, and that is the whole
-    // decision: these are labels in wide capitals, not prose, and the rule they
-    // are exempted from is about text somebody has to read. It stays well clear
-    // of `ink-disabled`, because "furniture" and "unavailable" are two
-    // different sentences (`MASTER_ISSUES` 121).
-    out property <color> ink-furniture: #6f6c69;
+    // **4.56:1, and it used to be 3.83 by decision.** The decision was that
+    // wide capitals read once are not text somebody has to read, so the floor
+    // did not apply. Measured on a real screen it did not hold: five different
+    // things wear this ink — the eyebrow, `COLLECTION`, `SETUP`, every column
+    // head, the profile's line — and all five were the first thing anybody
+    // looking at the interface called too faint. It stays 12.7 L* clear of
+    // `ink-disabled`, because "furniture" and "unavailable" are still two
+    // different sentences (`MASTER_ISSUES` 121, 141).
+    out property <color> ink-furniture: #7b7875;
 
     // Not a quieter ink but a different statement: this one means "not
     // available". It measures 2.8:1 on purpose — a disabled control is exempt

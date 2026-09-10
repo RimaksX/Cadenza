@@ -26,6 +26,8 @@ export component AppShell inherits Rectangle {
     in property <[TrackRowData]> tracks;
     in property <string> library-summary;
     in-out property <string> link;
+    in property <bool> offers-a-track;
+    in property <bool> offers-a-list;
     in property <bool> fetching;
     in property <int> fetch-percent;
     in property <string> fetch-note;
@@ -290,6 +292,8 @@ export component AppShell inherits Rectangle {
                 }
                 fetchable: true;
                 link <=> root.link;
+                offers-a-track: root.offers-a-track;
+                offers-a-list: root.offers-a-list;
                 fetching: root.fetching;
                 fetch-percent: root.fetch-percent;
                 fetch-note: root.fetch-note;

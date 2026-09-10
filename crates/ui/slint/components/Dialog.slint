@@ -36,11 +36,21 @@ export component TextButton inherits Rectangle {
     /// the conditions for it do not. Shown rather than hidden so the page does
     /// not change shape under the hand.
     in property <bool> enabled: true;
+    /// A mark after the label, for a control that opens a menu.
+    ///
+    /// **The one exception to "no icons inside buttons", and it is bounded to
+    /// one class of control.** That rule exists because a glyph in a label
+    /// makes a second button style out of the one there is. A chevron is not
+    /// decoration: it is the only mark that says "there is more behind this",
+    /// and without it a control that opens a menu is drawn exactly like a
+    /// control that does something — which is what the sort button was
+    /// (`MASTER_ISSUES` 142). Nothing else may take one.
+    in property <image> opens;
 
     callback pressed();
 
     property <color> tone: !root.enabled
-        ? Theme.ink-mute
+        ? Theme.ink-disabled
         : (root.destructive
             ? Theme.danger
             : (root.accented
@@ -52,7 +62,8 @@ export component TextButton inherits Rectangle {
     // rasterised from half a pixel out.
     width: root.fixed-width > 0
         ? root.fixed-width
-        : round((label.preferred-width + 2 * Theme.space-4) / Theme.px(2)) * Theme.px(2);
+        : round((label.preferred-width + 2 * Theme.space-4
+                 + (root.opens.width > 0 ? Theme.px(20) : 0px)) / Theme.px(2)) * Theme.px(2);
     height: Theme.control-height;
     border-radius: Theme.radius;
     border-width: 1px;
@@ -102,17 +113,51 @@ export component TextButton inherits Rectangle {
         // Left to ask for its own, a line of type wants something fractional
         // and the letters come out at different heights.
         y: round((root.height - Theme.px(18)) / 1px / 2) * 1px;
-        width: root.width;
+        // Short by the chevron and its gap where there is one, so the words
+        // stay centred in the space they actually have rather than in the
+        // whole button with a glyph sitting on top of them.
+        width: root.width - (root.opens.width > 0 ? Theme.px(20) : 0px);
         height: Theme.px(18);
         text: root.label;
         font-family: Theme.mono;
         font-size: Theme.text-label;
         letter-spacing: Theme.label-spacing;
-        color: touch.has-hover || root.selected ? root.tone : root.tone.with-alpha(0.8);
+        // Full strength, and it used to be four fifths at rest.
+        //
+        // Two things were wrong with the alpha. It made a resting label a step
+        // quieter than the ink it was given - `ink-2` at 0.8 over `bg-0`
+        // measures 4.43:1 where the ink itself is 6.40, and on a rendered
+        // window the pixels came back at exactly the blend. And it was doing
+        // the disabled ink's job: a disabled label was `ink-mute` at 0.8, which
+        // landed near `ink-disabled` by arithmetic rather than by saying so, so
+        // raising the ladder made unavailable buttons *more* legible
+        // (`MASTER_ISSUES` 141).
+        //
+        // Hover is a real step now instead of a fifth of one: `ink-2` to
+        // `ink-0`, which is the loudest ink and what this interface says
+        // "the pointer is here" in. A button that already stands in a loud tone
+        // - primary, selected, destructive, accented - keeps it, because those
+        // have somewhere else to go and nowhere louder.
+        color: touch.has-hover && !root.destructive && !root.accented
+            ? Theme.ink-0
+            : root.tone;
         animate color { duration: 120ms; }
         vertical-alignment: center;
         horizontal-alignment: center;
         overflow: elide;
+    }
+
+    // The mark that says a menu is behind this. See `opens` above for why this
+    // is the one glyph allowed inside a button.
+    if root.opens.width > 0: Image {
+        source: root.opens;
+        width: Theme.px(12);
+        height: self.width;
+        x: root.width - Theme.space-4 - self.width;
+        y: round((root.height - self.height) / 1px / 2) * 1px;
+        image-fit: contain;
+        colorize: label.color;
+        animate colorize { duration: 120ms; }
     }
 }
 

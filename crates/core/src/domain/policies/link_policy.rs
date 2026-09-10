@@ -46,6 +46,65 @@ pub fn is_a_link(text: &str) -> bool {
             .any(|character| character.is_whitespace() || character.is_control())
 }
 
+/// What a link can reasonably be asked for.
+///
+/// Both true is the ordinary answer, not a failure to decide: a YouTube address
+/// of the form `watch?v=…&list=…` names one recording *and* the list it was
+/// playing inside, and both readings are things a listener means often enough
+/// to have pressed a button for. Only the listener knows which they meant, so
+/// the interface offers both and lets the link switch off whichever it cannot
+/// be (`MASTER_ISSUES` 142).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Readings {
+    /// One recording can be got from this.
+    pub track: bool,
+    /// A whole list can be got from this.
+    pub list: bool,
+}
+
+impl Readings {
+    /// Neither, which is what an empty box and a word that is not a link get.
+    pub const NONE: Self = Self {
+        track: false,
+        list: false,
+    };
+    /// Both, which is what an address nothing here recognises gets.
+    pub const EITHER: Self = Self {
+        track: true,
+        list: true,
+    };
+}
+
+/// The markers that say a list is named. Not a URL parse - a substring each,
+/// for the same reason the rest of this module refuses to be a parser.
+const NAMES_A_LIST: [&str; 4] = ["list=", "/playlist/", "/album/", "/sets/"];
+
+/// The markers that say one recording is named.
+const NAMES_A_TRACK: [&str; 4] = ["watch?v=", "youtu.be/", "/track/", "/watch/"];
+
+/// Which readings a link offers.
+///
+/// **Recognising neither marker means offering both**, and that is the rule
+/// this module is built on rather than a gap in it: Cadenza has no opinion
+/// about which sites exist, so an address it does not know is an address it
+/// must not narrow. Switching a button off is a claim, and a claim needs
+/// evidence.
+#[must_use]
+pub fn readings_of(text: &str) -> Readings {
+    if !is_a_link(text) {
+        return Readings::NONE;
+    }
+
+    let text = text.to_lowercase();
+    let list = NAMES_A_LIST.iter().any(|mark| text.contains(mark));
+    let track = NAMES_A_TRACK.iter().any(|mark| text.contains(mark));
+
+    match (track, list) {
+        (false, false) => Readings::EITHER,
+        (track, list) => Readings { track, list },
+    }
+}
+
 /// The streaming services whose tracks no downloader can fetch.
 ///
 /// Their audio is encrypted and handed out under a licence the player holds;
@@ -127,6 +186,55 @@ pub fn locked_service(text: &str) -> Option<&'static str> {
 
 #[cfg(test)]
 mod tests {
+
+    use super::{Readings, readings_of};
+
+    #[test]
+    fn a_link_that_names_only_a_recording_offers_only_that() {
+        let one = readings_of("https://youtu.be/dQw4w9WgXcQ");
+        assert!(one.track && !one.list);
+        assert_eq!(
+            readings_of("https://open.spotify.com/track/4cOdK2wGLETKBW3PvgPWqT"),
+            Readings {
+                track: true,
+                list: false
+            }
+        );
+    }
+
+    #[test]
+    fn a_link_that_names_only_a_list_offers_only_that() {
+        let many = readings_of("https://www.youtube.com/playlist?list=PL1234");
+        assert!(many.list && !many.track);
+        assert!(readings_of("https://open.spotify.com/album/1DFixLWuPkv3KT3TnV35m3").list);
+    }
+
+    #[test]
+    fn the_address_that_is_both_offers_both() {
+        // The one a listener actually copies: a track, playing inside a list.
+        // Guessing here would be choosing for them (`MASTER_ISSUES` 142).
+        assert_eq!(
+            readings_of("https://www.youtube.com/watch?v=dQw4w9WgXcQ&list=PL1234"),
+            Readings::EITHER
+        );
+    }
+
+    #[test]
+    fn an_address_nothing_here_recognises_offers_both() {
+        assert_eq!(
+            readings_of("https://example.com/some/audio"),
+            Readings::EITHER,
+            "switching a button off is a claim, and there is no evidence for one"
+        );
+    }
+
+    #[test]
+    fn what_is_not_a_link_offers_nothing() {
+        for text in ["", "   ", "youtube.com/watch?v=x", "-rf /", "https://"] {
+            assert_eq!(readings_of(text), Readings::NONE, "{text:?}");
+        }
+    }
+
     use super::{is_a_link, locked_service};
 
     #[test]
