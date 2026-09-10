@@ -385,11 +385,15 @@ export component Sidebar inherits Rectangle {
                 VerticalLayout {
                     alignment: center;
 
+                    // The serif, which is what names things here — and what
+                    // the settings page has always set this same name in. The
+                    // sans is for prose and for a destination in the list
+                    // above; a person is a name (`MASTER_ISSUES` 153).
                     Text {
                         text: root.profile-name;
-                        font-family: Theme.sans;
-                        font-size: Theme.text-body;
-                        height: Theme.px(22);
+                        font-family: Theme.serif;
+                        font-size: Theme.text-lead;
+                        height: Theme.px(26);
                         vertical-alignment: center;
                         color: Theme.ink-1;
                         overflow: elide;

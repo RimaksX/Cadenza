@@ -79,6 +79,11 @@ component TopRow inherits Rectangle {
     HorizontalLayout {
         y: round((parent.height - Theme.px(26)) / 1px / 2) * 1px;
         height: Theme.px(26);
+        // The same gap the library's rows leave after their last column. The
+        // rank on the left had one and the count on the right did not, so the
+        // number ran to the edge of the page while its own row began inset
+        // (`MASTER_ISSUES` 153).
+        padding-right: Theme.row-end-inset;
         spacing: Theme.space-4;
 
         VerticalLayout {

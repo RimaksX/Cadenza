@@ -37,8 +37,13 @@ component FavouritesBanner inherits Rectangle {
     in property <PlaylistCardData> data;
 
     callback activated();
+    callback played();
+    callback acted(string);
 
-    property <bool> hovered: touch.has-hover;
+    // One state for the whole band, so the two controls on it do not switch
+    // each other off as the hand moves between them — the same reason a tile
+    // asks all three of its areas rather than only its own.
+    property <bool> hovered: touch.has-hover || start.has-hover || dots.has-hover;
 
     height: Theme.banner-height;
     border-radius: Theme.radius;
@@ -110,6 +115,90 @@ component FavouritesBanner inherits Rectangle {
                 vertical-alignment: center;
                 letter-spacing: Theme.label-spacing;
                 color: Theme.ink-2;
+            }
+        }
+    }
+
+    // Play the list without opening it. The same filled circle a tile has, at
+    // the same 44 and the same 16 from its corner: the band is a different
+    // shape from a tile, and the control on it should not be a different
+    // object (`MASTER_ISSUES` 153).
+    Rectangle {
+        x: parent.width - self.width - Theme.px(16);
+        y: parent.height - self.height - Theme.px(16);
+        width: Theme.px(44);
+        height: self.width;
+        border-radius: self.width / 2;
+        background: start.has-hover ? Theme.ink-1 : Theme.ink-0;
+        opacity: root.hovered ? 1.0 : 0.0;
+        animate background, opacity { duration: 120ms; }
+
+        Image {
+            source: @image-url("../../../../resources/ui/icons/play.svg");
+            width: Theme.px(16);
+            height: self.width;
+            // A pixel right of the middle, for the reason the player bar's is:
+            // a triangle's ink is not where its box is.
+            x: (parent.width - self.width) / 2 + 1px;
+            y: round((parent.height - self.height) / 1px / 2) * 1px;
+            colorize: Theme.bg-0;
+        }
+
+        start := TouchArea {
+            enabled: root.hovered;
+            mouse-cursor: pointer;
+            clicked => {
+                root.played();
+            }
+        }
+    }
+
+    // And the menu, which is how a picture is chosen for it. A tile carries
+    // one; the band carried nothing, so the only list on the page that cannot
+    // be renamed or deleted was also the only one whose cover could not be
+    // changed.
+    Rectangle {
+        x: parent.width - self.width - Theme.px(16);
+        y: Theme.px(16);
+        width: Theme.px(28);
+        height: self.width;
+        border-radius: Theme.radius;
+        background: dots.has-hover ? Theme.bg-3 : transparent;
+        opacity: root.hovered ? 1.0 : 0.0;
+        animate background, opacity { duration: 120ms; }
+
+        Image {
+            source: @image-url("../../../../resources/ui/icons/dots.svg");
+            width: Theme.px(16);
+            height: self.width;
+            x: round((parent.width - self.width) / 1px / 2) * 1px;
+            y: round((parent.height - self.height) / 1px / 2) * 1px;
+            colorize: dots.has-hover ? Theme.ink-0 : Theme.ink-1;
+            animate colorize { duration: 120ms; }
+        }
+
+        dots := TouchArea {
+            enabled: root.hovered;
+            mouse-cursor: pointer;
+            clicked => {
+                menu.show();
+            }
+        }
+
+        menu := RowMenu {
+            x: Theme.px(28) - self.width;
+            y: Theme.px(28);
+            property <[MenuItemData]> without-cover: [
+                { action: "cover", label: "Choose a picture…" },
+            ];
+            property <[MenuItemData]> with-cover: [
+                { action: "cover", label: "Change the picture…" },
+                { action: "uncover", label: "Use the default again" },
+            ];
+
+            items: root.data.has-cover ? self.with-cover : self.without-cover;
+            chosen(action) => {
+                root.acted(action);
             }
         }
     }
@@ -566,6 +655,12 @@ export component PlaylistsView inherits Rectangle {
                 width: root.available;
                 activated => {
                     root.open(root.favourites.id);
+                }
+                played => {
+                    root.play(root.favourites.id);
+                }
+                acted(action) => {
+                    root.act(root.favourites.id, root.favourites.name, action);
                 }
             }
 

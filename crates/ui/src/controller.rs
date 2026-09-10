@@ -5,7 +5,8 @@
 //! method here is a translation and a call (PROJECT_MASTER 4.3).
 
 use std::cell::{Cell, RefCell};
-use std::path::PathBuf;
+use std::collections::HashMap;
+use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, AtomicU8, AtomicU32, Ordering};
 use std::sync::{Arc, Mutex, PoisonError};
@@ -131,6 +132,14 @@ pub struct Controller {
     /// screen, because the cache lived inside a model that was thrown away
     /// (`MASTER_ISSUES` 114).
     covers: Covers,
+    /// Pictures that are not a track's: playlist covers, and the faces beside
+    /// names. Keyed by where they came from, because that is what identifies
+    /// the bytes.
+    ///
+    /// Without it, entering the playlists page decoded every cover again —
+    /// **measured at 334 ms of a 335 ms refresh**, all of it one 1000-pixel
+    /// WebP, every single time the page was opened (`MASTER_ISSUES` 152).
+    pictures: RefCell<HashMap<PathBuf, slint::Image>>,
     /// What the offered button would do, while one is offered.
     offer: Cell<Option<Offer>>,
     /// What the last press asked for, so that fixing the reason it failed can
@@ -198,6 +207,7 @@ impl Controller {
             profile,
             query: RefCell::new(String::new()),
             covers: Covers::default(),
+            pictures: RefCell::new(HashMap::new()),
             offer: Cell::new(None),
             asked_for: Cell::new(FetchWhat::OneTrack),
             shown_library: RefCell::new(Vec::new()),
@@ -271,7 +281,7 @@ impl Controller {
                     self.services
                         .profiles
                         .avatar(profile.id)
-                        .and_then(|path| slint::Image::load_from_path(&path).ok())
+                        .map(|path| self.picture(&path))
                         .unwrap_or_default(),
                 );
                 window
@@ -492,7 +502,7 @@ impl Controller {
         // The favourites list is drawn across the page rather than in the grid,
         // so it leaves the grid's model (`MASTER_ISSUES` 149). It is first in
         // the listing, which is where the service puts it.
-        let cards = playlist_vm::cards(&summaries);
+        let cards = playlist_vm::cards(&summaries, |path| self.picture(path));
         let (banner, rest): (Vec<_>, Vec<_>) = cards.into_iter().partition(|card| card.automatic);
 
         window.set_has_favourites(!banner.is_empty());
@@ -748,6 +758,7 @@ impl Controller {
             self.services.profiles.choose_avatar(profile_id)?;
             Ok(())
         });
+        self.forget_pictures();
         self.refresh_profile();
         self.refresh_settings();
     }
@@ -758,6 +769,7 @@ impl Controller {
             let profile_id = ProfileId::parse(id)?;
             self.services.profiles.clear_avatar(profile_id)
         });
+        self.forget_pictures();
         self.refresh_profile();
         self.refresh_settings();
     }
@@ -1406,6 +1418,7 @@ impl Controller {
             return;
         };
         self.run(|| self.services.playlists.choose_cover(playlist_id).map(drop));
+        self.forget_pictures();
         self.refresh_playlists();
     }
 
@@ -1414,6 +1427,7 @@ impl Controller {
             return;
         };
         self.run(|| self.services.playlists.clear_cover(playlist_id));
+        self.forget_pictures();
         self.refresh_playlists();
     }
 
@@ -1571,6 +1585,29 @@ impl Controller {
         }
     }
 
+    /// A picture from disk, decoded at most once.
+    ///
+    /// Emptied rather than invalidated whenever a picture is chosen or removed:
+    /// the map holds a handful of entries, and working out which one changed
+    /// costs more thought than dropping all of them costs time.
+    fn picture(&self, path: &Path) -> slint::Image {
+        if let Some(known) = self.pictures.borrow().get(path).cloned() {
+            return known;
+        }
+
+        let picture = slint::Image::load_from_path(path).unwrap_or_default();
+        self.pictures
+            .borrow_mut()
+            .insert(path.to_path_buf(), picture.clone());
+        picture
+    }
+
+    /// Forgets every decoded picture, because one of them is no longer what it
+    /// was.
+    fn forget_pictures(&self) {
+        self.pictures.borrow_mut().clear();
+    }
+
     /// Re-reads who is listening and who else could be.
     fn refresh_profiles_list(&self) {
         let Some(window) = self.window.upgrade() else {
@@ -1595,7 +1632,7 @@ impl Controller {
                     .services
                     .profiles
                     .avatar(profile.id)
-                    .and_then(|path| slint::Image::load_from_path(&path).ok())
+                    .map(|path| self.picture(&path))
                     .unwrap_or_default(),
                 initial: view_models::initial(profile.name.as_str()).into(),
             })

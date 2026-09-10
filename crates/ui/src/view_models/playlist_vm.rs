@@ -5,26 +5,26 @@ use cadenza_core::domain::value_objects::DurationMs;
 
 use crate::{MenuItemData, PlaylistCardData};
 
-/// The cover as the window can draw it, or nothing.
+/// Formats the index of playlists.
+///
+/// `read` turns a path into a picture, and it is passed in rather than called
+/// here so that the caller can decide whether the bytes have been decoded
+/// before. They usually have: this runs on every entry into the page, and a
+/// playlist's cover does not change between two of them
+/// (`MASTER_ISSUES` 152).
 ///
 /// A picture that will not decode is treated as no picture at all rather than
 /// as an error: it is a file on somebody's disk that may have been replaced by
 /// anything since it was chosen, and the tile has something to fall back to.
-fn cover(summary: &PlaylistSummary) -> slint::Image {
-    summary
-        .cover
-        .as_deref()
-        .and_then(|path| slint::Image::load_from_path(path).ok())
-        .unwrap_or_default()
-}
-
-/// Formats the index of playlists.
-pub fn cards(summaries: &[PlaylistSummary]) -> Vec<PlaylistCardData> {
+pub fn cards(
+    summaries: &[PlaylistSummary],
+    read: impl Fn(&std::path::Path) -> slint::Image,
+) -> Vec<PlaylistCardData> {
     summaries
         .iter()
         .enumerate()
         .map(|(index, summary)| {
-            let cover = cover(summary);
+            let cover = summary.cover.as_deref().map(&read).unwrap_or_default();
             PlaylistCardData {
                 id: summary.playlist.id.to_string().into(),
                 name: summary.playlist.name.as_str().into(),
@@ -143,7 +143,12 @@ mod tests {
 
     #[test]
     fn a_card_carries_its_name_its_place_and_what_is_in_it() {
-        let listed = cards(&[summary("Late night", 12, 2_640), summary("Morning", 3, 600)]);
+        // No pictures in a test about words: the loader is the caller's, and
+        // this one hands back nothing.
+        let listed = cards(
+            &[summary("Late night", 12, 2_640), summary("Morning", 3, 600)],
+            |_| slint::Image::default(),
+        );
         assert_eq!(listed[0].name, "Late night");
         assert_eq!(
             listed[0].position, "№ 01",
