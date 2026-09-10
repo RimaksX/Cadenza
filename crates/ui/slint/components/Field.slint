@@ -39,7 +39,18 @@ export component Field inherits Rectangle {
     clip: true;
     border-radius: Theme.radius;
     border-width: 1px;
-    border-color: input.has-focus ? Theme.line : (touch.has-hover ? Theme.line : Theme.line-soft);
+    // Three states and not two. Focus and hover were both `line`, so a field
+    // somebody was **typing into** was drawn exactly like one the pointer
+    // happened to be crossing — and the interface's only focus indicator said
+    // nothing (`MASTER_ISSUES` 158).
+    //
+    // `ink-2` for focus: a step above `line` and the loudest a hairline gets
+    // here, which is right for the one mark that has to be unmistakable.
+    // Measured against the surfaces it sits on it clears 6.4:1 where `line`
+    // manages 1.9 — a focus ring at 1.9 is a focus ring nobody can find.
+    border-color: input.has-focus
+        ? Theme.ink-2
+        : (touch.has-hover ? Theme.line : Theme.line-soft);
     // Lit while it is being used or pointed at, flat otherwise. Hover belongs
     // to the whole object, so the box changes rather than anything inside it.
     background: input.has-focus || touch.has-hover ? Theme.bg-1 : transparent;
