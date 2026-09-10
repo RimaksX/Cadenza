@@ -28,11 +28,11 @@ import { AppShell } from "components/AppShell.slint";
 import { TrackRowData } from "components/TrackRow.slint";
 import { PlaylistCardData } from "views/PlaylistsView.slint";
 import { MenuItemData } from "components/RowMenu.slint";
-import { EqPresetData, EqBandData } from "views/EqualiserView.slint";
+import { EqPresetData, EqBandData, ToneBand } from "views/EqualiserView.slint";
 import { FolderRowData, ProfileRowData, TakenOutRowData } from "views/SettingsView.slint";
 import { MoodRowData } from "views/RadioView.slint";
 import { TopTrackData } from "views/ListeningView.slint";
-import { ReviewRowData } from "views/ReviewsView.slint";
+import { ReviewRowData, ReviewChoice } from "views/ReviewsView.slint";
 
 // Re-exported so the controller can set the palette. A global's input is set
 // from the native side; markup may read it but never assign to it, which is
@@ -222,7 +222,7 @@ export component AppWindow inherits Window {
     callback toggle-shuffle();
     callback cycle-repeat();
     callback set-eq-mode(bool);
-    callback set-eq-simple(int, float);
+    callback set-eq-simple(ToneBand, float);
     callback move-eq-band(int, float);
     callback tune-eq-band(int, int);
     callback select-eq-band(int);
@@ -241,7 +241,7 @@ export component AppWindow inherits Window {
     callback forget-gone();
     callback scan-now();
     callback showing(string);
-    callback decide-review(string, string);
+    callback decide-review(string, ReviewChoice);
     callback edit-track(string);
     callback save-track(string, string, string, string);
     callback switch-profile(string);

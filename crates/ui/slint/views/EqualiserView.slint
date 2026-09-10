@@ -147,13 +147,24 @@ component DialArm inherits Rectangle {
 }
 
 // The three tone controls, as one figure.
+// Which of the simple equaliser's three controls a hand is on.
+//
+// It used to be an int, and the `match` on the Rust side ended in a wildcard
+// that sent every unnamed index to treble. Three named values cost nothing and
+// let the compiler check both ends (`MASTER_ISSUES` 163).
+export enum ToneBand {
+    bass,
+    mid,
+    treble,
+}
+
 component ToneDial inherits Rectangle {
     in property <float> bass;
     in property <float> mid;
     in property <float> treble;
 
-    /// Which control moved, and where to. Zero is bass, one is mid, two treble.
-    callback moved(int, float);
+    /// Which control moved, and where to.
+    callback moved(ToneBand, float);
     /// The hand let go.
     callback settled();
 
@@ -198,7 +209,7 @@ component ToneDial inherits Rectangle {
         unit-x: 0;
         unit-y: -1;
         moved(value) => {
-            root.moved(1, value);
+            root.moved(ToneBand.mid, value);
         }
         settled => {
             root.settled();
@@ -215,7 +226,7 @@ component ToneDial inherits Rectangle {
         unit-x: -0.866;
         unit-y: 0.5;
         moved(value) => {
-            root.moved(0, value);
+            root.moved(ToneBand.bass, value);
         }
         settled => {
             root.settled();
@@ -232,7 +243,7 @@ component ToneDial inherits Rectangle {
         unit-x: 0.866;
         unit-y: 0.5;
         moved(value) => {
-            root.moved(2, value);
+            root.moved(ToneBand.treble, value);
         }
         settled => {
             root.settled();
@@ -536,7 +547,7 @@ export component EqualiserView inherits Rectangle {
     in property <string> selected-gain;
 
     callback set-mode(bool);
-    callback set-simple(int, float);
+    callback set-simple(ToneBand, float);
     callback move-band(int, float);
     /// Which way to move the chosen band's own frequency.
     callback tune-band(int, int);

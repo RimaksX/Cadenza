@@ -272,7 +272,7 @@ fn wire(window: &AppWindow, controller: &Rc<Controller>) {
 
     window.on_decide_review({
         let controller = Rc::clone(controller);
-        move |id, choice| controller.decide_review(id.as_str(), choice.as_str())
+        move |id, choice| controller.decide_review(id.as_str(), choice)
     });
 
     window.on_edit_track({

@@ -36,8 +36,8 @@ use crate::view_models::{
     self, eq_vm, library_vm, player_vm, playlist_vm, profile_vm, radio_vm, review_vm, stats_vm,
 };
 use crate::{
-    AppWindow, EqBandData, FolderRowData, MenuItemData, MoodRowData, ProfileRowData, ReviewRowData,
-    TakenOutRowData, Theme, TopTrackData, UiServices,
+    AppWindow, EqBandData, FolderRowData, MenuItemData, MoodRowData, ProfileRowData, ReviewChoice,
+    ReviewRowData, TakenOutRowData, Theme, ToneBand, TopTrackData, UiServices,
 };
 
 /// What to do when there is a profile but nothing in it.
@@ -1045,14 +1045,18 @@ impl Controller {
     /// The sound follows the hand and the database waits: a control being
     /// dragged reports every step of the way, and twenty-eight rows written per
     /// step is a database asked to keep up with a wrist.
-    pub fn set_eq_simple(&self, which: i32, decibels: f32) {
+    pub fn set_eq_simple(&self, which: ToneBand, decibels: f32) {
         self.run(|| {
             let mut setting = self.services.eq.current()?;
             let gain = GainDb::clamped(decibels);
+            // Named, not numbered. While this was an `i32` the wildcard sent
+            // every index that was not zero or one to treble, so a fourth
+            // control added to the dial would have silently moved the third
+            // (`MASTER_ISSUES` 163).
             match which {
-                0 => setting.simple.bass = gain,
-                1 => setting.simple.mid = gain,
-                _ => setting.simple.treble = gain,
+                ToneBand::Bass => setting.simple.bass = gain,
+                ToneBand::Mid => setting.simple.mid = gain,
+                ToneBand::Treble => setting.simple.treble = gain,
             }
             setting.mode = EqMode::Simple;
             self.services.eq.preview(setting)
@@ -1217,13 +1221,18 @@ impl Controller {
     }
 
     /// Applies a decision and takes the row away.
-    pub fn decide_review(&self, id: &str, choice: &str) {
+    pub fn decide_review(&self, id: &str, choice: ReviewChoice) {
         self.run(|| {
             let review_id = ImportReviewId::parse(id)?;
+            // Three named choices against three resolutions, and no
+            // wildcard. The string form ended in `_ => AddAnyway`, so a
+            // misspelling anywhere in the markup would have added a file the
+            // listener had just asked to keep out, quietly and irreversibly
+            // (`MASTER_ISSUES` 163).
             let resolution = match choice {
-                "keep" => ReviewResolution::KeepExisting,
-                "replace" => ReviewResolution::RemoveExisting,
-                _ => ReviewResolution::AddAnyway,
+                ReviewChoice::Keep => ReviewResolution::KeepExisting,
+                ReviewChoice::Replace => ReviewResolution::RemoveExisting,
+                ReviewChoice::Add => ReviewResolution::AddAnyway,
             };
             self.services.library.resolve_review(review_id, resolution)
         });

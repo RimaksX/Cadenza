@@ -3,6 +3,23 @@ import { TextButton } from "../components/Dialog.slint";
 import { ScrollFade } from "../components/ScrollFade.slint";
 
 // One file waiting for a decision.
+// What a listener may decide about a file waiting for review.
+//
+// An enum rather than the three strings this used to pass, because the strings
+// met a `match` in Rust whose wildcard sent anything unrecognised to
+// `AddAnyway` - the most destructive of the three. A typo in this markup would
+// have added a file the listener asked to keep out, and nothing would have said
+// so (`MASTER_ISSUES` 163).
+//
+// **`keep` is first, and the order is load-bearing**: Slint's Rust generator
+// marks the first value `#[default]`, so anything that ever does arrive
+// unnamed is the choice that changes nothing.
+export enum ReviewChoice {
+    keep,
+    add,
+    replace,
+}
+
 export struct ReviewRowData {
     id: string,
     /// Where the file is.
@@ -19,7 +36,7 @@ export struct ReviewRowData {
 component ReviewCard inherits Rectangle {
     in property <ReviewRowData> data;
 
-    callback decided(string);
+    callback decided(ReviewChoice);
 
     height: root.data.duplicate ? Theme.px(188) : Theme.px(148);
     border-width: 1px;
@@ -72,14 +89,14 @@ component ReviewCard inherits Rectangle {
                 label: "KEEP MINE";
                 fixed-width: Theme.px(132);
                 pressed => {
-                    root.decided("keep");
+                    root.decided(ReviewChoice.keep);
                 }
             }
             TextButton {
                 label: "ADD ANYWAY";
                 fixed-width: Theme.px(132);
                 pressed => {
-                    root.decided("add");
+                    root.decided(ReviewChoice.add);
                 }
             }
             if root.data.duplicate: TextButton {
@@ -87,7 +104,7 @@ component ReviewCard inherits Rectangle {
                 fixed-width: Theme.px(148);
                 destructive: true;
                 pressed => {
-                    root.decided("replace");
+                    root.decided(ReviewChoice.replace);
                 }
             }
         }
@@ -99,7 +116,7 @@ export component ReviewsView inherits Rectangle {
     in property <[ReviewRowData]> reviews;
     in property <string> summary;
 
-    callback decide(string, string);
+    callback decide(string, ReviewChoice);
 
     background: Theme.bg-0;
 

@@ -7,11 +7,11 @@ import { LibraryView } from "../views/LibraryView.slint";
 import { QueueView } from "../views/QueueView.slint";
 import { PlaylistsView, PlaylistCardData } from "../views/PlaylistsView.slint";
 import { PlaylistDetailView } from "../views/PlaylistDetailView.slint";
-import { EqualiserView, EqPresetData, EqBandData } from "../views/EqualiserView.slint";
+import { EqualiserView, EqPresetData, EqBandData, ToneBand } from "../views/EqualiserView.slint";
 import { SettingsView, FolderRowData, ProfileRowData, TakenOutRowData } from "../views/SettingsView.slint";
 import { RadioView, MoodRowData } from "../views/RadioView.slint";
 import { ListeningView, TopTrackData } from "../views/ListeningView.slint";
-import { ReviewsView, ReviewRowData } from "../views/ReviewsView.slint";
+import { ReviewsView, ReviewRowData, ReviewChoice } from "../views/ReviewsView.slint";
 import { WelcomeView } from "../views/WelcomeView.slint";
 import { Dialog, PickDialog, EditTrackDialog } from "Dialog.slint";
 import { MenuItemData } from "RowMenu.slint";
@@ -187,7 +187,7 @@ export component AppShell inherits Rectangle {
     callback toggle-shuffle();
     callback cycle-repeat();
     callback set-eq-mode(bool);
-    callback set-eq-simple(int, float);
+    callback set-eq-simple(ToneBand, float);
     callback move-eq-band(int, float);
     callback tune-eq-band(int, int);
     callback select-eq-band(int);
@@ -198,7 +198,7 @@ export component AppShell inherits Rectangle {
     /// Asks the interface to open the editor for a track. What it is called now
     /// comes back through the properties below, because only the application
     /// knows.
-    callback decide-review(string, string);
+    callback decide-review(string, ReviewChoice);
     callback edit-track(string);
     callback save-track(string, string, string, string);
     callback switch-profile(string);
