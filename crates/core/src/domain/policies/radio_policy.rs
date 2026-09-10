@@ -229,21 +229,33 @@ pub fn mood_score(
         return 1.0;
     }
 
-    // The mean, scaled by how many of the stated bands the track met at all.
+    // **Every stated band has to be met at all. One outright miss and the
+    // track is not in this mood.**
     //
-    // A band missed *outright* - far enough outside that even the falloff has
-    // run out - is different in kind from one it merely bends. The mean cannot
-    // see that difference: a track that is right about two things out of three
-    // and impossible on the third scores the same 0.67 as one that is
-    // three-quarters right about all of them. In a library with nothing slow
-    // in it that put a 141 BPM track fourth in Sleep, behind two that were
-    // genuinely slow and ahead of nothing (`MASTER_ISSUES` 138).
+    // A band missed outright is not "a bit wrong" - it is a band with a soft
+    // edge already built in, and the track fell past even that. Scoring it
+    // proportionally was tried twice. First the plain mean, which put a 141 BPM
+    // track fourth in Sleep (`MASTER_ISSUES` 138); then the mean scaled by the
+    // share of bands met, which is what shipped and which still let a 105 BPM
+    // rap track score 0.33 in a mood whose tempo band ends at 80 - `t=0.00`
+    // costing only a third.
     //
-    // Scaling rather than zeroing, which a geometric mean would do: measured
-    // on the same library, zeroing flattened every ranking underneath and left
-    // a station with nothing to order its fallbacks by. This keeps the order
-    // and moves the outright misses below everything that fits.
-    (total / counted * (met / counted)).clamp(0.0, 1.0)
+    // Measured across the owner's 41 tracks, the scaled mean left **41 of 41**
+    // candidates alive in Driving, Focus and Morning: the station was the
+    // library with the order shuffled. Requiring every band brings those to 33,
+    // 18 and 28.
+    //
+    // 138 rejected zeroing because it "flattened every ranking underneath and
+    // left a station with nothing to order its fallbacks by". That was true
+    // while a zero-scoring track still competed on the other 60% of the rank.
+    // It no longer does: `RadioService` drops zero-mood candidates outright, so
+    // there is no ranking underneath left to flatten. The two changes only work
+    // as a pair.
+    if met < counted {
+        return 0.0;
+    }
+
+    (total / counted).clamp(0.0, 1.0)
 }
 
 /// The final score a candidate is ranked by (PROJECT_MASTER 10.4).
@@ -434,6 +446,32 @@ mod tests {
     fn a_track_the_mood_did_not_ask_for_scores_badly() {
         let lullaby = mood_score(&energetic(), Some(&features(Some(60.0), 0.1, 0.3)), &raw());
         assert!(lullaby < 0.1, "got {lullaby}");
+    }
+
+    #[test]
+    fn one_band_missed_outright_is_the_whole_answer() {
+        // The track the owner reported: 105 BPM against Sleep's 40-80, and
+        // right about everything else. Under the shipped scheme its two good
+        // bands carried it to 0.33 and into the station.
+        let sleep = MoodRules {
+            bpm: Some(FeatureBand::new(40.0, 80.0, 15.0)),
+            energy: Some(FeatureBand::new(0.0, 0.25, 0.15)),
+            danceability: Some(FeatureBand::new(0.0, 0.35, 0.2)),
+            ..MoodRules::default()
+        };
+        let too_fast = features(Some(105.0), 0.1, 0.1);
+        assert_eq!(mood_score(&sleep, Some(&too_fast), &raw()), 0.0);
+
+        // And the gate is a gate, not a general souring: bend every band
+        // without breaking one and the score is still the mean of the bends.
+        // 78 BPM and 0.1 energy sit inside their bands; 0.4 danceability is
+        // past the 0.35 top and inside the 0.2 of falloff after it.
+        let slow = TrackFeatures {
+            danceability: 0.4,
+            ..features(Some(78.0), 0.1, 0.1)
+        };
+        let bent = mood_score(&sleep, Some(&slow), &raw());
+        assert!((bent - (1.0 + 1.0 + 0.75) / 3.0).abs() < 1e-6, "got {bent}");
     }
 
     #[test]

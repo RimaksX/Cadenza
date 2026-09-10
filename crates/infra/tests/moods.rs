@@ -154,7 +154,11 @@ fn a_quiet_mood_and_a_loud_one_disagree_about_the_same_track() {
     let harness = harness();
     let library = library();
     let scale = LibraryScale::of(&library);
-    let banger = library.last().expect("the loud end");
+    // 130 BPM and 0.70 energy - the loudest track that is still inside Party's
+    // tempo. The fixture's actual last row is 160, which is a Workout track:
+    // now that a band missed outright zeroes the mood, Party scores it 0 too
+    // and the comparison stopped saying anything about energy.
+    let banger = &library[5];
 
     let party = mood_score(&harness.mood("Party").rules, Some(banger), &scale);
     let focus = mood_score(&harness.mood("Focus").rules, Some(banger), &scale);

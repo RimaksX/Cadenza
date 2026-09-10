@@ -280,6 +280,7 @@ impl RadioService {
     ) -> Option<(&'a TrackSummary, PickReason)> {
         let weights = RankingWeights::DEFAULT;
         let mut best: Option<(f32, &TrackSummary, PickReason)> = None;
+        let mut fallback: Option<(f32, &TrackSummary, PickReason)> = None;
 
         for summary in library {
             if offered.contains(&summary.media_file_id) {
@@ -312,12 +313,36 @@ impl RadioService {
                 noise(),
             );
 
-            if best.as_ref().is_none_or(|(top, _, _)| score > *top) {
-                best = Some((score, summary, PickReason { score, ..reason }));
+            // **Two tiers, and the second is only ever reached when the
+            // first is empty.**
+            //
+            // A zero mood means the track missed one of the bands the mood
+            // states outright - `mood_score` returns zero in that case and no
+            // other. Such a track is not in the mood, and mood is only 0.40 of
+            // the rank, so the remaining 0.60 of freshness and transition was
+            // enough for a 105 BPM rap track to beat a genuinely slow one in
+            // Sleep. Ranking the two tiers together is what let that happen.
+            //
+            // It is a tier rather than a filter because radio may not run dry:
+            // a listener who asks for Sleep with nothing slow in their library
+            // must still get music, and after the real matches are gone the
+            // least-bad ordering by transition and freshness is the best answer
+            // there is. That is the objection `MASTER_ISSUES` 138 raised
+            // against zeroing, and separating the tiers is what answers it -
+            // nothing is flattened, because the flattened tier is only
+            // consulted once the ordered one is exhausted.
+            let tier = if reason.mood > 0.0 {
+                &mut best
+            } else {
+                &mut fallback
+            };
+            if tier.as_ref().is_none_or(|(top, _, _)| score > *top) {
+                *tier = Some((score, summary, PickReason { score, ..reason }));
             }
         }
 
-        best.map(|(_, summary, reason)| (summary, reason))
+        best.or(fallback)
+            .map(|(_, summary, reason)| (summary, reason))
     }
 }
 

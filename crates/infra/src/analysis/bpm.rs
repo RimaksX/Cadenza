@@ -90,7 +90,7 @@ pub fn measure(spectra: &Spectra) -> Tempo {
 ///
 /// Only rises count: a note stopping is not an onset, and counting it would put
 /// a second peak half a beat after every real one.
-pub(super) fn onsets(spectra: &Spectra) -> Vec<f32> {
+fn onsets(spectra: &Spectra) -> Vec<f32> {
     let frames = spectra.frames();
     if frames.len() < 2 {
         return Vec::new();
@@ -134,7 +134,7 @@ fn running_mean(values: &[f32], span: usize) -> Vec<f32> {
 /// Returns the lag in frames — interpolated, so the answer is not limited to
 /// whole frames — along with the height of the peak and the average, which is
 /// what makes it a confidence rather than just a winner.
-pub(super) fn strongest_lag(envelope: &[f32], seconds: f32) -> Option<(f32, f32, f32)> {
+fn strongest_lag(envelope: &[f32], seconds: f32) -> Option<(f32, f32, f32)> {
     let shortest = (60.0 / MAX_BPM / seconds).round().max(2.0) as usize;
     let longest = ((60.0 / MIN_BPM / seconds).round() as usize).min(envelope.len() / 2);
     if longest <= shortest {
