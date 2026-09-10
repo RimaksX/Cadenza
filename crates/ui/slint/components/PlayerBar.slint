@@ -245,7 +245,7 @@ export component PlayerBar inherits Rectangle {
         // before the cover and after the words, with the mark itself running
         // to the edge.
         Rectangle {
-            width: Theme.px(284);
+            width: Theme.px(324);
             background: root.loaded && now-touch.has-hover ? Theme.bg-2 : transparent;
             // No radius. Everything this mark touches is square — the window's
             // corner, the bar's own seam, the edge of the screen — and a
@@ -345,38 +345,44 @@ export component PlayerBar inherits Rectangle {
                     overflow: elide;
                 }
             }
-        }
-        }
 
-        // Whether this one is a favourite, and the way to say so.
-        //
-        // Beside what is playing rather than among the transport controls: it
-        // is a statement about this track, and the five buttons in the middle
-        // are all statements about the music going forwards. Filled and in the
-        // accent when the track is in the list, which is the same colour this
-        // interface uses for everything that is in force.
-        //
-        // Outside the block on its left, so the title keeps its width. The
-        // column on the far side carries the same 52 back, or the transport
-        // would no longer sit on the window's middle.
-        VerticalLayout {
-            alignment: center;
+            // Whether this one is a favourite, and the way to say so.
+            //
+            // Beside what is playing rather than among the transport controls:
+            // it is a statement about this track, and the five buttons in the
+            // middle are all statements about the music going forwards. Filled
+            // and in the accent when the track is in the list, which is the
+            // colour this interface uses for everything in force.
+            //
+            // **A fixed slot at the end of the text column, not something that
+            // follows the words.** A heart placed after the title would move
+            // with every track and would be pushed off the edge by a long one.
+            // Here the two share a row: the words stretch and elide, the button
+            // does not, so a long title runs to an ellipsis twelve pixels short
+            // of a heart that never moves (`MASTER_ISSUES` 146).
+            //
+            // It stood outside this block until now, which cost the title
+            // nothing and put the button seventy-seven pixels from the words it
+            // belongs to, in a gap with nothing else in it. The block is forty
+            // wider instead — exactly the button and its gap — so the words
+            // still have the same 176 they always had.
+            VerticalLayout {
+                alignment: center;
 
-            TransportButton {
-                glyph: root.favourite
-                    ? @image-url("../../../../resources/ui/icons/heart-filled.svg")
-                    : @image-url("../../../../resources/ui/icons/heart.svg");
-                active: root.favourite;
-                quiet: true;
-                // The same twenty the play button draws at. It sits on its own
-                // rather than in the group of five, so the group's own three
-                // steps - 20, 18, 16 - say nothing about it.
-                glyph-size: Theme.px(20);
-                enabled: root.loaded;
-                pressed => {
-                    root.toggle-favourite();
+                TransportButton {
+                    glyph: root.favourite
+                        ? @image-url("../../../../resources/ui/icons/heart-filled.svg")
+                        : @image-url("../../../../resources/ui/icons/heart.svg");
+                    active: root.favourite;
+                    quiet: true;
+                    glyph-size: Theme.px(20);
+                    enabled: root.loaded;
+                    pressed => {
+                        root.toggle-favourite();
+                    }
                 }
             }
+        }
         }
 
         // Transport, and the progress line under it. Both centred, and the line
@@ -519,13 +525,11 @@ export component PlayerBar inherits Rectangle {
 
         // Level. Fixed width to match the left block, so the middle is centred
         // on the window rather than on what is left over. The 52 is the heart
-        // and its gap on the other side, plus the eight the two ends were
-        // already apart: a button added to one end moves the middle unless the
-        // other end is told about it. Measured on the rendered window rather
-        // than reasoned about - the group's outermost lit pixels sit on 590.0
-        // of a 1180-wide window, which is the middle.
+        // and its own padding, so the two ends of the bar weigh the same and
+        // the transport between them sits on the window's middle. Measured on
+        // the rendered window rather than reasoned about.
         HorizontalLayout {
-            width: Theme.px(320);
+            width: Theme.px(304);
             alignment: end;
             spacing: Theme.space-3;
 

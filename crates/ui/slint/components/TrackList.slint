@@ -488,10 +488,10 @@ export component TrackList inherits Rectangle {
 
             HorizontalLayout {
                 padding-bottom: Theme.row-padding;
-                // The same eight the rows carry on the near side, and on the
+                // The same twelve the rows carry on the near side, and on the
                 // far side the gutter the scrollbar takes — otherwise every
                 // label stands beside the column it names rather than above it.
-                padding-left: Theme.space-2;
+                padding-left: Theme.space-3;
                 padding-right: Theme.row-end-inset + Theme.scroll-gutter;
                 spacing: Theme.column-gap;
                 // Nothing is written over the covers — a heading there would
@@ -582,7 +582,19 @@ export component TrackList inherits Rectangle {
             padding-left: Theme.page-inset;
             padding-right: Theme.page-inset;
 
-            list := ListView {
+            // A plain rectangle rather than the layout itself, so the bar can
+            // be drawn *over* the list instead of taking a column beside it.
+            // The gutter the rows already leave is where it lands.
+            Rectangle {
+                list := ListView {
+                width: parent.width;
+                height: parent.height;
+                // The toolkit's own bar is off. It is the one control in this
+                // application that was drawn by somebody else — a wide grey
+                // track with a rounded grey thumb, in nobody's palette, on a
+                // page that has no other grey rounded object anywhere
+                // (`MASTER_ISSUES` 145).
+                vertical-scrollbar-policy: ScrollBarPolicy.always-off;
                 viewport-y <=> root.offset;
 
                 // Not animated, and it was tried. `viewport-y` is the property
@@ -645,6 +657,50 @@ export component TrackList inherits Rectangle {
                     }
                     }
                 }
+            }
+
+            // The bar: a thumb and no track.
+            //
+            // A track is furniture that says "this can scroll" to somebody who
+            // already knows, and it is what made the toolkit's version read as
+            // a technical detail bolted to the edge of the page. What is worth
+            // drawing is the one thing that carries information — how much of
+            // the list is on screen, and where in it you are.
+            //
+            // Quiet by default and louder when reached for: `line`, which this
+            // palette's own note calls felt rather than seen, rising to
+            // `ink-mute` under the pointer. Round, because the rule is that a
+            // handle is a circle and everything else is six.
+            //
+            // Present only while there is more list than window, and animated
+            // only in its colour: the position follows the wheel, which is a
+            // gesture, and a gesture that arrives smoothed arrives late.
+            if list.viewport-height > list.visible-height: Rectangle {
+                property <length> travel: list.visible-height - self.height;
+                property <float> through: -list.viewport-y
+                    / (list.viewport-height - list.visible-height);
+
+                width: Theme.px(4);
+                x: parent.width - Theme.scroll-gutter
+                    + round((Theme.scroll-gutter - self.width) / 1px / 2) * 1px;
+                // Its share of the list, and never so short that it stops
+                // reading as an object: a library of thousands would otherwise
+                // put a two-pixel mark on the edge of the window.
+                height: max(Theme.px(32),
+                    list.visible-height * list.visible-height / list.viewport-height);
+                y: round(clamp(self.through, 0.0, 1.0) * self.travel / 1px) * 1px;
+                border-radius: self.width / 2;
+                background: bar-touch.has-hover ? Theme.ink-mute : Theme.line;
+                animate background { duration: 120ms; }
+            }
+
+            // Over the gutter and nothing else, so it brightens the bar
+            // without taking a single click away from the rows.
+            bar-touch := TouchArea {
+                x: parent.width - Theme.scroll-gutter;
+                width: Theme.scroll-gutter;
+                height: parent.height;
+            }
             }
         }
     }

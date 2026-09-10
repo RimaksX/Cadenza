@@ -114,11 +114,11 @@ export component TrackRow inherits Rectangle {
     HorizontalLayout {
         padding-top: Theme.row-padding;
         padding-bottom: Theme.row-padding;
-        // Eight on the near side, which the number column used to provide by
-        // standing there. It is what keeps the accent bar off the sleeve, and
-        // the head keeps the same eight so every label still stands above the
-        // column it names.
-        padding-left: Theme.space-2;
+        // The same twelve the row carries above and below, so the sleeve has
+        // one gap all the way round it rather than three different ones. It is
+        // also what keeps the accent bar off the picture, and the head carries
+        // the same twelve so every label still stands above its column.
+        padding-left: Theme.space-3;
         padding-right: Theme.row-end-inset;
         spacing: Theme.column-gap;
 

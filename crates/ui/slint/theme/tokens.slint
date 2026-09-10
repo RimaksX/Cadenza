@@ -174,11 +174,22 @@ export global Theme {
     // needs ninety. The duration stays right-aligned, so the extra width falls
     // where nothing is drawn.
     out property <length> time-column: root.px(96);
-    out property <length> row-padding: root.px(14);
-    // Tall enough for the title's own line box, not merely for its font size:
-    // the serif asks for about 1.21 times the size and the sans for 1.37, and a
-    // row that leaves less does not clip the line — it drops it entirely.
-    out property <length> row-height: root.px(62);
+    // Twelve, and it used to be fourteen. The sleeve is 36 and the cell it
+    // sits in was 34, so the picture overhung its own cell by a pixel at each
+    // end and the gap above it measured thirteen against eight at its left.
+    // At twelve the cell is exactly the sleeve, and the space above, below and
+    // before it is the same twelve — which is `space-3`, on the ladder, and
+    // even (`MASTER_ISSUES` 144).
+    out property <length> row-padding: root.px(12);
+    // The sleeve and its two paddings: 36 + 12 + 12. Sixty rather than the
+    // sixty-two it was, which is what "the rows look slightly tall" comes to
+    // once the padding is the one that makes the gaps equal.
+    //
+    // Still tall enough for the title's own line box, not merely for its font
+    // size: the serif asks for about 1.21 times the size and the sans for 1.37,
+    // and a row that leaves less does not clip the line — it drops it entirely.
+    // The title's box is 26 against a need of 21.8, inside 36 of content.
+    out property <length> row-height: root.px(60);
 
     // The number column is right-aligned inside its own width, which leaves the
     // digits standing away from the left edge of the list. The time column has
