@@ -25,6 +25,14 @@ component TransportButton inherits Rectangle {
     /// Moves the glyph off the geometric middle, for a glyph whose weight is
     /// not in its middle. See the note on the play button below.
     in property <length> nudge;
+    /// The same, upwards, for a glyph standing beside text.
+    ///
+    /// A line of type centred in a box is centred by its *line box* — ascent
+    /// and descent — and the descent is empty in a title with no `g` or `y` in
+    /// it. So the words ride high in their box while a glyph centred in its own
+    /// box does not, and the two read as misaligned even though their boxes
+    /// agree exactly (`MASTER_ISSUES` 156).
+    in property <length> lift;
 
     callback pressed();
 
@@ -70,7 +78,7 @@ component TransportButton inherits Rectangle {
         width: root.glyph-size;
         height: self.width;
         x: round((parent.width - self.width) / 1px / 2) * 1px + root.nudge;
-        y: round((parent.height - self.height) / 1px / 2) * 1px;
+        y: round((parent.height - self.height) / 1px / 2) * 1px - root.lift;
         image-fit: contain;
         // Three answers, not two. `active` is a mode that is *on* — shuffle,
         // repeat — and it takes the accent, the same colour as the progress
@@ -373,6 +381,14 @@ export component PlayerBar inherits Rectangle {
                             active: root.favourite;
                             quiet: true;
                             glyph-size: Theme.px(20);
+                            // Two, measured. On a rendered window the title's
+                            // ink centred on row 711.0 and the heart's on
+                            // 713.5, so it sat two and a half low. Two rather
+                            // than three, because half pixels are not available
+                            // and undershooting by half is the same error as
+                            // overshooting by half — the reasoning the play
+                            // triangle's one-pixel nudge already uses.
+                            lift: Theme.px(2);
                             enabled: root.loaded;
                             pressed => {
                                 root.toggle-favourite();
