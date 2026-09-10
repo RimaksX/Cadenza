@@ -52,10 +52,9 @@ impl Coefficients {
     /// spacing of the ten-band layout, and lower for the broad mid control of
     /// the simple one.
     pub(crate) fn peaking(rate: u32, frequency_hz: f32, gain_db: f32, q: f32) -> Self {
-        let Some((w0, cos_w0, sin_w0)) = angle(rate, frequency_hz) else {
+        let Some((_, cos_w0, sin_w0)) = angle(rate, frequency_hz) else {
             return Self::IDENTITY;
         };
-        let _ = w0;
 
         let amplitude = amplitude(gain_db);
         let alpha = sin_w0 / (2.0 * q);

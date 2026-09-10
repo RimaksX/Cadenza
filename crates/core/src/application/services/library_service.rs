@@ -1662,10 +1662,12 @@ impl LibraryService {
 
     /// Turns a failed import into a review entry.
     fn record_failure(&self, profile_id: ProfileId, path: &Path, err: &CoreError) -> Result<()> {
-        let reason = match err {
-            CoreError::Metadata(_) => ReviewReason::UnreadableMetadata,
-            CoreError::Decode(_) => ReviewReason::UndecodableAudio,
-            _ => ReviewReason::MissingFile,
+        let Some(reason) = review_reason(err) else {
+            self.context.warn(&format!(
+                "{} was not imported, and it is not the file's fault: {err}",
+                path.display()
+            ));
+            return Ok(());
         };
 
         // The entry needs a catalogue row to point at. A file that could not be
@@ -1776,4 +1778,63 @@ pub struct ReviewCard {
 /// using it.
 fn blank_as_absent(value: Option<&str>) -> Option<&str> {
     value.map(str::trim).filter(|text| !text.is_empty())
+}
+
+/// Which review entry a failed import deserves, if it deserves one at all.
+///
+/// **Listed one by one, so that a new `CoreError` variant stops the build
+/// instead of quietly becoming "the file vanished".**
+///
+/// Two variants used to be named and a wildcard took the other nine -
+/// `Storage`, `Cancelled` and `NoActiveProfile` among them - into
+/// `MissingFile`, whose own documentation says the file disappeared between
+/// being seen and being imported. That reason is written to
+/// `import_review.reason` and shown to the listener, so a database busy for a
+/// moment sent somebody looking for a file they had not lost
+/// (`MASTER_ISSUES` 162).
+///
+/// Only three of the eleven are about the file in front of us. `None` is the
+/// rest: they are about the run rather than the file. A review entry is the
+/// wrong place for those, because it asks the listener to decide something they
+/// cannot affect, and it outlives the failure - the next scan finds the file
+/// perfectly readable.
+fn review_reason(err: &CoreError) -> Option<ReviewReason> {
+    match err {
+        CoreError::Metadata(_) => Some(ReviewReason::UnreadableMetadata),
+        CoreError::Decode(_) => Some(ReviewReason::UndecodableAudio),
+        CoreError::FileSystem(_) => Some(ReviewReason::MissingFile),
+
+        CoreError::Invalid { .. }
+        | CoreError::NotFound { .. }
+        | CoreError::Conflict(_)
+        | CoreError::NoActiveProfile
+        | CoreError::Storage(_)
+        | CoreError::Audio(_)
+        | CoreError::Analysis(_)
+        | CoreError::Cancelled => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::review_reason;
+    use crate::domain::review::ReviewReason;
+    use crate::error::CoreError;
+
+    #[test]
+    fn only_the_file_s_own_faults_reach_the_listener() {
+        assert_eq!(
+            review_reason(&CoreError::Decode("no frames".into())),
+            Some(ReviewReason::UndecodableAudio)
+        );
+        assert_eq!(
+            review_reason(&CoreError::FileSystem("gone".into())),
+            Some(ReviewReason::MissingFile)
+        );
+
+        // The one that sent somebody looking for a file they still had.
+        assert_eq!(review_reason(&CoreError::Storage("busy".into())), None);
+        assert_eq!(review_reason(&CoreError::Cancelled), None);
+        assert_eq!(review_reason(&CoreError::NoActiveProfile), None);
+    }
 }
