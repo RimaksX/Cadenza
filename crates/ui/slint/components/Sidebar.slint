@@ -160,6 +160,9 @@ export component Sidebar inherits Rectangle {
     /// How many files are waiting for a decision. Zero hides the destination.
     in property <int> pending-reviews;
     in property <string> profile-name;
+    /// The picture a listener chose, empty until one is chosen.
+    in property <image> profile-avatar;
+    /// The letter that stands there until then.
     in property <string> profile-initial;
     /// Which screen is showing. A name rather than an index: an index would
     /// renumber every time a destination is added.
@@ -324,44 +327,72 @@ export component Sidebar inherits Rectangle {
                 background: Theme.line-soft;
             }
 
-            // Its two lines, with eight pixels above them and eight below —
-            // the same gap on both sides of the block, which a row height
-            // borrowed from the library did not give it once the column's own
-            // padding was counted too.
-            VerticalLayout {
-                height: Theme.px(58);
-                alignment: center;
+            // A picture and a name, on the library row's own rhythm: the same
+            // 36 square, the same 12 around it, the same 60 tall. The block
+            // used to be 58 with two lines of type in it.
+            HorizontalLayout {
+                height: Theme.row-height;
                 padding-left: Theme.space-5;
                 padding-right: Theme.space-5;
+                spacing: Theme.space-3;
 
-                // Two lines and no disc. The disc held a letter standing in
-                // for a picture nobody can choose — this interface has no way
-                // to set one — so it was a portrait of nothing, and the only
-                // round object on a screen made of squares and rules
-                // (`MASTER_ISSUES` 115).
+                // A disc stood here once and was taken out, because it held a
+                // letter standing in for a picture nobody could choose — a
+                // portrait of nothing, and the only round object on a screen
+                // made of squares and rules (`MASTER_ISSUES` 115).
                 //
-                // What is left says the same thing in the shape everything else
-                // in this column is said: a name, and a label under it.
+                // Both halves of that objection are answered now. There is a
+                // way to choose one, in Settings; and it is a square with the
+                // same corner every other picture here has, so a listener's
+                // face is the same kind of object as a record's sleeve
+                // (`MASTER_ISSUES` 148).
                 VerticalLayout {
-                    spacing: Theme.px(2);
+                    alignment: center;
+
+                    Rectangle {
+                        width: Theme.px(36);
+                        height: self.width;
+                        border-radius: Theme.radius;
+                        background: Theme.bg-2;
+                        clip: true;
+
+                        Image {
+                            width: 100%;
+                            height: 100%;
+                            source: root.profile-avatar;
+                            image-fit: ImageFit.cover;
+                        }
+
+                        // The letter that stands in until there is a picture,
+                        // exactly as a row does for a record with no sleeve.
+                        if root.profile-avatar.width == 0: Text {
+                            width: 100%;
+                            height: 100%;
+                            text: root.profile-initial;
+                            font-family: Theme.serif;
+                            font-size: Theme.text-body;
+                            color: Theme.ink-mute;
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                        }
+                    }
+                }
+
+                // One line where there were two. `ACTIVE PROFILE` said in
+                // wide capitals what a name at the foot of the column already
+                // said, which is the same complaint seven page eyebrows
+                // answered to (`MASTER_ISSUES` 147).
+                VerticalLayout {
+                    alignment: center;
 
                     Text {
-                            text: root.profile-name;
-                            font-family: Theme.sans;
-                            font-size: Theme.text-body;
-                            height: Theme.px(22);
-                            vertical-alignment: center;
-                            color: Theme.ink-1;
-                            overflow: elide;
-                        }
-                        Text {
-                            text: "ACTIVE PROFILE";
-                            font-family: Theme.mono;
-                            font-size: Theme.text-label;
-                            height: Theme.px(18);
-                            vertical-alignment: center;
-                        letter-spacing: Theme.label-spacing;
-                        color: Theme.ink-furniture;
+                        text: root.profile-name;
+                        font-family: Theme.sans;
+                        font-size: Theme.text-body;
+                        height: Theme.px(22);
+                        vertical-alignment: center;
+                        color: Theme.ink-1;
+                        overflow: elide;
                     }
                 }
             }

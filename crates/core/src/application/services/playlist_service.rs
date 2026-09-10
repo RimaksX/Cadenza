@@ -8,12 +8,12 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use super::cover;
 use crate::application::context::AppContext;
 use crate::domain::ids::{MediaFileId, PlaylistId, PlaylistItemId, ProfileId};
 use crate::domain::playlist::{
     FAVOURITES_MIN_PLAYS, FAVOURITES_NAME, FAVOURITES_RULE, FAVOURITES_SIZE, Playlist, PlaylistItem,
 };
-use crate::domain::policies::artwork_policy::looks_like_an_image;
 use crate::domain::policies::retention_policy;
 use crate::domain::ports::artwork_cache::{ArtworkCachePort, CoverOf};
 use crate::domain::ports::event_bus::DomainEvent;
@@ -547,23 +547,19 @@ impl PlaylistService {
         // is listening, and this is what says so.
         self.owned(playlist_id)?;
 
-        let Some(path) = self.ports.picker.pick_image("Choose a cover")? else {
-            return Ok(false);
-        };
-
-        let image = self.ports.files.read(&path)?;
-        if !looks_like_an_image(&image) {
-            return Err(CoreError::invalid(
-                "cover",
-                format!("{} is not a picture this can read", path.display()),
-            ));
+        let chosen = cover::choose(
+            &cover::CoverPorts {
+                artwork: Arc::clone(&self.ports.artwork),
+                picker: Arc::clone(&self.ports.picker),
+                files: Arc::clone(&self.ports.files),
+            },
+            CoverOf::Playlist(playlist_id),
+            "Choose a cover",
+        )?;
+        if chosen {
+            self.context.events.publish(DomainEvent::PlaylistsChanged);
         }
-
-        self.ports
-            .artwork
-            .store(CoverOf::Playlist(playlist_id), &image)?;
-        self.context.events.publish(DomainEvent::PlaylistsChanged);
-        Ok(true)
+        Ok(chosen)
     }
 
     /// Takes the cover off a list, leaving the square it was in.

@@ -120,6 +120,7 @@ export component AppShell inherits Rectangle {
     /// What the field starts with, and what the question names.
     property <string> dialog-value;
     in property <string> profile-name;
+    in property <image> profile-avatar;
     in property <string> profile-initial;
 
     in property <string> now-title;
@@ -199,6 +200,9 @@ export component AppShell inherits Rectangle {
     callback edit-track(string);
     callback save-track(string, string, string, string);
     callback switch-profile(string);
+    callback choose-avatar(string);
+    callback clear-avatar(string);
+    callback delete-profile(string);
     callback create-profile(string);
     callback start-radio(string);
     callback judge-radio(bool);
@@ -264,6 +268,7 @@ export component AppShell inherits Rectangle {
             Sidebar {
                 pending-reviews: root.reviews.length;
                 profile-name: root.profile-name;
+                profile-avatar: root.profile-avatar;
                 profile-initial: root.profile-initial;
                 section: root.section;
                 select(name) => {
@@ -414,6 +419,15 @@ export component AppShell inherits Rectangle {
             }
 
             if root.section == "settings": SettingsView {
+                act-on-profile(id, name, action) => {
+                    if (action == "avatar") {
+                        root.choose-avatar(id);
+                    } else if (action == "unavatar") {
+                        root.clear-avatar(id);
+                    } else {
+                        root.ask("delete-profile", id, name);
+                    }
+                }
                 profiles: root.profiles;
                 switch-profile(id) => {
                     root.switch-profile(id);
@@ -656,7 +670,9 @@ export component AppShell inherits Rectangle {
                     ? "Rename playlist"
                     : (root.dialog == "remove-track"
                         ? "Remove from library"
-                        : "Delete playlist")))))));
+                        : (root.dialog == "delete-profile"
+                            ? "Delete this listener"
+                            : "Delete playlist"))))))));
         message: root.dialog == "eq-help"
             ? "A sound belongs to the track you set it on. Choose a preset while something is playing and that track keeps it; the next track starts at Standard. RESET takes the sound away and the memory of it with it." + "\n\n" + "The three controls change the whole sound at once: bass, middle and treble. Nothing to choose, nothing to aim at." + "\n\n" + "The eight bands each change one part of it, and every band is three numbers." + "\n\n" + "GAIN is the fader itself - how far that band lifts or cuts. It is the only one of the three you hear on its own." + "\n\n" + "FREQUENCY is where the band sits. LOWER and HIGHER move it a sixth of an octave at a time." + "\n\n" + "WIDTH is how much of the sound around it comes along. WIDER and NARROWER." + "\n\n" + "Choose a band with the dot under its fader, then change it. A band at 0 dB does nothing wherever you put it, so move its fader first - otherwise LOWER and HIGHER are moving a filter that is not doing anything, and you will hear no difference at all." + "\n\n" + "A preset stays lit while the sound is exactly that preset. Move anything and it goes out, which is the screen telling the truth rather than losing your work: everything you set is still there and still playing."
             : (root.dialog == "delete-eq-preset"
@@ -667,7 +683,13 @@ export component AppShell inherits Rectangle {
                 ? "The track leaves this profile's library. The file stays on disk, and other profiles keep theirs."
                 : (root.dialog == "new-profile"
                     ? "A listener of their own: their own library, playlists, queue and history. Nothing of yours moves."
-                    : ""))));
+                    : (root.dialog == "delete-profile"
+                        // Says what goes and what stays, in that order and by
+                        // name. A listener deleting themselves is entitled to
+                        // know that their music is not being deleted with them
+                        // (`MASTER_ISSUES` 148).
+                        ? "\"" + root.dialog-value + "\" goes, with their library listing, playlists, queue, history, presets and picture." + "\n\n" + "The music files stay exactly where they are on disk, and every other listener keeps theirs."
+                        : "")))));
         placeholder: root.dialog == "new-eq-preset" ? "Late night listening" : "Late night";
         asks-for-text: root.dialog == "new-profile"
             || root.dialog == "new-playlist"
@@ -692,10 +714,13 @@ export component AppShell inherits Rectangle {
                 ? "CREATE"
                 : (root.dialog == "rename-playlist"
                     ? "RENAME"
-                    : (root.dialog == "remove-track" ? "REMOVE" : "DELETE")))))));
+                    : (root.dialog == "remove-track"
+                        ? "REMOVE"
+                        : (root.dialog == "delete-profile" ? "DELETE" : "DELETE"))))))));
         destructive: root.dialog == "delete-playlist"
             || root.dialog == "remove-track"
-            || root.dialog == "delete-eq-preset";
+            || root.dialog == "delete-eq-preset"
+            || root.dialog == "delete-profile";
 
         confirmed(value) => {
             if (root.dialog == "eq-help") {
@@ -708,6 +733,8 @@ export component AppShell inherits Rectangle {
                 root.delete-eq-preset(root.dialog-target);
             } else if (root.dialog == "new-profile") {
                 root.create-profile(value);
+            } else if (root.dialog == "delete-profile") {
+                root.delete-profile(root.dialog-target);
             } else if (root.dialog == "new-playlist") {
                 root.create-playlist(value);
             } else if (root.dialog == "new-playlist-with") {

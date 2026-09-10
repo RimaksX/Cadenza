@@ -7,6 +7,7 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
+use super::cover;
 use crate::application::context::AppContext;
 use crate::domain::album::Album;
 use crate::domain::artist::Artist;
@@ -15,7 +16,6 @@ use crate::domain::ids::{
     AlbumId, ArtistId, GenreId, ImportReviewId, MediaFileId, ProfileFolderId, ProfileId,
 };
 use crate::domain::media_file::{FileState, MediaFile, is_supported_extension};
-use crate::domain::policies::artwork_policy::looks_like_an_image;
 use crate::domain::policies::duplicate_policy::{self, DuplicateVerdict};
 use crate::domain::policies::fetch_policy::looks_out_of_date;
 use crate::domain::policies::link_policy::{LinkHandler, handler_for, is_a_link};
@@ -684,23 +684,25 @@ impl LibraryService {
     pub fn choose_cover(&self, media_file_id: MediaFileId) -> Result<bool> {
         let profile_id = self.context.require_active_profile()?;
 
-        let Some(path) = self.ports.picker.pick_image("Choose a cover")? else {
-            return Ok(false);
-        };
-
-        let image = self.ports.files.read(&path)?;
-        if !looks_like_an_image(&image) {
-            return Err(CoreError::invalid(
-                "cover",
-                format!("{} is not a picture this can read", path.display()),
-            ));
+        let chosen = cover::choose(
+            &self.cover_ports(),
+            CoverOf::ChosenTrack(profile_id, media_file_id),
+            "Choose a cover",
+        )?;
+        if chosen {
+            self.context.events.publish(DomainEvent::LibraryChanged);
         }
+        Ok(chosen)
+    }
 
-        self.ports
-            .artwork
-            .store(CoverOf::ChosenTrack(profile_id, media_file_id), &image)?;
-        self.context.events.publish(DomainEvent::LibraryChanged);
-        Ok(true)
+    /// The three ports the shared picture flow needs, out of the ones this
+    /// service already holds.
+    fn cover_ports(&self) -> cover::CoverPorts {
+        cover::CoverPorts {
+            artwork: Arc::clone(&self.ports.artwork),
+            picker: Arc::clone(&self.ports.picker),
+            files: Arc::clone(&self.ports.files),
+        }
     }
 
     /// Takes back a chosen cover, leaving whatever the file itself carries.

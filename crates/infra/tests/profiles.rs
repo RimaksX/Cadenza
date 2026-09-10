@@ -8,15 +8,20 @@
 use std::sync::{Arc, Mutex};
 
 use cadenza_core::CoreError;
+use cadenza_core::application::services::cover::CoverPorts;
 use cadenza_core::application::{AppContext, ProfileService};
 use cadenza_core::domain::ids::{ProfileFolderId, ProfileId};
+use cadenza_core::domain::ports::artwork_cache::{ArtworkCachePort, CoverOf};
 use cadenza_core::domain::ports::clock::ClockPort;
 use cadenza_core::domain::ports::event_bus::{DomainEvent, EventBusPort};
+use cadenza_core::domain::ports::folder_picker::FolderPickerPort;
 use cadenza_core::domain::ports::repositories::SettingsRepositoryPort;
 use cadenza_core::domain::settings::{ProfileFolder, SettingValue};
 use cadenza_core::domain::value_objects::ThemeMode;
 use cadenza_infra::db::repositories::{SqliteProfileRepository, SqliteSettingsRepository};
 use cadenza_infra::events::InProcessEventBus;
+use cadenza_infra::library::LocalFileSystem;
+use cadenza_infra::metadata::FileArtworkCache;
 use cadenza_testkit::{TempDb, TestClock};
 
 /// Everything a test needs, wired the way the application wires it.
@@ -490,4 +495,152 @@ fn deleting_a_profile_takes_its_settings_and_folders_with_it() {
             .expect("listing")
             .is_empty()
     );
+}
+
+/// A chooser that always hands back the same file, so a test can press the
+/// button without a dialog opening.
+struct AlwaysPicks(std::path::PathBuf);
+
+impl FolderPickerPort for AlwaysPicks {
+    fn pick_folder(&self, _: &str) -> cadenza_core::Result<Option<std::path::PathBuf>> {
+        Ok(None)
+    }
+    fn pick_image(&self, _: &str) -> cadenza_core::Result<Option<std::path::PathBuf>> {
+        Ok(Some(self.0.clone()))
+    }
+    fn suggested_music_folder(&self) -> Option<std::path::PathBuf> {
+        None
+    }
+}
+
+/// A chooser somebody closed without choosing.
+struct PicksNothing;
+
+impl FolderPickerPort for PicksNothing {
+    fn pick_folder(&self, _: &str) -> cadenza_core::Result<Option<std::path::PathBuf>> {
+        Ok(None)
+    }
+    fn pick_image(&self, _: &str) -> cadenza_core::Result<Option<std::path::PathBuf>> {
+        Ok(None)
+    }
+    fn suggested_music_folder(&self) -> Option<std::path::PathBuf> {
+        None
+    }
+}
+
+/// The smallest thing the domain will accept as a picture: a PNG's own first
+/// eight bytes. Nothing decodes it, and nothing here needs to.
+const A_PNG: &[u8] = b"\x89PNG\r\n\x1a\n and then some bytes";
+
+/// A service that can choose pictures, over the same database.
+fn with_pictures(
+    db: &TempDb,
+    context: &Arc<AppContext>,
+    picker: Arc<dyn FolderPickerPort>,
+) -> (ProfileService, Arc<FileArtworkCache>) {
+    let artwork =
+        Arc::new(FileArtworkCache::new(db.directory().join("artwork")).expect("an artwork cache"));
+    let service = ProfileService::with_covers(
+        Arc::clone(context),
+        CoverPorts {
+            artwork: Arc::clone(&artwork) as _,
+            picker,
+            files: Arc::new(LocalFileSystem),
+        },
+    );
+    (service, artwork)
+}
+
+#[test]
+fn a_listener_can_put_a_picture_beside_their_name_and_take_it_off_again() {
+    let db = TempDb::new();
+    let harness = attach(&db);
+    let profile = harness.service.create("Sasha").expect("a profile");
+
+    let picture = db.directory().join("me.png");
+    std::fs::write(&picture, A_PNG).expect("written");
+
+    let (service, _artwork) = with_pictures(
+        &db,
+        &harness.context,
+        Arc::new(AlwaysPicks(picture)) as Arc<dyn FolderPickerPort>,
+    );
+
+    assert!(service.avatar(profile.id).is_none(), "nobody has one yet");
+    assert!(service.choose_avatar(profile.id).expect("chosen"));
+    let path = service.avatar(profile.id).expect("a picture now");
+    assert!(path.exists(), "and it is a file on disk");
+
+    service.clear_avatar(profile.id).expect("taken off");
+    assert!(
+        service.avatar(profile.id).is_none(),
+        "the initial stands there again"
+    );
+}
+
+#[test]
+fn closing_the_chooser_is_an_answer_rather_than_a_failure() {
+    let db = TempDb::new();
+    let harness = attach(&db);
+    let profile = harness.service.create("Sasha").expect("a profile");
+
+    let (service, _artwork) = with_pictures(
+        &db,
+        &harness.context,
+        Arc::new(PicksNothing) as Arc<dyn FolderPickerPort>,
+    );
+
+    assert!(
+        !service.choose_avatar(profile.id).expect("not an error"),
+        "somebody changed their mind, which is not a thing to report"
+    );
+    assert!(service.avatar(profile.id).is_none());
+}
+
+#[test]
+fn a_file_that_is_not_a_picture_is_refused_by_name() {
+    let db = TempDb::new();
+    let harness = attach(&db);
+    let profile = harness.service.create("Sasha").expect("a profile");
+
+    let not_a_picture = db.directory().join("notes.txt");
+    std::fs::write(&not_a_picture, b"these are not pixels").expect("written");
+
+    let (service, _artwork) = with_pictures(
+        &db,
+        &harness.context,
+        Arc::new(AlwaysPicks(not_a_picture)) as Arc<dyn FolderPickerPort>,
+    );
+
+    let refused = service.choose_avatar(profile.id).expect_err("refused");
+    assert!(
+        refused.to_string().contains("notes.txt"),
+        "the file is named, because the listener chose it: {refused}"
+    );
+}
+
+#[test]
+fn deleting_a_profile_takes_its_picture_with_it() {
+    let db = TempDb::new();
+    let harness = attach(&db);
+    let profile = harness.service.create("Sasha").expect("a profile");
+
+    let picture = db.directory().join("me.png");
+    std::fs::write(&picture, A_PNG).expect("written");
+    let (service, artwork) = with_pictures(
+        &db,
+        &harness.context,
+        Arc::new(AlwaysPicks(picture)) as Arc<dyn FolderPickerPort>,
+    );
+    service.choose_avatar(profile.id).expect("chosen");
+
+    let stored = service.avatar(profile.id).expect("a picture");
+    service.delete(profile.id).expect("deleted");
+
+    assert!(
+        !stored.exists(),
+        "a portrait left on the disk is the one piece of a deleted listener \
+         that would still be there"
+    );
+    assert!(artwork.path_for(CoverOf::Profile(profile.id)).is_none());
 }

@@ -10,6 +10,7 @@
 //! equaliser in M9.
 
 pub mod analysis_service;
+pub mod cover;
 pub mod eq_service;
 pub mod library_service;
 pub mod playback_service;

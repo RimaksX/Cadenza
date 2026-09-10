@@ -43,6 +43,7 @@ impl FileArtworkCache {
                 format!("chosen-{profile_id}-{media_file_id}")
             }
             CoverOf::Playlist(playlist_id) => format!("playlist-{playlist_id}"),
+            CoverOf::Profile(profile_id) => format!("profile-{profile_id}"),
         }
     }
 

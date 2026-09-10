@@ -1,4 +1,5 @@
 import { Theme } from "../theme/tokens.slint";
+import { RowMenu, MenuItemData } from "../components/RowMenu.slint";
 import { TextButton } from "../components/Dialog.slint";
 import { ScrollFade } from "../components/ScrollFade.slint";
 
@@ -9,6 +10,10 @@ export struct ProfileRowData {
     /// What this profile has of its own, in a few words.
     note: string,
     active: bool,
+    /// The picture they chose, empty until they choose one.
+    avatar: image,
+    /// The letter that stands there until then.
+    initial: string,
 }
 
 // One folder the library watches, as the view model hands it over.
@@ -195,6 +200,7 @@ component ProfileRow inherits Rectangle {
     in property <bool> last;
 
     callback chosen();
+    callback acted(string);
 
     height: Theme.row-height;
 
@@ -202,6 +208,38 @@ component ProfileRow inherits Rectangle {
         y: round((parent.height - Theme.px(48)) / 1px / 2) * 1px;
         height: Theme.px(48);
         spacing: Theme.space-4;
+
+        // The same square the sidebar puts at the foot of its column and a row
+        // puts in front of a track. One object, one size, one corner.
+        VerticalLayout {
+            alignment: center;
+
+            Rectangle {
+                width: Theme.px(36);
+                height: self.width;
+                border-radius: Theme.radius;
+                background: Theme.bg-2;
+                clip: true;
+
+                Image {
+                    width: 100%;
+                    height: 100%;
+                    source: root.data.avatar;
+                    image-fit: ImageFit.cover;
+                }
+
+                if root.data.avatar.width == 0: Text {
+                    width: 100%;
+                    height: 100%;
+                    text: root.data.initial;
+                    font-family: Theme.serif;
+                    font-size: Theme.text-body;
+                    color: Theme.ink-mute;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+            }
+        }
 
         VerticalLayout {
             alignment: center;
@@ -239,6 +277,59 @@ component ProfileRow inherits Rectangle {
                 enabled: !root.data.active;
                 pressed => {
                     root.chosen();
+                }
+            }
+        }
+
+        // The rest of what can be done to a listener, behind the same dots the
+        // library's rows and the playlist tiles use. Three actions and one
+        // button would be four buttons in a row about a name.
+        VerticalLayout {
+            alignment: center;
+
+            Rectangle {
+                width: Theme.px(28);
+                height: self.width;
+                border-radius: Theme.radius;
+                background: dots.has-hover ? Theme.bg-3 : transparent;
+                animate background { duration: 120ms; }
+
+                Image {
+                    source: @image-url("../../../../resources/ui/icons/dots-vertical.svg");
+                    width: Theme.px(16);
+                    height: self.width;
+                    x: round((parent.width - self.width) / 1px / 2) * 1px;
+                    y: round((parent.height - self.height) / 1px / 2) * 1px;
+                    colorize: dots.has-hover ? Theme.ink-0 : Theme.ink-2;
+                    animate colorize { duration: 120ms; }
+                }
+
+                dots := TouchArea {
+                    mouse-cursor: pointer;
+                    clicked => {
+                        menu.show();
+                    }
+                }
+
+                menu := RowMenu {
+                    x: Theme.px(28) - self.width;
+                    y: Theme.px(28);
+                    property <[MenuItemData]> without-picture: [
+                        { action: "avatar", label: "Choose a picture…" },
+                        { action: "" },
+                        { action: "delete", label: "Delete this listener", destructive: true },
+                    ];
+                    property <[MenuItemData]> with-picture: [
+                        { action: "avatar", label: "Change the picture…" },
+                        { action: "unavatar", label: "Remove the picture" },
+                        { action: "" },
+                        { action: "delete", label: "Delete this listener", destructive: true },
+                    ];
+
+                    items: root.data.avatar.width > 0 ? self.with-picture : self.without-picture;
+                    chosen(action) => {
+                        root.acted(action);
+                    }
                 }
             }
         }
@@ -336,6 +427,8 @@ export component SettingsView inherits Rectangle {
     in property <string> summary;
 
     callback switch-profile(string);
+    /// A picture chosen, a picture removed, or a listener deleted.
+    callback act-on-profile(string, string, string);
     callback new-profile();
     callback set-theme(bool);
     callback set-crossfade(bool, int);
@@ -435,6 +528,9 @@ export component SettingsView inherits Rectangle {
                             last: index == root.profiles.length - 1;
                             chosen => {
                                 root.switch-profile(profile.id);
+                            }
+                            acted(action) => {
+                                root.act-on-profile(profile.id, profile.name, action);
                             }
                         }
 

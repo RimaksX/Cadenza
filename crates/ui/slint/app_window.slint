@@ -150,6 +150,8 @@ export component AppWindow inherits Window {
     in property <string> eq-selected-q;
     in property <string> eq-selected-gain;
     in property <string> profile-name;
+    /// The picture beside it, and the letter that stands in until there is one.
+    in property <image> profile-avatar;
     in property <string> profile-initial;
     in property <string> now-title;
     in property <string> now-subtitle;
@@ -240,6 +242,10 @@ export component AppWindow inherits Window {
     callback edit-track(string);
     callback save-track(string, string, string, string);
     callback switch-profile(string);
+    /// Put a picture beside a listener, take it off, or delete them entirely.
+    callback choose-avatar(string);
+    callback clear-avatar(string);
+    callback delete-profile(string);
     callback create-profile(string);
     callback start-radio(string);
     callback judge-radio(bool);
@@ -334,6 +340,7 @@ export component AppWindow inherits Window {
         eq-selected-q: root.eq-selected-q;
         eq-selected-gain: root.eq-selected-gain;
         profile-name: root.profile-name;
+        profile-avatar: root.profile-avatar;
         profile-initial: root.profile-initial;
         now-title: root.now-title;
         now-subtitle: root.now-subtitle;
@@ -530,6 +537,15 @@ export component AppWindow inherits Window {
         }
         save-track(id, title, artist, album) => {
             root.save-track(id, title, artist, album);
+        }
+        choose-avatar(id) => {
+            root.choose-avatar(id);
+        }
+        clear-avatar(id) => {
+            root.clear-avatar(id);
+        }
+        delete-profile(id) => {
+            root.delete-profile(id);
         }
         switch-profile(id) => {
             root.switch-profile(id);

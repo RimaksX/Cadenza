@@ -24,6 +24,7 @@
 use std::process::ExitCode;
 use std::sync::Arc;
 
+use cadenza_core::application::services::cover::CoverPorts;
 use cadenza_core::application::services::{
     AnalysisPorts, AnalysisService, EqPorts, EqService, LibraryPorts, LibraryService,
     PlaybackPorts, PlaybackService, PlaylistPorts, PlaylistService, QueuePorts, QueueService,
@@ -108,12 +109,21 @@ fn run() -> std::result::Result<(), String> {
         )
         .with_log(Arc::clone(&log)),
     );
-    let profiles = Arc::new(ProfileService::new(Arc::clone(&context)));
-
-    // One cache, shared: a cover belongs to a recording or to a list, and both
-    // of those live in the same directory under %LOCALAPPDATA%.
+    // One cache, shared: a cover belongs to a recording, to a list or to a
+    // listener, and all three live in the same directory under %LOCALAPPDATA%.
     let artwork: Arc<dyn ArtworkCachePort> =
         Arc::new(FileArtworkCache::new(paths.artwork_cache_dir()).map_err(|err| err.to_string())?);
+
+    // With the ports, because this is the run that has a window to open a
+    // chooser over. Everything else that builds a `ProfileService` only reads.
+    let profiles = Arc::new(ProfileService::with_covers(
+        Arc::clone(&context),
+        CoverPorts {
+            artwork: Arc::clone(&artwork),
+            picker: Arc::new(SystemFolderPicker),
+            files: Arc::new(LocalFileSystem),
+        },
+    ));
 
     // Before the library, which hands it the tracks a fetched playlist brought
     // in: what arrived as a playlist becomes one here rather than forty loose

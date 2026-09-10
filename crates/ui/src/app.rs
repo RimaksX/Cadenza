@@ -174,6 +174,21 @@ fn wire(window: &AppWindow, controller: &Rc<Controller>) {
         move |id| controller.delete_playlist(&id)
     });
 
+    window.on_choose_avatar({
+        let controller = Rc::clone(controller);
+        move |id| controller.choose_avatar(&id)
+    });
+
+    window.on_clear_avatar({
+        let controller = Rc::clone(controller);
+        move |id| controller.clear_avatar(&id)
+    });
+
+    window.on_delete_profile({
+        let controller = Rc::clone(controller);
+        move |id| controller.delete_profile(&id)
+    });
+
     window.on_link_typed({
         let controller = Rc::clone(controller);
         move || controller.link_typed()

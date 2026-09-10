@@ -2,8 +2,10 @@
 
 use std::sync::Arc;
 
+use super::cover;
 use crate::application::context::{ACTIVE_PROFILE_KEY, AppContext};
 use crate::domain::ids::ProfileId;
+use crate::domain::ports::artwork_cache::CoverOf;
 use crate::domain::ports::event_bus::DomainEvent;
 use crate::domain::profile::{Profile, ProfileName};
 use crate::domain::settings::{InterfaceScale, SettingValue, UI_SCALE_KEY};
@@ -13,12 +15,31 @@ use crate::{CoreError, Result};
 /// The profile use cases.
 pub struct ProfileService {
     context: Arc<AppContext>,
+    /// What a picture needs to be chosen and kept.
+    ///
+    /// `None` where the caller has no interface to choose one with — every test
+    /// in the suite, and anything that only reads profiles. Asking for an
+    /// avatar without them is a programming mistake rather than a listener's,
+    /// and it says so (`MASTER_ISSUES` 148).
+    covers: Option<cover::CoverPorts>,
 }
 
 impl ProfileService {
-    /// Wraps the shared context.
+    /// A service that can put a face on a profile as well as read one.
+    pub fn with_covers(context: Arc<AppContext>, covers: cover::CoverPorts) -> Self {
+        Self {
+            context,
+            covers: Some(covers),
+        }
+    }
+
+    /// The same, for a caller with no way to choose a picture: every test in
+    /// the suite, and anything that only reads profiles.
     pub fn new(context: Arc<AppContext>) -> Self {
-        Self { context }
+        Self {
+            context,
+            covers: None,
+        }
     }
 
     /// Every profile, ordered by name.
@@ -151,6 +172,42 @@ impl ProfileService {
         Ok(Some(profile))
     }
 
+    /// Puts a picture beside a listener's name.
+    ///
+    /// `Ok(false)` means the chooser was closed, which is an answer.
+    ///
+    /// Nothing is published. Renaming a profile does not publish either: the
+    /// events here are coarse and name an *area*, and there is no area whose
+    /// subscribers would re-read a portrait. The screen that asked refreshes
+    /// itself, which is what it does after a rename.
+    pub fn choose_avatar(&self, id: ProfileId) -> Result<bool> {
+        let ports = self.covers()?;
+        // Read first, so a picture cannot be hung on a profile that is no
+        // longer there.
+        self.get(id)?;
+        cover::choose(ports, CoverOf::Profile(id), "Choose a picture")
+    }
+
+    /// Takes the picture off again, leaving the initial that stood there first.
+    pub fn clear_avatar(&self, id: ProfileId) -> Result<()> {
+        let ports = self.covers()?;
+        self.get(id)?;
+        cover::clear(ports, CoverOf::Profile(id))
+    }
+
+    /// Where a listener's picture is, if they chose one.
+    pub fn avatar(&self, id: ProfileId) -> Option<std::path::PathBuf> {
+        self.covers
+            .as_ref()
+            .and_then(|ports| ports.artwork.path_for(CoverOf::Profile(id)))
+    }
+
+    fn covers(&self) -> Result<&cover::CoverPorts> {
+        self.covers
+            .as_ref()
+            .ok_or_else(|| CoreError::invalid("profile picture", "this build cannot choose one"))
+    }
+
     /// Deletes a profile and everything scoped to it.
     ///
     /// The database cascades the profile's library membership, playlists,
@@ -161,6 +218,17 @@ impl ProfileService {
     /// Refusing would make the last profile undeletable, and silently switching
     /// to another one would be a decision this layer has no business making.
     pub fn delete(&self, id: ProfileId) -> Result<()> {
+        // Before the row, because after it there is nothing left to name the
+        // file by. A failure here does not stop the deletion: the picture is a
+        // file in a cache, and one stale file is a smaller problem than a
+        // listener who asked to be forgotten and was not.
+        if let Some(ports) = self.covers.as_ref()
+            && let Err(err) = cover::clear(ports, CoverOf::Profile(id))
+        {
+            self.context
+                .warn(&format!("a profile's picture was left behind: {err}"));
+        }
+
         self.context.profiles.delete(id)?;
 
         if self.context.active_profile() == Some(id) {

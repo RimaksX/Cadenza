@@ -263,6 +263,17 @@ impl Controller {
             Some(profile) => {
                 window.set_profile_name(profile.name.as_str().into());
                 window.set_profile_initial(view_models::initial(profile.name.as_str()).into());
+                // A picture that will not decode is treated as no picture,
+                // the same way a playlist's cover is: it is a file on
+                // somebody's disk that may have been replaced by anything
+                // since, and the square has a letter to fall back to.
+                window.set_profile_avatar(
+                    self.services
+                        .profiles
+                        .avatar(profile.id)
+                        .and_then(|path| slint::Image::load_from_path(&path).ok())
+                        .unwrap_or_default(),
+                );
                 window
                     .global::<Theme>()
                     .set_dark(profile.theme == ThemeMode::Dark);
@@ -270,6 +281,7 @@ impl Controller {
             None => {
                 window.set_profile_name("nobody".into());
                 window.set_profile_initial(String::new().into());
+                window.set_profile_avatar(slint::Image::default());
                 window.global::<Theme>().set_dark(true);
             }
         }
@@ -713,6 +725,77 @@ impl Controller {
         self.run(|| self.services.playlists.set_favourite(media_file_id, wanted));
         self.refresh_player();
         self.refresh_playlists();
+    }
+
+    /// Puts a picture beside a listener's name.
+    pub fn choose_avatar(&self, id: &str) {
+        self.run(|| {
+            let profile_id = ProfileId::parse(id)?;
+            self.services.profiles.choose_avatar(profile_id)?;
+            Ok(())
+        });
+        self.refresh_profile();
+        self.refresh_settings();
+    }
+
+    /// Takes it off again.
+    pub fn clear_avatar(&self, id: &str) {
+        self.run(|| {
+            let profile_id = ProfileId::parse(id)?;
+            self.services.profiles.clear_avatar(profile_id)
+        });
+        self.refresh_profile();
+        self.refresh_settings();
+    }
+
+    /// Deletes a listener and everything scoped to them.
+    ///
+    /// **Where it leaves you** is the part the service deliberately does not
+    /// decide: it clears the pointer and says so, because choosing whose
+    /// library you land in is not a decision the application layer should make
+    /// on somebody's behalf. Here there is a screen, so:
+    ///
+    /// * deleting somebody else changes nothing about where you are;
+    /// * deleting yourself with other listeners on the machine moves you to the
+    ///   first of them, because a window with no profile and profiles to choose
+    ///   from is a dead end nobody asked for;
+    /// * deleting the last listener puts the first-run screen back, which is
+    ///   the honest state: there is nobody, and the screen that asks for one is
+    ///   the screen for that (`MASTER_ISSUES` 148).
+    pub fn delete_profile(&self, id: &str) {
+        let was_active = self
+            .profile
+            .borrow()
+            .as_ref()
+            .map(|profile| profile.id.to_string())
+            == Some(id.to_owned());
+
+        self.run(|| {
+            let profile_id = ProfileId::parse(id)?;
+            self.services.profiles.delete(profile_id)?;
+
+            if was_active {
+                // The first by name, which is the order the list is in, so
+                // "the first of them" is what the settings page was showing.
+                if let Some(next) = self.services.profiles.list()?.first() {
+                    self.services.profiles.switch_to(next.id)?;
+                }
+            }
+            Ok(())
+        });
+
+        if was_active {
+            // Everything on screen belonged to somebody who is gone: the
+            // queue, the station, the level, the library. `refresh_all` is
+            // what a switch does, and this is a switch to whoever is left —
+            // or to nobody, in which case the first-run screen comes back.
+            *self.profile.borrow_mut() = self.services.profiles.restore_active().ok().flatten();
+            self.services.queue.reload();
+            self.services.radio.stop();
+            self.refresh_all();
+        } else {
+            self.refresh_settings();
+        }
     }
 
     /// Says which of the two buttons the link in the box can answer.
@@ -1491,6 +1574,16 @@ impl Controller {
                 name: profile.name.as_str().into(),
                 note: profile_vm::note(profile).into(),
                 active: Some(profile.id) == active,
+                // A picture that will not decode is no picture, and the letter
+                // stands there instead — the same fallback the sidebar and
+                // every track row use.
+                avatar: self
+                    .services
+                    .profiles
+                    .avatar(profile.id)
+                    .and_then(|path| slint::Image::load_from_path(&path).ok())
+                    .unwrap_or_default(),
+                initial: view_models::initial(profile.name.as_str()).into(),
             })
             .collect();
         window.set_profiles(ModelRc::new(VecModel::from(rows)));

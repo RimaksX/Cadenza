@@ -28,6 +28,14 @@ pub enum CoverOf {
     ///
     /// No profile in the key because a playlist already belongs to one.
     Playlist(PlaylistId),
+    /// The face beside a listener's name.
+    ///
+    /// A picture of a person rather than of a record, and the only key here
+    /// that stands for somebody instead of something they own. It goes when
+    /// they do: deleting a profile takes the file with it, because a portrait
+    /// left behind is the one piece of a deleted listener that would still be
+    /// on the disk (`MASTER_ISSUES` 148).
+    Profile(ProfileId),
 }
 
 /// Cover art storage.
