@@ -13,6 +13,15 @@ component TransportButton inherits Rectangle {
     in property <bool> quiet;
     in property <bool> active;
     in property <bool> enabled: true;
+    /// How big the glyph is drawn.
+    ///
+    /// Three steps by default - see the note where it is used - and settable
+    /// for a control that belongs to none of the three. The heart is the one:
+    /// it stands apart from the group, so it is not a step back from anything,
+    /// and at the quiet 16 it read as a mark rather than as a button.
+    in property <length> glyph-size: root.primary
+        ? Theme.px(20)
+        : (root.quiet ? Theme.px(16) : Theme.px(18));
     /// Moves the glyph off the geometric middle, for a glyph whose weight is
     /// not in its middle. See the note on the play button below.
     in property <length> nudge;
@@ -58,7 +67,7 @@ component TransportButton inherits Rectangle {
         // steps are the ones this bar always had — 16, 16 and 14 — moved up
         // together, because at those sizes a glyph in a 40-pixel circle read as
         // a mark rather than as a control.
-        width: root.primary ? Theme.px(20) : (root.quiet ? Theme.px(16) : Theme.px(18));
+        width: root.glyph-size;
         height: self.width;
         x: round((parent.width - self.width) / 1px / 2) * 1px + root.nudge;
         y: round((parent.height - self.height) / 1px / 2) * 1px;
@@ -359,6 +368,10 @@ export component PlayerBar inherits Rectangle {
                     : @image-url("../../../../resources/ui/icons/heart.svg");
                 active: root.favourite;
                 quiet: true;
+                // The same twenty the play button draws at. It sits on its own
+                // rather than in the group of five, so the group's own three
+                // steps - 20, 18, 16 - say nothing about it.
+                glyph-size: Theme.px(20);
                 enabled: root.loaded;
                 pressed => {
                     root.toggle-favourite();
