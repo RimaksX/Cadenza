@@ -1,10 +1,21 @@
-"""Every gap on the library screen, measured ink to ink."""
+"""Every gap on the library screen, measured ink to ink.
+
+    python scripts/shoot.py shot.png
+    python scripts/measure_gaps.py shot.png
+
+Reports the distance between the *ink* of one thing and the ink of the next,
+which is not what the markup says: a glyph has side bearings and a lucide icon
+fills 20 of its 24 units, so a stated 12 arrives on screen as 15. `audit_ui.py`
+checks the numbers; this checks what reaches the glass.
+"""
 
 import sys
 from PIL import Image
 
-SP = r"C:\Users\schen\AppData\Local\Temp\claude\C--Rimaks-dev-Cadenza\553ad127-bc20-4485-9c80-ea0952b8635e\scratchpad"
-im = Image.open(SP + "\\" + (sys.argv[1] if len(sys.argv) > 1 else "icons.png")).convert("RGB")
+if len(sys.argv) < 2:
+    raise SystemExit("usage: python scripts/measure_gaps.py <screenshot.png>")
+
+im = Image.open(sys.argv[1]).convert("RGB")
 px = im.load()
 W, H = im.size
 

@@ -14,7 +14,6 @@
 # editors and local tooling
 .vscode/
 .idea/
-.claude/settings.local.json
 
 # What Python leaves beside the scripts it runs.
 __pycache__/
