@@ -488,17 +488,12 @@ export component TrackList inherits Rectangle {
 
             HorizontalLayout {
                 padding-bottom: Theme.row-padding;
-                // The rows below keep a gutter for the scrollbar, so the head
-                // keeps the same one — otherwise every label stands eight
-                // pixels right of the column it names.
+                // The same eight the rows carry on the near side, and on the
+                // far side the gutter the scrollbar takes — otherwise every
+                // label stands beside the column it names rather than above it.
+                padding-left: Theme.space-2;
                 padding-right: Theme.row-end-inset + Theme.scroll-gutter;
                 spacing: Theme.column-gap;
-
-                ColumnLabel {
-                    width: Theme.number-column;
-                    text: "№";
-                    horizontal-alignment: right;
-                }
                 // Nothing is written over the covers — a heading there would
                 // name a column that is already obvious — but the space has to
                 // be kept, or every label below shifts left of what it labels.

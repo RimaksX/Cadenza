@@ -24,12 +24,10 @@ const NO_ALBUM: &str = "—";
 pub fn rows(summaries: &[TrackSummary]) -> Vec<TrackRowData> {
     summaries
         .iter()
-        .enumerate()
-        .map(|(index, summary)| {
+        .map(|summary| {
             let artist = summary.artist.as_deref().unwrap_or(UNKNOWN_ARTIST);
             TrackRowData {
                 id: summary.media_file_id.to_string().into(),
-                position: position(index).into(),
                 title: summary.title.as_str().into(),
                 artist: artist.into(),
                 album: summary.album.as_deref().unwrap_or(NO_ALBUM).into(),
@@ -43,17 +41,6 @@ pub fn rows(summaries: &[TrackSummary]) -> Vec<TrackRowData> {
             }
         })
         .collect()
-}
-
-/// The number in the left column.
-///
-/// One-based, because the list is read by people rather than indexed by
-/// machines, and padded to two digits so a column of them is a column: `9`
-/// above `10` puts a ragged edge in the quietest part of the row. Past 99 the
-/// number simply grows — padding further would widen every row in the library
-/// for the sake of the last few.
-fn position(index: usize) -> String {
-    format!("{:02}", index + 1)
 }
 
 /// The tracks a search finds.
@@ -241,8 +228,6 @@ mod tests {
         ];
         let rows = rows(&library);
 
-        assert_eq!(rows[0].position, "01");
-        assert_eq!(rows[1].position, "02");
         assert_eq!(rows[0].duration, "05:05");
         assert_eq!(rows[1].artist, UNKNOWN_ARTIST, "a missing tag is not blank");
         assert_eq!(rows[1].album, NO_ALBUM);

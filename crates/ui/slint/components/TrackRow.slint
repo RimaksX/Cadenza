@@ -10,7 +10,6 @@ import { RowMenu, MenuItemData } from "RowMenu.slint";
 // back with a click.
 export struct TrackRowData {
     id: string,
-    position: string,
     title: string,
     artist: string,
     album: string,
@@ -51,8 +50,37 @@ export component TrackRow inherits Rectangle {
     property <bool> has-menu: !root.queued;
 
     height: Theme.row-height;
-    background: root.hovered ? Theme.bg-1 : transparent;
+
+    // `bg-2` under the pointer, and it was `bg-1`. Measured against `bg-0` that
+    // was 1.04:1 — a step of 1.8 in lightness, where this palette's own note
+    // says a hairline stops being visible below about 1.3. The row did light
+    // up; nobody could see it. `bg-2` is 1.09:1, twice the step and still
+    // quiet enough to be a surface rather than a highlight
+    // (`MASTER_ISSUES` 143).
+    //
+    // A playing row keeps a ground of its own underneath, so that moving the
+    // pointer off it does not make it look like every other row again.
+    background: root.hovered
+        ? Theme.bg-2
+        : (root.playing ? Theme.bg-1 : transparent);
     animate background { duration: 120ms; }
+
+    // Which one is sounding.
+    //
+    // This used to be the row's number, set in the accent — and the number
+    // column has gone, so the mark had to find somewhere else to live. A bar at
+    // the head of the row is the same sentence in the same colour, said by an
+    // object instead of by a digit: it is visible from across the room, it does
+    // not move when the columns are re-ordered, and it survives a row whose
+    // first column is a picture.
+    //
+    // Two pixels, not four: this marks a row, it does not decorate one.
+    if root.playing: Rectangle {
+        x: 0;
+        width: Theme.px(2);
+        height: parent.height;
+        background: Theme.accent;
+    }
 
     touch := TouchArea {
         // No cursor of its own, and deliberately. `grab` is an open hand on the
@@ -86,58 +114,18 @@ export component TrackRow inherits Rectangle {
     HorizontalLayout {
         padding-top: Theme.row-padding;
         padding-bottom: Theme.row-padding;
+        // Eight on the near side, which the number column used to provide by
+        // standing there. It is what keeps the accent bar off the sleeve, and
+        // the head keeps the same eight so every label still stands above the
+        // column it names.
+        padding-left: Theme.space-2;
         padding-right: Theme.row-end-inset;
         spacing: Theme.column-gap;
 
-        // The number, until the pointer arrives — then a play button in its
-        // place. Nothing moves and nothing is added beside the row: the column
-        // is already there, and the only thing that changes is what it says.
-        //
-        // It is also how a listener learns the row is playable at all. A double
-        // click still works and remains the faster habit, but nothing on screen
-        // announces it.
-        Rectangle {
-            width: Theme.number-column;
-
-            if !root.hovered: Text {
-                text: root.data.position;
-                font-family: Theme.mono;
-                font-size: Theme.text-label;
-                height: Theme.px(18);
-                letter-spacing: Theme.number-spacing;
-                // The same accent as the line in the player bar, and for the
-                // same reason: these are the two places that answer "which one
-                // is playing".
-                color: root.playing ? Theme.accent : Theme.ink-mute;
-                vertical-alignment: center;
-                horizontal-alignment: right;
-                width: parent.width;
-            }
-
-            // Centred by hand. A child of a plain rectangle sits at its top
-            // left unless it is told otherwise, and the number it replaces is a
-            // Text centring itself — so without this the two swap at different
-            // heights and the row twitches under the pointer.
-            if root.hovered: Image {
-                source: @image-url("../../../../resources/ui/icons/play.svg");
-                width: Theme.px(14);
-                height: self.width;
-                x: parent.width - self.width;
-                y: round((parent.height - self.height) / 1px / 2) * 1px;
-                colorize: hover-play.has-hover ? Theme.ink-0 : Theme.ink-2;
-            }
-
-            hover-play := TouchArea {
-                clicked => {
-                    root.activated();
-                }
-            }
-        }
-
-        // The cover, or the letter that stands in for one. Between the
-        // number and the title because that is where the eye goes next, and
-        // the same pairing the player bar uses — a picture when there is one,
-        // an initial when there is not, never an empty square.
+        // The cover, or the letter that stands in for one. First, now that the
+        // number column has gone — and the same pairing the player bar uses: a
+        // picture when there is one, an initial when there is not, never an
+        // empty square.
         //
         // The picture itself arrives late: `TrackRows` reads it when the row is
         // about to be drawn, so a library of thousands costs the dozen covers
@@ -169,6 +157,51 @@ export component TrackRow inherits Rectangle {
                     color: Theme.ink-mute;
                     horizontal-alignment: center;
                     vertical-alignment: center;
+                }
+
+                // The play button, on the sleeve, under the pointer only.
+                //
+                // It used to stand in the number column — which announced that
+                // a row is playable at all, and that announcement had to
+                // survive the column going. A click anywhere on the row has
+                // always played it; nothing on screen said so.
+                //
+                // A filled disc with the glyph cut out of it, which is the same
+                // object the player bar's own play button is. It is drawn that
+                // way rather than as a bare triangle because it lands on
+                // somebody's artwork, and a line drawing has no contrast it can
+                // count on there. This interface has no scrims, so the button
+                // brings its own ground (`MASTER_ISSUES` 143).
+                if root.hovered: Rectangle {
+                    width: Theme.px(24);
+                    height: self.width;
+                    x: round((parent.width - self.width) / 1px / 2) * 1px;
+                    y: round((parent.height - self.height) / 1px / 2) * 1px;
+                    border-radius: self.width / 2;
+                    background: hover-play.has-hover ? Theme.ink-1 : Theme.ink-0;
+                    animate background { duration: 120ms; }
+
+                    Image {
+                        source: @image-url("../../../../resources/ui/icons/play.svg");
+                        width: Theme.px(12);
+                        height: self.width;
+                        // Not nudged. The player bar's triangle is moved one
+                        // pixel right because its ink sits 0.90 left of its box
+                        // at a glyph of twenty; at twelve that becomes 0.54,
+                        // and a whole pixel would overshoot by as much as
+                        // leaving it alone undershoots. Half pixels are not
+                        // available and are not wanted.
+                        x: round((parent.width - self.width) / 1px / 2) * 1px;
+                        y: round((parent.height - self.height) / 1px / 2) * 1px;
+                        image-fit: contain;
+                        colorize: Theme.bg-0;
+                    }
+                }
+
+                hover-play := TouchArea {
+                    clicked => {
+                        root.activated();
+                    }
                 }
             }
         }
