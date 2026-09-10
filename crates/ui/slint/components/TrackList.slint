@@ -29,7 +29,6 @@ component ColumnLabel inherits Text {
 // they are built — one grid, described once, so the two cannot drift apart.
 export component TrackList inherits Rectangle {
     in property <[TrackRowData]> tracks;
-    in property <string> eyebrow;
     in property <string> heading;
     in property <string> summary;
     in property <string> playing-id;
@@ -163,19 +162,16 @@ export component TrackList inherits Rectangle {
             padding-bottom: Theme.page-bottom;
             spacing: Theme.space-2;
 
-            // The eyebrow, or the way back where there is one. The same line in
-            // the same place: a page reached from somewhere says where from,
-            // and a page that is a destination says what it is.
-            if root.back-label == "": Text {
-                text: root.eyebrow;
-                font-family: Theme.mono;
-                font-size: Theme.text-label;
-                height: Theme.px(18);
-                vertical-alignment: center;
-                letter-spacing: Theme.label-spacing;
-                color: Theme.ink-furniture;
-            }
-
+            // The way back, where there is one. There used to be a second use
+            // for this line — an eyebrow naming the page — and on every screen
+            // that had one it named the page the sidebar had just named:
+            // `YOUR LIBRARY` over `Library`, `YOUR LISTS` over `Playlists`.
+            // A caption that repeats the word beside it is decoration
+            // (`MASTER_ISSUES` 147).
+            //
+            // The row goes with the words rather than standing empty, so the
+            // heading rises by its 18 and the 8 above it. A page reached from
+            // somewhere still says where from.
             if root.back-label != "": HorizontalLayout {
                 alignment: start;
 

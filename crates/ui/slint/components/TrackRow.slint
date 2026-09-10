@@ -172,7 +172,9 @@ export component TrackRow inherits Rectangle {
                 // somebody's artwork, and a line drawing has no contrast it can
                 // count on there. This interface has no scrims, so the button
                 // brings its own ground (`MASTER_ISSUES` 143).
-                if root.hovered: Rectangle {
+                Rectangle {
+                    opacity: root.hovered ? 1.0 : 0.0;
+                    animate opacity { duration: 120ms; }
                     width: Theme.px(24);
                     height: self.width;
                     x: round((parent.width - self.width) / 1px / 2) * 1px;
@@ -305,7 +307,13 @@ export component TrackRow inherits Rectangle {
             // already waiting and adding it again is the one thing nobody
             // wants. One control, one place, and the list it is in decides
             // which way it points.
-            if root.hovered: pill := Rectangle {
+            // Faded in rather than switched on. The dots at the end of the
+            // same row already do this; a control that appears instantly
+            // beside one that fades reads as two different kinds of thing
+            // (`MASTER_ISSUES` 147).
+            pill := Rectangle {
+                opacity: root.hovered ? 1.0 : 0.0;
+                animate opacity { duration: 120ms; }
                 // Red only under the pointer, and only where the button takes
                 // something away. At rest it is the same quiet outline as its
                 // opposite: a row that shouts before it is touched is a row
