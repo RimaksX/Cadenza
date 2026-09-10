@@ -35,6 +35,7 @@ mod m0019_standard_preset;
 mod m0020_track_eq;
 mod m0021_queue_round;
 mod m0022_playlist_item_origin;
+mod m0023_preset_shapes;
 
 /// One numbered schema change.
 pub struct Migration {
@@ -157,6 +158,11 @@ pub const MIGRATIONS: &[Migration] = &[
         version: 22,
         name: "playlist_item_origin",
         sql: m0022_playlist_item_origin::SQL,
+    },
+    Migration {
+        version: 23,
+        name: "preset_shapes",
+        sql: m0023_preset_shapes::SQL,
     },
 ];
 
