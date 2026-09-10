@@ -325,13 +325,60 @@ export component PlayerBar inherits Rectangle {
                 spacing: Theme.px(4);
                 horizontal-stretch: 1;
 
-                Text {
-                    height: Theme.px(34);
-                    text: root.loaded ? root.title : "Nothing playing";
-                    font-family: Theme.serif;
-                    font-size: Theme.text-title;
-                    color: root.loaded ? Theme.ink-0 : Theme.ink-mute;
-                    overflow: elide;
+                // The name and the heart share a line.
+                //
+                // The heart used to stand beside the whole two-line block and
+                // be centred against it, which put it level with the gap
+                // between the title and the caption — belonging to neither
+                // (`MASTER_ISSUES` 155). It is about the *track*, and the
+                // track's name is the line above.
+                //
+                // The words stretch and elide; the button does not. So a long
+                // title runs to an ellipsis a fixed distance short of a heart
+                // that never moves, and the caption below still has the whole
+                // width to itself.
+                HorizontalLayout {
+                    spacing: Theme.space-3;
+
+                    // Wrapped, like the button beside it. A layout child with
+                    // a height of its own cannot stretch, so it would sit
+                    // against the top of the row rather than on its middle —
+                    // the mistake that once put the sidebar's labels above
+                    // their icons, and the one the audit checks for.
+                    VerticalLayout {
+                        alignment: center;
+                        horizontal-stretch: 1;
+
+                        Text {
+                            height: Theme.px(34);
+                            text: root.loaded ? root.title : "Nothing playing";
+                            font-family: Theme.serif;
+                            font-size: Theme.text-title;
+                            color: root.loaded ? Theme.ink-0 : Theme.ink-mute;
+                            overflow: elide;
+                        }
+                    }
+
+                    VerticalLayout {
+                        alignment: center;
+
+                        TransportButton {
+                            // Thirty-four rather than the transport's forty, so
+                            // the line it shares stays the title's own 34 and
+                            // the block keeps its rhythm.
+                            height: Theme.px(34);
+                            glyph: root.favourite
+                                ? @image-url("../../../../resources/ui/icons/heart-filled.svg")
+                                : @image-url("../../../../resources/ui/icons/heart.svg");
+                            active: root.favourite;
+                            quiet: true;
+                            glyph-size: Theme.px(20);
+                            enabled: root.loaded;
+                            pressed => {
+                                root.toggle-favourite();
+                            }
+                        }
+                    }
                 }
                 // Artist and album on one line, in the same mono capitals the
                 // column labels use: it is a caption, not a name.
@@ -343,43 +390,6 @@ export component PlayerBar inherits Rectangle {
                     letter-spacing: Theme.label-spacing;
                     color: Theme.ink-mute;
                     overflow: elide;
-                }
-            }
-
-            // Whether this one is a favourite, and the way to say so.
-            //
-            // Beside what is playing rather than among the transport controls:
-            // it is a statement about this track, and the five buttons in the
-            // middle are all statements about the music going forwards. Filled
-            // and in the accent when the track is in the list, which is the
-            // colour this interface uses for everything in force.
-            //
-            // **A fixed slot at the end of the text column, not something that
-            // follows the words.** A heart placed after the title would move
-            // with every track and would be pushed off the edge by a long one.
-            // Here the two share a row: the words stretch and elide, the button
-            // does not, so a long title runs to an ellipsis twelve pixels short
-            // of a heart that never moves (`MASTER_ISSUES` 146).
-            //
-            // It stood outside this block until now, which cost the title
-            // nothing and put the button seventy-seven pixels from the words it
-            // belongs to, in a gap with nothing else in it. The block is forty
-            // wider instead — exactly the button and its gap — so the words
-            // still have the same 176 they always had.
-            VerticalLayout {
-                alignment: center;
-
-                TransportButton {
-                    glyph: root.favourite
-                        ? @image-url("../../../../resources/ui/icons/heart-filled.svg")
-                        : @image-url("../../../../resources/ui/icons/heart.svg");
-                    active: root.favourite;
-                    quiet: true;
-                    glyph-size: Theme.px(20);
-                    enabled: root.loaded;
-                    pressed => {
-                        root.toggle-favourite();
-                    }
                 }
             }
         }

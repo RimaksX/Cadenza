@@ -27,6 +27,54 @@ component ColumnLabel inherits Text {
 // The library and the queue are the same page with different words in it, and
 // this is that page. What differs between them is what they are told, not how
 // they are built — one grid, described once, so the two cannot drift apart.
+
+// A square control that carries a glyph instead of a word.
+//
+// **The second bounded exception to "no icons inside buttons"**, and it is
+// written as a class like the first. A control that *opens* something may say
+// so with a mark: `opens` gave a chevron to one that opens a menu, and this is
+// one that opens a section of the page. What makes it safe is that the glyph
+// changes when the thing is open — a download arrow to bring the importer out,
+// a chevron up to fold it away — so the button describes the state rather than
+// naming an action it does not always perform (`MASTER_ISSUES` 154).
+//
+// Everything else about it is the one button shape: `control-height`, the same
+// hairline, the same radius, the same three states.
+component GlyphButton inherits Rectangle {
+    in property <image> glyph;
+    in property <bool> active;
+
+    callback pressed();
+
+    width: Theme.control-height;
+    height: Theme.control-height;
+    border-radius: Theme.radius;
+    border-width: 1px;
+    border-color: touch.has-hover || root.active ? Theme.line : Theme.line-soft;
+    background: touch.pressed
+        ? Theme.bg-3
+        : (root.active || touch.has-hover ? Theme.bg-2 : transparent);
+    animate background, border-color { duration: 120ms; }
+
+    touch := TouchArea {
+        mouse-cursor: pointer;
+        clicked => {
+            root.pressed();
+        }
+    }
+
+    Image {
+        source: root.glyph;
+        width: Theme.px(16);
+        height: self.width;
+        x: round((parent.width - self.width) / 1px / 2) * 1px;
+        y: round((parent.height - self.height) / 1px / 2) * 1px;
+        image-fit: contain;
+        colorize: touch.has-hover || root.active ? Theme.ink-0 : Theme.ink-2;
+        animate colorize { duration: 120ms; }
+    }
+}
+
 export component TrackList inherits Rectangle {
     in property <[TrackRowData]> tracks;
     in property <string> heading;
@@ -71,6 +119,11 @@ export component TrackList inherits Rectangle {
     /// Only the library does: it is the page about what you have, and this is
     /// how something joins it.
     in property <bool> fetchable;
+    /// Whether the importer is out. Closed on arrival: a listener who came to
+    /// look at their library did not come to paste a link, and the row was
+    /// three controls and a field standing open on every visit whether or not
+    /// anybody was importing anything (`MASTER_ISSUES` 154).
+    property <bool> importing;
     /// Declared here rather than aliased into the field below: the field lives
     /// inside a condition, and an element inside a condition is out of scope
     /// for a name at this level. The binding goes the other way instead.
@@ -331,8 +384,47 @@ export component TrackList inherits Rectangle {
                         }
                     }
                 }
+
+                // The one control that brings the importer out and puts it
+                // away. At the end of the line it belongs to, because what it
+                // opens is underneath.
+                if root.fetchable: VerticalLayout {
+                    alignment: center;
+
+                    GlyphButton {
+                        glyph: root.importing
+                            ? @image-url("../../../../resources/ui/icons/chevron-up.svg")
+                            : @image-url("../../../../resources/ui/icons/download.svg");
+                        active: root.importing;
+                        pressed => {
+                            root.importing = !root.importing;
+                        }
+                    }
+                }
                 }
             }
+
+            // Folded away until it is asked for, and it unfolds by its height
+            // rather than by appearing: a row of controls that arrives all at
+            // once where there was nothing reads as the page having jumped.
+            // 180 ms, which is the far end of what this interface allows —
+            // long enough to be seen as a movement, short enough that nobody
+            // waits for it.
+            //
+            // A download in progress holds it open whatever the button says,
+            // because the percentage counts inside it and a listener who
+            // switched pages should not come back to a closed drawer with no
+            // way to see what is happening.
+            Rectangle {
+                property <bool> out: root.importing || root.fetching;
+
+                height: self.out ? importer.preferred-height : 0px;
+                clip: true;
+                animate height { duration: 180ms; easing: ease-out; }
+
+                importer := VerticalLayout {
+                    width: parent.width;
+                    spacing: Theme.space-2;
 
             // The line between what the library is and what to add to it.
             //
@@ -473,6 +565,8 @@ export component TrackList inherits Rectangle {
                 vertical-alignment: top;
                 letter-spacing: Theme.label-spacing;
                 color: Theme.ink-mute;
+            }
+                }
             }
         }
 
