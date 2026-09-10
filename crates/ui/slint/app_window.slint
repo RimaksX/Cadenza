@@ -93,6 +93,9 @@ export component AppWindow inherits Window {
     in property <string> queue-summary;
     in property <string> queue-hint;
     in property <[PlaylistCardData]> playlists;
+    /// The favourites list, drawn across the page above the grid.
+    in property <PlaylistCardData> favourites;
+    in property <bool> has-favourites;
     in property <string> playlists-summary;
     in property <string> playlists-hint;
     in property <[TrackRowData]> playlist-tracks;
@@ -285,6 +288,8 @@ export component AppWindow inherits Window {
         queue-summary: root.queue-summary;
         queue-hint: root.queue-hint;
         playlists: root.playlists;
+        favourites: root.favourites;
+        has-favourites: root.has-favourites;
         playlists-summary: root.playlists-summary;
         playlists-hint: root.playlists-hint;
         playlist-tracks: root.playlist-tracks;

@@ -152,6 +152,11 @@ export global Theme {
     // (`MASTER_ISSUES` 124).
     out property <length> radius: root.px(6);
     out property <length> sidebar-width: root.px(240);
+    // The band the favourites list is drawn as, across the width of the page.
+    // Two hundred rather than a share of the width: it holds a display heading
+    // and a caption on a plate with room round them, and a band whose height
+    // followed the window would be a different shape on every screen.
+    out property <length> banner-height: root.px(200);
     out property <length> player-height: root.px(92);
 
     // A listing is inset from the window edge rather than run to it. The

@@ -484,8 +484,22 @@ impl Controller {
         };
 
         window.set_playlists_hint(NO_PLAYLISTS_HINT.into());
+        // Every list, including the automatic one: the line counts what the
+        // page holds, and the page holds it whether it is drawn as a band or
+        // as a tile.
         window.set_playlists_summary(playlist_vm::summary_line(&summaries).into());
-        window.set_playlists(ModelRc::new(VecModel::from(playlist_vm::cards(&summaries))));
+
+        // The favourites list is drawn across the page rather than in the grid,
+        // so it leaves the grid's model (`MASTER_ISSUES` 149). It is first in
+        // the listing, which is where the service puts it.
+        let cards = playlist_vm::cards(&summaries);
+        let (banner, rest): (Vec<_>, Vec<_>) = cards.into_iter().partition(|card| card.automatic);
+
+        window.set_has_favourites(!banner.is_empty());
+        if let Some(card) = banner.into_iter().next() {
+            window.set_favourites(card);
+        }
+        window.set_playlists(ModelRc::new(VecModel::from(rest)));
         window.set_playlist_options(ModelRc::new(VecModel::from(playlist_vm::options(
             &summaries,
         ))));

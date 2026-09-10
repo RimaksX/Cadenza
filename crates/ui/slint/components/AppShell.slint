@@ -38,6 +38,8 @@ export component AppShell inherits Rectangle {
     in property <string> queue-summary;
     in property <string> queue-hint;
     in property <[PlaylistCardData]> playlists;
+    in property <PlaylistCardData> favourites;
+    in property <bool> has-favourites;
     in property <string> playlists-summary;
     in property <string> playlists-hint;
     in property <[TrackRowData]> playlist-tracks;
@@ -360,6 +362,8 @@ export component AppShell inherits Rectangle {
 
             if root.section == "playlists": PlaylistsView {
                 playlists: root.playlists;
+                favourites: root.favourites;
+                has-favourites: root.has-favourites;
                 summary: root.playlists-summary;
                 empty-hint: root.playlists-hint;
                 open(id) => {
