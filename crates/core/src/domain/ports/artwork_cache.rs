@@ -20,8 +20,8 @@ pub enum CoverOf {
     Track(MediaFileId),
     /// What one listener chose for that recording.
     ///
-    /// A local override in the sense of PROJECT_MASTER 2.1, and per profile for
-    /// the same reason a corrected title is (rule 12.1): choosing a cover for
+    /// A local override, and per profile for the same reason a corrected
+    /// title is: choosing a cover for
     /// yourself must not choose it for whoever else uses this machine.
     ChosenTrack(ProfileId, MediaFileId),
     /// What a listener chose for one of their lists.
@@ -34,14 +34,14 @@ pub enum CoverOf {
     /// that stands for somebody instead of something they own. It goes when
     /// they do: deleting a profile takes the file with it, because a portrait
     /// left behind is the one piece of a deleted listener that would still be
-    /// on the disk (`MASTER_ISSUES` 148).
+    /// on the disk.
     Profile(ProfileId),
 }
 
 /// Cover art storage.
 ///
 /// Artwork lives on disk under `%LOCALAPPDATA%` rather than in SQLite
-/// (PROJECT_MASTER 6): images are large, rarely queried, and — for the ones
+/// : images are large, rarely queried, and — for the ones
 /// that came out of a file — entirely regenerable, so keeping them out of the
 /// database keeps it small and its backups cheap.
 ///

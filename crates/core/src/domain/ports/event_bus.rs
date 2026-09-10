@@ -8,7 +8,7 @@ use crate::domain::ids::{MediaFileId, ProfileId};
 /// mean inventing thirty variants now and keeping every one of them in sync with
 /// the view state forever; instead an event says *what area* changed and the
 /// subscriber re-reads the state it cares about. The UI is a function of view
-/// state anyway (PROJECT_MASTER 4.3), so it has nothing to gain from deltas.
+/// state anyway, so it has nothing to gain from deltas.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DomainEvent {
     /// The active profile changed. Everything profile-scoped is now stale.
@@ -37,8 +37,7 @@ pub type EventHandler = Box<dyn Fn(&DomainEvent) + Send + Sync>;
 
 /// Fan-out of domain events to interested parties.
 pub trait EventBusPort: Send + Sync {
-    /// Notifies every subscriber. Never called from the audio thread
-    /// (PROJECT_MASTER 8.2).
+    /// Notifies every subscriber. Never called from the audio thread.
     fn publish(&self, event: DomainEvent);
 
     /// Registers a handler for every subsequent event.

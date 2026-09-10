@@ -1,8 +1,8 @@
 //! Listening history, over a real database.
 //!
-//! What M14 is judged on: the statistics are counted, the history is cleared,
+//! What the history is judged on: the statistics are counted, the history is cleared,
 //! and — the rule that outranks both — nothing is written at all for a listener
-//! who has turned it off (PROJECT_MASTER 1.4, 2.6).
+//! who has turned it off.
 
 use std::sync::Arc;
 
@@ -57,7 +57,7 @@ fn harness() -> Harness {
     let profile = profiles.create("Sasha").expect("a profile");
     context.set_active_profile(profile.id);
 
-    // History is off for a new profile — privacy is the default (1.4) — so a
+    // History is off for a new profile — privacy is the default — so a
     // test about what gets written has to ask for it first.
     profiles
         .set_history_enabled(profile.id, true)
@@ -178,7 +178,7 @@ fn a_listen_is_written_down_when_the_next_one_starts() {
 fn how_a_listen_ended_is_classified_as_the_rules_say() {
     let harness = harness();
 
-    // Five seconds of three minutes: a skip (2.6, "до 10 секунд").
+    // Five seconds of three minutes: a skip.
     harness.hear(0, 5);
     harness.playback.stop().expect("stopped");
     assert_eq!(harness.listens()[0].outcome, PlayOutcome::Skipped);

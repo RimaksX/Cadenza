@@ -7,7 +7,7 @@ use super::value_objects::{Bpm, DurationMs, MusicalKey, Timestamp};
 ///
 /// Titles, artist and album links here are the *effective* values: the scanner
 /// seeds them from tags and the user may edit them, which overrides the tags
-/// without touching the file (PROJECT_MASTER 2.1). Two profiles can therefore
+/// without touching the file. Two profiles can therefore
 /// disagree about the same file, which is the point.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Track {
@@ -32,8 +32,7 @@ pub struct Track {
     /// When the profile removed it, if it has.
     ///
     /// Removal is a tombstone, not a delete: the file stays on disk and in the
-    /// global catalogue, and other profiles keep their copy
-    /// (PROJECT_MASTER 2.1).
+    /// global catalogue, and other profiles keep their copy.
     pub removed_at: Option<Timestamp>,
 }
 
@@ -100,8 +99,7 @@ pub struct TrackFeatures {
     /// Version of the extractor that produced these values.
     ///
     /// Re-analysis happens only when this differs from the current extractor,
-    /// which is what stops the background worker redoing settled work
-    /// (PROJECT_MASTER M11).
+    /// which is what stops the background worker redoing settled work.
     pub extractor_version: String,
     /// When analysis ran.
     pub analyzed_at: Timestamp,

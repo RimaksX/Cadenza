@@ -1,4 +1,4 @@
-//! The saved queue survives a restart: part of the M7 definition of done.
+//! The saved queue survives a restart.
 //!
 //! Against the real schema, because the foreign keys and the lane ordering are
 //! the whole of what this adapter has to get right, and neither exists in a

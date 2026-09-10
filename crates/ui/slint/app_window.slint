@@ -1,6 +1,5 @@
-// The three faces, compiled into the binary. Cadenza is offline (PROJECT_MASTER
-// 1.2): a font fetched at runtime is a font that is missing on the machine that
-// matters. All three are SIL OFL 1.1, whose licence ships beside them.
+// The three faces, compiled into the binary. Cadenza is offline: a font
+// fetched at runtime is a font that is missing on the machine that matters. All three are SIL OFL 1.1, whose licence ships beside them.
 //
 // They answer to names no machine will already have, and that is the point.
 // Slint asks fontdb for a family by name; fontdb gathers every face carrying
@@ -44,7 +43,7 @@ export { Theme }
 //
 // Everything in is a property, everything out is a callback. There is no other
 // channel: the markup cannot reach a database, a file or the audio engine
-// (PROJECT_MASTER 4.3), and this file is where that is checked by reading.
+// , and this file is where that is checked by reading.
 export component AppWindow inherits Window {
     title: "Cadenza";
     background: Theme.bg-0;
@@ -52,7 +51,7 @@ export component AppWindow inherits Window {
     // the drag are in `TitleBar`, and the resizable edges are in `winit_seam`.
     // They had to be. An undecorated window answers every point with "client",
     // so nothing ever asks the system to resize it, however willing the system
-    // is (`MASTER_ISSUES` 88).
+    // is.
     no-frame: true;
     default-font-family: Theme.sans;
     default-font-size: Theme.text-body;
@@ -62,7 +61,7 @@ export component AppWindow inherits Window {
     // rendered at: the search field hung off the right edge and the player bar
     // was pushed out of the bottom of the window entirely. What the interface
     // actually needs is this, and it is stated here so that nobody can drag the
-    // window somewhere it does not work (MASTER_ISSUES 64).
+    // window somewhere it does not work.
     min-width: Theme.px(1000);
     min-height: Theme.px(720);
 
@@ -653,7 +652,7 @@ export component AppWindow inherits Window {
     // second to reach what was actually being aimed at.
     //
     // With no area it can still hold focus and still hear the keyboard; it
-    // simply has nowhere for a pointer to land (`MASTER_ISSUES` 83).
+    // simply has nowhere for a pointer to land.
     forward-focus: keys;
     keys := FocusScope {
         width: 0px;
@@ -668,7 +667,7 @@ export component AppWindow inherits Window {
 
             // The search field, from anywhere. The shortcut every list in
             // every program has, and the only one worth spending a modifier on
-            // here (`MASTER_ISSUES` 132).
+            // here.
             // It reaches the field on whichever page has one, which today is
             // the library. Moving to that page as well would need the shell's
             // own `section`, which is private to it, and a shortcut that

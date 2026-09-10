@@ -10,7 +10,7 @@
 //! # Profile isolation
 //!
 //! Anything holding user data takes a [`ProfileId`] on every read. That is not
-//! defensive style, it is the isolation rule of PROJECT_MASTER 12.1 made
+//! defensive style, it is the isolation rule made
 //! impossible to forget: there is no "list all playlists" to call by accident.
 //! The exceptions are the global catalogue — media files, artists, albums,
 //! genres, features, analysis jobs — which describe the music rather than the
@@ -132,7 +132,7 @@ pub trait TrackRepositoryPort: Send + Sync {
     ///
     /// The counterpart to [`Self::list_for_profile`], which excludes them. A
     /// removal is a decision and decisions are reversible, so somewhere has to
-    /// be able to list what was decided (`MASTER_ISSUES` 68).
+    /// be able to list what was decided.
     fn removed_for_profile(&self, profile_id: ProfileId) -> Result<Vec<TrackSummary>>;
 
     /// The same library, with artist and album names and durations resolved.
@@ -169,7 +169,7 @@ pub trait TrackRepositoryPort: Send + Sync {
     /// **Only ever for a track whose file has gone.** The tombstone is what
     /// keeps a removed track out of the library when its folder is scanned
     /// again; deleting one for a file still on disk would undo the removal at
-    /// the next scan, quietly and days later (`MASTER_ISSUES` 119). Whose job
+    /// the next scan, quietly and days later. Whose job
     /// it is to check that is the caller's — but this refuses a live row
     /// anyway, because a delete is not a thing to be wrong about twice.
     fn forget(&self, profile_id: ProfileId, media_file_id: MediaFileId) -> Result<()>;
@@ -217,7 +217,7 @@ pub trait GenreRepositoryPort: Send + Sync {
     ///
     /// Its own if it has corrected them, and the file's own otherwise. A profile
     /// that has deliberately cleared every genre sees none, which is a different
-    /// answer from having never touched them (PROJECT_MASTER 2.1, 12.1).
+    /// answer from having never touched them.
     fn for_profile_track(
         &self,
         profile_id: ProfileId,
@@ -271,9 +271,9 @@ pub trait PlaylistRepositoryPort: Send + Sync {
 
 /// The saved playback queue.
 ///
-/// PROJECT_MASTER 2.3 requires restoring the last queue and 2.5 makes the queue
+/// The last queue has to come back, and it is the queue
 /// per-profile, but section 7 defines no table for it. The storage shape is
-/// settled in M7 alongside the queue service; this port is the contract that
+/// settled alongside the queue service; this port is the contract that
 /// migration has to satisfy.
 pub trait QueueRepositoryPort: Send + Sync {
     /// The queue as it was left, or `None` if the profile has never played.
@@ -307,9 +307,8 @@ pub trait PlayEventRepositoryPort: Send + Sync {
 
 /// Aggregated listening statistics.
 ///
-/// The daily rollup tables of PROJECT_MASTER 7.4 and the dashboard queries that
-/// read them arrive in M14. Only the query radio needs before then is declared
-/// here.
+/// The daily rollup tables and the dashboard queries that read them live
+/// elsewhere. Only the query radio needs is declared here.
 pub trait StatsRepositoryPort: Send + Sync {
     /// Everything the dashboard says in one row.
     fn summary(&self, profile_id: ProfileId, since: Timestamp) -> Result<ListeningSummary>;
@@ -360,11 +359,11 @@ pub trait RadioRepositoryPort: Send + Sync {
 
     /// When each file was last offered by any of this profile's stations.
     ///
-    /// Half of what the freshness term of PROJECT_MASTER 10.4 is measured
+    /// Half of what the freshness term is measured
     /// against; the other half is [`StatsRepositoryPort::last_played`], and the
     /// later of the two wins. This half is the one that works for a listener who
     /// keeps no history at all, because a station remembers what it offered
-    /// whether or not anything is written down (MASTER_ISSUES 49, 61).
+    /// whether or not anything is written down.
     fn last_offered(&self, profile_id: ProfileId) -> Result<Vec<(MediaFileId, Timestamp)>>;
 
     /// Every verdict a profile has given, summed per file.
@@ -462,7 +461,7 @@ pub trait AnalysisJobRepositoryPort: Send + Sync {
     /// not already spent its attempts failing. Both halves matter: without the
     /// first the worker would redo the whole library on every start, and
     /// without the second a file that cannot be decoded would be picked up for
-    /// ever (PROJECT_MASTER M11, "повторный анализ не происходит").
+    /// ever: a file analysed once is not analysed again.
     ///
     /// One call rather than a listing the caller loops over, because "which
     /// files still need this" is a question about rows the database can answer

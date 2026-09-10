@@ -325,7 +325,7 @@ fn start_output() -> Result<(Arc<Shared>, cpal::Stream, String)> {
 
     if supported.sample_format() != SampleFormat::F32 {
         // ponytail: f32 only. Shared-mode WASAPI mixes in f32, and Windows is
-        // the whole target platform (PROJECT_MASTER 1.2). Supporting integer
+        // the whole target platform. Supporting integer
         // formats means one more conversion in the callback and hardware to
         // test it on.
         return Err(CoreError::Audio(format!(

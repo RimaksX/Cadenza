@@ -7,8 +7,7 @@
 //! a key — and only the key and the event differ.
 //!
 //! It was written out twice before the third one was needed, which is the point
-//! at which a third copy stops being cheaper than a shared one
-//! (`MASTER_ISSUES` 148).
+//! at which a third copy stops being cheaper than a shared one.
 //!
 //! Free functions rather than a service: there is no state here and nothing to
 //! own. A service would be a name wrapped round two calls.

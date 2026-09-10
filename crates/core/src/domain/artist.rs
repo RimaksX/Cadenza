@@ -6,8 +6,7 @@ use super::value_objects::Timestamp;
 /// An artist in the global catalogue.
 ///
 /// Artists are global rather than per-profile: they describe the music, not the
-/// listener. What is per-profile is which tracks a listener has in their library
-/// (PROJECT_MASTER 2.5).
+/// listener. What is per-profile is which tracks a listener has in their library.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Artist {
     /// Stable identifier.

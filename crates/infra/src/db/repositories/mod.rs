@@ -6,10 +6,6 @@
 //! retention window — and `rusqlite`'s row closure has no room for a domain
 //! error. Splitting them also keeps the SQL and the validation legible
 //! separately.
-//!
-//! Adapters arrive with the milestone that needs them: profiles and settings in
-//! M3, the catalogue and the library in M4, playlists and the queue in M7,
-//! equaliser presets in M9.
 
 pub mod analysis_repo;
 pub mod catalog_repo;

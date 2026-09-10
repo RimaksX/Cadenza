@@ -39,8 +39,7 @@ export struct TakenOutRowData {
 // intervals turned the screen into a stack of stripes, and a line in this
 // interface is supposed to mean "something ends here". Taking them away
 // entirely was worse in the other direction — the page became one unbroken
-// column of content with nothing to say where a group started
-// (`MASTER_ISSUES` 121, 122).
+// column of content with nothing to say where a group started.
 //
 // So: the sidebar's mark, at the sidebar's length. A tick beside a word, which
 // is what it always was in a 240-pixel column; it only became a stripe when it
@@ -65,7 +64,7 @@ component SectionLabel inherits Rectangle {
         // leave of it, so every rule on the page ends at the same x whatever
         // its label is called. A rule of a *fixed* length after a label of a
         // variable one ends somewhere different every time, which is a ragged
-        // edge with no meaning in it (`MASTER_ISSUES` 123).
+        // edge with no meaning in it.
         width: Theme.px(360);
         height: Theme.px(18);
         spacing: Theme.space-2;
@@ -133,7 +132,7 @@ component FolderRow inherits Rectangle {
 
                 // The name of the row, at the level a track's name has in the
                 // library: this page is a list of things with captions under
-                // them, exactly as that one is (`MASTER_ISSUES` 121).
+                // them, exactly as that one is.
                 Text {
                     text: root.data.path;
                     font-family: Theme.serif;
@@ -185,8 +184,7 @@ component FolderRow inherits Rectangle {
     // The same hairline every list in this interface puts *between* rows —
     // and not under the last of them. A line here means "the next one starts
     // below this"; under the only row of a list of one it ends nothing, and
-    // this page had two of those before it had any content
-    // (`MASTER_ISSUES` 121).
+    // this page had two of those before it had any content.
     if !root.last: Rectangle {
         y: parent.height - 1px;
         height: 1px;
@@ -499,7 +497,7 @@ export component SettingsView inherits Rectangle {
                 // *preferred* width of what is in it, which for a column of
                 // rows is as wide as the widest of them wants to be — so the
                 // column laid itself out past its own edge and clipped what
-                // fell off (MASTER_ISSUES 64).
+                // fell off.
                 viewport-width: self.width;
                 viewport-height: choices.preferred-height;
 
@@ -794,7 +792,7 @@ export component SettingsView inherits Rectangle {
                             }
                         }
 
-                        // Three lengths, which is the whole range 2.4 allows.
+                        // Three lengths, which is the whole range allowed.
                         HorizontalLayout {
                             alignment: start;
                             spacing: Theme.space-2;

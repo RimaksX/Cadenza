@@ -1,12 +1,12 @@
 //! The nine equaliser presets shipped with the application.
 //!
-//! PROJECT_MASTER 2.8 names them and says nothing about their curves, so the
+//! They are named but their curves are not specified anywhere, so the
 //! curves are ours. They are written here rather than seeded by the application
 //! for the reason every migration exists: a database that has run this has
 //! them, and one that has not is not a database this version talks to. Nothing
 //! has to remember to insert them, and nothing can insert them twice.
 //!
-//! Eight of the nine are parametric (`MASTER_ISSUES` 41), because a preset is a
+//! Eight of the nine are parametric, because a preset is a
 //! curve and a parametric band can be put where the curve wants it rather than
 //! at the nearest of ten fixed points. Flat is the exception: it is the sound
 //! of the equaliser doing nothing, and it belongs in the simple mode where

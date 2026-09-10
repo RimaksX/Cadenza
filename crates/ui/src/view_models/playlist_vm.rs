@@ -10,8 +10,7 @@ use crate::{MenuItemData, PlaylistCardData};
 /// `read` turns a path into a picture, and it is passed in rather than called
 /// here so that the caller can decide whether the bytes have been decoded
 /// before. They usually have: this runs on every entry into the page, and a
-/// playlist's cover does not change between two of them
-/// (`MASTER_ISSUES` 152).
+/// playlist's cover does not change between two of them.
 ///
 /// A picture that will not decode is treated as no picture at all rather than
 /// as an error: it is a file on somebody's disk that may have been replaced by

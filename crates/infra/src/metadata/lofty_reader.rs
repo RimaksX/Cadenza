@@ -58,7 +58,7 @@ impl MetadataReaderPort for LoftyMetadataReader {
 /// `.m4a` is a container: it may hold AAC or ALAC, and only the codec inside
 /// says which. Everything else the scanner might hand us — Ogg, Opus, APE — is
 /// rejected here rather than stored under a wrong format, because the decoder in
-/// M5 would then be asked to play something it was never told about.
+/// The engine would then be asked to play something it was never told about.
 fn format_of(path: &Path, file_type: FileType) -> Result<AudioFormat> {
     match file_type {
         FileType::Mpeg => Ok(AudioFormat::Mp3),

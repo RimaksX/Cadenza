@@ -50,7 +50,7 @@ fn harness() -> Harness {
 /// other, and the middle filled in.
 ///
 /// A mood is now judged against the library it is choosing from
-/// (`MASTER_ISSUES` 137), so a test of what a mood means needs one. Two tracks
+/// , so a test of what a mood means needs one. Two tracks
 /// on their own would put both of them in the middle of their own distribution,
 /// which is true and useless.
 fn library() -> Vec<TrackFeatures> {

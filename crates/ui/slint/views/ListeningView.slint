@@ -18,8 +18,7 @@ component Figure inherits Rectangle {
     // with a floor under it, because four of these at 176 and their gaps want
     // 728 and the smallest window offers 648. A stated width cannot shrink, so
     // the fourth figure hung off the edge — and, worse, the column they sit in
-    // took their width, so every row of the standings below hung off it too
-    // (`MASTER_ISSUES` 131).
+    // took their width, so every row of the standings below hung off it too.
     preferred-width: Theme.px(176);
     min-width: Theme.px(140);
     height: Theme.px(78);
@@ -41,7 +40,7 @@ component Figure inherits Rectangle {
         // old-style: 6 and 8 rise, 3 and 5 drop, 1 and 2 sit at x-height. In a
         // name that is a grace and in a column of statistics it is a fence
         // falling over — measured on the rendered page, the 6 of "26" stood
-        // seven pixels above its own 2 (`MASTER_ISSUES` 131). Mono's figures
+        // seven pixels above its own 2. Mono's figures
         // are lining and tabular, which is what this face is here for: the
         // design says numbers are its job, and this page predates the rule.
         Text {
@@ -81,8 +80,7 @@ component TopRow inherits Rectangle {
         height: Theme.px(26);
         // The same gap the library's rows leave after their last column. The
         // rank on the left had one and the count on the right did not, so the
-        // number ran to the edge of the page while its own row began inset
-        // (`MASTER_ISSUES` 153).
+        // number ran to the edge of the page while its own row began inset.
         padding-right: Theme.row-end-inset;
         spacing: Theme.space-4;
 

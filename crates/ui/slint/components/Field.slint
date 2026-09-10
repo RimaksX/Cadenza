@@ -7,8 +7,7 @@ import { Theme } from "../theme/tokens.slint";
 // used to be a bare underline instead, on the argument that a box would be the
 // loudest object on the page — and the argument was wrong in the one way that
 // matters. The first person who was handed the link field could not find it:
-// a line under a grey hint reads as a caption, not as somewhere to put words
-// (`MASTER_ISSUES` 85).
+// a line under a grey hint reads as a caption, not as somewhere to put words.
 export component Field inherits Rectangle {
     in property <string> placeholder;
     /// Drawn inside the box, at the near end, where there is one. The field
@@ -32,7 +31,7 @@ export component Field inherits Rectangle {
     // Without this the typed text sets the *minimum* width, and a pasted link
     // is three hundred pixels of it: the row could not shrink, so the buttons
     // beside it went off the edge and the whole page went with them
-    // (`MASTER_ISSUES` 100). Anything longer than the box scrolls inside it,
+    // . Anything longer than the box scrolls inside it,
     // which is what a text field is for.
     min-width: Theme.px(120);
     forward-focus: input;
@@ -42,7 +41,7 @@ export component Field inherits Rectangle {
     // Three states and not two. Focus and hover were both `line`, so a field
     // somebody was **typing into** was drawn exactly like one the pointer
     // happened to be crossing — and the interface's only focus indicator said
-    // nothing (`MASTER_ISSUES` 158).
+    // nothing.
     //
     // `ink-2` for focus: a step above `line` and the loudest a hairline gets
     // here, which is right for the one mark that has to be unmistakable.

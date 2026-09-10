@@ -6,10 +6,10 @@
 //!
 //! What this computes is the correlation a listener would recognise: major
 //! keys, brisk tempos and open top ends feel happier than minor, slow and dark
-//! ones. It is a *heuristic* and PROJECT_MASTER 10.4 uses it as one — a weight
+//! ones. It is a *heuristic* and is used as one — a weight
 //! among several in radio's ranking, never a label shown to anybody as fact.
-//! Doing better would take a trained model, and 12.1 forbids one; doing worse
-//! would be to leave the column empty and have M13 treat every track alike.
+//! Doing better would take a trained model, which is forbidden here; doing worse
+//! would be to leave the column empty and have radio treat every track alike.
 
 use cadenza_core::domain::value_objects::{Mode, MusicalKey};
 

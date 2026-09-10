@@ -12,44 +12,44 @@ publish = false
 cadenza-core.workspace = true
 
 # `bundled` compiles SQLite into the binary. Cadenza ships as a single executable
-# with no runtime to install (PROJECT_MASTER 1.2), so linking against whatever
+# with no runtime to install, so linking against whatever
 # SQLite the machine happens to have is not an option.
 rusqlite = { version = "0.40.2", features = ["bundled"] }
 
 # Resolves %APPDATA% and %LOCALAPPDATA% through the shell API rather than
-# environment variables, which are not guaranteed to be set (PROJECT_MASTER 6).
+# environment variables, which are not guaranteed to be set.
 directories = "6"
 
 # Settings are stored as JSON scalars. Only the adapter sees the encoding; the
 # domain deals in SettingValue. Hand-rolling string escaping was the alternative.
 serde_json = "1"
 
-# Tag and stream-property reading (PROJECT_MASTER 3.5).
+# Tag and stream-property reading.
 lofty = "0.24"
 
 # Content hashing for duplicate detection. blake3 rather than a SHA family
 # function because a 5000-track library is tens of gigabytes to read, and the
-# background budget is about 20% of one CPU (PROJECT_MASTER 2.11).
+# background budget is about 20% of one CPU.
 blake3 = "1.8"
 
-# Filesystem watching (PROJECT_MASTER 3.6).
+# Filesystem watching.
 notify = "8"
 
-# Audio output (PROJECT_MASTER 3.4). On Windows this is WASAPI in shared mode.
+# Audio output. On Windows this is WASAPI in shared mode.
 cpal = "0.18"
 
-# Decoding (PROJECT_MASTER 3.4). Only the five required formats are enabled:
+# Decoding. Only the five required formats are enabled:
 # every additional codec is code compiled into the binary that the scanner would
-# never hand it, because 2.2 fixes the list. `isomp4` is the container AAC and
+# never hand it, because the list is fixed. `isomp4` is the container AAC and
 # ALAC arrive in; `flac`, `wav` and `pcm` are already on by default.
 symphonia = { version = "0.6", features = ["mp3", "aac", "alac", "isomp4"] }
 
-# Sample-rate conversion (PROJECT_MASTER 3.4). The output device runs at one
+# Sample-rate conversion. The output device runs at one
 # fixed rate — usually 48 kHz on Windows — while most files are 44.1 kHz, and
 # playing one at the other's rate shifts the pitch.
 rubato = "4"
 
-# Spectrum analysis for the visualiser (PROJECT_MASTER 2.9, ADR 5). A thousand
+# Spectrum analysis for the visualiser. A thousand
 # points thirty times a second is arithmetic either of us could write; what a
 # library buys is the planner that picks an algorithm for the length, and the
 # certainty that the transform itself is not where a bug is.
@@ -58,8 +58,7 @@ rustfft = "6"
 # The system's own folder chooser. Not a convenience: reaching `IFileDialog`
 # directly means COM and `unsafe`, and every crate here forbids it — this is a
 # thin safe wrapper over exactly that call. Default features off because they
-# are the Linux portal and an async runtime, and Windows is the whole target
-# (PROJECT_MASTER 1.2).
+# are the Linux portal and an async runtime, and Windows is the whole target.
 rfd = { version = "0.15", default-features = false }
 image = { version = "0.25.10", default-features = false, features = ["jpeg", "png", "gif", "bmp", "webp"] }
 

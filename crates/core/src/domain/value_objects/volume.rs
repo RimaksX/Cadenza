@@ -6,7 +6,7 @@ use crate::{CoreError, Result};
 ///
 /// This is the *control* value — what the slider shows and what gets persisted.
 /// The perceptual taper that converts it into a linear amplitude belongs to the
-/// audio chain and arrives with the mixer in M5.
+/// audio chain and belongs to the mixer.
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
 pub struct Volume(f32);
 

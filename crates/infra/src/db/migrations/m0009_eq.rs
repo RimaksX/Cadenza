@@ -4,7 +4,7 @@ pub const SQL: &str = r#"
 CREATE TABLE eq_presets (
     id                  TEXT    PRIMARY KEY,
 
-    -- NULL for the nine built-in presets (PROJECT_MASTER 2.8).
+ -- NULL for the nine built-in presets.
     profile_id          TEXT    REFERENCES profiles (id) ON DELETE CASCADE,
 
     name                TEXT    NOT NULL,

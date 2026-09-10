@@ -71,7 +71,7 @@ impl MoodRepositoryPort for SqliteMoodRepository {
     fn save(&self, preset: &MoodPreset) -> Result<()> {
         // A built-in is what shipped. Letting one be written would mean a
         // listener could edit their way out of a known-good starting point and
-        // have no way back (PROJECT_MASTER 2.7).
+        // have no way back.
         if preset.is_builtin {
             return Err(CoreError::invalid(
                 "mood preset",

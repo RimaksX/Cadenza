@@ -20,7 +20,7 @@ pub struct ProfileService {
     /// `None` where the caller has no interface to choose one with — every test
     /// in the suite, and anything that only reads profiles. Asking for an
     /// avatar without them is a programming mistake rather than a listener's,
-    /// and it says so (`MASTER_ISSUES` 148).
+    /// and it says so.
     covers: Option<cover::CoverPorts>,
 }
 
@@ -57,7 +57,7 @@ impl ProfileService {
 
     /// Creates a profile with history disabled.
     ///
-    /// History stays off until the setup wizard asks (PROJECT_MASTER 2.6). The
+    /// History stays off until the setup wizard asks. The
     /// safe default is the one that records nothing: a listener who never
     /// answers the question ends up with no history rather than with history
     /// they did not agree to.
@@ -93,7 +93,7 @@ impl ProfileService {
     /// Turns listening history on or off.
     ///
     /// Turning it off does not by itself erase what was already recorded —
-    /// purging is the analytics service's job in M14, and doing it here would
+    /// purging is the analytics service's job, and doing it here would
     /// mean this service reaching into a repository it has no other reason to
     /// know about. Nothing further is written while the flag is off.
     pub fn set_history_enabled(&self, id: ProfileId, enabled: bool) -> Result<Profile> {
@@ -137,10 +137,10 @@ impl ProfileService {
 
     /// Switches the active profile.
     ///
-    /// PROJECT_MASTER 2.5 defines three steps: stop playback, save the outgoing
+    /// Switching profiles is three steps: stop playback, save the outgoing
     /// profile's state, load the incoming one's. Only the third is possible
-    /// today — the first two need the playback and queue ports, which arrive in
-    /// M5 and M7. When they do, they hook in here, before the pointer moves.
+    /// today — the first two need the playback and queue ports. When those are
+    /// wired up, they hook in here, before the pointer moves.
     ///
     /// The profile must exist. Pointing the application at a deleted profile
     /// would leave every subsequent query returning nothing with no explanation.

@@ -13,7 +13,7 @@ use super::hash;
 /// Reads the real filesystem.
 ///
 /// Read-only by construction. Cadenza never deletes a file from disk — removing
-/// a track removes it from the library only (PROJECT_MASTER 2.1) — so there is
+/// a track removes it from the library only — so there is
 /// no write path here to be called by mistake.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct LocalFileSystem;

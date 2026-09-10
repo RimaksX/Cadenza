@@ -1,6 +1,6 @@
 //! How well one track follows another.
 //!
-//! Implements the transition score of PROJECT_MASTER 9.3:
+//! The transition score:
 //!
 //! ```text
 //! transition_score = 0.35 * bpm_score

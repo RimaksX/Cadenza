@@ -1,8 +1,8 @@
 //! Listener profiles.
 //!
-//! `settings_json` from PROJECT_MASTER 7.1 is deliberately absent: section 7.7
-//! already defines a `profile_settings` key/value table, and two writable copies
-//! of one setting drift apart. See `docs/MASTER_ISSUES.md`.
+//! A `settings_json` column is deliberately absent: `profile_settings` is
+//! already a key/value table, and two writable copies of one setting drift
+//! apart.
 
 pub const SQL: &str = r#"
 CREATE TABLE profiles (
@@ -10,8 +10,7 @@ CREATE TABLE profiles (
     name                   TEXT    NOT NULL,
     created_at             INTEGER NOT NULL,
 
-    -- Off until the setup wizard asks. When off, nothing is recorded at all
-    -- (PROJECT_MASTER 1.4, 2.6).
+    -- Off until the setup wizard asks. When off, nothing is recorded at all.
     history_enabled        INTEGER NOT NULL DEFAULT 0
                            CHECK (history_enabled IN (0, 1)),
 

@@ -11,7 +11,7 @@ pub enum TransitionProfile {
     /// Sample-accurate join with no gap and no overlap.
     ///
     /// The default for radio and playlists, where the material is meant to run
-    /// continuously (PROJECT_MASTER 2.4).
+    /// continuously.
     #[default]
     Gapless,
     /// Equal-power overlap between the outgoing and incoming track.
@@ -90,7 +90,7 @@ impl NowPlaying {
 /// A complete, self-consistent picture of the player.
 ///
 /// Produced by the application layer and consumed by the UI. The UI holds no
-/// playback state of its own (PROJECT_MASTER 4.3).
+/// playback state of its own.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct PlaybackSnapshot {
     /// Whether audio is running.

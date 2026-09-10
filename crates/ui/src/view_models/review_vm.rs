@@ -29,7 +29,7 @@ pub fn collides_with(card: &ReviewCard) -> String {
 /// It says why they are waiting as well as how many, because the label that
 /// used to say so is gone: an eyebrow over every page named the page, and this
 /// was the one whose words carried a fact rather than a name
-/// (`MASTER_ISSUES` 147). A count on its own would leave "waiting for what?"
+/// . A count on its own would leave "waiting for what?"
 /// with nowhere to be answered.
 pub fn summary_line(waiting: usize) -> String {
     match waiting {
@@ -92,7 +92,7 @@ mod tests {
     #[test]
     fn the_count_reads_as_words_and_says_what_kind_of_waiting() {
         // "Waiting" alone left the obvious question unanswered once the label
-        // above it went (`MASTER_ISSUES` 147).
+        // above it went.
         assert_eq!(summary_line(0), "nothing is held back");
         assert_eq!(summary_line(1), "1 file held back rather than imported");
         assert_eq!(summary_line(4), "4 files held back rather than imported");

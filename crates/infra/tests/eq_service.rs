@@ -3,7 +3,7 @@
 //!
 //! A real database and a fake set of filters. What is under test is that the
 //! sound a listener left behind is the sound they come back to — which is the
-//! half of PROJECT_MASTER 2.8 that no amount of DSP can provide.
+//! half of an equaliser that no amount of DSP can provide.
 
 use std::path::Path;
 use std::sync::{Arc, Mutex};

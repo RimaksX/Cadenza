@@ -4,7 +4,7 @@
 // keeps its meaning: `bg-0` is still the page, `bg-3` is still the most raised
 // surface, `ink-0` is still the loudest text.
 //
-// PROJECT_MASTER 2.10 requires both themes. The visual reference is dark only,
+// Both themes are required. The visual reference is dark only,
 // so this side is derived rather than given: lightness mirrored, chroma kept
 // low enough that white surfaces do not read as tinted.
 
@@ -28,7 +28,7 @@ export global LightPalette {
     // rather than darker: on this side stepping back means stepping towards the
     // paper. The ladder here is 36.0 / 42.3 / 48.7 in lightness, six apart -
     // wider than the dark side's five, because a light page needs more
-    // separation to say the same thing (`MASTER_ISSUES` 141).
+    // separation to say the same thing.
     out property <color> ink-furniture: #777371;
     out property <color> ink-disabled: #9a9694;
     out property <color> ink-2: #585452;

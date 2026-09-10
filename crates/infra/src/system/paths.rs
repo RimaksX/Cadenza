@@ -1,6 +1,6 @@
 //! Where Cadenza keeps its files.
 //!
-//! Exactly the layout of PROJECT_MASTER section 6. Configuration and the database
+//! The layout is fixed. Configuration and the database
 //! go under the roaming profile so they follow the user between machines on a
 //! domain; caches and logs go under the local one, because they are large,
 //! regenerable and nobody wants them synchronised.

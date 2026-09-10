@@ -1,7 +1,7 @@
 //! Typed identifiers.
 //!
 //! Every entity is keyed by a UUID so that a future sync or mobile client can mint
-//! identifiers without coordinating with anything (PROJECT_MASTER 15). Each entity
+//! identifiers without coordinating with anything. Each entity
 //! gets its own type, so passing a playlist id where a track id is expected does not
 //! compile.
 

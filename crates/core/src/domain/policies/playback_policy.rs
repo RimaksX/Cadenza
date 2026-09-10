@@ -8,7 +8,7 @@ use crate::domain::value_objects::{DurationMs, PlaybackPosition};
 
 /// Past this point, "previous" restarts the current track instead of going back.
 ///
-/// PROJECT_MASTER 2.3 gives "~3 seconds"; this is the exact threshold that
+/// Roughly three seconds; this is the exact threshold that
 /// approximation becomes.
 pub const PREVIOUS_RESTART_THRESHOLD: DurationMs = DurationMs::from_secs(3);
 
@@ -32,7 +32,7 @@ pub fn previous_action(position: PlaybackPosition) -> PreviousAction {
 
 /// How the track from `origin` should hand over to the next one.
 ///
-/// PROJECT_MASTER 2.4 splits this by source rather than by user preference:
+/// This splits by source rather than by user preference:
 /// radio and playlists are continuous material and stay gapless, while ordinary
 /// library playback crossfades. The crossfade switch therefore only governs the
 /// library case — turning it on does not start crossfading album playthroughs,
@@ -71,7 +71,7 @@ pub fn next_in_library(
         Some(next) => Some(*next),
         // The end of the list. Repeat all goes back to the top; repeat off is
         // what "stop once the queue is exhausted" means when the queue is a
-        // library (PROJECT_MASTER 2.3).
+        // library.
         None if repeat == RepeatMode::All => library.first().copied(),
         None => None,
     }

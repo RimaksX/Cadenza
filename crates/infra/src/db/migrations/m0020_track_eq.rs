@@ -6,7 +6,7 @@
 //! longer any preset at all. This says something narrower and longer-lived —
 //! *this listener wants this track played this way* — and it says it as a
 //! pointer at a preset rather than as a curve, because that is what somebody
-//! chooses (PROJECT_MASTER 2.8).
+//! chooses.
 //!
 //! One row per track at most, and the profile is half the key: two listeners
 //! sharing a machine share the file and not the opinion of it.

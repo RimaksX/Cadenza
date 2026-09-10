@@ -5,23 +5,18 @@ use crate::domain::stats::PlayOutcome;
 use crate::domain::value_objects::DurationMs;
 
 /// A listen counts as complete once more than this fraction has played.
-///
-/// PROJECT_MASTER 2.6: "более 50%".
 pub const COMPLETION_FRACTION: f32 = 0.5;
 
 /// Switching away within this window counts as a skip.
-///
-/// PROJECT_MASTER 2.6: "до 10 секунд".
 pub const SKIP_WINDOW: DurationMs = DurationMs::from_secs(10);
 
 /// Classifies how a listen ended.
 ///
 /// # Resolving the short-track conflict
 ///
-/// The two rules in PROJECT_MASTER 2.6 overlap for tracks shorter than twenty
-/// seconds: an interlude of 15 s stopped at 9 s is both "more than 50% played"
-/// and "switched away before 10 seconds". The specification does not say which
-/// wins.
+/// The two rules overlap for tracks shorter than twenty seconds: an interlude
+/// of 15 s stopped at 9 s is both "more than 50% played" and "switched away
+/// before 10 seconds", and nothing says which wins.
 ///
 /// Completion wins here. The listener heard most of the track, and the skip rule
 /// exists to catch "this is not what I wanted" — which is not what happened. The
@@ -41,7 +36,7 @@ pub fn classify(played: DurationMs, total: DurationMs) -> PlayOutcome {
 /// Whether a listening event may be written at all.
 ///
 /// When history is off, nothing is stored — not a reduced record, not an
-/// anonymised one (PROJECT_MASTER 1.4, 2.6). Every write path checks this first.
+/// anonymised one. Every write path checks this first.
 pub const fn should_record(profile: &Profile) -> bool {
     profile.history_enabled
 }

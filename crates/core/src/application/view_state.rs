@@ -1,7 +1,7 @@
 //! What the interface reads.
 //!
 //! The application layer publishes immutable snapshots and the UI renders them
-//! (PROJECT_MASTER 4.3). Nothing here has behaviour beyond arithmetic on its own
+//! . Nothing here has behaviour beyond arithmetic on its own
 //! fields: a view state that can decide something is a business rule that
 //! escaped into the layer least able to test it.
 //!

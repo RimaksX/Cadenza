@@ -27,7 +27,7 @@ export struct PlaylistCardData {
 // Every other list on this screen is one of a grid of squares, which is the
 // right shape for a thing you made and one of many. This one nobody made and
 // there is one, so it is drawn as what it is: a band the width of the content,
-// with a picture in it (`MASTER_ISSUES` 149).
+// with a picture in it.
 //
 // It also does something for the page that the page needed. A grid of equal
 // squares is the most monotonous shape an interface has, and the one screen in
@@ -122,7 +122,7 @@ component FavouritesBanner inherits Rectangle {
     // Play the list without opening it. The same filled circle a tile has, at
     // the same 44 and the same 16 from its corner: the band is a different
     // shape from a tile, and the control on it should not be a different
-    // object (`MASTER_ISSUES` 153).
+    // object.
     Rectangle {
         x: parent.width - self.width - Theme.px(16);
         y: parent.height - self.height - Theme.px(16);
@@ -261,7 +261,7 @@ export component PlaylistCard inherits Rectangle {
                 // The same corner the same object has at 36 pixels in a row and
                 // at 56 in the player bar. It was the one sleeve on the screen
                 // with square corners, which made it a different kind of thing
-                // at a different size (`MASTER_ISSUES` 124). The clip below is
+                // at a different size. The clip below is
                 // what carries the corner into the picture inside.
                 border-radius: Theme.radius;
                 clip: true;
@@ -512,7 +512,7 @@ export component PlaylistsView inherits Rectangle {
     // 176 rather than the 220 it was, which is one more column in the default
     // window: three squares of 254 across a page that also carries a band read
     // as heavy. The name inside the stand-in came down with it — see below,
-    // because that limit is the *reason* for this one (`MASTER_ISSUES` 151).
+    // because that limit is the *reason* for this one.
     property <length> min-tile: Theme.px(176);
     property <length> gap-x: Theme.space-6;
     property <length> gap-y: Theme.px(40);
@@ -570,7 +570,7 @@ export component PlaylistsView inherits Rectangle {
             // same line and in the same place as on every other screen. It
             // stood beside the heading before, alone in the white space to the
             // right of one word, belonging to neither the name above it nor the
-            // content below (`MASTER_ISSUES` 121).
+            // content below.
             HorizontalLayout {
                 alignment: space-between;
                 spacing: Theme.space-5;
@@ -641,8 +641,7 @@ export component PlaylistsView inherits Rectangle {
         //
         // It was outside the scroll view, which made the page two things that
         // moved at different speeds — and on a short window the grid below had
-        // only the leftover height to scroll in. One surface, one gesture
-        // (`MASTER_ISSUES` 151).
+        // only the leftover height to scroll in. One surface, one gesture.
         if root.has-favourites || root.playlists.length > 0: ScrollView {
             vertical-stretch: 1;
             viewport-height: root.headroom + root.banner-space

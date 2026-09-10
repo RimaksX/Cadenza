@@ -7,7 +7,7 @@
 //! list made a round that never ended: nothing cleared the library's, so once
 //! every track had been heard, shuffle had nothing left unheard to choose and
 //! stopped for good. Measured on the owner's own database — 137 rows of history
-//! over a library of 41 (`MASTER_ISSUES` 135).
+//! over a library of 41.
 //!
 //! The lane column carries a `CHECK` naming the lanes it allows, and SQLite
 //! cannot alter one. So this is the rebuild SQLite's own documentation

@@ -1,8 +1,8 @@
 //! The saved playback queue.
 //!
-//! Section 7 of PROJECT_MASTER defines no table for it, while 2.3 requires
-//! restoring the last queue and 2.5 makes it per-profile. This is the shape
-//! that satisfies `QueueRepositoryPort` (MASTER_ISSUES 31).
+//! The original schema defines no table for it, while the behaviour requires
+//! restoring the last queue, and it is per-profile. This is the shape
+//! that satisfies `QueueRepositoryPort`.
 //!
 //! One table for the three lanes rather than three tables: they hold the same
 //! thing in a different role, and the role is one column.

@@ -11,7 +11,7 @@ pub const MAX_PROFILE_NAME_CHARS: usize = 64;
 
 /// How long listening history is kept when it is enabled.
 ///
-/// PROJECT_MASTER 1.4 and 2.6 both state 30 days, and rule 12.1 repeats it. The
+/// Thirty days, stated in three separate places. The
 /// schema exposes the value as a column so it can be read back and shown to the
 /// user, but it is a ceiling, not a free setting: a profile may keep history for
 /// fewer days, never more. Raising this is a privacy-policy change and requires
@@ -63,7 +63,7 @@ pub struct Profile {
     /// Whether listening events are recorded at all.
     ///
     /// Asked once during profile setup. When off, nothing is written — not
-    /// reduced detail, not anonymised rows, nothing (PROJECT_MASTER 2.6).
+    /// reduced detail, not anonymised rows, nothing.
     pub history_enabled: bool,
     /// How many days of history to keep, capped at [`HISTORY_RETENTION_DAYS`].
     pub history_retention_days: u16,

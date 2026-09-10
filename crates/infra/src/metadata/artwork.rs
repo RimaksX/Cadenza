@@ -12,7 +12,7 @@ use cadenza_core::{CoreError, Result};
 // The bytes are stored exactly as they came, and the *name* carries the format
 // they turned out to be: what finally draws a cover decides what it is looking
 // at from the extension, so a picture stored under a name of our own invention
-// is a picture nothing can open (MASTER_ISSUES 62).
+// is a picture nothing can open.
 
 /// Stores cover images under `%LOCALAPPDATA%/Cadenza/cache/artwork`.
 pub struct FileArtworkCache {
@@ -97,8 +97,7 @@ impl ArtworkCachePort for FileArtworkCache {
         // And the small copy now, on whichever thread imported the track,
         // rather than on the one drawing the window the first time somebody
         // scrolls past this row. Resizing a picture is tens of milliseconds;
-        // fifty of them in a row is the list stuttering under the hand
-        // (`MASTER_ISSUES` 114).
+        // fifty of them in a row is the list stuttering under the hand.
         //
         // Ignored if it fails: the thumbnail is an optimisation, the cover is
         // the fact, and the lazy path below still makes one on demand for

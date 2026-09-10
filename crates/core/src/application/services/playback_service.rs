@@ -1,7 +1,7 @@
 //! Playing a track.
 //!
 //! The interface is not allowed to drive the audio engine itself
-//! (PROJECT_MASTER 4.3), so this is the whole of what it may ask for: load a
+//! , so this is the whole of what it may ask for: load a
 //! track, start, stop, move, change the level. Everything the player bar shows
 //! comes back as one [`PlayerView`].
 
@@ -34,8 +34,7 @@ pub struct PlaybackPorts {
     pub media_files: Arc<dyn MediaFileRepositoryPort>,
     /// Per-profile library membership, for what to show while it plays.
     pub tracks: Arc<dyn TrackRepositoryPort>,
-    /// Where a listen is written down, when the listener allows it
-    /// (PROJECT_MASTER 2.6).
+    /// Where a listen is written down, when the listener allows it.
     pub history: Arc<dyn PlayEventRepositoryPort>,
 }
 
@@ -57,7 +56,7 @@ pub struct PlaybackService {
     /// file path and nothing about titles or libraries.
     loaded: RwLock<Option<TrackSummary>>,
     /// The level the slider shows, which is not the level being output while
-    /// muted. Mute has to remember what to go back to (PROJECT_MASTER 2.3).
+    /// muted. Mute has to remember what to go back to.
     volume: RwLock<Volume>,
     muted: RwLock<bool>,
     /// The listen in progress, if history is being kept.
@@ -94,7 +93,7 @@ impl PlaybackService {
     ///
     /// Nothing audible happens here: the file is read and decoded ahead of the
     /// join, and whether that join is a fade or a butt splice is the transition
-    /// profile's business (PROJECT_MASTER 8.4).
+    /// profile's business.
     pub fn preload(&self, media_file_id: MediaFileId, transition: TransitionProfile) -> Result<()> {
         let media_file = self
             .ports
@@ -344,7 +343,7 @@ impl PlaybackService {
 
     /// Jumps to a position in the current track.
     pub fn seek(&self, position: PlaybackPosition) -> Result<()> {
-        // A probe, while a reported defect is being hunted (MASTER_ISSUES 83).
+        // A probe, while a reported defect is being hunted.
         // Seeking with a transition armed is the state the defect needs, and it
         // cannot be reproduced in a test: the count of transitions is raised by
         // the audio callback crossing the middle of a crossfade, while a seek
@@ -367,7 +366,7 @@ impl PlaybackService {
     ///
     /// Written down as well as applied, because a player that opens at full
     /// volume every morning is a player somebody turns down every morning
-    /// (`MASTER_ISSUES` 98). Every step of a drag writes one small row; volume
+    /// . Every step of a drag writes one small row; volume
     /// is not dragged often enough for that to be worth the preview-and-commit
     /// dance the equaliser needs.
     ///
@@ -445,8 +444,7 @@ impl PlaybackService {
     ///
     /// Asked of the profile every time rather than cached: turning history off
     /// is a decision that must take effect at once, and a cached "yes" would
-    /// keep writing for as long as the window stayed open
-    /// (PROJECT_MASTER 1.4, 2.6).
+    /// keep writing for as long as the window stayed open.
     fn open_listen(&self, summary: &TrackSummary, source: PlaySource) {
         let keeping = self
             .context

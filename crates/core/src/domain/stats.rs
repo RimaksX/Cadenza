@@ -1,9 +1,8 @@
 //! Listening events.
 //!
-//! Only the raw event lives here. The daily aggregates of PROJECT_MASTER 7.4
-//! arrive in M14 together with the local-date handling they need — bucketing a
-//! timestamp into "which day was that for this listener" is calendar work, and
-//! inventing a date type before there is a consumer for it would be guesswork.
+//! Only the raw event lives here. The daily aggregates carry the local-date
+//! handling they need — bucketing a timestamp into "which day was that for this
+//! listener" is calendar work, and it belongs with its consumer.
 
 use super::ids::{MediaFileId, PlayEventId, ProfileId, RadioSessionId};
 use super::value_objects::{DurationMs, Timestamp};
@@ -18,10 +17,10 @@ pub enum PlaySource {
     Playlist,
     /// Chosen by smart radio, and by this station.
     ///
-    /// The station rides on the source rather than beside it. Section 7.4 has
+    /// The station rides on the source rather than beside it. The schema has
     /// them as two columns with a `CHECK` holding them together — "a session id
     /// only where the source is radio" — and a rule a database has to be told is
-    /// a rule the type can simply not allow to be broken (MASTER_ISSUES 61).
+    /// a rule the type can simply not allow to be broken.
     Radio(RadioSessionId),
     /// Explicitly queued by the listener.
     Manual,
@@ -76,7 +75,7 @@ impl PlaySource {
     }
 }
 
-/// How a listen ended (PROJECT_MASTER 2.6).
+/// How a listen ended.
 ///
 /// One enum rather than the schema's two independent `completed` and `skipped`
 /// flags, which between them can express "completed and skipped" — a state the

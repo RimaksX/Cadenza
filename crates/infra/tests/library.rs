@@ -1,4 +1,4 @@
-//! Integration tests for scanning and import: the M4 definition of done.
+//! Integration tests for scanning and import.
 //!
 //! Real files on a real disk, read by the real tag reader, into a real database.
 //! A scanner tested against a fake filesystem proves the branching and nothing
@@ -548,7 +548,7 @@ fn correcting_a_genre_does_not_reach_the_other_profile() {
     assert_eq!(
         genre_names(&harness),
         vec!["trip-hop".to_owned()],
-        "Kim sees what the file says, not what Sasha decided (PROJECT_MASTER 12.1)"
+        "Kim sees what the file says, not what Sasha decided"
     );
 
     harness
@@ -972,7 +972,7 @@ fn a_listener_can_correct_a_track_without_touching_the_file_or_anyone_else() {
     assert_eq!(corrected.album.as_deref(), Some("Dummy"));
 
     // The file itself was not touched: a rescan finds nothing to update, and
-    // what the listener called it survives (PROJECT_MASTER 2.1).
+    // what the listener called it survives.
     let report = harness.scan(true);
     assert_eq!(report.added, 0);
     assert_eq!(
@@ -1263,7 +1263,7 @@ fn synchronising_brings_back_what_is_there_and_drops_what_is_not() {
 /// The defect this pins down: nothing on the fast path of a scan wrote the
 /// catalogue state, and the pass that does was called by nobody — so a track
 /// whose file had returned stayed unplayable through a scan, a synchronise, and
-/// the folder removed and added again (`MASTER_ISSUES` 69).
+/// the folder removed and added again.
 #[test]
 fn a_file_that_came_back_is_playable_again() {
     let harness = harness("came-back");

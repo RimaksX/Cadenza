@@ -1,4 +1,4 @@
-//! Decoding audio files with Symphonia (PROJECT_MASTER 2.2, 3.4).
+//! Decoding audio files with Symphonia.
 
 use std::fs::File;
 use std::path::Path;
@@ -25,8 +25,7 @@ use symphonia::core::units::{Time, Timestamp};
 ///
 /// Probing only. The streaming half — pulling PCM out of a file for the audio
 /// graph — is [`TrackStream`], which the engine drives directly: that is one
-/// infrastructure component using another, and does not belong on a core port
-/// (PROJECT_MASTER 4.2).
+/// infrastructure component using another, and does not belong on a core port.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct SymphoniaDecoder;
 
@@ -42,11 +41,11 @@ impl DecoderPort for SymphoniaDecoder {
     }
 
     fn supports(&self, format: AudioFormat) -> bool {
-        // Every format section 2.2 requires has a Symphonia decoder enabled in
+        // Every format required has a Symphonia decoder enabled in
         // Cargo.toml. AAC is the one with a caveat — Symphonia decodes AAC-LC
         // and not HE-AAC — but a container does not say which profile it holds
         // until it is opened, so the honest answer here is per format and the
-        // real check is `probe` (MASTER_ISSUES 13).
+        // real check is `probe`.
         matches!(
             format,
             AudioFormat::Mp3
@@ -75,7 +74,7 @@ pub struct StreamInfo {
 ///
 /// Lives on the decode thread and never touches the audio callback: decoding
 /// allocates, reads from disk and takes an unpredictable amount of time, all
-/// three of which the callback forbids (PROJECT_MASTER 8.2).
+/// three of which the callback forbids.
 pub struct TrackStream {
     reader: Box<dyn FormatReader + 'static>,
     decoder: Box<dyn AudioDecoder>,
@@ -242,7 +241,7 @@ fn open_track(path: &Path) -> Result<(Box<dyn FormatReader + 'static>, Track)> {
     Ok((reader, track))
 }
 
-/// Maps the container and codec onto the five formats section 2.2 fixes.
+/// Maps the container and codec onto the five formats this player reads.
 ///
 /// WAV is decided by the container, because uncompressed PCM has a codec id per
 /// sample layout — signed, unsigned, big-endian, planar — and every one of them
@@ -307,7 +306,7 @@ fn properties_of(reader: &dyn FormatReader, track: &Track) -> Result<AudioProper
         channels: u16::try_from(channels).unwrap_or(u16::MAX),
         // Symphonia states no average bitrate. lofty does, and it is lofty that
         // fills `media_files` during a scan; nothing on the playback path needs
-        // it (MASTER_ISSUES 24).
+        // it.
         bitrate: None,
     })
 }

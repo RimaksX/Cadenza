@@ -1,11 +1,11 @@
 //! SQLite storage.
 //!
-//! # Where the schema differs from PROJECT_MASTER section 7
+//! # Where the schema differs from the one first written down
 //!
-//! Three deliberate corrections, all recorded in `docs/MASTER_ISSUES.md`:
+//! Three deliberate corrections:
 //!
-//! * **Timestamps are `INTEGER` unix milliseconds, not `TEXT`.** Section 7 is
-//!   already inconsistent about this — `media_files.file_mtime` is `INTEGER`
+//! * **Timestamps are `INTEGER` unix milliseconds, not `TEXT`.** The original
+//!   was already inconsistent about this — `media_files.file_mtime` is `INTEGER`
 //!   while `media_files.created_at` is `TEXT`, and both are instants. Integers
 //!   match the domain's [`cadenza_core::domain::value_objects::Timestamp`]
 //!   exactly, sort and index correctly, and need no calendar library to read or

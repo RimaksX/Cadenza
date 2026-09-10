@@ -39,7 +39,7 @@ const KEPT_COVERS: usize = 512;
 /// happens to be on. A model is built fresh for every change to the library —
 /// one track added, one search typed — and a cache inside it would be thrown
 /// away with it, so adding a song would cost the decoding of every cover on
-/// screen (`MASTER_ISSUES` 114).
+/// screen.
 pub type Covers = Rc<RefCell<HashMap<MediaFileId, Image>>>;
 
 /// A list of tracks that finds each cover the first time it is drawn.

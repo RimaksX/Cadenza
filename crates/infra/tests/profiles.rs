@@ -1,4 +1,4 @@
-//! Integration tests for profiles and settings: the M3 definition of done.
+//! Integration tests for profiles and settings.
 //!
 //! These drive the real service over the real adapters against a real database.
 //! The point is the seam between them — a service test with fake repositories

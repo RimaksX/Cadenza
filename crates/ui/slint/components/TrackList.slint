@@ -36,7 +36,7 @@ component ColumnLabel inherits Text {
 // one that opens a section of the page. What makes it safe is that the glyph
 // changes when the thing is open — a download arrow to bring the importer out,
 // a chevron up to fold it away — so the button describes the state rather than
-// naming an action it does not always perform (`MASTER_ISSUES` 154).
+// naming an action it does not always perform.
 //
 // Everything else about it is the one button shape: `control-height`, the same
 // hairline, the same radius, the same three states.
@@ -122,7 +122,7 @@ export component TrackList inherits Rectangle {
     /// Whether the importer is out. Closed on arrival: a listener who came to
     /// look at their library did not come to paste a link, and the row was
     /// three controls and a field standing open on every visit whether or not
-    /// anybody was importing anything (`MASTER_ISSUES` 154).
+    /// anybody was importing anything.
     property <bool> importing;
     /// Declared here rather than aliased into the field below: the field lives
     /// inside a condition, and an element inside a condition is out of scope
@@ -182,7 +182,7 @@ export component TrackList inherits Rectangle {
     /// scrolls, and writing it scrolls the list. It exists because the list is
     /// built inside a condition — a page with no tracks draws no list at all —
     /// and an element inside a condition cannot be reached by name from out
-    /// here (`MASTER_ISSUES` 133).
+    /// here.
     in-out property <length> offset;
 
     // Two rows above the one that is playing, rather than hard against the
@@ -219,8 +219,7 @@ export component TrackList inherits Rectangle {
             // for this line — an eyebrow naming the page — and on every screen
             // that had one it named the page the sidebar had just named:
             // `YOUR LIBRARY` over `Library`, `YOUR LISTS` over `Playlists`.
-            // A caption that repeats the word beside it is decoration
-            // (`MASTER_ISSUES` 147).
+            // A caption that repeats the word beside it is decoration.
             //
             // The row goes with the words rather than standing empty, so the
             // heading rises by its 18 and the 8 above it. A page reached from
@@ -272,8 +271,7 @@ export component TrackList inherits Rectangle {
             // was. A lone bordered box in the white space to the right of a
             // title belongs to nothing: it is not part of the name and it is
             // not part of the content. Here it stands at the end of a line that
-            // already has words on it, directly above the thing it acts on
-            // (`MASTER_ISSUES` 121).
+            // already has words on it, directly above the thing it acts on.
             HorizontalLayout {
                 alignment: space-between;
                 spacing: Theme.space-5;
@@ -306,7 +304,7 @@ export component TrackList inherits Rectangle {
                 // the search box have always had between them. It was eight,
                 // which is the gap for parts of one thing, and the two lines
                 // disagreed by four pixels in a place where one sits directly
-                // above the other (`MASTER_ISSUES` 134).
+                // above the other.
                 HorizontalLayout {
                     alignment: end;
                     spacing: Theme.space-3;
@@ -337,8 +335,7 @@ export component TrackList inherits Rectangle {
                             // The one control in the interface that carries a
                             // glyph. It opens a menu, and drawn without the
                             // chevron it was the same object as the button
-                            // beside it that does something instead
-                            // (`MASTER_ISSUES` 142).
+                            // beside it that does something instead.
                             if root.sortable: TextButton {
                                 label: root.order-label;
                                 fixed-width: Theme.px(176);
@@ -433,7 +430,7 @@ export component TrackList inherits Rectangle {
             // orders what is already here, and the row below brings something
             // in from outside. The rule is the interface's own way of ending
             // one thing and starting another, and it is the width of the
-            // content like every other rule here (`MASTER_ISSUES` 142).
+            // content like every other rule here.
             if root.fetchable: Rectangle {
                 height: Theme.space-4;
 
@@ -450,7 +447,7 @@ export component TrackList inherits Rectangle {
             //
             // Cadenza fetches nothing itself: this hands the address to a
             // downloader the listener installed, and what comes back is a file
-            // in their folder like any other (`MASTER_ISSUES` 76).
+            // in their folder like any other.
             if root.fetchable: HorizontalLayout {
                 spacing: Theme.space-3;
 
@@ -501,8 +498,8 @@ export component TrackList inherits Rectangle {
                 // What the link *cannot* be is switched off rather than hidden,
                 // so the ambiguity is shown instead of guessed at: paste a bare
                 // `watch?v=` and only one of these lives; paste `…&list=…` and
-                // both do, because both readings are real (`MASTER_ISSUES`
-                // 142). It also answers the question nobody would have asked —
+                // both do, because both readings are real. It also answers
+                // the question nobody would have asked —
                 // that a playlist can be pasted at all.
                 if !root.fetching: TextButton {
                     label: "ADD PLAYLIST";
@@ -682,16 +679,14 @@ export component TrackList inherits Rectangle {
                 // The toolkit's own bar is off. It is the one control in this
                 // application that was drawn by somebody else — a wide grey
                 // track with a rounded grey thumb, in nobody's palette, on a
-                // page that has no other grey rounded object anywhere
-                // (`MASTER_ISSUES` 145).
+                // page that has no other grey rounded object anywhere.
                 vertical-scrollbar-policy: ScrollBarPolicy.always-off;
                 viewport-y <=> root.offset;
 
                 // Not animated, and it was tried. `viewport-y` is the property
                 // the `Flickable` writes on every wheel notch, so an animation
                 // on it animates scrolling itself — and the owner, who has the
-                // wheel this window cannot test, took it back out
-                // (`MASTER_ISSUES` 133).
+                // wheel this window cannot test, took it back out.
 
                 // Wrapped rather than made part of the row, because what a row
                 // is stays one question and where it can be carried is another.

@@ -4,7 +4,7 @@ use super::ids::{MoodId, ProfileId};
 use super::playback::TransitionProfile;
 use super::value_objects::Timestamp;
 
-/// The moods shipped with the application (PROJECT_MASTER 2.7).
+/// The moods shipped with the application.
 pub const BUILTIN_MOOD_NAMES: [&str; 8] = [
     "Workout", "Focus", "Chill", "Party", "Driving", "Sleep", "Gaming", "Morning",
 ];
@@ -104,7 +104,7 @@ pub struct MoodPreset {
     pub rules: MoodRules,
     /// Serialised per-genre preference multipliers.
     ///
-    /// Still opaque. Genre affinity is 10.3's term and needs a listener's own
+    /// Still opaque. Genre affinity is a ranking term and needs a listener's own
     /// genres in front of it before the shape can be chosen; radio works
     /// without it, and inventing a schema for an unwritten scorer is how
     /// schemas become wrong.
@@ -127,7 +127,7 @@ pub struct MoodPreset {
 impl MoodPreset {
     /// True when the listener may edit or delete this mood.
     ///
-    /// Custom moods are allowed (PROJECT_MASTER 2.7); built-ins are not editable,
+    /// Custom moods are allowed; built-ins are not editable,
     /// so that a listener can always get back to a known-good starting point.
     pub const fn is_editable(&self) -> bool {
         !self.is_builtin

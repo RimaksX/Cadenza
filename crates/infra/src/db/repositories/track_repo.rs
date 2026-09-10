@@ -85,8 +85,7 @@ impl TrackRepositoryPort for SqliteTrackRepository {
                 // just after something was added to it than at any other time,
                 // and alphabetical order scatters a fresh download of fifty
                 // tracks through everything that was already there — the
-                // listener who just fetched a playlist could not see it
-                // (`MASTER_ISSUES` 132).
+                // listener who just fetched a playlist could not see it.
                 //
                 // The title breaks the tie, and there are many: a folder scan
                 // stamps every file it takes in with the same second.
@@ -189,8 +188,7 @@ impl TrackRepositoryPort for SqliteTrackRepository {
         connection
             // A tombstone, not a delete. The file stays on disk and in the
             // catalogue, other profiles keep their copy, and the listener's own
-            // title and artist edits are still here if they add it back
-            // (PROJECT_MASTER 2.1).
+            // title and artist edits are still here if they add it back.
             .execute(
                 "UPDATE profile_tracks SET removed_at = ?3
                  WHERE profile_id = ?1 AND media_file_id = ?2 AND removed_at IS NULL",

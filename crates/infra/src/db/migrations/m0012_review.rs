@@ -1,7 +1,6 @@
 //! Files waiting for an import decision.
 //!
-//! Cadenza never silently discards a file or silently merges a duplicate
-//! (PROJECT_MASTER 2.1, 3.6).
+//! Cadenza never silently discards a file or silently merges a duplicate.
 
 pub const SQL: &str = r#"
 CREATE TABLE import_review (

@@ -11,7 +11,7 @@ CREATE TABLE mood_presets (
     name                 TEXT    NOT NULL,
     is_builtin           INTEGER NOT NULL DEFAULT 0 CHECK (is_builtin IN (0, 1)),
 
-    -- Shapes settle in M13 with the ranking formula that reads them.
+    -- The shapes belong to the ranking formula that reads them.
     feature_rules_json   TEXT,
     genre_boost_json     TEXT,
     ranking_weights_json TEXT,
@@ -51,7 +51,7 @@ CREATE TABLE radio_session_items (
     position      INTEGER NOT NULL CHECK (position >= 0),
 
     -- Why this track was chosen. Kept because selection is a weighted formula
-    -- rather than a model, so every pick can be explained (ADR 0004).
+    -- rather than a model, so every pick can be explained.
     reason_json   TEXT,
 
     created_at    INTEGER NOT NULL

@@ -8,21 +8,21 @@ license.workspace = true
 repository.workspace = true
 publish = false
 
-# Layering rule (PROJECT_MASTER 4.2): ui -> infra is forbidden. The absence of
+# Layering rule: ui -> infra is forbidden. The absence of
 # cadenza-infra here is what enforces it — a violation fails to compile.
 [dependencies]
 cadenza-core.workspace = true
 
-# The interface (PROJECT_MASTER 3.2). 1.17 rather than 1.13, and deliberately:
+# The interface. 1.17 rather than 1.13, and deliberately:
 # `DragArea` and `DropArea` are experimental in 1.13 — the compiler removes them
 # from its own type register unless an environment variable is set, and says in
 # as many words that they are not for production. They are stable in 1.17, which
-# is what makes the last requirement of 2.10 buildable (MASTER_ISSUES 58, 67).
+# is what makes the last of the interface requirements buildable.
 slint = "1.17"
 
 # The same backend Slint would have chosen, asked for by name so that a handler
 # can be hung on its event loop. Files dragged from the desktop arrive as winit
-# events that Slint itself does not look at (MASTER_ISSUES 57); this is the
+# events that Slint itself does not look at; this is the
 # published seam for reaching them, and it costs no `unsafe` and no Win32.
 i-slint-backend-winit = "1.17"
 

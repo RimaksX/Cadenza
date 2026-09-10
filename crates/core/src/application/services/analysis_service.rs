@@ -3,13 +3,12 @@
 //! This service owns the *bookkeeping* of analysis — which files still need it,
 //! which job is next, what happened when one failed — and none of the signal
 //! processing, which lives behind [`FeatureExtractorPort`] in the infrastructure
-//! layer (PROJECT_MASTER 4.4).
+//! layer.
 //!
 //! Everything here is a single step that returns. Nothing loops, nothing sleeps
 //! and nothing spawns: the pacing is the worker's business, and a service that
-//! blocked would be a service the interface could not call
-//! (PROJECT_MASTER 12.1, "все фоновые задачи должны быть низкоприоритетными и
-//! неблокирующими").
+//! blocked would be a service the interface could not call: background work is
+//! required to stay low-priority and non-blocking.
 
 use std::sync::Arc;
 

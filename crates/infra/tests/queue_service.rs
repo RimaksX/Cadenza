@@ -1,4 +1,4 @@
-//! The queue drives playback: the rest of the M7 definition of done.
+//! The queue drives playback.
 //!
 //! Real repositories over a real database, and a fake audio device — the one
 //! thing a test cannot have. What is under test is the order tracks start in
@@ -362,8 +362,7 @@ impl Harness {
     ///
     /// Written to the real repository rather than handed to the queue, because
     /// that is where the queue now reads a playlist from: naming a list that
-    /// does not exist gets an empty one, which is what it is
-    /// (`MASTER_ISSUES` 136).
+    /// does not exist gets an empty one, which is what it is.
     fn playlist(&self, tracks: &[MediaFileId]) -> PlaylistId {
         let repository = SqlitePlaylistRepository::new(self.db.pool().clone());
         let playlist = Playlist {
@@ -695,7 +694,7 @@ fn a_playlist_plays_itself_through_without_filling_the_queue() {
     // What the separation is for. Starting a list used to deal the rest of it
     // into the queue, so a listener who pressed play on a forty-track playlist
     // was shown a queue of thirty-nine tracks nobody had put there, and had no
-    // way to tell their own three from the list's (`MASTER_ISSUES` 136).
+    // way to tell their own three from the list's.
     let harness = harness();
 
     // Three of the four, and in an order that is neither the catalogue's nor
@@ -841,7 +840,7 @@ fn a_shuffled_library_played_to_the_end_can_be_played_again() {
     // once was a library where every track was "heard" for ever, and every
     // press of play afterwards ended at the first track — the listener saw one
     // song play and then silence, with no way back short of deleting the
-    // database (`MASTER_ISSUES` 135).
+    // database.
     let harness = harness();
     harness
         .queue
@@ -1050,7 +1049,7 @@ fn a_track_queued_after_the_join_was_opened_still_plays_next() {
 fn the_transition_follows_what_is_playing_rather_than_the_switch_alone() {
     let harness = harness();
 
-    // Crossfade on for this profile. PROJECT_MASTER 2.4 makes that a statement
+    // Crossfade on for this profile. That is a statement
     // about ordinary tracks, not about everything.
     let settings = SqliteSettingsRepository::new(harness.db.pool().clone());
     settings
@@ -1153,7 +1152,7 @@ fn shuffle_prefers_the_track_that_follows_best_without_insisting_on_it() {
     // Counted rather than asserted per draw. The pick is weighted, not decided:
     // with these features the good transition takes about seven draws in ten,
     // and a test that demanded it every time would be testing for the very
-    // behaviour PROJECT_MASTER 9.1 rules out. What is stable — and what the
+    // behaviour the shuffle rules out. What is stable — and what the
     // milestone is actually about — is which one wins most often.
     //
     // A hundred draws rather than forty, because forty was not enough to make
@@ -1321,7 +1320,7 @@ fn switching_listener_puts_the_other_ones_queue_away() {
     harness.queue.enqueue(harness.tracks[2]).expect("queued");
     assert_eq!(harness.listed(), vec!["four", "three"]);
 
-    // Somebody else takes over. Stopping playback is the first of 2.5's three
+    // Somebody else takes over. Stopping playback is the first of the three
     // steps and belongs to the transport; what is under test here is the third
     // — that the queue that comes back is the one belonging to whoever is now
     // listening.

@@ -15,7 +15,7 @@ pub const FAVOURITES_NAME: &str = "Favourites";
 /// One exact string rather than a rule language. `rule_json` is still opaque to
 /// the domain - nothing here parses it - and this is a comparison, not a
 /// parser. When a second kind of automatic list exists there will be a reason
-/// to invent the language; there is not one yet (`MASTER_ISSUES` 139).
+/// to invent the language; there is not one yet.
 pub const FAVOURITES_RULE: &str = "{\"auto\":\"favourites\"}";
 
 /// How many played tracks the favourites list holds at most.
@@ -48,7 +48,7 @@ pub struct Playlist {
     /// Serialised smart-playlist rule.
     ///
     /// Opaque to the domain on purpose: the rule language is defined with smart
-    /// playlists in M7. Storing it as text here avoids inventing a rule AST now
+    /// playlists. Storing it as text here avoids inventing a rule AST now
     /// and rewriting it then.
     pub rule_json: Option<String>,
     /// When the playlist was created.
@@ -114,7 +114,7 @@ pub struct PlaylistItem {
     /// Always true for an ordinary playlist: somebody added every row of one.
     /// The favourites list is the only place the two can differ, and there the
     /// difference is what lets the played part be rebuilt without disturbing
-    /// what was pinned (`MASTER_ISSUES` 139).
+    /// what was pinned.
     pub by_hand: bool,
 }
 

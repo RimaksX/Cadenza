@@ -1,7 +1,7 @@
 //! How hard background analysis is allowed to work.
 //!
-//! PROJECT_MASTER 2.11 states the rule as a number — background work stays
-//! under roughly a fifth of the machine — and 12.1 states it as an absolute:
+//! The rule is stated as a number — background work stays
+//! under roughly a fifth of the machine — and it is an absolute:
 //! every background task is low priority and never blocks. Both are here, as a
 //! share of wall-clock time the worker is permitted to spend running.
 //!
@@ -27,7 +27,7 @@ pub const TOP_UP_BATCH: usize = 64;
 
 /// The share of the machine analysis may take while music is playing.
 ///
-/// A fifth of one core is what PROJECT_MASTER 2.11 allows in total, and while
+/// A fifth of one core is the whole allowance, and while
 /// something is playing the listener has a use for the rest of it.
 pub const SHARE_WHILE_PLAYING: f32 = 0.2;
 

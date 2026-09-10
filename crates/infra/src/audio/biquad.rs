@@ -2,11 +2,11 @@
 //!
 //! The coefficient formulas are Robert Bristow-Johnson's audio cookbook, which
 //! is what every graphic equaliser in the world uses: low shelf, peaking and
-//! high shelf are the three PROJECT_MASTER 8.5 names, and they are enough for
+//! high shelf are the three shapes the equaliser needs, and they are enough for
 //! both modes.
 //!
 //! Nothing here allocates or branches on anything but its arguments, because a
-//! [`Section`] is stepped on the realtime callback (PROJECT_MASTER 8.2 allows
+//! [`Section`] is stepped on the realtime callback (which allows
 //! DSP there, and nothing else).
 
 /// The coefficients of one normalised second-order section.

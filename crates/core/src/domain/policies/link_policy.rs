@@ -53,7 +53,7 @@ pub fn is_a_link(text: &str) -> bool {
 /// playing inside, and both readings are things a listener means often enough
 /// to have pressed a button for. Only the listener knows which they meant, so
 /// the interface offers both and lets the link switch off whichever it cannot
-/// be (`MASTER_ISSUES` 142).
+/// be.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Readings {
     /// One recording can be got from this.
@@ -137,7 +137,7 @@ pub enum LinkHandler {
     ///
     /// So what a listener gets is the same audio the other button gets, with
     /// better names on it, chosen by a match that is usually right and
-    /// sometimes finds a live version instead (`MASTER_ISSUES` 99).
+    /// sometimes finds a live version instead.
     Matcher,
     /// Nothing does, and the service is named so the answer arrives at once.
     Refused(&'static str),
@@ -212,7 +212,7 @@ mod tests {
     #[test]
     fn the_address_that_is_both_offers_both() {
         // The one a listener actually copies: a track, playing inside a list.
-        // Guessing here would be choosing for them (`MASTER_ISSUES` 142).
+        // Guessing here would be choosing for them.
         assert_eq!(
             readings_of("https://www.youtube.com/watch?v=dQw4w9WgXcQ&list=PL1234"),
             Readings::EITHER

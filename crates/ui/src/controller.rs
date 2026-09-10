@@ -2,7 +2,7 @@
 //!
 //! The controller owns the direction of travel: properties down into the
 //! window, commands up into the application layer. It holds no rules — every
-//! method here is a translation and a call (PROJECT_MASTER 4.3).
+//! method here is a translation and a call.
 
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
@@ -129,8 +129,7 @@ pub struct Controller {
     query: RefCell<String>,
     /// Every cover this window has decoded, kept across the models that come
     /// and go. Adding one track used to cost the decoding of every cover on
-    /// screen, because the cache lived inside a model that was thrown away
-    /// (`MASTER_ISSUES` 114).
+    /// screen, because the cache lived inside a model that was thrown away.
     covers: Covers,
     /// Pictures that are not a track's: playlist covers, and the faces beside
     /// names. Keyed by where they came from, because that is what identifies
@@ -138,7 +137,7 @@ pub struct Controller {
     ///
     /// Without it, entering the playlists page decoded every cover again —
     /// **measured at 334 ms of a 335 ms refresh**, all of it one 1000-pixel
-    /// WebP, every single time the page was opened (`MASTER_ISSUES` 152).
+    /// WebP, every single time the page was opened.
     pictures: RefCell<HashMap<PathBuf, slint::Image>>,
     /// What the offered button would do, while one is offered.
     offer: Cell<Option<Offer>>,
@@ -149,9 +148,9 @@ pub struct Controller {
     ///
     /// Kept because searching used to read the whole table again for every
     /// character typed. Measured at five thousand tracks — the top of the size
-    /// PROJECT_MASTER 1 names — that read is eight milliseconds of the fifteen
+    /// the player is built for — that read is eight milliseconds of the fifteen
     /// a keystroke costs, and it is the eight that buys nothing: the library
-    /// cannot have changed between two letters (`MASTER_ISSUES` 92).
+    /// cannot have changed between two letters.
     ///
     /// Every path that could have changed it goes through
     /// [`Self::refresh_library`], which reads and replaces this. Nothing else
@@ -193,7 +192,7 @@ pub struct Controller {
     /// Interface state, like the search query beside it: which way a list is
     /// turned is nobody's business but the window's, and it is not worth a
     /// column in the database until somebody asks for it to be remembered
-    /// between runs (`MASTER_ISSUES` 132).
+    /// between runs.
     order: Cell<Order>,
 }
 
@@ -249,8 +248,7 @@ impl Controller {
         };
 
         // Which decides whether there is an application at all yet: with
-        // nobody created, the shell is replaced by the one screen that asks
-        // (`MASTER_ISSUES` 128).
+        // nobody created, the shell is replaced by the one screen that asks.
         window.set_first_run(self.profile.borrow().is_none());
 
         // The orders on offer, and the one in force. Built here rather than in
@@ -313,8 +311,7 @@ impl Controller {
             // the window is showing the welcome screen rather than this page.
             // A hint used to be set here telling somebody to open Settings and
             // add a listener, which is the thing that screen now does - a
-            // sentence nobody could reach and which had stopped being true
-            // (`MASTER_ISSUES` 128).
+            // sentence nobody could reach and which had stopped being true.
             Err(CoreError::NoActiveProfile) => {
                 self.shown_library.borrow_mut().clear();
                 window.set_tracks(ModelRc::new(VecModel::from(Vec::new())));
@@ -396,7 +393,7 @@ impl Controller {
     ///
     /// Filters what was already read rather than reading it again. A letter
     /// typed cannot have changed the library, and the read is the expensive
-    /// half of the work (`MASTER_ISSUES` 92).
+    /// half of the work.
     pub fn search(&self, query: &str) {
         *self.query.borrow_mut() = query.to_owned();
 
@@ -429,8 +426,7 @@ impl Controller {
         // And where that row is in the list as it is currently ordered and
         // filtered, so that the player bar can point at it. Counted here
         // because the markup cannot search a model, and recounted whenever the
-        // player changes: a track that finishes moves the answer
-        // (`MASTER_ISSUES` 133).
+        // player changes: a track that finishes moves the answer.
         window.set_playing_row(self.playing_row(&shown.playing_id));
         window.set_now_favourite(self.is_favourite(&shown.playing_id));
         window.set_progress(shown.progress);
@@ -500,7 +496,7 @@ impl Controller {
         window.set_playlists_summary(playlist_vm::summary_line(&summaries).into());
 
         // The favourites list is drawn across the page rather than in the grid,
-        // so it leaves the grid's model (`MASTER_ISSUES` 149). It is first in
+        // so it leaves the grid's model. It is first in
         // the listing, which is where the service puts it.
         let cards = playlist_vm::cards(&summaries, |path| self.picture(path));
         let (banner, rest): (Vec<_>, Vec<_>) = cards.into_iter().partition(|card| card.automatic);
@@ -625,7 +621,7 @@ impl Controller {
     /// Takes a track out of this profile's library.
     ///
     /// A tombstone rather than a delete: the file stays on disk and every other
-    /// profile keeps its own copy of the row (PROJECT_MASTER 2.1).
+    /// profile keeps its own copy of the row.
     pub fn remove_from_library(&self, track: &str) {
         self.run(|| {
             let media_file_id = MediaFileId::parse(track)?;
@@ -695,7 +691,7 @@ impl Controller {
     ///
     /// Called from the tick alongside [`Self::refresh_player`], because nothing
     /// else can: the audio callback is forbidden from calling into the
-    /// application layer (PROJECT_MASTER 8.2).
+    /// application layer.
     pub fn poll_queue(&self) {
         match self.services.queue.poll() {
             // Only when a track actually changed, so the tick does not turn a
@@ -787,7 +783,7 @@ impl Controller {
     ///   from is a dead end nobody asked for;
     /// * deleting the last listener puts the first-run screen back, which is
     ///   the honest state: there is nobody, and the screen that asks for one is
-    ///   the screen for that (`MASTER_ISSUES` 148).
+    ///   the screen for that.
     pub fn delete_profile(&self, id: &str) {
         let was_active = self
             .profile
@@ -868,7 +864,7 @@ impl Controller {
     /// Puts a track at the end of the manual queue.
     ///
     /// Nothing starts playing: the point of the manual queue is that it plays
-    /// after what is on now (PROJECT_MASTER 2.3).
+    /// after what is on now.
     pub fn enqueue(&self, id: &str) {
         self.run(|| {
             let media_file_id = MediaFileId::parse(id)?;
@@ -902,7 +898,7 @@ impl Controller {
     /// Moves to the next track.
     pub fn next(&self) {
         // Pressing next during a station is a verdict on what is playing —
-        // the weakest kind, but the one 10.5 asks radio to learn from. Recorded
+        // the weakest kind, but one radio has to learn from. Recorded
         // before the track changes, because after it there is nothing to point
         // at. A track that ran out on its own is not a skip and does not come
         // through here.
@@ -1051,8 +1047,7 @@ impl Controller {
             let gain = GainDb::clamped(decibels);
             // Named, not numbered. While this was an `i32` the wildcard sent
             // every index that was not zero or one to treble, so a fourth
-            // control added to the dial would have silently moved the third
-            // (`MASTER_ISSUES` 163).
+            // control added to the dial would have silently moved the third.
             match which {
                 ToneBand::Bass => setting.simple.bass = gain,
                 ToneBand::Mid => setting.simple.mid = gain,
@@ -1227,8 +1222,7 @@ impl Controller {
             // Three named choices against three resolutions, and no
             // wildcard. The string form ended in `_ => AddAnyway`, so a
             // misspelling anywhere in the markup would have added a file the
-            // listener had just asked to keep out, quietly and irreversibly
-            // (`MASTER_ISSUES` 163).
+            // listener had just asked to keep out, quietly and irreversibly.
             let resolution = match choice {
                 ReviewChoice::Keep => ReviewResolution::KeepExisting,
                 ReviewChoice::Replace => ReviewResolution::RemoveExisting,
@@ -1291,7 +1285,7 @@ impl Controller {
 
     /// Switches to another listener.
     ///
-    /// PROJECT_MASTER 2.5 states this as three steps in order — playback stops,
+    /// Switching a profile is three steps in order — playback stops,
     /// the outgoing profile's state is saved, the incoming one's is loaded —
     /// and the order is the whole of it: a queue reloaded before playback stops
     /// would be the new listener's queue with the old listener's track playing
@@ -1472,7 +1466,7 @@ impl Controller {
     /// into the renderer. A renderer told to draw at 1.25 puts every hairline
     /// on a pixel and a quarter and every stem between two columns, which is
     /// what a magnifying glass looks like; the lengths are rounded back onto
-    /// whole pixels before anything is drawn (`MASTER_ISSUES` 65).
+    /// whole pixels before anything is drawn.
     ///
     /// Which also makes it live. The window is not remade, it is re-measured.
     pub fn refresh_interface_scale(&self) {
@@ -1489,7 +1483,7 @@ impl Controller {
         // layout wants more than the window has, and the far side and the
         // bottom of every page are cut off — which is what a listener whose
         // size was not 100 per cent saw on every run after the one where they
-        // chose it (`MASTER_ISSUES` 84).
+        // chose it.
         let ratio = scale.factor() / self.sized_for.get();
         if (ratio - 1.0).abs() < f32::EPSILON {
             return;
@@ -1518,7 +1512,7 @@ impl Controller {
     /// The frame grows with the lengths inside it, and that happens in
     /// [`Self::refresh_interface_scale`] rather than here — the window has to
     /// be given room whenever the scale is applied, and it is applied at every
-    /// start as well as at every press (`MASTER_ISSUES` 66, 84).
+    /// start as well as at every press.
     pub fn set_interface_scale(&self, percent: i32) {
         let Some(profile) = self.profile.borrow().as_ref().map(|profile| profile.id) else {
             return;
@@ -1851,9 +1845,8 @@ impl Controller {
 
             // Off means there is nothing written, not "stop writing from now
             // on". A month of listening left sitting behind a switch that says
-            // off is exactly what PROJECT_MASTER 1.4 refuses, and the service
-            // that owns retention is the one that erases it
-            // (MASTER_ISSUES 70).
+            // off is exactly what the retention rule refuses, and the service
+            // that owns retention is the one that erases it.
             if !keep {
                 self.services.stats.forget(profile.id)?;
             }

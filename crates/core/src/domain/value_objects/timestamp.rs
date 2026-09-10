@@ -2,8 +2,8 @@
 //!
 //! Core deliberately owns no calendar library. Every timestamp it handles is a
 //! plain integer; rendering to the ISO-8601 `TEXT` form the database stores, and
-//! resolving the user's local date for daily aggregates, are infrastructure and
-//! M14 concerns respectively.
+//! resolving the user's local date for daily aggregates, both belong to
+//! infrastructure.
 //!
 //! Timestamps are never read from the system clock inside core — they arrive
 //! through [`crate::domain::ports::clock::ClockPort`], which keeps every

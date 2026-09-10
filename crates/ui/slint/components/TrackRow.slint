@@ -55,8 +55,7 @@ export component TrackRow inherits Rectangle {
     // was 1.04:1 — a step of 1.8 in lightness, where this palette's own note
     // says a hairline stops being visible below about 1.3. The row did light
     // up; nobody could see it. `bg-2` is 1.09:1, twice the step and still
-    // quiet enough to be a surface rather than a highlight
-    // (`MASTER_ISSUES` 143).
+    // quiet enough to be a surface rather than a highlight.
     //
     // A playing row keeps a ground of its own underneath, so that moving the
     // pointer off it does not make it look like every other row again.
@@ -87,8 +86,7 @@ export component TrackRow inherits Rectangle {
         // platforms that have one and `IDC_SIZEALL` — arrows in four
         // directions — on this one, which says "move me" in a dialect nobody
         // here speaks and contradicts what a click actually does. The row is
-        // played by clicking; carrying it is a shortcut, not the way in
-        // (MASTER_ISSUES 67).
+        // played by clicking; carrying it is a shortcut, not the way in.
 
         // One click plays. A double click is the file-manager habit, and this
         // is not a file manager: a row here has one obvious thing to do and no
@@ -171,7 +169,7 @@ export component TrackRow inherits Rectangle {
                 // way rather than as a bare triangle because it lands on
                 // somebody's artwork, and a line drawing has no contrast it can
                 // count on there. This interface has no scrims, so the button
-                // brings its own ground (`MASTER_ISSUES` 143).
+                // brings its own ground.
                 Rectangle {
                     opacity: root.hovered ? 1.0 : 0.0;
                     animate opacity { duration: 120ms; }
@@ -309,8 +307,7 @@ export component TrackRow inherits Rectangle {
             // which way it points.
             // Faded in rather than switched on. The dots at the end of the
             // same row already do this; a control that appears instantly
-            // beside one that fades reads as two different kinds of thing
-            // (`MASTER_ISSUES` 147).
+            // beside one that fades reads as two different kinds of thing.
             pill := Rectangle {
                 opacity: root.hovered ? 1.0 : 0.0;
                 animate opacity { duration: 120ms; }

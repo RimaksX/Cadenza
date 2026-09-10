@@ -14,7 +14,7 @@ fn main() {
     println!("cargo::rerun-if-changed=build.rs");
 
     // Only Windows has this kind of resource, and this is the only platform
-    // Cadenza targets (PROJECT_MASTER 1.2) — but the guard keeps a check on
+    // Cadenza targets — but the guard keeps a check on
     // another machine from failing on a step that has nothing to do there.
     if std::env::var("CARGO_CFG_WINDOWS").is_err() {
         return;

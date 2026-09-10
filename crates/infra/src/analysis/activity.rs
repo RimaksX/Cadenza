@@ -6,7 +6,7 @@
 //! a small choir, as calm as the library gets - came out at 0.77 energy, above
 //! three quarters of it, while a bass-led electronic remix with a clear beat
 //! came out at 0.64, below a quarter of it. Radio put the first in Gaming and
-//! the second in Sleep, which is exactly backwards (`MASTER_ISSUES` 138).
+//! the second in Sleep, which is exactly backwards.
 //!
 //! Spotify names five things behind its own `energy`: dynamic range, perceived
 //! loudness, timbre, **onset rate** and general entropy. Two of those were

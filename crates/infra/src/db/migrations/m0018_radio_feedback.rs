@@ -1,6 +1,6 @@
 //! What the listener thought of a radio pick.
 //!
-//! PROJECT_MASTER 10.5 asks that skip, like and dislike affect future
+//! Skip, like and dislike have to affect future
 //! generation, which means the verdict has to outlive the moment it was given.
 //! It goes on the pick rather than in a table of its own: a verdict is about
 //! *this track in this session*, and the same track offered again next week in

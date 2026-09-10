@@ -159,7 +159,7 @@ impl DropBox {
     /// drawn above what was pressed, while the bottom of the window falls off
     /// the end. Nothing here can be reproduced on the machine that writes it,
     /// so what is needed from the machine that has it is numbers rather than
-    /// impressions (`MASTER_ISSUES` 127).
+    /// impressions.
     pub fn measured(&self) -> Option<String> {
         let mut carried = self.carried();
         if !carried.fresh {
@@ -282,8 +282,7 @@ impl CustomApplicationHandler for Seam {
             // `WS_THICKFRAME`, so the system would resize the window, and
             // `WM_NCHITTEST` never says `LEFT`, `BOTTOM` or any other edge, so
             // nothing ever asks it to. The edges were dead, and the note in
-            // `app_window.slint` saying the backend kept them alive was wrong
-            // (`MASTER_ISSUES` 88).
+            // `app_window.slint` saying the backend kept them alive was wrong.
             //
             // So the edge is found here and handed to the platform's own
             // resize loop — the one that follows the pointer, honours the

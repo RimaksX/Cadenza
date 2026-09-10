@@ -4,7 +4,7 @@
 //! the clock, OS scheduling — goes through a trait declared here. The domain
 //! depends on these traits; `cadenza-infra` depends on the domain and provides
 //! the implementations. That inversion is what keeps `core -> infra` off the
-//! dependency graph (PROJECT_MASTER 4.4).
+//! dependency graph.
 //!
 //! # Why these are synchronous
 //!

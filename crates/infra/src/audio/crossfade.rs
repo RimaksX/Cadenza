@@ -1,13 +1,12 @@
 //! How long a fade runs, and how loud each side of it is.
 //!
-//! The arithmetic of PROJECT_MASTER 8.3, kept apart from the decoding it is
+//! The arithmetic of a crossfade, kept apart from the decoding it is
 //! applied to. Where it is applied is `stream.rs`, on the decode thread and
 //! before the ring; what it decides is here, where it can be read and tested
 //! without a file, a device or a thread.
 //!
-//! There is no `gapless.rs` beside this one — see `docs/MASTER_ISSUES.md` 40. A
-//! gapless join is the absence of processing, and a file holding that would
-//! hold nothing.
+//! There is no `gapless.rs` beside this one. A gapless join is the absence of
+//! processing, and a file holding that would hold nothing.
 
 /// The gains of an equal-power crossfade at `t`, from 0 to 1.
 ///

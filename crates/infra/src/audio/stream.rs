@@ -8,7 +8,7 @@
 //!   fills the ring;
 //! * the **audio callback** ([`fill_output`]) empties the ring into the device.
 //!
-//! Only the last one is bound by section 8.2, and everything it is allowed to do
+//! Only the last one is bound by the realtime contract, and everything it may do
 //! is in one function: read atomics, read the ring, multiply. No allocation, no
 //! locking, no IO, no database, no UI.
 
@@ -50,8 +50,7 @@ const PRIME_SECONDS: f32 = 0.05;
 ///
 /// Five milliseconds is short enough to feel immediate on a volume slider and
 /// long enough that the step is inaudible. Jumping straight to the new value
-/// would put a discontinuity in the waveform, which is what a click is
-/// (PROJECT_MASTER 8.3).
+/// would put a discontinuity in the waveform, which is what a click is.
 const RAMP_SECONDS: f32 = 0.005;
 
 /// How long the decoder waits for the callback to acknowledge a flush.
@@ -139,7 +138,7 @@ pub(crate) struct Shared {
     /// Where each band sits, in hertz.
     ///
     /// Fixed arrays rather than a lock: the callback reads these, and a lock on
-    /// the realtime path is the one thing section 8.2 has no exception for.
+    /// the realtime path is the one thing the contract has no exception for.
     /// Simple mode uses the first three.
     eq_frequencies: [AtomicU32; MAX_BANDS],
     /// How wide each band is, as the bits of an `f32`.
@@ -318,7 +317,7 @@ impl Shared {
     /// front of it, and the join had *already happened*: the engine went on
     /// playing the next track while nothing above it was ever told. The player
     /// bar kept the previous track's name and cover, and the timeline kept its
-    /// length while running on the new track's position (`MASTER_ISSUES` 83).
+    /// length while running on the new track's position.
     ///
     /// So the announcement is made rather than lost. The callback's own path
     /// does the same three things at the boundary; `track_base` is left to the
@@ -410,7 +409,7 @@ fn amplitude(volume: Volume) -> f32 {
 
 /// Fills one output buffer. **This runs on the realtime audio thread.**
 ///
-/// Everything it does is in section 8.2's allowed list: atomic reads, a
+/// Everything it does is on the allowed list: atomic reads, a
 /// lock-free ring, and multiplication. `gain` is the callback's own state, kept
 /// across calls so that a ramp survives the buffer boundary.
 pub(crate) fn fill_output(shared: &Shared, out: &mut [f32], gain: &mut f32, eq: &mut EqChain) {
@@ -456,7 +455,7 @@ pub(crate) fn fill_output(shared: &Shared, out: &mut [f32], gain: &mut f32, eq: 
         shared.underruns.fetch_add(1, Ordering::Relaxed);
     }
 
-    // Section 8.1 puts the equaliser before the stream's own volume, and so
+    // The graph puts the equaliser before the stream's own volume, and so
     // does this: the listener's gain is the last thing applied, so a boosted
     // band is turned down by the slider like everything else.
     eq.process(shared, out);
@@ -570,7 +569,7 @@ pub(crate) fn decode_loop(shared: Arc<Shared>, commands: &Receiver<Command>) {
 /// but not yet handed over.
 ///
 /// Two of these are alive through every transition, which is the whole of what
-/// makes gapless and crossfade possible (ADR 5). They are peers: nothing here
+/// makes gapless and crossfade possible. They are peers: nothing here
 /// knows which one is playing.
 struct Lane {
     source: TrackStream,
@@ -734,7 +733,7 @@ impl Producer {
     /// said so by setting `ended`. Going to sleep in between leaves that flag
     /// unset for good — the loop blocks on the next command, `produce` is never
     /// reached again, and the engine reports a track that is playing in silence
-    /// for ever (MASTER_ISSUES 46).
+    /// for ever.
     fn is_idle(&self) -> bool {
         if self.out_taken < self.out.len() || self.next.is_some() {
             return false;
@@ -1101,7 +1100,7 @@ impl Producer {
 /// ponytail: mono is duplicated, a matching layout passes through, and anything
 /// wider is truncated to the first channels. A 5.1 file therefore loses its
 /// centre and surrounds rather than being folded down. Proper downmix
-/// coefficients are a table and a listening test; the material section 2.2
+/// coefficients are a table and a listening test; the material this player
 /// describes is overwhelmingly stereo, and the upgrade is local to this
 /// function.
 fn map_channels(input: &[f32], from: u16, to: u16, out: &mut Vec<f32>) {

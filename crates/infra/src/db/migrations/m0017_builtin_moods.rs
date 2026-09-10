@@ -1,6 +1,6 @@
 //! The eight moods shipped with the application.
 //!
-//! PROJECT_MASTER 2.7 names them — Workout, Focus, Chill, Party, Driving,
+//! They are named — Workout, Focus, Chill, Party, Driving,
 //! Sleep, Gaming, Morning — and says nothing whatever about what they mean.
 //! These bands are ours, and they are the part of radio most worth arguing
 //! with: they are a claim about what music somebody wants while running, and
@@ -16,7 +16,7 @@
 //! where a track stands among the rest of theirs, not by the number the
 //! extractor printed, so Sleep's `[0, 0.25]` reads "the quietest quarter of
 //! what you own" rather than a claim about an absolute scale that turned out
-//! not to hold (`LibraryScale`, `MASTER_ISSUES` 137).
+//! not to hold (see `LibraryScale`).
 //!
 //! What the bands leave out is deliberate. Focus says nothing about valence —
 //! concentrating is not a happy or a sad activity — and Driving says nothing

@@ -2,7 +2,7 @@
 //!
 //! Every feature here is arithmetic over a spectrum — a correlation, a period,
 //! an average. There is no model, nothing is downloaded and nothing is sent
-//! anywhere, which is PROJECT_MASTER 12.1 stated as an architecture rather than
+//! anywhere, which is the no-neural-networks rule stated as an architecture rather than
 //! as a promise: there is no code here that could load a model even if somebody
 //! wanted one.
 //!

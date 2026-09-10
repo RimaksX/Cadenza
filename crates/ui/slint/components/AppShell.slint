@@ -19,7 +19,7 @@ import { MenuItemData } from "RowMenu.slint";
 // The frame every screen lives in: navigation down the left, the player across
 // the bottom, one content area between them.
 //
-// A fixed arrangement, which PROJECT_MASTER 2.10 requires — the listener does
+// A fixed arrangement, and it is required — the listener does
 // not rearrange it. The content area is a switch over four screens: the
 // library, the queue, the index of playlists and one playlist's own page.
 export component AppShell inherits Rectangle {
@@ -238,8 +238,8 @@ export component AppShell inherits Rectangle {
     VerticalLayout {
         // The window's own frame is the first row of the shell rather than a
         // wrapper around it: the title bar, the navigation and the player are
-        // three parts of one arrangement, which is what the fixed layout of
-        // PROJECT_MASTER 2.10 means.
+        // three parts of one arrangement, which is what a fixed layout
+        // means.
         TitleBar {
             maximized: root.maximized;
             minimize => {
@@ -258,7 +258,7 @@ export component AppShell inherits Rectangle {
 
         // Everything below the title bar, and only once there is somebody for
         // it to belong to. Before that there is one screen and it asks for
-        // exactly what is missing (`MASTER_ISSUES` 128).
+        // exactly what is missing.
         if root.first-run: WelcomeView {
             suggested: root.suggested-folder;
             begin(name, folder) => {
@@ -690,8 +690,7 @@ export component AppShell inherits Rectangle {
                     : (root.dialog == "delete-profile"
                         // Says what goes and what stays, in that order and by
                         // name. A listener deleting themselves is entitled to
-                        // know that their music is not being deleted with them
-                        // (`MASTER_ISSUES` 148).
+                        // know that their music is not being deleted with them.
                         ? "\"" + root.dialog-value + "\" goes, with their library listing, playlists, queue, history, presets and picture." + "\n\n" + "The music files stay exactly where they are on disk, and every other listener keeps theirs."
                         : "")))));
         placeholder: root.dialog == "new-eq-preset" ? "Late night listening" : "Late night";

@@ -1,6 +1,6 @@
 //! Background analysis over a real database.
 //!
-//! The three things M11 is judged on: the answers are saved, a file already
+//! The three things analysis is judged on: the answers are saved, a file already
 //! analysed is not analysed again, and a file that cannot be analysed does not
 //! come back for ever.
 

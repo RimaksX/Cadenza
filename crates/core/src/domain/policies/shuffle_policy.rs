@@ -1,17 +1,16 @@
 //! What smart shuffle is allowed to play next, and which of those it picks.
 //!
-//! The hard rules of PROJECT_MASTER 9.2 have lived here since M7. M12 adds the
-//! choice itself (9.4): score every candidate against what is playing, keep the
-//! best handful, and pick from those at random. Three sentences and a great deal
-//! rides on each of them —
+//! The hard rules came first; the choice itself came later. Score every
+//! candidate against what is playing, keep the best handful, and pick from those
+//! at random. Three sentences, and a great deal rides on each of them —
 //!
 //! - **score**, so that one track follows another musically rather than by
-//!   accident. The formula is 9.3's and lives in
+//!   accident. The formula lives in
 //!   [`super::transition_policy::transition_score`].
 //! - **keep the best handful** rather than the single best, because always
 //!   playing the closest match makes a library of five thousand tracks sound
 //!   like a library of forty.
-//! - **at random**, weighted, because 9.1 asks for shuffle to keep feeling like
+//! - **at random**, weighted, because shuffle has to keep feeling like
 //!   shuffle. A deterministic "best next track" is a playlist somebody else
 //!   wrote.
 //!
@@ -34,15 +33,15 @@ pub const ARTIST_COOLDOWN: usize = 3;
 
 /// How many top-scoring candidates the weighted random pick chooses among.
 ///
-/// PROJECT_MASTER 9.4 says "top 10-20"; this is where in that range it sits.
+/// The top ten to twenty; this is where in that range it sits.
 pub const CANDIDATE_POOL_SIZE: usize = 15;
 
 /// Reorders a pool into a random permutation.
 ///
-/// This is the whole of M7's basic shuffle. A permutation satisfies the first
-/// hard rule of 9.2 by construction — every track plays once before any plays
-/// twice — and says nothing about which order is *good*, which is what the
-/// scoring of 9.4 adds in M12.
+/// This is the whole of the basic shuffle. A permutation satisfies the first
+/// hard rule by construction — every track plays once before any plays twice —
+/// and says nothing about which order is *good*, which is what the preference
+/// scoring adds.
 ///
 /// The seed is a parameter because the domain has no entropy of its own, and
 /// because a shuffle that cannot be reproduced cannot be tested.
@@ -113,9 +112,9 @@ pub struct Candidate<'a> {
 
 /// Chooses what plays after `current` from `candidates`.
 ///
-/// The whole of PROJECT_MASTER 9.4. `recently_played_artists` is the tail of
+/// The whole of the preference rule. `recently_played_artists` is the tail of
 /// what has played, most recent last; `candidates` must already exclude what
-/// has been heard this round, which is 9.2's first rule and the caller's to
+/// has been heard this round, which is the first hard rule and the caller's to
 /// enforce because only the caller knows what the round is.
 ///
 /// Returns `None` only when there is nothing playable at all. A cooldown that
@@ -145,7 +144,7 @@ pub fn choose_next(
 
     // Nothing to score against — the first track of a session, or a current
     // track nobody has analysed yet. Chance alone is the honest answer, and it
-    // is also what M7 did.
+    // is also what the basic shuffle did.
     let Some(current) = current else {
         return pick(&eligible, &vec![1.0; eligible.len()], seed);
     };
@@ -364,7 +363,7 @@ mod tests {
 
         // Over many draws rather than one: the pick is weighted, not decided,
         // and a test that demanded the best every time would be testing for a
-        // behaviour 9.1 explicitly rules out.
+        // behaviour shuffle explicitly rules out.
         let mut chose_close = 0;
         for seed in 0..200u64 {
             if choose_next(Some(&current), &pool, &[], seed * 7_919) == Some(close.media_file_id) {

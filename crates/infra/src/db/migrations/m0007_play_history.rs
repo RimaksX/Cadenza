@@ -1,7 +1,7 @@
 //! Listening events and their daily rollups.
 //!
 //! Everything here is written only while a profile has history enabled, and
-//! purged after its retention window (PROJECT_MASTER 2.6).
+//! purged after its retention window.
 //!
 //! `play_events.radio_session_id` and the daily tables reference `radio_sessions`
 //! and `mood_presets`, which migration 8 creates. SQLite resolves foreign keys

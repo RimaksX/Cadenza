@@ -1,7 +1,7 @@
 //! What the listener has been listening to, and forgetting it on time.
 //!
 //! Two duties that look unrelated and are the same one. History is kept for
-//! thirty days (PROJECT_MASTER 2.6), so every number here is a number about a
+//! thirty days, so every number here is a number about a
 //! window — and the window is enforced by deleting what falls out of it, not by
 //! filtering it out of a query. Data that is only hidden is data that is still
 //! there.
@@ -124,7 +124,7 @@ impl StatsService {
     ///
     /// What turning history off means: not "stop writing", but "there is
     /// nothing written". Keeping the old rows would leave a month of listening
-    /// behind a switch that says it is off (PROJECT_MASTER 1.4).
+    /// behind a switch that says it is off.
     pub fn forget(&self, profile_id: ProfileId) -> Result<u64> {
         self.ports.history.purge_all(profile_id)
     }

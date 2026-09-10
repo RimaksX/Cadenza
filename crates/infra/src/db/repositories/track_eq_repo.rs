@@ -2,7 +2,7 @@
 //!
 //! Three statements and no reading of rows worth the name: what comes back is
 //! one identifier, and the whole point of the table is that it holds a pointer
-//! rather than a curve (`MASTER_ISSUES` 89).
+//! rather than a curve.
 
 use cadenza_core::Result;
 use cadenza_core::domain::ids::{EqPresetId, MediaFileId, ProfileId};

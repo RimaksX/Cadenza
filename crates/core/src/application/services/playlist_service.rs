@@ -2,8 +2,7 @@
 //!
 //! A playlist is membership and order, and nothing else: no copies of files, no
 //! per-playlist metadata about a track. Removing a track from a playlist leaves
-//! it in the library, and deleting the playlist leaves everything in it alone
-//! (PROJECT_MASTER 2.6).
+//! it in the library, and deleting the playlist leaves everything in it alone.
 
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -328,7 +327,7 @@ impl PlaylistService {
     /// However it got there, because that is what the heart on the player bar
     /// is asked to say: the listener wants to know whether this song is in
     /// their favourites, and "yes, but by arithmetic" is not a different
-    /// answer to that question (`MASTER_ISSUES` 140).
+    /// answer to that question.
     pub fn is_favourite(&self, media_file_id: MediaFileId) -> Result<bool> {
         let playlist = self.favourites()?;
         Ok(self
@@ -406,7 +405,7 @@ impl PlaylistService {
         // history is thirty days by policy and this counts what is inside it. A
         // count that outlived the history would be a record of listening kept
         // after the listening itself was forgotten, and that is not a decision
-        // to take quietly (`MASTER_ISSUES` 139).
+        // to take quietly.
         let cutoff = retention_policy::cutoff(self.context.clock.now(), HISTORY_RETENTION_DAYS);
 
         let library = self.ports.tracks.summaries_for_profile(profile_id)?;
@@ -504,7 +503,7 @@ impl PlaylistService {
 
     /// Reads a playlist and refuses one belonging to another profile.
     ///
-    /// Playlists are never shared (PROJECT_MASTER 2.5), so an identifier from
+    /// Playlists are never shared, so an identifier from
     /// somewhere else is not found rather than forbidden: as far as this profile
     /// is concerned it does not exist.
     fn owned(&self, id: PlaylistId) -> Result<Playlist> {

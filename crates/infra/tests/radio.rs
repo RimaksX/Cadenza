@@ -1,6 +1,6 @@
 //! A station, end to end, over a real database.
 //!
-//! What M13 is judged on: a mood can be chosen, the station generates a stream,
+//! What radio is judged on: a mood can be chosen, the station generates a stream,
 //! and skips change what it offers next.
 
 use std::sync::Arc;
@@ -390,8 +390,8 @@ fn a_station_that_has_ended_is_not_asked_for_more() {
 ///
 /// A track played five minutes ago by hand has been heard, and the station must
 /// know that as surely as if it had offered the track itself — which is the
-/// source M13 had to make do with, because nothing wrote listening history
-/// until M14 (`MASTER_ISSUES` 61).
+/// source radio had to make do with at first, because nothing wrote listening
+/// history yet.
 #[test]
 fn a_track_the_listener_just_played_is_not_fresh_to_the_station() {
     let harness = harness();
@@ -428,7 +428,7 @@ fn a_track_the_listener_just_played_is_not_fresh_to_the_station() {
         .expect("the picks");
 
     // Asserted on the term rather than on the order, because the order is a
-    // weighted draw with noise in it and the term is not (docs/TESTING.md).
+    // weighted draw with noise in it and the term is not.
     let mut seen = false;
     for pick in &picks {
         let freshness = pick.reason.expect("a reason").freshness;

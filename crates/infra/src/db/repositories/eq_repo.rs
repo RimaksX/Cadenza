@@ -41,7 +41,7 @@ impl SqliteEqPresetRepository {
 }
 
 impl EqPresetRepositoryPort for SqliteEqPresetRepository {
-    /// The built-ins first, in the order PROJECT_MASTER 2.8 names them, then
+    /// The built-ins first, in the order they are named, then
     /// the listener's own by name.
     ///
     /// The order of the built-ins is their identifiers': migration 15 numbers

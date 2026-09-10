@@ -17,7 +17,7 @@ use rusqlite::{Connection, Error, ErrorCode};
 /// A fixed instant, so nothing here depends on the wall clock.
 const NOW: i64 = 1_754_611_200_000;
 
-/// Every table PROJECT_MASTER section 7 defines, plus migration bookkeeping.
+/// Every table the schema defines, plus migration bookkeeping.
 const EXPECTED_TABLES: [&str; 21] = [
     "schema_migrations",
     "profiles",

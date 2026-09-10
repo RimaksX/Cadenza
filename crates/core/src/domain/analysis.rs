@@ -1,7 +1,7 @@
 //! Background analysis work items.
 //!
-//! Not listed in PROJECT_MASTER section 5, but section 7.1 defines the
-//! `analysis_jobs` table and section 4.4 requires an `AnalysisJobRepositoryPort`,
+//! Not one of the named domain types, but the schema defines the
+//! `analysis_jobs` table and the layering requires an `AnalysisJobRepositoryPort`,
 //! so the entity those two refer to needs a home.
 
 use super::ids::{AnalysisJobId, MediaFileId};

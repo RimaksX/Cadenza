@@ -1,7 +1,7 @@
 //! Cadenza composition root.
 //!
 //! The only place that constructs concrete infrastructure and hands it to the
-//! application layer as port implementations (PROJECT_MASTER 4.4).
+//! application layer as port implementations.
 //!
 //! Wiring lives here rather than in a `wiring.rs` of its own: there are four
 //! dependencies. It gets its own file when it earns one.
@@ -243,7 +243,7 @@ fn run() -> std::result::Result<(), String> {
     ));
 
     // The level this listener left it at, before anything can be played at
-    // somebody else's (`MASTER_ISSUES` 98). Only where there is a listener: a
+    // somebody else's. Only where there is a listener: a
     // first run has nobody to have left anything.
     if active.is_some()
         && let Err(err) = playback.restore_volume()
@@ -271,8 +271,7 @@ fn run() -> std::result::Result<(), String> {
 
     // Analysis runs for as long as the window is open and stops with it.
     // Nothing waits for it: a listener who opens Cadenza to hear something
-    // hears it now, and the library learns what it sounds like behind them
-    // (PROJECT_MASTER 2.11).
+    // hears it now, and the library learns what it sounds like behind them.
     let mut analyser = AnalysisWorker::start(
         Arc::clone(&analysis),
         Arc::new(WindowsPriority),

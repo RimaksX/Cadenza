@@ -99,7 +99,7 @@ impl MusicalKey {
 
     /// How well two keys sit next to each other, `0.0..=1.0`.
     ///
-    /// Feeds `key_score` in the transition formula of PROJECT_MASTER 9.3.
+    /// Feeds `key_score` in the transition formula.
     pub fn compatibility(self, other: Self) -> f32 {
         let steps = f32::from(self.fifths_distance(other));
         let base = 1.0 - steps / 6.0;

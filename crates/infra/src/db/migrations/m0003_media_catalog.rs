@@ -1,11 +1,10 @@
 //! Physical files and the audio features derived from them.
 //!
 //! Both tables are global. They describe the music, not the listener, so two
-//! profiles holding the same file share one row and one analysis
-//! (PROJECT_MASTER 2.5).
+//! profiles holding the same file share one row and one analysis.
 //!
-//! `track_features.scale` from section 7.1 is absent: it and `mode` name the
-//! same major/minor property. See `docs/MASTER_ISSUES.md`.
+//! A `track_features.scale` column is absent: it and `mode` would name the
+//! same major/minor property.
 
 pub const SQL: &str = r#"
 CREATE TABLE media_files (

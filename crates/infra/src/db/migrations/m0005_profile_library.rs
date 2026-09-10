@@ -1,8 +1,7 @@
 //! Which tracks each profile has, and how that profile labels them.
 //!
-//! `metadata_override_json` from PROJECT_MASTER 7.2 is absent: the typed columns
-//! beside it express the same thing and can actually be queried and indexed. See
-//! `docs/MASTER_ISSUES.md`.
+//! A `metadata_override_json` column is absent: the typed columns beside it
+//! express the same thing and can actually be queried and indexed.
 
 pub const SQL: &str = r#"
 CREATE TABLE profile_tracks (
@@ -21,7 +20,7 @@ CREATE TABLE profile_tracks (
     added_at      INTEGER NOT NULL,
 
     -- A tombstone, not a delete: the file stays on disk and in the catalogue,
-    -- and other profiles keep their copy (PROJECT_MASTER 2.1).
+ -- and other profiles keep their copy.
     removed_at    INTEGER CHECK (removed_at IS NULL OR removed_at >= added_at),
 
     PRIMARY KEY (profile_id, media_file_id)

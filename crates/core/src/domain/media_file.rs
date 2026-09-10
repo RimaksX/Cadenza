@@ -20,7 +20,7 @@ pub fn is_supported_extension(extension: &str) -> bool {
     SUPPORTED_EXTENSIONS.contains(&lowered.as_str())
 }
 
-/// The codec a file is encoded with (PROJECT_MASTER 2.2).
+/// The codec a file is encoded with.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum AudioFormat {
     /// MPEG-1/2 Audio Layer III.
@@ -111,8 +111,7 @@ impl FileState {
 
     /// True when the file can be queued for playback.
     ///
-    /// Missing and errored files are excluded from shuffle and radio pools
-    /// (PROJECT_MASTER 9.2).
+    /// Missing and errored files are excluded from shuffle and radio pools.
     pub const fn is_playable(self) -> bool {
         matches!(self, Self::Available)
     }
@@ -134,7 +133,7 @@ pub struct AudioProperties {
 /// A physical audio file, shared by every profile that has it in their library.
 ///
 /// This is global state: the file, its technical properties and its analysis
-/// belong to the machine, not to a listener (PROJECT_MASTER 2.5). Per-profile
+/// belong to the machine, not to a listener. Per-profile
 /// facts live in [`super::track::Track`].
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MediaFile {

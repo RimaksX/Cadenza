@@ -1,6 +1,6 @@
 //! Artists, albums and genres.
 //!
-//! Three small adapters in one file. PROJECT_MASTER section 5 gives each its own
+//! Three small adapters in one file. Each has its own
 //! (`artist_repo.rs`, `album_repo.rs`, `genre_repo.rs`), but each is a dozen
 //! lines of the same shape over the same three-table corner of the schema, and
 //! they are always changed together. Splitting them would be three files of

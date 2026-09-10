@@ -7,8 +7,7 @@ use crate::Result;
 pub enum PriorityClass {
     /// Yields to everything else. Used by scanning, hashing and feature
     /// extraction so that they stay under the background CPU budget and never
-    /// compete with playback or with whatever else the listener is doing
-    /// (PROJECT_MASTER 2.11).
+    /// compete with playback or with whatever else the listener is doing.
     Background,
     /// Ordinary application priority.
     Normal,

@@ -14,7 +14,7 @@ pub enum DuplicateVerdict {
 }
 
 impl DuplicateVerdict {
-    /// True when the listener must be asked what to do (PROJECT_MASTER 2.1).
+    /// True when the listener must be asked what to do.
     pub const fn needs_review(self) -> bool {
         matches!(self, Self::SameContent)
     }
@@ -25,7 +25,7 @@ impl DuplicateVerdict {
 /// Content hashes only. Fuzzy matching on title, artist and duration — which
 /// would also catch the same song at two bitrates — is deliberately not done
 /// here: it produces false positives, and every false positive costs the
-/// listener a review-queue decision. If M4 shows that exact hashing misses too
+/// listener a review-queue decision. If exact hashing turns out to miss too
 /// much, add a second, clearly separate verdict for probable matches rather than
 /// loosening this one.
 ///

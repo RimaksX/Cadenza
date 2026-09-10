@@ -1,6 +1,6 @@
-//! Turning files into sound (PROJECT_MASTER 8).
+//! Turning files into sound.
 //!
-//! The graph section 8.1 describes is built one milestone at a time. What exists
+//! The graph is built one stage at a time. What exists
 //! now is the spine of it:
 //!
 //! ```text
@@ -13,10 +13,10 @@
 //! it is the only side where a slider is heard at once. Each stage inserts into
 //! this chain rather than replacing it, which is why the ring sits where it
 //! does: everything before it is free to allocate and block, and everything
-//! after it is not (PROJECT_MASTER 8.2).
+//! after it is not.
 //!
 //! A visualiser tap used to sit after the gain, on what actually left for the
-//! device. It is gone with the bars it fed (`MASTER_ISSUES` 116).
+//! device. It is gone with the bars it fed.
 
 mod biquad;
 mod crossfade;

@@ -11,7 +11,7 @@ env:
 
 jobs:
   check:
-    # Cadenza targets Windows 10/11 x86_64 only (PROJECT_MASTER 1.2).
+    # Cadenza targets Windows 10/11 x86_64 only.
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4

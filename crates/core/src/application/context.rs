@@ -13,15 +13,14 @@ use crate::{CoreError, Result};
 /// Key under which the active profile is stored in `app_settings`.
 ///
 /// Global rather than per-profile, and one of the few pieces of state that is
-/// not user data: it records which listener the application starts as
-/// (PROJECT_MASTER 2.5).
+/// not user data: it records which listener the application starts as.
 pub const ACTIVE_PROFILE_KEY: &str = "active_profile_id";
 
 /// What every application service is handed.
 ///
-/// Holds only the ports that exist today. It grows one field per milestone as
-/// infrastructure lands, rather than declaring twenty ports now and forcing M2
-/// to stub every one of them just to construct this.
+/// Holds only the ports that exist. It gained one field at a time as
+/// infrastructure landed, rather than declaring twenty ports up front and
+/// forcing every caller to stub them just to construct this.
 pub struct AppContext {
     /// The clock. Nothing in the application layer reads the system time
     /// directly.
@@ -112,7 +111,7 @@ impl AppContext {
     ///
     /// Only the in-memory pointer and the notification. Stopping playback and
     /// saving the outgoing profile's state — steps 1 and 2 of the switching
-    /// procedure in PROJECT_MASTER 2.5 — are the profile service's job in M3,
+    /// procedure — are the profile service's job,
     /// because they need the playback and queue ports this context does not
     /// carry yet.
     pub fn set_active_profile(&self, profile_id: ProfileId) {

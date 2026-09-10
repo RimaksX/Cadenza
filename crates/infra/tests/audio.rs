@@ -1,4 +1,4 @@
-//! Integration tests for decoding: half of the M5 definition of done.
+//! Integration tests for decoding.
 //!
 //! Real files, opened by the real decoder. The other half — that the samples
 //! reach a speaker — needs an output device and a pair of ears, and is checked

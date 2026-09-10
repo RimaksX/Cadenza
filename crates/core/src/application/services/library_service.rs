@@ -81,7 +81,7 @@ pub struct LibraryPorts {
     ///
     /// Optional for the same reason as the watcher, and for one more: this is
     /// the only part of Cadenza that touches a network at all, and a context
-    /// built without it is a context that provably cannot (`MASTER_ISSUES` 76).
+    /// built without it is a context that provably cannot.
     pub fetcher: Option<Arc<dyn FetchPort>>,
 }
 
@@ -207,7 +207,7 @@ impl LibraryService {
         // in their library, and it is. Pressing the offer twice used to reach
         // the unique index on `(profile_id, path)` and put its name in front
         // of somebody — "unique constraint failed" is not a sentence anybody
-        // should be shown about a folder they can see (`MASTER_ISSUES` 97).
+        // should be shown about a folder they can see.
         //
         // Re-enabled if it had been switched off, because pressing "use this
         // folder" about a folder that is switched off means switch it on.
@@ -367,8 +367,7 @@ impl LibraryService {
         // distinction is worth keeping straight: nothing can take Spotify's
         // *audio*, which is still true, but its links name a recording and the
         // recording can be found. That is what the matcher does, and what
-        // every service claiming to "download from Spotify" does
-        // (`MASTER_ISSUES` 99).
+        // every service claiming to "download from Spotify" does.
         if let LinkHandler::Refused(service) = handler_for(link) {
             return Err(CoreError::invalid(
                 "link",
@@ -412,7 +411,7 @@ impl LibraryService {
             Ok(brought) => brought,
             // A refusal that reads like a stale copy is an offer rather than an
             // error: the listener can fix it by pressing one thing, and being
-            // told so beats being told what went wrong (`MASTER_ISSUES` 96).
+            // told so beats being told what went wrong.
             Err(CoreError::Invalid { field, reason }) if looks_out_of_date(&reason) => {
                 debug_assert_eq!(field, "link");
                 return Ok(Fetched::NeedsUpdate(reason));
@@ -447,7 +446,7 @@ impl LibraryService {
 
         // Nothing new on the disk, and that is not nothing done: the list
         // above was still rebuilt from what the listener already has, which is
-        // the whole point of pressing it a second time (`MASTER_ISSUES` 111).
+        // the whole point of pressing it a second time.
         if files.is_empty() {
             return Ok(Fetched::NothingNew);
         }
@@ -501,8 +500,7 @@ impl LibraryService {
         // A playlist holds the *list*. A second fetch of the same address
         // fetches almost nothing — the memory sees to that — so a playlist
         // built from what arrived would hold the two tracks that happened to
-        // be new and none of the fifty that were already here
-        // (`MASTER_ISSUES` 105).
+        // be new and none of the fifty that were already here.
         //
         // Matched on title and artist rather than on a file name: both ends of
         // that comparison came from the same metadata — the matcher wrote the
@@ -542,8 +540,7 @@ impl LibraryService {
         // in the library, which is what a second fetch of the same list is full
         // of — is not in the library, `add_track` says so, and the `?` here
         // threw away every track after it. A listener watched three new tracks
-        // arrive and the playlist stay exactly where it was
-        // (`MASTER_ISSUES` 104).
+        // arrive and the playlist stay exactly where it was.
         //
         // And whatever arrived that the list did not name, or named
         // differently: the tracks a YouTube link brought, and any whose tags
@@ -677,7 +674,7 @@ impl LibraryService {
     ///
     /// Theirs and not the file's: the image is stored under the profile, the
     /// same way a corrected title is, so choosing a cover for yourself does not
-    /// choose it for anybody else on the machine (PROJECT_MASTER 2.1, 12.1).
+    /// choose it for anybody else on the machine.
     /// The file on disk is never written to — Cadenza does not edit tags.
     ///
     /// `Ok(false)` means the chooser was closed, which is an answer.
@@ -926,7 +923,7 @@ impl LibraryService {
     /// Removes a track from the active profile's library.
     ///
     /// The file stays on disk and in the catalogue, and other profiles keep
-    /// their copy (PROJECT_MASTER 2.1).
+    /// their copy.
     pub fn remove_track(&self, media_file_id: MediaFileId) -> Result<()> {
         let profile_id = self.context.require_active_profile()?;
         self.ports
@@ -940,8 +937,7 @@ impl LibraryService {
     ///
     /// A removal is a decision, and a decision nobody can see is a decision
     /// nobody can undo. Until this existed the only way back was to add the
-    /// folder again, which is a strange thing to have to work out
-    /// (`MASTER_ISSUES` 68).
+    /// folder again, which is a strange thing to have to work out.
     pub fn taken_out(&self) -> Result<Vec<TrackSummary>> {
         let profile_id = self.context.require_active_profile()?;
         self.ports.tracks.removed_for_profile(profile_id)
@@ -966,8 +962,7 @@ impl LibraryService {
     /// scan will ever find it — so it is only a row nobody can act on, and a
     /// listener who deleted a folder of fifty-two tracks is left with
     /// fifty-two of them. Where the file is still there the row is doing its
-    /// job, and forgetting it would put the track back at the next scan
-    /// (`MASTER_ISSUES` 119).
+    /// job, and forgetting it would put the track back at the next scan.
     ///
     /// Never automatic, for the same reason. A folder on a drive that is
     /// unplugged looks exactly like a folder that was deleted, and the
@@ -1113,7 +1108,7 @@ impl LibraryService {
     ///
     /// The file's own genres are left as its tags describe them, and no other
     /// profile is affected: a correction is one listener's opinion about a
-    /// recording they share (PROJECT_MASTER 2.1, 12.1).
+    /// recording they share.
     ///
     /// An empty list is a decision, not a reset — it means this listener wants
     /// the track filed under nothing. [`Self::reset_genres`] is the reset.
@@ -1256,7 +1251,7 @@ impl LibraryService {
             // an earlier disappearance has to be corrected now, because nothing
             // else on this path writes the state — which is how a file that had
             // come back stayed unplayable through a scan, a synchronise and a
-            // folder removed and added again (MASTER_ISSUES 69).
+            // folder removed and added again.
             if !file.state.is_playable() {
                 self.ports
                     .media_files
@@ -1312,8 +1307,7 @@ impl LibraryService {
 
         if let Some(other) = self.find_duplicate(&media_file, &hash)? {
             // Held back, not discarded. The file is catalogued so a decision can
-            // act on it, but it does not silently appear in the library
-            // (PROJECT_MASTER 2.1).
+            // act on it, but it does not silently appear in the library.
             self.raise_review(
                 profile_id,
                 media_file.id,
@@ -1399,7 +1393,7 @@ impl LibraryService {
         //
         // A track fetched from a link arrives with no tags on purpose — what
         // the video calls itself is not what the record is called — and the
-        // name we gave it holds both facts (`MASTER_ISSUES` 109). Every other
+        // name we gave it holds both facts. Every other
         // untagged file in the world is named the same way.
         let named = title_from_path(&media_file.path);
         let (named_artist, named_title) = naming_policy::artist_and_title(&named);
@@ -1479,7 +1473,7 @@ impl LibraryService {
         // imported first is owed the same title, artist and album as they got.
         //
         // Copying the other profile's row instead would be cheaper and wrong —
-        // it would hand over their corrections, which is the leak 12.1 forbids.
+        // it would hand over their corrections, which is the leak profiles exist to prevent.
         let read = self.ports.metadata.read(&media_file.path)?;
         self.upsert_track(profile_id, media_file, &read, now)
     }
@@ -1509,7 +1503,7 @@ impl LibraryService {
     ///
     /// A local override and nothing else: the file keeps its tags, the
     /// catalogue keeps its reading of them, and another profile sharing the
-    /// same file goes on seeing what it always saw (PROJECT_MASTER 2.1). There
+    /// same file goes on seeing what it always saw. There
     /// is no writing back to disk and there is not meant to be.
     ///
     /// An empty artist or album means "no artist", not "an artist called
@@ -1790,8 +1784,7 @@ fn blank_as_absent(value: Option<&str>) -> Option<&str> {
 /// `MissingFile`, whose own documentation says the file disappeared between
 /// being seen and being imported. That reason is written to
 /// `import_review.reason` and shown to the listener, so a database busy for a
-/// moment sent somebody looking for a file they had not lost
-/// (`MASTER_ISSUES` 162).
+/// moment sent somebody looking for a file they had not lost.
 ///
 /// Only three of the eleven are about the file in front of us. `None` is the
 /// rest: they are about the run rather than the file. A review entry is the

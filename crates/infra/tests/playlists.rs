@@ -1,4 +1,4 @@
-//! Playlists work: the last third of the M7 definition of done.
+//! Playlists work.
 //!
 //! The real service over the real adapter against a real database, because what
 //! has to be right here is the ordering of rows in a table and what survives a

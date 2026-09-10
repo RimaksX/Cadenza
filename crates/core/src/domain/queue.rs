@@ -1,15 +1,15 @@
 //! The playback queue.
 //!
 //! This module holds the queue's *shape*. The advancement algorithm — what plays
-//! next given a repeat mode, a manual queue and a shuffle pool — arrives with the
-//! queue service in M7, and the smart ordering in M12.
+//! next given a repeat mode, a manual queue and a shuffle pool — belongs to the
+//! queue service, and the smart ordering to the shuffle policy.
 
 use std::collections::VecDeque;
 
 use super::ids::{MediaFileId, PlaylistId, ProfileId, RadioSessionId};
 use crate::{CoreError, Result};
 
-/// What happens when the current track ends (PROJECT_MASTER 2.3).
+/// What happens when the current track ends.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub enum RepeatMode {
     /// Stop once the queue is exhausted.
@@ -63,7 +63,7 @@ impl RepeatMode {
 /// Where a queued entry came from.
 ///
 /// This is what decides the transition style: radio and playlist entries are
-/// gapless, everything else crossfades (PROJECT_MASTER 2.4).
+/// gapless, everything else crossfades.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum QueueOrigin {
     /// Picked from the library, by the user or by shuffle.
@@ -93,8 +93,7 @@ pub struct QueueEntry {
 pub struct Queue {
     /// Owning profile.
     pub profile_id: ProfileId,
-    /// Explicitly queued tracks. Always consumed before [`Self::upcoming`]
-    /// (PROJECT_MASTER 2.3, 10.5).
+    /// Explicitly queued tracks. Always consumed before [`Self::upcoming`].
     pub manual: VecDeque<QueueEntry>,
     /// The automatic continuation: the rest of a playlist, a shuffle pool, or a
     /// radio batch.
@@ -102,8 +101,7 @@ pub struct Queue {
     /// Recently played entries, most recent last.
     ///
     /// The back-stack `previous` walks, and nothing else. It must survive
-    /// everything, which is why the round below is not kept here
-    /// (`MASTER_ISSUES` 135).
+    /// everything, which is why the round below is not kept here.
     pub history: Vec<QueueEntry>,
     /// What the round now playing has already been through.
     ///
@@ -116,7 +114,7 @@ pub struct Queue {
     /// back after a round ended had nowhere to go; for the library nothing
     /// consumed it at all, so once every track had been heard the round never
     /// ended and shuffle stopped for good — on this machine, 137 entries of
-    /// history over a library of 41 (`MASTER_ISSUES` 135).
+    /// history over a library of 41.
     pub round: Vec<QueueEntry>,
     /// What is playing now, if anything.
     pub current: Option<QueueEntry>,
@@ -172,7 +170,7 @@ impl Queue {
     /// and the service reads the row after this one when it needs it. A
     /// playlist used to be dealt into `upcoming` like a hand of cards, which is
     /// what made starting one look like it had filled the listener's queue
-    /// (`MASTER_ISSUES` 136). Repeat all therefore means two different things,
+    /// . Repeat all therefore means two different things,
     /// and this is which of them applies.
     fn holds_its_own_round(&self) -> bool {
         matches!(
@@ -215,7 +213,7 @@ impl Queue {
     /// Moves to the next entry and returns it, or `None` when there is nowhere
     /// left to go.
     ///
-    /// This is the whole advancement rule of PROJECT_MASTER 2.3 in one place:
+    /// This is the whole advancement rule in one place:
     /// repeat one holds, the manual queue outranks the continuation, and repeat
     /// all refills from what has already played rather than stopping.
     /// `seed` is used only for the refill: the domain has no entropy of its
@@ -233,7 +231,7 @@ impl Queue {
             // Everything that has played goes back in front. In the order it
             // played, unless shuffle is on — a second round in the first
             // round's order is the one thing shuffle exists to prevent, and it
-            // was doing exactly that (`MASTER_ISSUES` 94). The track that is
+            // was doing exactly that. The track that is
             // ending is not among them yet: it is pushed below, and so leads
             // the round after this one.
             let mut round = std::mem::take(&mut self.round);
@@ -295,7 +293,7 @@ impl Queue {
         // After the move, not before: `move_to` puts the track being left into
         // the round, and that track belongs to the round that is ending. A new
         // round has heard nothing yet — the track now starting joins it when it
-        // finishes, like every other (`MASTER_ISSUES` 135).
+        // finishes, like every other.
         self.begin_round();
     }
 
@@ -317,8 +315,7 @@ impl Queue {
     /// Called when the listener starts something — a track, a playlist, a
     /// station — rather than when one ends. A round that only ever ended would
     /// be a round that, once finished, stayed finished: which is what happened
-    /// to the library's, and why shuffle had nothing left to choose
-    /// (`MASTER_ISSUES` 135).
+    /// to the library's, and why shuffle had nothing left to choose.
     ///
     /// The back-stack is left alone. Starting something new is not forgetting
     /// where you have been.
@@ -340,8 +337,7 @@ mod tests {
         // holds. The library and a playlist both continue by themselves — the
         // service reads the row after this one — so repeat all over either of
         // them means the next row rather than the round just played, and
-        // `holds_its_own_round` is where that is decided
-        // (`MASTER_ISSUES` 136).
+        // `holds_its_own_round` is where that is decided.
         let list = QueueOrigin::Radio(RadioSessionId::new());
         let played: Vec<QueueEntry> = (0..8).map(|_| entry(list)).collect();
 
@@ -352,7 +348,7 @@ mod tests {
             queue.repeat = RepeatMode::All;
             queue.shuffle = true;
             // The round, which is what a rewind rewinds. It used to be the
-            // back-stack, and the two are separate now (`MASTER_ISSUES` 135).
+            // back-stack, and the two are separate now.
             queue.round = played.clone();
             queue.current = Some(entry(list));
 

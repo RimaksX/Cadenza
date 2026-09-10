@@ -6,7 +6,7 @@ use super::ids::{ProfileFolderId, ProfileId};
 use super::value_objects::{DurationMs, Timestamp};
 use crate::{CoreError, Result};
 
-/// Shortest crossfade allowed (PROJECT_MASTER 2.4).
+/// Shortest crossfade allowed.
 pub const MIN_CROSSFADE: DurationMs = DurationMs::from_secs(3);
 
 /// Longest crossfade allowed.
@@ -201,7 +201,7 @@ pub const UI_SCALE_KEY: &str = "ui.scale";
 
 /// How large the interface is drawn, as a percentage of its design size.
 ///
-/// PROJECT_MASTER 2.10 asks for interface scaling and, in the same section,
+/// The interface scales, and in the same breath
 /// for a fixed layout — which together mean exactly this: every length grows
 /// or shrinks together and nothing moves anywhere else.
 ///
@@ -255,7 +255,7 @@ pub struct PlaybackSettings {
     /// Whether ordinary track changes crossfade.
     ///
     /// Radio and playlists stay gapless regardless; this switch governs the
-    /// transitions the crossfade rule applies to (PROJECT_MASTER 2.4).
+    /// transitions the crossfade rule applies to.
     pub crossfade_enabled: bool,
     /// Crossfade length, when enabled.
     pub crossfade: CrossfadeDuration,

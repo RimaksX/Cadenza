@@ -5,11 +5,10 @@ import { LightPalette } from "light.slint";
 //
 // No component names a colour, a size or a font family of its own. That is what
 // keeps any change of look an edit to these files rather than a sweep through
-// every view (PROJECT_MASTER 14).
+// every view.
 //
 // This file is the normative form of the design. What it cannot carry — why a
-// number is that number — is written down in docs/DESIGN_SYSTEM.md, which is
-// the design this interface is built to rather than a brief for one to come.
+// number is that number — is written down beside it.
 
 // One rule holds this file together beyond the values themselves: **every
 // length here is even**. Half of what the interface does is centring one thing
@@ -32,7 +31,7 @@ export global Theme {
     // A renderer told to draw at 1.25 puts every one-pixel line on a pixel and
     // a quarter and every 14-pixel stem between two columns, and the result is
     // soft — which is what a magnifying glass looks like and is exactly what
-    // this interface must not (MASTER_ISSUES 65). Scaled here, every length
+    // this interface must not. Scaled here, every length
     // lands on a whole pixel again before anything is drawn.
     in property <float> scale: 1.0;
 
@@ -148,8 +147,7 @@ export global Theme {
     // button — turns the corner arc into nearly a quarter of the height and the
     // button starts drifting towards a pill, which is a different family of
     // shape from the one everything else here belongs to. Six is visibly softer
-    // than four while the straight run of the side still dominates
-    // (`MASTER_ISSUES` 124).
+    // than four while the straight run of the side still dominates.
     out property <length> radius: root.px(6);
     // What an icon is drawn at, and it is three numbers because an icon is
     // sized by what it stands beside rather than by a rule of its own.
@@ -157,7 +155,7 @@ export global Theme {
     // The weight follows the size and cannot be set apart from it: every file
     // is stroked 1.5 in a 24 viewBox, so the line that reaches the screen is
     // `1.5 × size / 24` — a twelve draws at 0.75 and a twenty at 1.25, which is
-    // exactly what "some are thin and some are fat" was (`MASTER_ISSUES` 157).
+    // exactly what "some are thin and some are fat" was.
     // Fewer sizes is therefore also fewer weights.
     //
     // `icon-inline` 12 — beside a word, where it must not outshout the label it
@@ -176,7 +174,7 @@ export global Theme {
     // plate inside it is a display heading (50), four, and a caption (18),
     // inside its own 24 of padding twice over — 120. The band gives it the
     // same 24 above and below, so every gap around the plate is one number:
-    // 120 + 48 = 168 (`MASTER_ISSUES` 151).
+    // 120 + 48 = 168.
     //
     // A height rather than a share of the width: a band that followed the
     // window would be a different shape on every screen, and what it holds
@@ -209,7 +207,7 @@ export global Theme {
     // end and the gap above it measured thirteen against eight at its left.
     // At twelve the cell is exactly the sleeve, and the space above, below and
     // before it is the same twelve — which is `space-3`, on the ladder, and
-    // even (`MASTER_ISSUES` 144).
+    // even.
     out property <length> row-padding: root.px(12);
     // The sleeve and its two paddings: 36 + 12 + 12. Sixty rather than the
     // sixty-two it was, which is what "the rows look slightly tall" comes to

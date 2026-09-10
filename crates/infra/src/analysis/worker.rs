@@ -3,7 +3,7 @@
 //! One file at a time, a rest after each, and a check between every step for
 //! whether it has been told to stop. Nothing here decides *what* to analyse —
 //! that is [`AnalysisService`]'s business — only how much of the machine the
-//! work is allowed to take (PROJECT_MASTER 2.11, 12.1).
+//! work is allowed to take.
 
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};

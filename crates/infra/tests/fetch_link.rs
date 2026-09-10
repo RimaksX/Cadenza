@@ -9,7 +9,7 @@
 //! ```
 //!
 //! It exists because three rounds of guessing at somebody else's error message
-//! cost more than one run of the real thing would have (`MASTER_ISSUES` 90).
+//! cost more than one run of the real thing would have.
 
 use cadenza_core::domain::ports::fetcher::{FetchPort, FetchWhat};
 use cadenza_infra::library::fetcher::ExternalFetcher;

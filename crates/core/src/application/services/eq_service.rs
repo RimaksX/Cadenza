@@ -4,15 +4,15 @@
 //! table; the **setting** is what the filters are actually doing. They part
 //! company the moment somebody picks a preset and nudges a control, which is
 //! most of the time — so the setting is stored in its own right rather than as
-//! a pointer at a preset that no longer describes it (PROJECT_MASTER 2.8,
-//! "сохранение состояния").
+//! a pointer at a preset that no longer describes it. What is saved is the
+//! state, not the name of the thing it started from.
 //!
 //! And a third thing, which is neither: **the preset a track is played with.**
 //! An equaliser set once for everything is set wrong for almost everything —
 //! the curve that rescues a thin recording ruins a well-made one. So a preset
 //! chosen while something is playing is remembered for that track, and every
 //! track that has no choice of its own starts at Standard: what a listener did
-//! to one record does not follow them into the next (`MASTER_ISSUES` 89).
+//! to one record does not follow them into the next.
 
 use std::sync::{Arc, RwLock};
 

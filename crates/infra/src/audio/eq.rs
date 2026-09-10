@@ -1,6 +1,6 @@
 //! The equaliser chain, as the audio callback owns it.
 //!
-//! It lives on the realtime thread on purpose. PROJECT_MASTER 8.2 lists DSP
+//! It lives on the realtime thread on purpose. The realtime contract lists DSP
 //! among the things the callback may do, and it is the only place where moving
 //! a control is heard at once: applied on the decode side, a change would reach
 //! the speakers as much as two seconds later, which is the prebuffer.
@@ -10,7 +10,7 @@
 //! published atomically. The chain walks its own copy towards them and rebuilds
 //! its coefficients once per block. That is what makes a control silent to
 //! drag: a step in the coefficients is a step in the waveform, and a step in
-//! the waveform is a click (PROJECT_MASTER 2.8, 8.5).
+//! the waveform is a click.
 
 use std::sync::atomic::Ordering;
 
@@ -33,7 +33,7 @@ pub(crate) const MAX_BANDS: usize = ADVANCED_BAND_COUNT;
 /// travel — and a small nudge is over almost at once.
 const OCTAVES_PER_RAMP: f32 = 10.0;
 
-/// The three shapes of PROJECT_MASTER 8.5.
+/// The three shapes an equaliser band can take.
 #[derive(Debug, Clone, Copy)]
 enum Shape {
     /// Everything below the corner, together.

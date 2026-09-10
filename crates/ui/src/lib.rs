@@ -3,8 +3,7 @@
 //! The layering rule is enforced by the dependency list rather than by
 //! discipline: this crate depends on `cadenza-core` and `slint`, and on nothing
 //! else in the workspace. `cadenza-infra` is not reachable from here, so no view
-//! can open a database, read a file or touch the audio engine even by accident
-//! (PROJECT_MASTER 4.2, 4.3).
+//! can open a database, read a file or touch the audio engine even by accident.
 //!
 //! What crosses the boundary is [`UiServices`] in and a window on the screen
 //! out. Everything between is: properties down, callbacks up.
@@ -13,7 +12,7 @@
 // generates from the markup carries its own `allow(unsafe_code)` for the
 // vtables it builds, and `forbid` cannot be overridden even by machine output.
 // Hand-written code in this crate is still refused an `unsafe` block, which is
-// what the rule was for (MASTER_ISSUES 29).
+// what the rule was for.
 #![deny(unsafe_code)]
 
 use std::sync::Arc;

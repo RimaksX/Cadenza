@@ -8,8 +8,7 @@ import { TextButton } from "../components/Dialog.slint";
 // which is an instruction to go somewhere else and do the thing this screen
 // does. Somebody who has just installed a music player wants to hear music, and
 // the two things standing between them and that — who they are, and where the
-// music goes — are asked here rather than discovered one error at a time
-// (`MASTER_ISSUES` 128).
+// music goes — are asked here rather than discovered one error at a time.
 //
 // It is a screen and not a dialog because there is nothing behind it: without a
 // profile the sidebar leads nowhere, the library is empty and the player bar
@@ -37,7 +36,7 @@ export component WelcomeView inherits Rectangle {
     // one screen with nothing else on it: no library to look at, no list, no
     // player. A photograph behind a working page would be a page with a
     // photograph behind it; behind a first run it is the only thing to look at
-    // while somebody types their name (`MASTER_ISSUES` 128).
+    // while somebody types their name.
     //
     // `cover` rather than `fill`: the frame is resizable and a stretched
     // picture is visibly stretched, where a cropped one is only cropped.
@@ -79,8 +78,7 @@ export component WelcomeView inherits Rectangle {
                     // had already named; this one named the state the software
                     // was in, to somebody who has not used it yet and does not
                     // have a second run to compare it with. It was also the
-                    // very first words a new listener read (`MASTER_ISSUES`
-                    // 147).
+                    // very first words a new listener read.
 
                     Text {
                         text: "Let's get started";

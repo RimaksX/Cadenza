@@ -1,8 +1,7 @@
 //! The import review queue.
 //!
 //! Cadenza never silently discards a file or silently merges a duplicate. Anything
-//! ambiguous lands here and waits for the listener to decide (PROJECT_MASTER 2.1,
-//! 3.6).
+//! ambiguous lands here and waits for the listener to decide.
 
 use super::ids::{ImportReviewId, MediaFileId, ProfileId};
 use super::value_objects::Timestamp;
@@ -88,7 +87,7 @@ impl ReviewState {
     }
 }
 
-/// What the listener chose to do about a duplicate (PROJECT_MASTER 2.1).
+/// What the listener chose to do about a duplicate.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ReviewResolution {
     /// Keep what is already in the library and ignore the new file.
@@ -97,8 +96,7 @@ pub enum ReviewResolution {
     AddAnyway,
     /// Drop the existing entry from the library and take the new file.
     ///
-    /// Removes it from the library only. The file on disk is never deleted
-    /// (PROJECT_MASTER 2.1).
+    /// Removes it from the library only. The file on disk is never deleted.
     RemoveExisting,
     /// Keep both and correct the metadata by hand.
     EditMetadata,

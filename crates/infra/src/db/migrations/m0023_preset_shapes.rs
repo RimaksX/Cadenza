@@ -10,8 +10,7 @@
 //! correlation of **0.97**. That is not two presets. Pop, Rock, Classical,
 //! Electronic and Spatial all correlated between 0.69 and 0.97 with each other:
 //! one smile-shaped curve - bass up, middle down, treble up - drawn five times
-//! at five amplitudes. Ten of the twenty-eight pairs sat under 2 dB
-//! (`MASTER_ISSUES` 164).
+//! at five amplitudes. Ten of the twenty-eight pairs sat under 2 dB.
 //!
 //! Each of the five now has a shape of its own, and the shapes are what the
 //! names mean rather than how loud they are:

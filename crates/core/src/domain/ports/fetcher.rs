@@ -86,7 +86,7 @@ pub struct FetchedTracks {
     /// A playlist holds the *list*, and a second fetch of the same address
     /// fetches almost nothing — everything is already on the disk. Without
     /// this the playlist made from that fetch would hold the two tracks that
-    /// happened to be new (`MASTER_ISSUES` 105).
+    /// happened to be new.
     pub listed: Vec<ListedTrack>,
     /// What the playlist is called, where a playlist is what was asked for.
     ///
@@ -122,7 +122,7 @@ pub trait FetchPort: Send + Sync {
     /// say so and not when it finishes. `have` is asked before each track of a
     /// list, and a track it recognises is not fetched at all — what counts as
     /// *already here* is the library's decision and not this port's
-    /// (`MASTER_ISSUES` 111). All three run on whatever thread called this,
+    /// . All three run on whatever thread called this,
     /// which is never the one drawing the window.
     /// Installs whatever [`Self::missing_for`] reported for this link, and says
     /// what is still missing afterwards.
@@ -131,8 +131,7 @@ pub trait FetchPort: Send + Sync {
     /// everything else here: Cadenza opens no connection, it runs a program
     /// that is already on the machine and lets that program do its job. What
     /// it runs is reported line by line through `said`, because installing
-    /// something on somebody's computer is not a thing to do behind a spinner
-    /// (`MASTER_ISSUES` 96).
+    /// something on somebody's computer is not a thing to do behind a spinner.
     fn install(&self, link: &str, said: &dyn Fn(&str)) -> Result<Vec<MissingTool>>;
 
     /// Brings the programs up to date, and says what they said.

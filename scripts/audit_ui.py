@@ -74,7 +74,7 @@ def design_length(expression):
     """The length as designed, whatever form it is written in.
 
     Every length in the markup goes through `Theme.px()` so that it can be
-    scaled and snapped back onto a whole pixel (MASTER_ISSUES 65). The rules
+ scaled and snapped back onto a whole pixel. The rules
     below are about the *design* value inside that call — the number somebody
     chose — so this reads it out of either form and reports nothing for an
     expression it cannot measure.

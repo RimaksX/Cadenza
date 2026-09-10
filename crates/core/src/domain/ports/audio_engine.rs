@@ -14,7 +14,7 @@ use crate::domain::value_objects::{PlaybackPosition, Volume};
 /// None of them runs on the realtime audio callback: implementations publish
 /// parameters through atomics or lock-free queues and return immediately. The
 /// callback itself must never allocate, block, perform IO or call back into this
-/// trait (PROJECT_MASTER 8.2).
+/// trait.
 pub trait AudioEnginePort: Send + Sync {
     /// Loads a file as the current track, replacing whatever was loaded.
     fn load(&self, path: &Path) -> Result<()>;
@@ -23,7 +23,7 @@ pub trait AudioEnginePort: Send + Sync {
     ///
     /// This is what makes both gapless joins and crossfades possible: the
     /// outgoing and incoming streams have to coexist before the transition, not
-    /// at it (PROJECT_MASTER 8.4).
+    /// at it.
     fn preload_next(&self, path: &Path, transition: TransitionProfile) -> Result<()>;
 
     /// Starts or resumes output.
@@ -64,7 +64,7 @@ pub trait AudioEnginePort: Send + Sync {
     /// The whole setting rather than one control, because a band is three
     /// numbers that only mean anything together. The engine walks its filters
     /// towards these rather than snapping to them, which is what keeps a moving
-    /// control silent (PROJECT_MASTER 2.8).
+    /// control silent.
     fn set_eq(&self, setting: &EqSetting) -> Result<()>;
 
     /// The current position, as last reported by the engine.

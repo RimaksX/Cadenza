@@ -1,7 +1,7 @@
 //! Tempo, from where the sound changes rather than from where it is loud.
 //!
 //! The method is the ordinary one and it is worth stating plainly, because
-//! PROJECT_MASTER 12.1 forbids the fashionable alternative: a spectral flux
+//! The fashionable alternative is forbidden here: a spectral flux
 //! onset envelope, autocorrelated, with the strongest lag in the plausible
 //! range taken as the beat. No model, no training data, nothing downloaded.
 
@@ -79,7 +79,7 @@ pub fn measure(spectra: &Spectra) -> Tempo {
         // seconds makes that ratio large: measured across the owner's library
         // it ran from 12.8 to 26.7 and every one of them squashed to about 1,
         // so danceability - which is built on it - came out between 0.87 and
-        // 0.99 for the whole library and said nothing (`MASTER_ISSUES` 138).
+        // 0.99 for the whole library and said nothing.
         // The autocorrelation ratio spreads properly on the same files: 1.7
         // for a piece with no pulse to 11.1 for one that is all pulse.
         beat_strength: squash(peak / mean, TYPICAL_PULSE, PULSE_SPAN),

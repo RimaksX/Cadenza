@@ -1,12 +1,12 @@
 //! Radio: an endless stream built out of the listener's own library.
 //!
-//! Nothing here reaches outside the machine (PROJECT_MASTER 2.6). A station is
+//! Nothing here reaches outside the machine. A station is
 //! a mood, a seed track and the same weighted sum every time — the ranking of
-//! 10.4 — applied to files that are already on disk and already analysed.
+//! ranking — applied to files that are already on disk and already analysed.
 //!
 //! The service produces *picks*. It does not play them and does not own a
 //! queue: [`super::QueueService`] puts them in the radio lane, where a manual
-//! queue still outranks them (10.5). Keeping the two apart is what lets radio
+//! queue still outranks them. Keeping the two apart is what lets radio
 //! be tested without a speaker and the queue be tested without a mood.
 
 use std::sync::atomic::{AtomicU32, Ordering};
@@ -37,7 +37,7 @@ use crate::{CoreError, Result};
 /// offered again this afternoon, short enough that a library smaller than a
 /// week of listening does not run out of fresh material. Measured against
 /// what the listener has heard *and* what this profile's stations have offered,
-/// whichever was later (MASTER_ISSUES 61).
+/// whichever was later.
 const FRESHNESS_WINDOW: DurationMs = DurationMs::from_secs(7 * 24 * 60 * 60);
 
 /// Everything radio talks to.
@@ -149,7 +149,7 @@ impl RadioService {
 
     /// Chooses the next `wanted` tracks and records why.
     ///
-    /// Between eight and fifteen, which is 10.5's batch. Fewer come back only
+    /// Between eight and fifteen to a batch. Fewer come back only
     /// when the library has run out of anything the session has not already
     /// offered — a station in a small library ends rather than repeating
     /// itself, and the caller decides what to say about that.
@@ -172,7 +172,7 @@ impl RadioService {
         let recent = self.heard_recently(profile_id)?;
 
         // Everything the session has already offered. A station may not repeat
-        // itself while it still has anything else to play — 9.2's first rule,
+        // itself while it still has anything else to play — the first shuffle rule,
         // which radio inherits.
         let mut offered: Vec<MediaFileId> = self
             .ports
@@ -236,8 +236,7 @@ impl RadioService {
     ///
     /// A skip is a weaker signal than a dislike and both are weaker than a
     /// like is strong; the weights are [`RadioFeedback::weight`]'s. What it
-    /// changes is the next batch, and every batch after that in any session
-    /// (PROJECT_MASTER 10.5).
+    /// changes is the next batch, and every batch after that in any session.
     pub fn feedback(&self, media_file_id: MediaFileId, verdict: RadioFeedback) -> Result<()> {
         let Some(session) = self.session() else {
             // Not an error: a listener pressing skip during ordinary playback
@@ -327,7 +326,7 @@ impl RadioService {
             // a listener who asks for Sleep with nothing slow in their library
             // must still get music, and after the real matches are gone the
             // least-bad ordering by transition and freshness is the best answer
-            // there is. That is the objection `MASTER_ISSUES` 138 raised
+            // there is. That is the objection once raised
             // against zeroing, and separating the tiers is what answers it -
             // nothing is flattened, because the flattened tier is only
             // consulted once the ordered one is exhausted.
@@ -353,9 +352,9 @@ impl RadioService {
 /// offer what the listener played for themselves an hour ago either — those are
 /// the same experience from the same chair. The later of the two answers wins.
 ///
-/// Until M14 there was only one source, because nothing wrote the other. The
+/// There was only one source at first, because nothing wrote the other. The
 /// formula did not move when the second arrived; the source widened, which is
-/// what `MASTER_ISSUES` 49 said would happen.
+/// what was expected of it all along.
 impl RadioService {
     fn heard_recently(&self, profile_id: ProfileId) -> Result<Vec<(MediaFileId, Timestamp)>> {
         let mut heard = self.ports.radio.last_offered(profile_id)?;

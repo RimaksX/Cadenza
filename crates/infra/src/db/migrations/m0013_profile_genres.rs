@@ -1,10 +1,10 @@
 //! Genres one profile disagrees about.
 //!
 //! `track_genres` describes the recording and is shared, which is right until a
-//! listener corrects one: section 2.1 lets a profile edit metadata locally and
-//! 12.1 forbids that edit reaching anyone else. Title, artist, album and year
+//! listener corrects one: a profile may edit metadata locally, and that edit
+//! must not reach anyone else. Title, artist, album and year
 //! already have per-profile columns in `profile_tracks`; genre is many-to-many
-//! and needs a table of its own (MASTER_ISSUES 10).
+//! and needs a table of its own.
 
 pub const SQL: &str = r#"
 -- Whether this profile has replaced the file's genres.

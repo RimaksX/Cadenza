@@ -2,8 +2,7 @@
 //!
 //! The queue is the only thing that starts a track once the listener has
 //! chosen the first one. [`super::PlaybackService`] knows how to play a file
-//! and nothing about order; this service owns the order and asks it to play
-//! (PROJECT_MASTER 2.3).
+//! and nothing about order; this service owns the order and asks it to play.
 //!
 //! It sits on top of playback rather than beside it because "next" is one
 //! action, not two: deciding what follows and starting it cannot be split
@@ -47,10 +46,10 @@ pub struct QueuePorts {
     ///
     /// The repository rather than the service: what the queue needs of a
     /// playlist is the order of its entries, and the service around it is about
-    /// covers, names and folders (`MASTER_ISSUES` 136).
+    /// covers, names and folders.
     pub playlists: Arc<dyn PlaylistRepositoryPort>,
-    /// What the library sounds like, for shuffle to choose by (PROJECT_MASTER
-    /// 9.3). A library nobody has analysed yet still shuffles: every candidate
+    /// What the library sounds like, for shuffle to choose by. A library
+    /// nobody has analysed yet still shuffles: every candidate
     /// simply scores the same.
     pub features: Arc<dyn TrackFeaturesRepositoryPort>,
     /// The station, when there is one to keep topped up.
@@ -115,7 +114,7 @@ impl QueueService {
         // library stopped being written into it when what follows a library
         // track began to be worked out on demand; a playlist stopped when it
         // became a source that reads itself, and a queue saved before that
-        // still holds the whole list there (`MASTER_ISSUES` 136). Both go.
+        // still holds the whole list there. Both go.
         // Nothing is lost with them: the source plays on from the track that is
         // playing. The manual queue, which is the part somebody actually wrote,
         // comes back untouched.
@@ -136,7 +135,7 @@ impl QueueService {
 
     /// Loads the active profile's queue, dropping whoever else's was held.
     ///
-    /// The third of PROJECT_MASTER 2.5's switching steps, for the one piece of
+    /// The third of the profile-switching steps, for the one piece of
     /// state that does not carry its owner with it. The equaliser and the
     /// playback settings cache the profile alongside the value and notice a
     /// switch by themselves; a queue is a queue, and the only thing that says
@@ -168,7 +167,7 @@ impl QueueService {
     /// Nothing is queued by this: the queue holds what the listener chose to
     /// hear next, and the rest of the library is not that — it is simply what
     /// comes after, which [`next_in_library`] can work out whenever it is asked
-    /// (MASTER_ISSUES 45). Anything already queued by hand still plays first.
+    /// . Anything already queued by hand still plays first.
     pub fn play_from_library(&self, media_file_id: MediaFileId) -> Result<()> {
         let profile_id = self.context.require_active_profile()?;
         let library = self.ports.tracks.summaries_for_profile(profile_id)?;
@@ -203,12 +202,11 @@ impl QueueService {
     ///
     /// The list is named, not handed over: what it holds is read from the list
     /// itself, which is the only copy that cannot be stale. A caller passing
-    /// its own idea of the tracks was a second answer to a question with one
-    /// (`MASTER_ISSUES` 136).
+    /// its own idea of the tracks was a second answer to a question with one.
     ///
     /// The entry carries the playlist as its origin, which is what makes the
     /// transition between its tracks gapless rather than crossfaded
-    /// (PROJECT_MASTER 2.4), what tells the continuation which rows to read,
+    /// , what tells the continuation which rows to read,
     /// and what a restored queue needs to still know it is playing a playlist
     /// rather than a library.
     pub fn play_playlist(&self, playlist_id: PlaylistId, from: MediaFileId) -> Result<()> {
@@ -225,8 +223,7 @@ impl QueueService {
         // way the library does: what follows this track is the next entry of
         // the list, read when it is wanted. Dealing the rest into `upcoming`
         // was what made starting a playlist look like it had filled the
-        // listener's own queue with forty tracks nobody put there
-        // (`MASTER_ISSUES` 136).
+        // listener's own queue with forty tracks nobody put there.
         let origin = QueueOrigin::Playlist(playlist_id);
 
         self.write_queue(|queue| {
@@ -421,8 +418,7 @@ impl QueueService {
         // what this pass has already played; where the listener has been over
         // every session is a different question, and answering it here is what
         // left a library of forty-one with a hundred and thirty-seven tracks
-        // "already heard" and shuffle with nothing to choose
-        // (`MASTER_ISSUES` 135).
+        // "already heard" and shuffle with nothing to choose.
         let (played, shuffle, repeat) = self.with_queue(|queue| {
             let played: Vec<MediaFileId> = queue
                 .round
@@ -455,10 +451,10 @@ impl QueueService {
     ///
     /// The round is what has not been heard yet; when it empties, repeat all
     /// begins another and repeat off stops — the fourth hard rule of
-    /// PROJECT_MASTER 9.2. Which of the round's tracks plays is
+    /// the shuffle rules. Which of the round's tracks plays is
     /// [`shuffle_policy::choose_next`]'s decision and not this service's: it
     /// scores every candidate against what is playing, keeps the best handful
-    /// and draws from those, which is 9.4.
+    /// and draws from those.
     fn shuffled_successor(
         &self,
         library: &[TrackSummary],
@@ -550,7 +546,7 @@ impl QueueService {
     /// Restarts the current track, or goes back to the previous one.
     ///
     /// Which of the two is [`previous_action`]'s decision, not this service's:
-    /// PROJECT_MASTER 2.3 states it as a rule about elapsed time, and a rule
+    /// The rule is stated about elapsed time, and a rule
     /// belongs in a policy.
     pub fn previous(&self) -> Result<()> {
         // Reconciled first, for the window after the callback has crossed a
@@ -618,7 +614,7 @@ impl QueueService {
     /// Advances when the current track has run out.
     ///
     /// Called from the interface's tick. The engine has no way to call back into
-    /// the application layer — the realtime contract of PROJECT_MASTER 8.2
+    /// the application layer — the realtime contract
     /// forbids it — so somebody has to ask, and asking four times a second costs
     /// two atomic loads.
     /// Returns whether anything changed, so a caller can redraw only then.
@@ -626,7 +622,7 @@ impl QueueService {
         let mut changed = self.catch_up()?;
 
         // Before anything decides there is nowhere to go: a station that has
-        // run low tops itself up, which is what makes radio endless (10.5).
+        // run low tops itself up, which is what makes radio endless.
         changed |= self.refill_radio()?;
 
         let view = self.playback.view();
@@ -650,8 +646,8 @@ impl QueueService {
 
     /// Starts a station: its first batch becomes the continuation.
     ///
-    /// The manual queue survives, because it outranks radio (PROJECT_MASTER
-    /// 10.5) — a track queued by hand plays before whatever the station chose.
+    /// The manual queue survives, because it outranks radio: a track queued by
+    /// hand plays before whatever the station chose.
     pub fn play_radio(&self, session_id: RadioSessionId, batch: &[MediaFileId]) -> Result<()> {
         let profile_id = self.context.require_active_profile()?;
         let Some((first, rest)) = batch.split_first() else {
@@ -770,7 +766,7 @@ impl QueueService {
         }
 
         // The other half of the probe in `PlaybackService::seek`
-        // (MASTER_ISSUES 83). A step the listener did not ask for, logged with
+        // . A step the listener did not ask for, logged with
         // the counts that caused it: a seek immediately followed by one of
         // these is the defect, and nothing short of a real machine produces the
         // pair.
@@ -800,7 +796,7 @@ impl QueueService {
     /// before it is needed.
     ///
     /// The transition is chosen from what is *playing*, not from what is
-    /// coming: PROJECT_MASTER 2.4 is a rule about the material being listened
+    /// coming: the rule is about the material being listened
     /// to, and a playlist does not start fading out because the next thing was
     /// queued by hand.
     fn arm_next(&self) -> Result<()> {
@@ -882,7 +878,7 @@ impl QueueService {
         // What the listener put here, and nothing else. A station keeps a few
         // picks ahead of the needle in the other lane; those are the station
         // playing, not a list anybody wrote, and showing them made the queue
-        // look like something that fills itself (`MASTER_ISSUES` 136).
+        // look like something that fills itself.
         let waiting: Vec<MediaFileId> = self.with_queue(|queue| {
             queue
                 .manual
@@ -929,7 +925,7 @@ impl QueueService {
         };
 
         // Before the first sample rather than after it: the sound a listener
-        // chose for this record is part of how it starts (`MASTER_ISSUES` 89).
+        // chose for this record is part of how it starts.
         self.follow_with_eq(entry.media_file_id);
 
         let played = self
@@ -1022,7 +1018,7 @@ const fn source_of(origin: QueueOrigin) -> PlaySource {
 ///
 /// Only the manual queue, because only the manual queue is drawn: a position
 /// comes from a row somebody pressed, and there are no rows for the lane a
-/// station keeps its picks in (`MASTER_ISSUES` 136).
+/// station keeps its picks in.
 ///
 /// Not simply `position`: the listing skips entries whose file has left the
 /// library, so a row's place on screen is not its place in the lane. Both walks

@@ -4,7 +4,7 @@
 //! sentence in the player bar. This is for everything that cannot reach them —
 //! a watcher thread that could not read one file, a listen that would not
 //! record, a queue that failed to save. Those are deliberate silences
-//! (`MASTER_ISSUES` 56, 57), and a silence with nowhere to write is a defect
+//! , and a silence with nowhere to write is a defect
 //! nobody can diagnose afterwards.
 //!
 //! Not a general logging facility, and deliberately not: there is no level

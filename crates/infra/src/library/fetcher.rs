@@ -41,8 +41,7 @@ const PACKAGES: &str = "winget";
 ///
 /// It does not take anything out of Spotify — nothing does — and it says so
 /// about itself. What it is for is the names: a track fetched this way carries
-/// its title, artist and album rather than the title of a video
-/// (`MASTER_ISSUES` 99).
+/// its title, artist and album rather than the title of a video.
 const MATCHER: &str = "spotdl";
 
 /// Python's package manager, which is the only place `spotdl` comes from.
@@ -53,8 +52,7 @@ const PYTHON_PACKAGES: &str = "pip";
 /// Cadenza never runs it for its own sake: it runs `spotdl`, and `python -m
 /// pip` to put `spotdl` there. It is named here because it is the thing a
 /// machine that has never had a Python on it is missing, and being told
-/// "pip is not on this machine" is being told the symptom (`MASTER_ISSUES`
-/// 118).
+/// "pip is not on this machine" is being told the symptom.
 const PYTHON: &str = "python";
 
 /// Which Python. Any of several would do; this one is named so that the same
@@ -107,7 +105,7 @@ impl Source {
 /// put on PATH and nothing here was looking in. A listener pressed install,
 /// pip said it had done it, and this said the program was still missing, round
 /// and round, and a reboot changed nothing because the folder is not on PATH at
-/// all (`MASTER_ISSUES` 130).
+/// all.
 ///
 /// So the matcher is asked of Python instead: can it import it. That is what
 /// "installed" means for a package, and it is true wherever the package landed.
@@ -173,8 +171,7 @@ pub struct ExternalFetcher {
     /// link pasted twice brings nothing the second time.
     ///
     /// The matcher was given none until a listener fetched the same playlist
-    /// twice and got twenty second copies of tracks they already had
-    /// (`MASTER_ISSUES` 104).
+    /// twice and got twenty second copies of tracks they already had.
     ///
     /// Optional because a test fetching one link wants no memory of it.
     remembers: Option<PathBuf>,
@@ -279,7 +276,7 @@ impl ExternalFetcher {
     /// the list is called, how many tracks are in it, and therefore a
     /// percentage that means something. The answer is written to a file rather
     /// than printed, so it is read rather than parsed — `list_name` and
-    /// `list_length` are fields, not sentences (`MASTER_ISSUES` 101).
+    /// `list_length` are fields, not sentences.
     ///
     /// A link naming one track has no `list_name` at all, which is how a track
     /// and a list are told apart without guessing.
@@ -354,7 +351,7 @@ impl ExternalFetcher {
     /// measured: about sixteen seconds per track before a byte was downloaded,
     /// a limit that left the tail of a fifty-two-track list unresolved — ten
     /// of them — and a pairing between two lists that goes wrong for every
-    /// track after any one it skipped (`MASTER_ISSUES` 110).
+    /// track after any one it skipped.
     ///
     /// Now there is one list, and each search is built from the track it is
     /// for. A track that cannot be found costs itself.
@@ -400,8 +397,7 @@ impl ExternalFetcher {
             // that makes a second press predictable. The downloader's own
             // memory covers the usual case, but it remembers *videos*: a
             // search that lands on a different video for a track the listener
-            // already has would download it a second time under a second name
-            // (`MASTER_ISSUES` 111).
+            // already has would download it a second time under a second name.
             if have(track) {
                 continue;
             }
@@ -464,8 +460,7 @@ impl ExternalFetcher {
             // moves the file anywhere. A track that falls over after that
             // point is remembered as fetched and never tried again: three of
             // fifty-two were stuck that way, present in the memory and absent
-            // from the disk, and every run afterwards skipped them
-            // (`MASTER_ISSUES` 112).
+            // from the disk, and every run afterwards skipped them.
             //
             // This route needs no such memory. It knows the whole list and
             // asks the library about every track on it, so what is skipped is
@@ -502,7 +497,7 @@ fn safe_name(wanted: &str) -> String {
 
     // Capped for the same reason the other route caps it: everything before it
     // is a folder somebody chose, and the whole path has to stay inside what
-    // Windows will accept (`MASTER_ISSUES` 90).
+    // Windows will accept.
     let trimmed = cleaned.trim().trim_end_matches('.').trim();
     let mut short = String::new();
     for character in trimmed.chars() {
@@ -564,7 +559,7 @@ fn land(workspace: &Path, into: &Path) -> Result<Vec<PathBuf>> {
 ///
 /// Read as bytes and decoded loosely, like everything else a child says here:
 /// these programs draw progress bars and speak the machine's own language, and
-/// neither is promised to be UTF-8 (`MASTER_ISSUES` 90).
+/// neither is promised to be UTF-8.
 fn finished(spoke: &std::process::Output, program: &str) -> Result<()> {
     if spoke.status.success() {
         return Ok(());
@@ -624,7 +619,7 @@ fn locate(program: &str) -> Option<PathBuf> {
 /// Python: an App Execution Alias which, run with an argument, prints "Python
 /// was not found" and exits 9009. Taken for a Python it turns "there is no
 /// Python here" into an error about `pip` that nobody can act on, which is what
-/// one listener saw (`MASTER_ISSUES` 118).
+/// one listener saw.
 ///
 /// Asked rather than recognised by where it sits or how large it is. Those
 /// aliases are zero bytes long, but so is `winget`'s own entry on PATH, and
@@ -693,7 +688,7 @@ fn installed_in() -> Vec<PathBuf> {
 /// instead, which is a PATH this process cannot see. `ffmpeg` is one of them,
 /// and it is the one every download needs — measured on this machine, where
 /// `Links` holds `yt-dlp.exe` and nothing else while `ffmpeg` lives three
-/// folders deep under `Packages` (`MASTER_ISSUES` 118).
+/// folders deep under `Packages`.
 ///
 /// Two levels and no further: `Packages/<package>/<what was in the archive>`,
 /// with `bin` inside it where there is one.
@@ -765,7 +760,7 @@ fn quietly(program: &Path) -> Command {
 
 /// Every line a child wrote, whatever bytes it chose to write them in.
 ///
-/// Not `BufReader::lines()`, and this is the whole of `MASTER_ISSUES` 90.
+/// Not `BufReader::lines()`, and the reason is the whole of it.
 /// `lines()` yields an error the moment it meets a byte sequence that is not
 /// UTF-8, and the idiom for draining it — `map_while(Result::ok)` — treats that
 /// error as the end. The reader stops, the pipe is dropped, and the program on
@@ -1061,7 +1056,7 @@ impl FetchPort for ExternalFetcher {
             // The title, capped at 150 bytes.
             //
             // Not the fix for the "Error 22" people reported — that was ours
-            // and is in `lines_of` (`MASTER_ISSUES` 90). This is for the other
+            // and is in `lines_of`. This is for the other
             // half of it: a genuinely long title makes a path past the 260
             // characters Windows will accept, and yt-dlp fails with the same
             // EINVAL it fails with for everything (yt-dlp #11251, whose

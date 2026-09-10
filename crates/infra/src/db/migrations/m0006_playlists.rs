@@ -8,7 +8,7 @@ CREATE TABLE playlists (
     description TEXT,
 
     is_smart    INTEGER NOT NULL DEFAULT 0 CHECK (is_smart IN (0, 1)),
-    -- The rule language is defined with smart playlists in M7; opaque until then.
+    -- The rule language belongs to smart playlists; opaque to everything else.
     rule_json   TEXT,
 
     created_at  INTEGER NOT NULL,

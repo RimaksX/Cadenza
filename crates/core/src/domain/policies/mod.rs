@@ -4,11 +4,6 @@
 //! randomness, no IO. Time and randomness arrive as arguments so that the rules
 //! stay testable, which is why these are the most heavily tested files in the
 //! crate.
-//!
-//! Policies whose formulas PROJECT_MASTER fixes are implemented now. Policies
-//! whose weights it leaves open — the radio ranking of section 10.4, the smart
-//! shuffle selection of section 9.4 — expose their hard constraints here and
-//! gain their scoring in M12 and M13.
 
 pub mod analysis_policy;
 pub mod artwork_policy;

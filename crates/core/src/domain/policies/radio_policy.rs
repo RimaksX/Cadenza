@@ -1,6 +1,6 @@
 //! Content-based similarity for smart radio.
 //!
-//! Implements PROJECT_MASTER 10.3. With history available:
+//! The ranking. With history available:
 //!
 //! ```text
 //! similarity = 0.60 * feature_cosine
@@ -19,14 +19,14 @@
 //!
 //! # The ranking
 //!
-//! Section 10.4 gives the shape and leaves the weights open:
+//! The shape is fixed and the weights are not:
 //!
 //! ```text
 //! score = w1*mood_match + w2*transition_score  + w3*user_preference
 //!       + w4*freshness  + w5*diversity_penalty + w6*exploration_noise
 //! ```
 //!
-//! M13 settles them, in [`RankingWeights`]. Two things about the line as
+//! The weights are settled in [`RankingWeights`]. Two things about the line as
 //! written had to be decided rather than copied. The diversity term
 //! **subtracts** — as an addition it would reward a monotonous pick, which is
 //! the opposite of what it is named for. And the noise is an *amplitude*
@@ -54,7 +54,7 @@ pub const GENRE_WEIGHT_NO_HISTORY: f32 = 0.15;
 /// Weight of artist affinity when history is unavailable.
 pub const ARTIST_WEIGHT_NO_HISTORY: f32 = 0.10;
 
-/// What each term of the ranking is worth (PROJECT_MASTER 10.4).
+/// What each term of the ranking is worth.
 ///
 /// Calibration knobs, every one of them. The specification names the terms and
 /// leaves the numbers to whoever has a library in front of them, so these are
@@ -64,7 +64,7 @@ pub struct RankingWeights {
     /// How much fitting the mood is worth. The largest, because the listener
     /// asked for a mood by name and everything else is a refinement of it.
     pub mood: f32,
-    /// How much following the current track smoothly is worth (9.3).
+    /// How much following the current track smoothly is worth.
     pub transition: f32,
     /// How much the listener's own verdicts are worth.
     pub preference: f32,
@@ -107,8 +107,7 @@ impl RankingWeights {
 /// tenth of the range. Read against absolute bands that is not a library with
 /// quiet music in it — Focus (energy up to 0.45) and Sleep (up to 0.25) matched
 /// nothing at all, while Driving (0.45 to 0.9) took eighty-three tracks of
-/// ninety-three, and the moods stopped meaning different things
-/// (`MASTER_ISSUES` 137).
+/// ninety-three, and the moods stopped meaning different things.
 ///
 /// So a value is scored by where it stands among the listener's own, not by the
 /// number the extractor printed. Sleep becomes "as slow and as quiet as this
@@ -235,7 +234,7 @@ pub fn mood_score(
     // A band missed outright is not "a bit wrong" - it is a band with a soft
     // edge already built in, and the track fell past even that. Scoring it
     // proportionally was tried twice. First the plain mean, which put a 141 BPM
-    // track fourth in Sleep (`MASTER_ISSUES` 138); then the mean scaled by the
+    // track fourth in Sleep; then the mean scaled by the
     // share of bands met, which is what shipped and which still let a 105 BPM
     // rap track score 0.33 in a mood whose tempo band ends at 80 - `t=0.00`
     // costing only a third.
@@ -258,7 +257,7 @@ pub fn mood_score(
     (total / counted).clamp(0.0, 1.0)
 }
 
-/// The final score a candidate is ranked by (PROJECT_MASTER 10.4).
+/// The final score a candidate is ranked by.
 ///
 /// `noise` is `0.0..=1.0` from the caller's own source of chance, which keeps
 /// this function pure and its ordering reproducible in a test.
@@ -596,7 +595,7 @@ mod tests {
     fn opposite_moods_cannot_both_want_the_same_track() {
         // Read absolutely, this library is loud: every track sits inside
         // Driving's energy band and none inside Focus's, so one mood took
-        // everything and the other took nothing (`MASTER_ISSUES` 137). Ranked,
+        // everything and the other took nothing. Ranked,
         // the quietest of them is the quiet one.
         let library: Vec<TrackFeatures> = [0.62, 0.66, 0.72, 0.77, 0.82]
             .into_iter()

@@ -25,8 +25,7 @@ export component TextButton inherits Rectangle {
     ///
     /// Separate from `primary`, which ten buttons in this application are.
     /// This is the one action that starts everything, on the one screen that
-    /// has nothing else on it, and it is the only button that wears the colour
-    /// (`MASTER_ISSUES` 129).
+    /// has nothing else on it, and it is the only button that wears the colour.
     in property <bool> accented;
     /// Set to make every button in a group the same size. A column of controls
     /// whose widths follow their labels is a column with a ragged edge, and a
@@ -44,7 +43,7 @@ export component TextButton inherits Rectangle {
     /// decoration: it is the only mark that says "there is more behind this",
     /// and without it a control that opens a menu is drawn exactly like a
     /// control that does something — which is what the sort button was
-    /// (`MASTER_ISSUES` 142). Nothing else may take one.
+    /// . Nothing else may take one.
     in property <image> opens;
 
     callback pressed();
@@ -130,8 +129,7 @@ export component TextButton inherits Rectangle {
         // window the pixels came back at exactly the blend. And it was doing
         // the disabled ink's job: a disabled label was `ink-mute` at 0.8, which
         // landed near `ink-disabled` by arithmetic rather than by saying so, so
-        // raising the ladder made unavailable buttons *more* legible
-        // (`MASTER_ISSUES` 141).
+        // raising the ladder made unavailable buttons *more* legible.
         //
         // Hover is a real step now instead of a fifth of one: `ink-2` to
         // `ink-0`, which is the loudest ink and what this interface says
@@ -216,7 +214,7 @@ export component Dialog inherits Rectangle {
         // standing in. The explaining card had grown to within thirty pixels
         // of the bottom at 100 per cent and past it at any larger size — and a
         // card that does not fit is a card whose last paragraph and whose only
-        // button are both somewhere off the screen (`MASTER_ISSUES` 91).
+        // button are both somewhere off the screen.
         height: min(layout.preferred-height, parent.height - Theme.px(64));
         // Whole pixels. A card centred on a window of odd height lands on
         // half a pixel, every glyph inside it is then snapped to the pixel

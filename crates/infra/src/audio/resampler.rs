@@ -24,11 +24,11 @@ const SINC_LEN: usize = 128;
 ///
 /// Windows runs its mixer at one fixed rate — usually 48 kHz — while most music
 /// is 44.1 kHz. Playing one at the other's rate shifts the pitch by more than a
-/// semitone, so this is not optional (PROJECT_MASTER 3.4).
+/// semitone, so this is not optional.
 ///
 /// Lives on the decode thread. The audio callback never sees it: the filter
 /// allocates on construction and its cost per pass varies, and neither is
-/// allowed on the realtime side (PROJECT_MASTER 8.2).
+/// allowed on the realtime side.
 pub struct Resampling {
     inner: Async<f32>,
     channels: usize,

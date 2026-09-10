@@ -5,7 +5,7 @@ use super::policies::eq_policy::{MAX_BAND_HZ, MAX_BAND_Q, MIN_BAND_HZ, MIN_BAND_
 use super::value_objects::{GainDb, Timestamp};
 use crate::{CoreError, Result};
 
-/// Names of the presets shipped with the application (PROJECT_MASTER 2.8).
+/// Names of the presets shipped with the application.
 ///
 /// The first was called `Flat` until migration 19. It is the preset that
 /// leaves the sound alone, and "flat" is the word an engineer reaches for
@@ -82,7 +82,7 @@ impl SimpleEq {
 /// One bell of the parametric equaliser.
 ///
 /// Three numbers, all of them the listener's to choose: where the bell sits,
-/// how wide it is, and how far it lifts or cuts (`MASTER_ISSUES` 41). The
+/// how wide it is, and how far it lifts or cuts. The
 /// fields are private because all three reach a realtime filter, where a Q of
 /// zero is a division by zero and a frequency past Nyquist is a filter with
 /// nothing to work on.

@@ -5,7 +5,7 @@ use std::sync::atomic::{AtomicU32, AtomicUsize, Ordering};
 /// A single-producer, single-consumer ring of `f32` samples.
 ///
 /// The audio callback may not allocate, block on a mutex or perform IO
-/// (PROJECT_MASTER 8.2), which rules out a `Mutex<VecDeque<f32>>` and leaves a
+/// , which rules out a `Mutex<VecDeque<f32>>` and leaves a
 /// ring whose two ends never write the same index: the producer owns `write` and
 /// the consumer owns `read`.
 ///

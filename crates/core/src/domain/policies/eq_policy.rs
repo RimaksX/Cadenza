@@ -4,9 +4,9 @@ use crate::domain::eq::EqBand;
 use crate::domain::value_objects::{DurationMs, GainDb};
 use crate::{CoreError, Result};
 
-/// How many bands the parametric equaliser has (`MASTER_ISSUES` 41).
+/// How many bands the parametric equaliser has.
 ///
-/// Eight rather than the ten fixed bands section 8.5 first described: a
+/// Eight rather than the ten fixed bands first described: a
 /// parametric band chooses its own frequency, so ten of them are two more
 /// things to place rather than two more octaves of control.
 pub const ADVANCED_BAND_COUNT: usize = 8;
@@ -60,7 +60,7 @@ pub const SIMPLE_TREBLE_HZ: u32 = 8_000;
 
 /// How long a gain change is ramped over instead of being applied instantly.
 ///
-/// PROJECT_MASTER 2.8 and 8.5 require gain changes without clicks; a step change
+/// Gain changes must not click; a step change
 /// in filter coefficients is exactly what produces one. A calibration knob:
 /// shorter feels more responsive, longer is safer against zipper noise.
 pub const GAIN_RAMP: DurationMs = DurationMs::from_millis(50);

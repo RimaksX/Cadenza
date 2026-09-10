@@ -3,7 +3,7 @@
 use super::ids::{MediaFileId, MoodId, ProfileId, RadioSessionId, RadioSessionItemId};
 use super::value_objects::Timestamp;
 
-/// Smallest batch the generator produces (PROJECT_MASTER 10.5).
+/// Smallest batch the generator produces.
 pub const MIN_BATCH_SIZE: usize = 8;
 
 /// Largest batch the generator produces.
@@ -26,7 +26,7 @@ const _: () = assert!(
 
 /// A listener's verdict on a radio pick.
 ///
-/// Feeds back into future generation (PROJECT_MASTER 10.5).
+/// Feeds back into future generation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum RadioFeedback {
     /// Play more like this.
@@ -62,7 +62,7 @@ pub struct RadioSession {
     pub mood_id: MoodId,
     /// Track the session was seeded from, if the listener started from one.
     pub seed_media_file_id: Option<MediaFileId>,
-    /// Serialised generation parameters, opaque until M13 fixes the shape.
+    /// Serialised generation parameters, opaque to everything but the ranking.
     pub params_json: Option<String>,
     /// When the session started.
     pub created_at: Timestamp,
@@ -106,7 +106,7 @@ pub struct RadioSessionItem {
     ///
     /// Kept because the selection is a weighted formula rather than a model: a
     /// pick can always be explained, and that is worth preserving for debugging
-    /// and for showing the listener (PROJECT_MASTER ADR 0004).
+    /// and for showing the listener.
     ///
     /// Typed rather than the JSON the column holds — the adapter owns the
     /// encoding, as it does everywhere else.

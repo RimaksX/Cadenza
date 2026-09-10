@@ -7,7 +7,7 @@ use cadenza_core::domain::ports::system_priority::{PriorityClass, SystemPriority
 ///
 /// Which, today, is not at all: `SetThreadPriority` is a Win32 call, and
 /// reaching it means either `unsafe` or a dependency taken for one function.
-/// Neither is worth it, because the guarantee PROJECT_MASTER 2.11 actually asks
+/// Neither is worth it, because the guarantee actually asked
 /// for — background work under about a fifth of the machine — is kept by
 /// `analysis_policy`'s duty cycle instead: the worker rests four times as long
 /// as it works, and a share of the clock is a promise that does not depend on a
@@ -16,7 +16,7 @@ use cadenza_core::domain::ports::system_priority::{PriorityClass, SystemPriority
 /// So this reports success and changes nothing, which is exactly what
 /// [`SystemPriorityPort`] says an implementation that cannot lower priority
 /// should do. It exists as the seam: the day the call is worth making, it is
-/// made here and nothing else moves (MASTER_ISSUES 47).
+/// made here and nothing else moves.
 pub struct WindowsPriority;
 
 impl SystemPriorityPort for WindowsPriority {

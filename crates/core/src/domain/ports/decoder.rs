@@ -21,9 +21,9 @@ pub struct ProbeResult {
 /// sample, and `.m4a` cannot be resolved to AAC or ALAC without opening it.
 ///
 /// The streaming half of decoding — pulling PCM frames for the audio graph —
-/// arrives with the engine in M5. Keeping the port split this way is also what
+/// belongs to the engine. Keeping the port split this way is also what
 /// makes an alternative decoder adapter possible later without touching the
-/// library code (PROJECT_MASTER 2.2, ADR 0005).
+/// library code.
 pub trait DecoderPort: Send + Sync {
     /// Reads the stream header.
     fn probe(&self, path: &Path) -> Result<ProbeResult>;
