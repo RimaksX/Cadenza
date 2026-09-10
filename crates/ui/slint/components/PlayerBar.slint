@@ -341,12 +341,25 @@ export component PlayerBar inherits Rectangle {
                 // (`MASTER_ISSUES` 155). It is about the *track*, and the
                 // track's name is the line above.
                 //
-                // The words stretch and elide; the button does not. So a long
-                // title runs to an ellipsis a fixed distance short of a heart
-                // that never moves, and the caption below still has the whole
-                // width to itself.
+                // **The heart follows the title's ink, and the caption below
+                // does not get to move it.**
+                //
+                // This row and the caption are the two children of a block that
+                // is sized by its content, so the block is as wide as whichever
+                // of them is wider. While the title stretched, a short name
+                // under a long artist left the row padded out to the artist's
+                // width and the title absorbed all of it — putting the heart
+                // hard against the right edge on one track and beside the name
+                // on the next (`MASTER_ISSUES` 161).
+                //
+                // `alignment: start` is what stops it: the row takes its own
+                // preferred width, the words take theirs, and the button sits
+                // one gap after the last letter wherever that letter falls. A
+                // title too long for the bar's fixed 324 still elides, because
+                // the block cannot grow past it.
                 HorizontalLayout {
                     spacing: Theme.space-3;
+                    alignment: start;
 
                     // Wrapped, like the button beside it. A layout child with
                     // a height of its own cannot stretch, so it would sit
@@ -355,7 +368,6 @@ export component PlayerBar inherits Rectangle {
                     // their icons, and the one the audit checks for.
                     VerticalLayout {
                         alignment: center;
-                        horizontal-stretch: 1;
 
                         Text {
                             height: Theme.px(34);
