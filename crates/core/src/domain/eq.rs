@@ -82,10 +82,9 @@ impl SimpleEq {
 /// One bell of the parametric equaliser.
 ///
 /// Three numbers, all of them the listener's to choose: where the bell sits,
-/// how wide it is, and how far it lifts or cuts. The
-/// fields are private because all three reach a realtime filter, where a Q of
-/// zero is a division by zero and a frequency past Nyquist is a filter with
-/// nothing to work on.
+/// how wide it is, and how far it lifts or cuts. The fields are private because
+/// all three reach a realtime filter, where a Q of zero is a division by zero
+/// and a frequency past Nyquist is a filter with nothing to work on.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct EqBand {
     frequency_hz: u32,

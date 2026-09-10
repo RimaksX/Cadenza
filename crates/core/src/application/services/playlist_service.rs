@@ -326,8 +326,8 @@ impl PlaylistService {
     ///
     /// However it got there, because that is what the heart on the player bar
     /// is asked to say: the listener wants to know whether this song is in
-    /// their favourites, and "yes, but by arithmetic" is not a different
-    /// answer to that question.
+    /// their favourites, and "yes, but by arithmetic" is not a different answer
+    /// to that question.
     pub fn is_favourite(&self, media_file_id: MediaFileId) -> Result<bool> {
         let playlist = self.favourites()?;
         Ok(self
@@ -503,9 +503,9 @@ impl PlaylistService {
 
     /// Reads a playlist and refuses one belonging to another profile.
     ///
-    /// Playlists are never shared, so an identifier from
-    /// somewhere else is not found rather than forbidden: as far as this profile
-    /// is concerned it does not exist.
+    /// Playlists are never shared, so an identifier from somewhere else is not
+    /// found rather than forbidden: as far as this profile is concerned it does
+    /// not exist.
     fn owned(&self, id: PlaylistId) -> Result<Playlist> {
         let profile_id = self.context.require_active_profile()?;
 

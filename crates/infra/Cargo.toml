@@ -12,8 +12,8 @@ publish = false
 cadenza-core.workspace = true
 
 # `bundled` compiles SQLite into the binary. Cadenza ships as a single executable
-# with no runtime to install, so linking against whatever
-# SQLite the machine happens to have is not an option.
+# with no runtime to install, so linking against whatever SQLite the machine
+# happens to have is not an option.
 rusqlite = { version = "0.40.2", features = ["bundled"] }
 
 # Resolves %APPDATA% and %LOCALAPPDATA% through the shell API rather than
@@ -44,13 +44,13 @@ cpal = "0.18"
 # ALAC arrive in; `flac`, `wav` and `pcm` are already on by default.
 symphonia = { version = "0.6", features = ["mp3", "aac", "alac", "isomp4"] }
 
-# Sample-rate conversion. The output device runs at one
-# fixed rate — usually 48 kHz on Windows — while most files are 44.1 kHz, and
+# Sample-rate conversion. The output device runs at one fixed rate — usually
+# 48 kHz on Windows — while most files are 44.1 kHz, and
 # playing one at the other's rate shifts the pitch.
 rubato = "4"
 
-# Spectrum analysis for the visualiser. A thousand
-# points thirty times a second is arithmetic either of us could write; what a
+# Spectrum analysis for the visualiser. A thousand points thirty times a second
+# is arithmetic either of us could write; what a
 # library buys is the planner that picks an algorithm for the length, and the
 # certainty that the transform itself is not where a bug is.
 rustfft = "6"

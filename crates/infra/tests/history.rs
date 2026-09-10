@@ -1,8 +1,8 @@
 //! Listening history, over a real database.
 //!
-//! What the history is judged on: the statistics are counted, the history is cleared,
-//! and — the rule that outranks both — nothing is written at all for a listener
-//! who has turned it off.
+//! What the history is judged on: the statistics are counted, the history is
+//! cleared, and — the rule that outranks both — nothing is written at all for a
+//! listener who has turned it off.
 
 use std::sync::Arc;
 
@@ -57,8 +57,8 @@ fn harness() -> Harness {
     let profile = profiles.create("Sasha").expect("a profile");
     context.set_active_profile(profile.id);
 
-    // History is off for a new profile — privacy is the default — so a
-    // test about what gets written has to ask for it first.
+    // History is off for a new profile — privacy is the default — so a test
+    // about what gets written has to ask for it first.
     profiles
         .set_history_enabled(profile.id, true)
         .expect("history on");

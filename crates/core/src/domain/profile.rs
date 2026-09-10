@@ -11,11 +11,11 @@ pub const MAX_PROFILE_NAME_CHARS: usize = 64;
 
 /// How long listening history is kept when it is enabled.
 ///
-/// Thirty days, stated in three separate places. The
-/// schema exposes the value as a column so it can be read back and shown to the
-/// user, but it is a ceiling, not a free setting: a profile may keep history for
-/// fewer days, never more. Raising this is a privacy-policy change and requires
-/// amending the master file.
+/// Thirty days, stated in three separate places. The schema exposes the value
+/// as a column so it can be read back and shown to the user, but it is a
+/// ceiling, not a free setting: a profile may keep history for fewer days,
+/// never more. Raising this is a privacy-policy change and requires amending
+/// the master file.
 pub const HISTORY_RETENTION_DAYS: u16 = 30;
 
 /// A validated profile name.

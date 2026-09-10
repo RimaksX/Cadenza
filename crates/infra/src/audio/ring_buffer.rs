@@ -4,10 +4,10 @@ use std::sync::atomic::{AtomicU32, AtomicUsize, Ordering};
 
 /// A single-producer, single-consumer ring of `f32` samples.
 ///
-/// The audio callback may not allocate, block on a mutex or perform IO
-/// , which rules out a `Mutex<VecDeque<f32>>` and leaves a
-/// ring whose two ends never write the same index: the producer owns `write` and
-/// the consumer owns `read`.
+/// The audio callback may not allocate, block on a mutex or perform IO , which
+/// rules out a `Mutex<VecDeque<f32>>` and leaves a ring whose two ends never
+/// write the same index: the producer owns `write` and the consumer owns
+/// `read`.
 ///
 /// Samples are held as their bit patterns in relaxed atomics rather than behind
 /// an `UnsafeCell`. On x86 a relaxed load is a plain move, so the cost is a

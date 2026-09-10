@@ -28,9 +28,8 @@ pub fn collides_with(card: &ReviewCard) -> String {
 ///
 /// It says why they are waiting as well as how many, because the label that
 /// used to say so is gone: an eyebrow over every page named the page, and this
-/// was the one whose words carried a fact rather than a name
-/// . A count on its own would leave "waiting for what?"
-/// with nowhere to be answered.
+/// was the one whose words carried a fact rather than a name . A count on its
+/// own would leave "waiting for what?" with nowhere to be answered.
 pub fn summary_line(waiting: usize) -> String {
     match waiting {
         0 => "nothing is held back".to_owned(),

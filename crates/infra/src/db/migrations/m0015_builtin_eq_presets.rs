@@ -1,16 +1,16 @@
 //! The nine equaliser presets shipped with the application.
 //!
-//! They are named but their curves are not specified anywhere, so the
-//! curves are ours. They are written here rather than seeded by the application
-//! for the reason every migration exists: a database that has run this has
-//! them, and one that has not is not a database this version talks to. Nothing
-//! has to remember to insert them, and nothing can insert them twice.
+//! They are named but their curves are not specified anywhere, so the curves
+//! are ours. They are written here rather than seeded by the application for
+//! the reason every migration exists: a database that has run this has them,
+//! and one that has not is not a database this version talks to. Nothing has to
+//! remember to insert them, and nothing can insert them twice.
 //!
-//! Eight of the nine are parametric, because a preset is a
-//! curve and a parametric band can be put where the curve wants it rather than
-//! at the nearest of ten fixed points. Flat is the exception: it is the sound
-//! of the equaliser doing nothing, and it belongs in the simple mode where
-//! doing nothing is what the three controls are already set to.
+//! Eight of the nine are parametric, because a preset is a curve and a
+//! parametric band can be put where the curve wants it rather than at the
+//! nearest of ten fixed points. Flat is the exception: it is the sound of the
+//! equaliser doing nothing, and it belongs in the simple mode where doing
+//! nothing is what the three controls are already set to.
 //!
 //! The identifiers are literal and fixed. A built-in preset is the same preset
 //! on every machine, which is what lets a profile point at one.

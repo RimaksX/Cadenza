@@ -13,8 +13,8 @@ use crate::domain::value_objects::{PlaybackPosition, Volume};
 /// Every method here is a *control-plane* call made from an application thread.
 /// None of them runs on the realtime audio callback: implementations publish
 /// parameters through atomics or lock-free queues and return immediately. The
-/// callback itself must never allocate, block, perform IO or call back into this
-/// trait.
+/// callback itself must never allocate, block, perform IO or call back into
+/// this trait.
 pub trait AudioEnginePort: Send + Sync {
     /// Loads a file as the current track, replacing whatever was loaded.
     fn load(&self, path: &Path) -> Result<()>;

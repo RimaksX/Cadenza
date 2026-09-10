@@ -243,8 +243,8 @@ fn run() -> std::result::Result<(), String> {
     ));
 
     // The level this listener left it at, before anything can be played at
-    // somebody else's. Only where there is a listener: a
-    // first run has nobody to have left anything.
+    // somebody else's. Only where there is a listener: a first run has nobody
+    // to have left anything.
     if active.is_some()
         && let Err(err) = playback.restore_volume()
     {

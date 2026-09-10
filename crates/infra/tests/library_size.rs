@@ -1,11 +1,10 @@
 //! What a full library costs, in milliseconds.
 //!
-//! Cadenza is sized for 1000–5000 tracks, and that asks for a
-//! performance pass. This is the measurement that pass is made from: a real
-//! database with five thousand tracks in it, timed on the path the window
-//! actually walks: the whole-library read behind every refresh. It is what
-//! showed that the same read was being paid for on every keystroke, which it
-//! no longer is.
+//! Cadenza is sized for 1000–5000 tracks, and that asks for a performance pass.
+//! This is the measurement that pass is made from: a real database with five
+//! thousand tracks in it, timed on the path the window actually walks: the
+//! whole-library read behind every refresh. It is what showed that the same
+//! read was being paid for on every keystroke, which it no longer is.
 //!
 //! Ignored by default. It is a measurement rather than an assertion: numbers
 //! that mean something on the machine they were taken on and nothing at all on

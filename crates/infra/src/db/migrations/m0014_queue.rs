@@ -1,8 +1,8 @@
 //! The saved playback queue.
 //!
 //! The original schema defines no table for it, while the behaviour requires
-//! restoring the last queue, and it is per-profile. This is the shape
-//! that satisfies `QueueRepositoryPort`.
+//! restoring the last queue, and it is per-profile. This is the shape that
+//! satisfies `QueueRepositoryPort`.
 //!
 //! One table for the three lanes rather than three tables: they hold the same
 //! thing in a different role, and the role is one column.

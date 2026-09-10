@@ -1,5 +1,6 @@
-// The three faces, compiled into the binary. Cadenza is offline: a font
-// fetched at runtime is a font that is missing on the machine that matters. All three are SIL OFL 1.1, whose licence ships beside them.
+// The three faces, compiled into the binary. Cadenza is offline: a font fetched
+// at runtime is a font that is missing on the machine that matters. All three
+// are SIL OFL 1.1, whose licence ships beside them.
 //
 // They answer to names no machine will already have, and that is the point.
 // Slint asks fontdb for a family by name; fontdb gathers every face carrying
@@ -42,8 +43,8 @@ export { Theme }
 // The window, and the whole boundary between Rust and the markup.
 //
 // Everything in is a property, everything out is a callback. There is no other
-// channel: the markup cannot reach a database, a file or the audio engine
-// , and this file is where that is checked by reading.
+// channel: the markup cannot reach a database, a file or the audio engine , and
+// this file is where that is checked by reading.
 export component AppWindow inherits Window {
     title: "Cadenza";
     background: Theme.bg-0;
@@ -665,9 +666,8 @@ export component AppWindow inherits Window {
                 return accept;
             }
 
-            // The search field, from anywhere. The shortcut every list in
-            // every program has, and the only one worth spending a modifier on
-            // here.
+            // The search field, from anywhere. The shortcut every list in every
+            // program has, and the only one worth spending a modifier on here.
             // It reaches the field on whichever page has one, which today is
             // the library. Moving to that page as well would need the shell's
             // own `section`, which is private to it, and a shortcut that

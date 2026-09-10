@@ -8,8 +8,8 @@ license.workspace = true
 repository.workspace = true
 publish = false
 
-# Layering rule: ui -> infra is forbidden. The absence of
-# cadenza-infra here is what enforces it — a violation fails to compile.
+# Layering rule: ui -> infra is forbidden. The absence of cadenza-infra here is
+# what enforces it — a violation fails to compile.
 [dependencies]
 cadenza-core.workspace = true
 
@@ -22,8 +22,8 @@ slint = "1.17"
 
 # The same backend Slint would have chosen, asked for by name so that a handler
 # can be hung on its event loop. Files dragged from the desktop arrive as winit
-# events that Slint itself does not look at; this is the
-# published seam for reaching them, and it costs no `unsafe` and no Win32.
+# events that Slint itself does not look at; this is the published seam for
+# reaching them, and it costs no `unsafe` and no Win32.
 i-slint-backend-winit = "1.17"
 
 [build-dependencies]

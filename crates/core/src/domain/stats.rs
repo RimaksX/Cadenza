@@ -19,8 +19,8 @@ pub enum PlaySource {
     ///
     /// The station rides on the source rather than beside it. The schema has
     /// them as two columns with a `CHECK` holding them together — "a session id
-    /// only where the source is radio" — and a rule a database has to be told is
-    /// a rule the type can simply not allow to be broken.
+    /// only where the source is radio" — and a rule a database has to be told
+    /// is a rule the type can simply not allow to be broken.
     Radio(RadioSessionId),
     /// Explicitly queued by the listener.
     Manual,

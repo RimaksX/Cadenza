@@ -18,9 +18,9 @@ pub struct FileMetadata {
 
 /// Filesystem access.
 ///
-/// Read-only by design. Cadenza never deletes a file from disk: removing a track
-/// removes it from the library only, and tag writing is not
-/// required, so no write method exists to be called by mistake.
+/// Read-only by design. Cadenza never deletes a file from disk: removing a
+/// track removes it from the library only, and tag writing is not required, so
+/// no write method exists to be called by mistake.
 pub trait FileSystemPort: Send + Sync {
     /// True when the path resolves.
     fn exists(&self, path: &Path) -> bool;
@@ -33,8 +33,8 @@ pub trait FileSystemPort: Send + Sync {
 
     /// A content hash for duplicate detection.
     ///
-    /// Reads the whole file, so it is a background job rather than something the
-    /// scanner does inline.
+    /// Reads the whole file, so it is a background job rather than something
+    /// the scanner does inline.
     fn hash_file(&self, path: &Path) -> Result<String>;
 
     /// Creates a directory and every parent it needs.

@@ -6,9 +6,9 @@ use crate::{CoreError, Result};
 
 /// How many bands the parametric equaliser has.
 ///
-/// Eight rather than the ten fixed bands first described: a
-/// parametric band chooses its own frequency, so ten of them are two more
-/// things to place rather than two more octaves of control.
+/// Eight rather than the ten fixed bands first described: a parametric band
+/// chooses its own frequency, so ten of them are two more things to place
+/// rather than two more octaves of control.
 pub const ADVANCED_BAND_COUNT: usize = 8;
 
 /// Where a fresh parametric equaliser puts its bands, and how wide.
@@ -60,9 +60,9 @@ pub const SIMPLE_TREBLE_HZ: u32 = 8_000;
 
 /// How long a gain change is ramped over instead of being applied instantly.
 ///
-/// Gain changes must not click; a step change
-/// in filter coefficients is exactly what produces one. A calibration knob:
-/// shorter feels more responsive, longer is safer against zipper noise.
+/// Gain changes must not click; a step change in filter coefficients is exactly
+/// what produces one. A calibration knob: shorter feels more responsive, longer
+/// is safer against zipper noise.
 pub const GAIN_RAMP: DurationMs = DurationMs::from_millis(50);
 
 /// A flat parametric configuration at the default band placement.

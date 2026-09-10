@@ -1,7 +1,6 @@
 //! Turning files into sound.
 //!
-//! The graph is built one stage at a time. What exists
-//! now is the spine of it:
+//! The graph is built one stage at a time. What exists now is the spine of it:
 //!
 //! ```text
 //! TrackStream -> channel map -> Resampling -> mixer -> SampleRing -> EQ -> gain

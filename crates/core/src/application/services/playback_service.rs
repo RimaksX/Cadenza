@@ -1,9 +1,8 @@
 //! Playing a track.
 //!
-//! The interface is not allowed to drive the audio engine itself
-//! , so this is the whole of what it may ask for: load a
-//! track, start, stop, move, change the level. Everything the player bar shows
-//! comes back as one [`PlayerView`].
+//! The interface is not allowed to drive the audio engine itself , so this is
+//! the whole of what it may ask for: load a track, start, stop, move, change
+//! the level. Everything the player bar shows comes back as one [`PlayerView`].
 
 use std::sync::{Arc, RwLock};
 
@@ -343,12 +342,12 @@ impl PlaybackService {
 
     /// Jumps to a position in the current track.
     pub fn seek(&self, position: PlaybackPosition) -> Result<()> {
-        // A probe, while a reported defect is being hunted.
-        // Seeking with a transition armed is the state the defect needs, and it
-        // cannot be reproduced in a test: the count of transitions is raised by
-        // the audio callback crossing the middle of a crossfade, while a seek
-        // travels to the decode thread as a command. Only a real machine has
-        // both a callback and a queue of commands.
+        // A probe, while a reported defect is being hunted. Seeking with a
+        // transition armed is the state the defect needs, and it cannot be
+        // reproduced in a test: the count of transitions is raised by the audio
+        // callback crossing the middle of a crossfade, while a seek travels to
+        // the decode thread as a command. Only a real machine has both a
+        // callback and a queue of commands.
         //
         // Cheap enough to leave: a listener seeks a handful of times an hour.
         self.context.info(&format!(
@@ -365,10 +364,10 @@ impl PlaybackService {
     /// Sets the output level.
     ///
     /// Written down as well as applied, because a player that opens at full
-    /// volume every morning is a player somebody turns down every morning
-    /// . Every step of a drag writes one small row; volume
-    /// is not dragged often enough for that to be worth the preview-and-commit
-    /// dance the equaliser needs.
+    /// volume every morning is a player somebody turns down every morning .
+    /// Every step of a drag writes one small row; volume is not dragged often
+    /// enough for that to be worth the preview-and-commit dance the equaliser
+    /// needs.
     ///
     /// Setting a level while muted unmutes: reaching for the volume is how
     /// somebody says they want to hear something.

@@ -104,8 +104,8 @@ pub struct MoodPreset {
     pub rules: MoodRules,
     /// Serialised per-genre preference multipliers.
     ///
-    /// Still opaque. Genre affinity is a ranking term and needs a listener's own
-    /// genres in front of it before the shape can be chosen; radio works
+    /// Still opaque. Genre affinity is a ranking term and needs a listener's
+    /// own genres in front of it before the shape can be chosen; radio works
     /// without it, and inventing a schema for an unwritten scorer is how
     /// schemas become wrong.
     pub genre_boost_json: Option<String>,
@@ -127,8 +127,8 @@ pub struct MoodPreset {
 impl MoodPreset {
     /// True when the listener may edit or delete this mood.
     ///
-    /// Custom moods are allowed; built-ins are not editable,
-    /// so that a listener can always get back to a known-good starting point.
+    /// Custom moods are allowed; built-ins are not editable, so that a listener
+    /// can always get back to a known-good starting point.
     pub const fn is_editable(&self) -> bool {
         !self.is_builtin
     }

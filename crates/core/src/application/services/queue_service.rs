@@ -1,8 +1,8 @@
 //! What plays next.
 //!
-//! The queue is the only thing that starts a track once the listener has
-//! chosen the first one. [`super::PlaybackService`] knows how to play a file
-//! and nothing about order; this service owns the order and asks it to play.
+//! The queue is the only thing that starts a track once the listener has chosen
+//! the first one. [`super::PlaybackService`] knows how to play a file and
+//! nothing about order; this service owns the order and asks it to play.
 //!
 //! It sits on top of playback rather than beside it because "next" is one
 //! action, not two: deciding what follows and starting it cannot be split
@@ -48,9 +48,8 @@ pub struct QueuePorts {
     /// playlist is the order of its entries, and the service around it is about
     /// covers, names and folders.
     pub playlists: Arc<dyn PlaylistRepositoryPort>,
-    /// What the library sounds like, for shuffle to choose by. A library
-    /// nobody has analysed yet still shuffles: every candidate
-    /// simply scores the same.
+    /// What the library sounds like, for shuffle to choose by. A library nobody
+    /// has analysed yet still shuffles: every candidate simply scores the same.
     pub features: Arc<dyn TrackFeaturesRepositoryPort>,
     /// The station, when there is one to keep topped up.
     ///
@@ -114,10 +113,9 @@ impl QueueService {
         // library stopped being written into it when what follows a library
         // track began to be worked out on demand; a playlist stopped when it
         // became a source that reads itself, and a queue saved before that
-        // still holds the whole list there. Both go.
-        // Nothing is lost with them: the source plays on from the track that is
-        // playing. The manual queue, which is the part somebody actually wrote,
-        // comes back untouched.
+        // still holds the whole list there. Both go. Nothing is lost with them:
+        // the source plays on from the track that is playing. The manual queue,
+        // which is the part somebody actually wrote, comes back untouched.
         queue
             .upcoming
             .retain(|entry| matches!(entry.origin, QueueOrigin::Radio(_)));
@@ -135,11 +133,11 @@ impl QueueService {
 
     /// Loads the active profile's queue, dropping whoever else's was held.
     ///
-    /// The third of the profile-switching steps, for the one piece of
-    /// state that does not carry its owner with it. The equaliser and the
-    /// playback settings cache the profile alongside the value and notice a
-    /// switch by themselves; a queue is a queue, and the only thing that says
-    /// whose it is, is which profile was active when it was read.
+    /// The third of the profile-switching steps, for the one piece of state
+    /// that does not carry its owner with it. The equaliser and the playback
+    /// settings cache the profile alongside the value and notice a switch by
+    /// themselves; a queue is a queue, and the only thing that says whose it
+    /// is, is which profile was active when it was read.
     ///
     /// Nothing is saved here: the outgoing queue was written after the change
     /// that last touched it, which is what `persist` is for.
@@ -205,10 +203,9 @@ impl QueueService {
     /// its own idea of the tracks was a second answer to a question with one.
     ///
     /// The entry carries the playlist as its origin, which is what makes the
-    /// transition between its tracks gapless rather than crossfaded
-    /// , what tells the continuation which rows to read,
-    /// and what a restored queue needs to still know it is playing a playlist
-    /// rather than a library.
+    /// transition between its tracks gapless rather than crossfaded , what
+    /// tells the continuation which rows to read, and what a restored queue
+    /// needs to still know it is playing a playlist rather than a library.
     pub fn play_playlist(&self, playlist_id: PlaylistId, from: MediaFileId) -> Result<()> {
         let profile_id = self.context.require_active_profile()?;
 
@@ -450,8 +447,8 @@ impl QueueService {
     /// What shuffle picks out of the library.
     ///
     /// The round is what has not been heard yet; when it empties, repeat all
-    /// begins another and repeat off stops — the fourth hard rule of
-    /// the shuffle rules. Which of the round's tracks plays is
+    /// begins another and repeat off stops — the fourth hard rule of the
+    /// shuffle rules. Which of the round's tracks plays is
     /// [`shuffle_policy::choose_next`]'s decision and not this service's: it
     /// scores every candidate against what is playing, keeps the best handful
     /// and draws from those.
@@ -546,8 +543,7 @@ impl QueueService {
     /// Restarts the current track, or goes back to the previous one.
     ///
     /// Which of the two is [`previous_action`]'s decision, not this service's:
-    /// The rule is stated about elapsed time, and a rule
-    /// belongs in a policy.
+    /// The rule is stated about elapsed time, and a rule belongs in a policy.
     pub fn previous(&self) -> Result<()> {
         // Reconciled first, for the window after the callback has crossed a
         // join but before the tick has noticed: a quarter of a second in which
@@ -613,11 +609,11 @@ impl QueueService {
 
     /// Advances when the current track has run out.
     ///
-    /// Called from the interface's tick. The engine has no way to call back into
-    /// the application layer — the realtime contract
-    /// forbids it — so somebody has to ask, and asking four times a second costs
-    /// two atomic loads.
-    /// Returns whether anything changed, so a caller can redraw only then.
+    /// Called from the interface's tick. The engine has no way to call back
+    /// into the application layer — the realtime contract forbids it — so
+    /// somebody has to ask, and asking four times a second costs two atomic
+    /// loads. Returns whether anything changed, so a caller can redraw only
+    /// then.
     pub fn poll(&self) -> Result<bool> {
         let mut changed = self.catch_up()?;
 
@@ -765,11 +761,10 @@ impl QueueService {
             return Ok(false);
         }
 
-        // The other half of the probe in `PlaybackService::seek`
-        // . A step the listener did not ask for, logged with
-        // the counts that caused it: a seek immediately followed by one of
-        // these is the defect, and nothing short of a real machine produces the
-        // pair.
+        // The other half of the probe in `PlaybackService::seek` . A step the
+        // listener did not ask for, logged with the counts that caused it: a
+        // seek immediately followed by one of these is the defect, and nothing
+        // short of a real machine produces the pair.
         self.context.info(&format!(
             "the engine advanced on its own: {} counted, {seen} seen",
             advances
@@ -796,9 +791,8 @@ impl QueueService {
     /// before it is needed.
     ///
     /// The transition is chosen from what is *playing*, not from what is
-    /// coming: the rule is about the material being listened
-    /// to, and a playlist does not start fading out because the next thing was
-    /// queued by hand.
+    /// coming: the rule is about the material being listened to, and a playlist
+    /// does not start fading out because the next thing was queued by hand.
     fn arm_next(&self) -> Result<()> {
         // With nothing playing there is nothing to arm, and a window opened
         // before anybody has chosen a profile has no settings to read either.

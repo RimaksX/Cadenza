@@ -247,8 +247,8 @@ impl Controller {
             return;
         };
 
-        // Which decides whether there is an application at all yet: with
-        // nobody created, the shell is replaced by the one screen that asks.
+        // Which decides whether there is an application at all yet: with nobody
+        // created, the shell is replaced by the one screen that asks.
         window.set_first_run(self.profile.borrow().is_none());
 
         // The orders on offer, and the one in force. Built here rather than in
@@ -307,9 +307,9 @@ impl Controller {
             // a local that is then cloned into it: five thousand rows is not a
             // thing to hold twice for the sake of a shorter line.
             Ok(summaries) => *self.shown_library.borrow_mut() = summaries,
-            // Not an error worth reporting: it is the first-run state, and
-            // the window is showing the welcome screen rather than this page.
-            // A hint used to be set here telling somebody to open Settings and
+            // Not an error worth reporting: it is the first-run state, and the
+            // window is showing the welcome screen rather than this page. A
+            // hint used to be set here telling somebody to open Settings and
             // add a listener, which is the thing that screen now does - a
             // sentence nobody could reach and which had stopped being true.
             Err(CoreError::NoActiveProfile) => {
@@ -496,8 +496,8 @@ impl Controller {
         window.set_playlists_summary(playlist_vm::summary_line(&summaries).into());
 
         // The favourites list is drawn across the page rather than in the grid,
-        // so it leaves the grid's model. It is first in
-        // the listing, which is where the service puts it.
+        // so it leaves the grid's model. It is first in the listing, which is
+        // where the service puts it.
         let cards = playlist_vm::cards(&summaries, |path| self.picture(path));
         let (banner, rest): (Vec<_>, Vec<_>) = cards.into_iter().partition(|card| card.automatic);
 
@@ -897,11 +897,10 @@ impl Controller {
 
     /// Moves to the next track.
     pub fn next(&self) {
-        // Pressing next during a station is a verdict on what is playing —
-        // the weakest kind, but one radio has to learn from. Recorded
-        // before the track changes, because after it there is nothing to point
-        // at. A track that ran out on its own is not a skip and does not come
-        // through here.
+        // Pressing next during a station is a verdict on what is playing — the
+        // weakest kind, but one radio has to learn from. Recorded before the
+        // track changes, because after it there is nothing to point at. A track
+        // that ran out on its own is not a skip and does not come through here.
         if self.services.radio.session().is_some()
             && let Some(track) = self.services.playback.view().track
         {
@@ -1219,10 +1218,10 @@ impl Controller {
     pub fn decide_review(&self, id: &str, choice: ReviewChoice) {
         self.run(|| {
             let review_id = ImportReviewId::parse(id)?;
-            // Three named choices against three resolutions, and no
-            // wildcard. The string form ended in `_ => AddAnyway`, so a
-            // misspelling anywhere in the markup would have added a file the
-            // listener had just asked to keep out, quietly and irreversibly.
+            // Three named choices against three resolutions, and no wildcard.
+            // The string form ended in `_ => AddAnyway`, so a misspelling
+            // anywhere in the markup would have added a file the listener had
+            // just asked to keep out, quietly and irreversibly.
             let resolution = match choice {
                 ReviewChoice::Keep => ReviewResolution::KeepExisting,
                 ReviewChoice::Replace => ReviewResolution::RemoveExisting,
@@ -1285,9 +1284,9 @@ impl Controller {
 
     /// Switches to another listener.
     ///
-    /// Switching a profile is three steps in order — playback stops,
-    /// the outgoing profile's state is saved, the incoming one's is loaded —
-    /// and the order is the whole of it: a queue reloaded before playback stops
+    /// Switching a profile is three steps in order — playback stops, the
+    /// outgoing profile's state is saved, the incoming one's is loaded — and
+    /// the order is the whole of it: a queue reloaded before playback stops
     /// would be the new listener's queue with the old listener's track playing
     /// out of it.
     ///

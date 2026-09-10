@@ -1,10 +1,10 @@
 //! The eight moods shipped with the application.
 //!
-//! They are named — Workout, Focus, Chill, Party, Driving,
-//! Sleep, Gaming, Morning — and says nothing whatever about what they mean.
-//! These bands are ours, and they are the part of radio most worth arguing
-//! with: they are a claim about what music somebody wants while running, and
-//! that claim is not a measurement.
+//! They are named — Workout, Focus, Chill, Party, Driving, Sleep, Gaming,
+//! Morning — and says nothing whatever about what they mean. These bands are
+//! ours, and they are the part of radio most worth arguing with: they are a
+//! claim about what music somebody wants while running, and that claim is not a
+//! measurement.
 //!
 //! Each rule is a triple: the bottom of the band, the top, and how far outside
 //! it a track can be before it stops counting. Soft edges rather than filters,

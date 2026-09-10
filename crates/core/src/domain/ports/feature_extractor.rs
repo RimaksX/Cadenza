@@ -8,10 +8,10 @@ use crate::domain::track::TrackFeatures;
 
 /// Extracts BPM, key, energy and the spectral features radio depends on.
 ///
-/// Local DSP only — no models, no downloads, no network.
-/// Implementations run on a low-priority background thread and must
-/// remain interruptible: analysing a five-thousand-track library must never make
-/// playback stutter or the machine feel busy.
+/// Local DSP only — no models, no downloads, no network. Implementations run on
+/// a low-priority background thread and must remain interruptible: analysing a
+/// five-thousand-track library must never make playback stutter or the machine
+/// feel busy.
 pub trait FeatureExtractorPort: Send + Sync {
     /// Identifier of this extractor's algorithm, stored in
     /// `track_features.extractor_version`.

@@ -3,8 +3,8 @@
 //! WAV is generated rather than committed because it is the one required format
 //! whose container is simple enough to write by hand: a 44-byte header and PCM
 //! samples. MP3, FLAC and M4A need encoders, so fixtures in those formats have
-//! to be real files — they arrived with the decoder, which is finally able
-//! to verify them.
+//! to be real files — they arrived with the decoder, which is finally able to
+//! verify them.
 //!
 //! Generating rather than committing also means a test can ask for two files
 //! with deliberately identical or deliberately different contents, which is what

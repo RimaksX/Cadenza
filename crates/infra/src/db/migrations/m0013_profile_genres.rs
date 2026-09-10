@@ -2,9 +2,9 @@
 //!
 //! `track_genres` describes the recording and is shared, which is right until a
 //! listener corrects one: a profile may edit metadata locally, and that edit
-//! must not reach anyone else. Title, artist, album and year
-//! already have per-profile columns in `profile_tracks`; genre is many-to-many
-//! and needs a table of its own.
+//! must not reach anyone else. Title, artist, album and year already have
+//! per-profile columns in `profile_tracks`; genre is many-to-many and needs a
+//! table of its own.
 
 pub const SQL: &str = r#"
 -- Whether this profile has replaced the file's genres.

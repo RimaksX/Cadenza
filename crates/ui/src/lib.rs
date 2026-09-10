@@ -2,8 +2,9 @@
 //!
 //! The layering rule is enforced by the dependency list rather than by
 //! discipline: this crate depends on `cadenza-core` and `slint`, and on nothing
-//! else in the workspace. `cadenza-infra` is not reachable from here, so no view
-//! can open a database, read a file or touch the audio engine even by accident.
+//! else in the workspace. `cadenza-infra` is not reachable from here, so no
+//! view can open a database, read a file or touch the audio engine even by
+//! accident.
 //!
 //! What crosses the boundary is [`UiServices`] in and a window on the screen
 //! out. Everything between is: properties down, callbacks up.

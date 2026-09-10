@@ -29,9 +29,9 @@
 //! The weights are settled in [`RankingWeights`]. Two things about the line as
 //! written had to be decided rather than copied. The diversity term
 //! **subtracts** — as an addition it would reward a monotonous pick, which is
-//! the opposite of what it is named for. And the noise is an *amplitude*
-//! rather than a weight on a term: there is nothing to weigh, only a decision
-//! about how far chance may move a candidate.
+//! the opposite of what it is named for. And the noise is an *amplitude* rather
+//! than a weight on a term: there is nothing to weigh, only a decision about
+//! how far chance may move a candidate.
 
 use super::NEUTRAL_SCORE;
 use crate::domain::mood::{FeatureBand, MoodRules};
@@ -234,10 +234,9 @@ pub fn mood_score(
     // A band missed outright is not "a bit wrong" - it is a band with a soft
     // edge already built in, and the track fell past even that. Scoring it
     // proportionally was tried twice. First the plain mean, which put a 141 BPM
-    // track fourth in Sleep; then the mean scaled by the
-    // share of bands met, which is what shipped and which still let a 105 BPM
-    // rap track score 0.33 in a mood whose tempo band ends at 80 - `t=0.00`
-    // costing only a third.
+    // track fourth in Sleep; then the mean scaled by the share of bands met,
+    // which is what shipped and which still let a 105 BPM rap track score 0.33
+    // in a mood whose tempo band ends at 80 - `t=0.00` costing only a third.
     //
     // Measured across the owner's 41 tracks, the scaled mean left **41 of 41**
     // candidates alive in Driving, Focus and Morning: the station was the
@@ -595,8 +594,8 @@ mod tests {
     fn opposite_moods_cannot_both_want_the_same_track() {
         // Read absolutely, this library is loud: every track sits inside
         // Driving's energy band and none inside Focus's, so one mood took
-        // everything and the other took nothing. Ranked,
-        // the quietest of them is the quiet one.
+        // everything and the other took nothing. Ranked, the quietest of them
+        // is the quiet one.
         let library: Vec<TrackFeatures> = [0.62, 0.66, 0.72, 0.77, 0.82]
             .into_iter()
             .map(|energy| features(Some(100.0), energy, 0.5))

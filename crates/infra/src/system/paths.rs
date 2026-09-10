@@ -1,9 +1,9 @@
 //! Where Cadenza keeps its files.
 //!
-//! The layout is fixed. Configuration and the database
-//! go under the roaming profile so they follow the user between machines on a
-//! domain; caches and logs go under the local one, because they are large,
-//! regenerable and nobody wants them synchronised.
+//! The layout is fixed. Configuration and the database go under the roaming
+//! profile so they follow the user between machines on a domain; caches and
+//! logs go under the local one, because they are large, regenerable and nobody
+//! wants them synchronised.
 
 use std::fs;
 use std::path::{Path, PathBuf};

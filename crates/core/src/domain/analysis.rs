@@ -1,8 +1,8 @@
 //! Background analysis work items.
 //!
 //! Not one of the named domain types, but the schema defines the
-//! `analysis_jobs` table and the layering requires an `AnalysisJobRepositoryPort`,
-//! so the entity those two refer to needs a home.
+//! `analysis_jobs` table and the layering requires an
+//! `AnalysisJobRepositoryPort`, so the entity those two refer to needs a home.
 
 use super::ids::{AnalysisJobId, MediaFileId};
 use super::value_objects::Timestamp;

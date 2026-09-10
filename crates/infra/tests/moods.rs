@@ -49,10 +49,9 @@ fn harness() -> Harness {
 /// A library with a shape: slow and quiet at one end, fast and loud at the
 /// other, and the middle filled in.
 ///
-/// A mood is now judged against the library it is choosing from
-/// , so a test of what a mood means needs one. Two tracks
-/// on their own would put both of them in the middle of their own distribution,
-/// which is true and useless.
+/// A mood is now judged against the library it is choosing from , so a test of
+/// what a mood means needs one. Two tracks on their own would put both of them
+/// in the middle of their own distribution, which is true and useless.
 fn library() -> Vec<TrackFeatures> {
     [
         (55.0, 0.10),

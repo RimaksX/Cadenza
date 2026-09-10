@@ -8,9 +8,9 @@
 //!   fills the ring;
 //! * the **audio callback** ([`fill_output`]) empties the ring into the device.
 //!
-//! Only the last one is bound by the realtime contract, and everything it may do
-//! is in one function: read atomics, read the ring, multiply. No allocation, no
-//! locking, no IO, no database, no UI.
+//! Only the last one is bound by the realtime contract, and everything it may
+//! do is in one function: read atomics, read the ring, multiply. No allocation,
+//! no locking, no IO, no database, no UI.
 
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU8, AtomicU32, AtomicU64, Ordering};
@@ -409,9 +409,9 @@ fn amplitude(volume: Volume) -> f32 {
 
 /// Fills one output buffer. **This runs on the realtime audio thread.**
 ///
-/// Everything it does is on the allowed list: atomic reads, a
-/// lock-free ring, and multiplication. `gain` is the callback's own state, kept
-/// across calls so that a ramp survives the buffer boundary.
+/// Everything it does is on the allowed list: atomic reads, a lock-free ring,
+/// and multiplication. `gain` is the callback's own state, kept across calls so
+/// that a ramp survives the buffer boundary.
 pub(crate) fn fill_output(shared: &Shared, out: &mut [f32], gain: &mut f32, eq: &mut EqChain) {
     // A flush was asked for: discard the queue, adopt the new position, and come
     // back from silence so the discontinuity cannot be heard.
@@ -455,9 +455,9 @@ pub(crate) fn fill_output(shared: &Shared, out: &mut [f32], gain: &mut f32, eq: 
         shared.underruns.fetch_add(1, Ordering::Relaxed);
     }
 
-    // The graph puts the equaliser before the stream's own volume, and so
-    // does this: the listener's gain is the last thing applied, so a boosted
-    // band is turned down by the slider like everything else.
+    // The graph puts the equaliser before the stream's own volume, and so does
+    // this: the listener's gain is the last thing applied, so a boosted band is
+    // turned down by the slider like everything else.
     eq.process(shared, out);
 
     let step = 1.0 / (RAMP_SECONDS * shared.rate as f32);
@@ -569,8 +569,8 @@ pub(crate) fn decode_loop(shared: Arc<Shared>, commands: &Receiver<Command>) {
 /// but not yet handed over.
 ///
 /// Two of these are alive through every transition, which is the whole of what
-/// makes gapless and crossfade possible. They are peers: nothing here
-/// knows which one is playing.
+/// makes gapless and crossfade possible. They are peers: nothing here knows
+/// which one is playing.
 struct Lane {
     source: TrackStream,
     resampler: Option<Resampling>,

@@ -5,10 +5,10 @@ use crate::domain::ids::{MediaFileId, ProfileId};
 /// Something the rest of the application should know about.
 ///
 /// The variants are deliberately coarse. A fine-grained event per field would
-/// mean inventing thirty variants now and keeping every one of them in sync with
-/// the view state forever; instead an event says *what area* changed and the
-/// subscriber re-reads the state it cares about. The UI is a function of view
-/// state anyway, so it has nothing to gain from deltas.
+/// mean inventing thirty variants now and keeping every one of them in sync
+/// with the view state forever; instead an event says *what area* changed and
+/// the subscriber re-reads the state it cares about. The UI is a function of
+/// view state anyway, so it has nothing to gain from deltas.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DomainEvent {
     /// The active profile changed. Everything profile-scoped is now stale.

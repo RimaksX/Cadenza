@@ -201,9 +201,9 @@ pub const UI_SCALE_KEY: &str = "ui.scale";
 
 /// How large the interface is drawn, as a percentage of its design size.
 ///
-/// The interface scales, and in the same breath
-/// for a fixed layout — which together mean exactly this: every length grows
-/// or shrinks together and nothing moves anywhere else.
+/// The interface scales, and in the same breath for a fixed layout — which
+/// together mean exactly this: every length grows or shrinks together and
+/// nothing moves anywhere else.
 ///
 /// Steps rather than a slider. Four sizes is a choice somebody makes once; a
 /// continuous control is a thing to fiddle with, and the value between two

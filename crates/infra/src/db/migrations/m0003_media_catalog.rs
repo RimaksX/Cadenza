@@ -3,8 +3,8 @@
 //! Both tables are global. They describe the music, not the listener, so two
 //! profiles holding the same file share one row and one analysis.
 //!
-//! A `track_features.scale` column is absent: it and `mode` would name the
-//! same major/minor property.
+//! A `track_features.scale` column is absent: it and `mode` would name the same
+//! major/minor property.
 
 pub const SQL: &str = r#"
 CREATE TABLE media_files (

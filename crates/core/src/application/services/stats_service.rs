@@ -1,10 +1,9 @@
 //! What the listener has been listening to, and forgetting it on time.
 //!
 //! Two duties that look unrelated and are the same one. History is kept for
-//! thirty days, so every number here is a number about a
-//! window — and the window is enforced by deleting what falls out of it, not by
-//! filtering it out of a query. Data that is only hidden is data that is still
-//! there.
+//! thirty days, so every number here is a number about a window — and the
+//! window is enforced by deleting what falls out of it, not by filtering it out
+//! of a query. Data that is only hidden is data that is still there.
 
 use std::sync::Arc;
 

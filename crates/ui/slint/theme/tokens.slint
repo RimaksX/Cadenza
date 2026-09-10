@@ -31,8 +31,8 @@ export global Theme {
     // A renderer told to draw at 1.25 puts every one-pixel line on a pixel and
     // a quarter and every 14-pixel stem between two columns, and the result is
     // soft — which is what a magnifying glass looks like and is exactly what
-    // this interface must not. Scaled here, every length
-    // lands on a whole pixel again before anything is drawn.
+    // this interface must not. Scaled here, every length lands on a whole pixel
+    // again before anything is drawn.
     in property <float> scale: 1.0;
 
     /// A design length at the size in force, snapped back to an even pixel.
@@ -155,8 +155,8 @@ export global Theme {
     // The weight follows the size and cannot be set apart from it: every file
     // is stroked 1.5 in a 24 viewBox, so the line that reaches the screen is
     // `1.5 × size / 24` — a twelve draws at 0.75 and a twenty at 1.25, which is
-    // exactly what "some are thin and some are fat" was.
-    // Fewer sizes is therefore also fewer weights.
+    // exactly what "some are thin and some are fat" was. Fewer sizes is
+    // therefore also fewer weights.
     //
     // `icon-inline` 12 — beside a word, where it must not outshout the label it
     // belongs to: the `QUEUE` pill in a row is a glyph and 12px mono capitals.
@@ -172,9 +172,9 @@ export global Theme {
     //
     // Counted rather than chosen, and it used to be two hundred by eye. The
     // plate inside it is a display heading (50), four, and a caption (18),
-    // inside its own 24 of padding twice over — 120. The band gives it the
-    // same 24 above and below, so every gap around the plate is one number:
-    // 120 + 48 = 168.
+    // inside its own 24 of padding twice over — 120. The band gives it the same
+    // 24 above and below, so every gap around the plate is one number: 120 + 48
+    // = 168.
     //
     // A height rather than a share of the width: a band that followed the
     // window would be a different shape on every screen, and what it holds
@@ -202,10 +202,10 @@ export global Theme {
     // needs ninety. The duration stays right-aligned, so the extra width falls
     // where nothing is drawn.
     out property <length> time-column: root.px(96);
-    // Twelve, and it used to be fourteen. The sleeve is 36 and the cell it
-    // sits in was 34, so the picture overhung its own cell by a pixel at each
-    // end and the gap above it measured thirteen against eight at its left.
-    // At twelve the cell is exactly the sleeve, and the space above, below and
+    // Twelve, and it used to be fourteen. The sleeve is 36 and the cell it sits
+    // in was 34, so the picture overhung its own cell by a pixel at each end
+    // and the gap above it measured thirteen against eight at its left. At
+    // twelve the cell is exactly the sleeve, and the space above, below and
     // before it is the same twelve — which is `space-3`, on the ladder, and
     // even.
     out property <length> row-padding: root.px(12);

@@ -1,7 +1,7 @@
 //! The import review queue.
 //!
-//! Cadenza never silently discards a file or silently merges a duplicate. Anything
-//! ambiguous lands here and waits for the listener to decide.
+//! Cadenza never silently discards a file or silently merges a duplicate.
+//! Anything ambiguous lands here and waits for the listener to decide.
 
 use super::ids::{ImportReviewId, MediaFileId, ProfileId};
 use super::value_objects::Timestamp;

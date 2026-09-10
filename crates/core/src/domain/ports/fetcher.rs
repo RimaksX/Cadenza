@@ -84,8 +84,8 @@ pub struct FetchedTracks {
     /// here.
     ///
     /// A playlist holds the *list*, and a second fetch of the same address
-    /// fetches almost nothing — everything is already on the disk. Without
-    /// this the playlist made from that fetch would hold the two tracks that
+    /// fetches almost nothing — everything is already on the disk. Without this
+    /// the playlist made from that fetch would hold the two tracks that
     /// happened to be new.
     pub listed: Vec<ListedTrack>,
     /// What the playlist is called, where a playlist is what was asked for.
@@ -121,16 +121,15 @@ pub trait FetchPort: Send + Sync {
     /// them: a playlist somebody changed their mind about has to end when they
     /// say so and not when it finishes. `have` is asked before each track of a
     /// list, and a track it recognises is not fetched at all — what counts as
-    /// *already here* is the library's decision and not this port's
-    /// . All three run on whatever thread called this,
-    /// which is never the one drawing the window.
-    /// Installs whatever [`Self::missing_for`] reported for this link, and says
-    /// what is still missing afterwards.
+    /// *already here* is the library's decision and not this port's . All three
+    /// run on whatever thread called this, which is never the one drawing the
+    /// window. Installs whatever [`Self::missing_for`] reported for this link,
+    /// and says what is still missing afterwards.
     ///
     /// Through the machine's own package manager, which is the same posture as
     /// everything else here: Cadenza opens no connection, it runs a program
-    /// that is already on the machine and lets that program do its job. What
-    /// it runs is reported line by line through `said`, because installing
+    /// that is already on the machine and lets that program do its job. What it
+    /// runs is reported line by line through `said`, because installing
     /// something on somebody's computer is not a thing to do behind a spinner.
     fn install(&self, link: &str, said: &dyn Fn(&str)) -> Result<Vec<MissingTool>>;
 

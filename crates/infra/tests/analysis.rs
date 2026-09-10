@@ -1,8 +1,8 @@
 //! Background analysis over a real database.
 //!
-//! The three things analysis is judged on: the answers are saved, a file already
-//! analysed is not analysed again, and a file that cannot be analysed does not
-//! come back for ever.
+//! The three things analysis is judged on: the answers are saved, a file
+//! already analysed is not analysed again, and a file that cannot be analysed
+//! does not come back for ever.
 
 use std::path::PathBuf;
 use std::sync::Arc;

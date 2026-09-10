@@ -8,8 +8,8 @@ use crate::domain::value_objects::{DurationMs, PlaybackPosition};
 
 /// Past this point, "previous" restarts the current track instead of going back.
 ///
-/// Roughly three seconds; this is the exact threshold that
-/// approximation becomes.
+/// Roughly three seconds; this is the exact threshold that approximation
+/// becomes.
 pub const PREVIOUS_RESTART_THRESHOLD: DurationMs = DurationMs::from_secs(3);
 
 /// What pressing "previous" should do.
@@ -32,11 +32,11 @@ pub fn previous_action(position: PlaybackPosition) -> PreviousAction {
 
 /// How the track from `origin` should hand over to the next one.
 ///
-/// This splits by source rather than by user preference:
-/// radio and playlists are continuous material and stay gapless, while ordinary
-/// library playback crossfades. The crossfade switch therefore only governs the
-/// library case — turning it on does not start crossfading album playthroughs,
-/// which is what the rule intends and what listeners expect.
+/// This splits by source rather than by user preference: radio and playlists
+/// are continuous material and stay gapless, while ordinary library playback
+/// crossfades. The crossfade switch therefore only governs the library case —
+/// turning it on does not start crossfading album playthroughs, which is what
+/// the rule intends and what listeners expect.
 pub const fn transition_for(origin: QueueOrigin, settings: &PlaybackSettings) -> TransitionProfile {
     match origin {
         QueueOrigin::Playlist(_) | QueueOrigin::Radio(_) => TransitionProfile::Gapless,

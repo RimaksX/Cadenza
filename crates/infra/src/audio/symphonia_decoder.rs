@@ -41,11 +41,11 @@ impl DecoderPort for SymphoniaDecoder {
     }
 
     fn supports(&self, format: AudioFormat) -> bool {
-        // Every format required has a Symphonia decoder enabled in
-        // Cargo.toml. AAC is the one with a caveat — Symphonia decodes AAC-LC
-        // and not HE-AAC — but a container does not say which profile it holds
-        // until it is opened, so the honest answer here is per format and the
-        // real check is `probe`.
+        // Every format required has a Symphonia decoder enabled in Cargo.toml.
+        // AAC is the one with a caveat — Symphonia decodes AAC-LC and not
+        // HE-AAC — but a container does not say which profile it holds until it
+        // is opened, so the honest answer here is per format and the real check
+        // is `probe`.
         matches!(
             format,
             AudioFormat::Mp3

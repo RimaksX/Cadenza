@@ -2,8 +2,8 @@
 //!
 //! This service owns the *bookkeeping* of analysis — which files still need it,
 //! which job is next, what happened when one failed — and none of the signal
-//! processing, which lives behind [`FeatureExtractorPort`] in the infrastructure
-//! layer.
+//! processing, which lives behind [`FeatureExtractorPort`] in the
+//! infrastructure layer.
 //!
 //! Everything here is a single step that returns. Nothing loops, nothing sleeps
 //! and nothing spawns: the pacing is the worker's business, and a service that

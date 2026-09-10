@@ -240,9 +240,9 @@ export component PlayerBar inherits Rectangle {
         //
         // The block that says what is playing is the thing to press to be shown
         // it — the same gesture every music player has, and the one place where
-        // it needs no button of its own. It lights as a whole under the pointer,
-        // which is this interface's own way of saying a thing can be pressed,
-        // and it does nothing at all while nothing is playing.
+        // it needs no button of its own. It lights as a whole under the
+        // pointer, which is this interface's own way of saying a thing can be
+        // pressed, and it does nothing at all while nothing is playing.
         //
         // The same 284 the volume column takes on the other side, so the
         // transport between them stays on the window's own middle. What
@@ -278,12 +278,12 @@ export component PlayerBar inherits Rectangle {
 
                 // The square where the cover goes, and a letter until there is
                 // one. Rounded like the covers in the rows: the same picture
-                // twice on one screen should not be two different shapes.
-                // No border. A cover is a picture, and a hairline drawn round
-                // it is a line across the edge of somebody's artwork — the same
+                // twice on one screen should not be two different shapes. No
+                // border. A cover is a picture, and a hairline drawn round it
+                // is a line across the edge of somebody's artwork — the same
                 // square in a library row never had one, and the two are the
-                // same object. The surface underneath is
-                // what shows while there is no picture.
+                // same object. The surface underneath is what shows while there
+                // is no picture.
                 Rectangle {
                     width: Theme.px(56);
                     height: Theme.px(56);
@@ -335,9 +335,8 @@ export component PlayerBar inherits Rectangle {
                 //
                 // The heart used to stand beside the whole two-line block and
                 // be centred against it, which put it level with the gap
-                // between the title and the caption — belonging to neither
-                // . It is about the *track*, and the
-                // track's name is the line above.
+                // between the title and the caption — belonging to neither . It
+                // is about the *track*, and the track's name is the line above.
                 //
                 // **The heart follows the title's ink, and the caption below
                 // does not get to move it.**

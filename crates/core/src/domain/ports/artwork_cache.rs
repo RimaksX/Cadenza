@@ -20,9 +20,9 @@ pub enum CoverOf {
     Track(MediaFileId),
     /// What one listener chose for that recording.
     ///
-    /// A local override, and per profile for the same reason a corrected
-    /// title is: choosing a cover for
-    /// yourself must not choose it for whoever else uses this machine.
+    /// A local override, and per profile for the same reason a corrected title
+    /// is: choosing a cover for yourself must not choose it for whoever else
+    /// uses this machine.
     ChosenTrack(ProfileId, MediaFileId),
     /// What a listener chose for one of their lists.
     ///
@@ -40,10 +40,10 @@ pub enum CoverOf {
 
 /// Cover art storage.
 ///
-/// Artwork lives on disk under `%LOCALAPPDATA%` rather than in SQLite
-/// : images are large, rarely queried, and — for the ones
-/// that came out of a file — entirely regenerable, so keeping them out of the
-/// database keeps it small and its backups cheap.
+/// Artwork lives on disk under `%LOCALAPPDATA%` rather than in SQLite : images
+/// are large, rarely queried, and — for the ones that came out of a file —
+/// entirely regenerable, so keeping them out of the database keeps it small and
+/// its backups cheap.
 ///
 /// The ones a listener chose are *not* regenerable, which is worth knowing
 /// before anybody writes a cache-clearing routine.

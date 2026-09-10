@@ -7,8 +7,8 @@ use super::value_objects::{Bpm, DurationMs, MusicalKey, Timestamp};
 ///
 /// Titles, artist and album links here are the *effective* values: the scanner
 /// seeds them from tags and the user may edit them, which overrides the tags
-/// without touching the file. Two profiles can therefore
-/// disagree about the same file, which is the point.
+/// without touching the file. Two profiles can therefore disagree about the
+/// same file, which is the point.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Track {
     /// Owning profile.

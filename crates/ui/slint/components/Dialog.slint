@@ -23,9 +23,9 @@ export component TextButton inherits Rectangle {
     in property <bool> destructive;
     /// The accent, in the label and the border.
     ///
-    /// Separate from `primary`, which ten buttons in this application are.
-    /// This is the one action that starts everything, on the one screen that
-    /// has nothing else on it, and it is the only button that wears the colour.
+    /// Separate from `primary`, which ten buttons in this application are. This
+    /// is the one action that starts everything, on the one screen that has
+    /// nothing else on it, and it is the only button that wears the colour.
     in property <bool> accented;
     /// Set to make every button in a group the same size. A column of controls
     /// whose widths follow their labels is a column with a ragged edge, and a
@@ -42,8 +42,8 @@ export component TextButton inherits Rectangle {
     /// makes a second button style out of the one there is. A chevron is not
     /// decoration: it is the only mark that says "there is more behind this",
     /// and without it a control that opens a menu is drawn exactly like a
-    /// control that does something — which is what the sort button was
-    /// . Nothing else may take one.
+    /// control that does something — which is what the sort button was .
+    /// Nothing else may take one.
     in property <image> opens;
 
     callback pressed();
@@ -211,8 +211,8 @@ export component Dialog inherits Rectangle {
         // six words, and seven of them is a wall.
         width: root.informs ? Theme.px(560) : Theme.px(440);
         // As tall as it wants to be, and never taller than the window it is
-        // standing in. The explaining card had grown to within thirty pixels
-        // of the bottom at 100 per cent and past it at any larger size — and a
+        // standing in. The explaining card had grown to within thirty pixels of
+        // the bottom at 100 per cent and past it at any larger size — and a
         // card that does not fit is a card whose last paragraph and whose only
         // button are both somewhere off the screen.
         height: min(layout.preferred-height, parent.height - Theme.px(64));

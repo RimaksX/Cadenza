@@ -6,9 +6,9 @@ use crate::{CoreError, Result};
 
 /// The appearance a profile has selected.
 ///
-/// Only two variants: there is a dark theme, a light one, and a
-/// fixed, non-user-rearrangeable layout. Following the operating system setting is
-/// not currently a requirement, so it is not an option here.
+/// Only two variants: there is a dark theme, a light one, and a fixed,
+/// non-user-rearrangeable layout. Following the operating system setting is not
+/// currently a requirement, so it is not an option here.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub enum ThemeMode {
     /// Dark appearance.

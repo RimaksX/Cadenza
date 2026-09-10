@@ -1,10 +1,10 @@
 //! Artists, albums and genres.
 //!
-//! Three small adapters in one file. Each has its own
-//! (`artist_repo.rs`, `album_repo.rs`, `genre_repo.rs`), but each is a dozen
-//! lines of the same shape over the same three-table corner of the schema, and
-//! they are always changed together. Splitting them would be three files of
-//! imports for no reader's benefit.
+//! Three small adapters in one file. Each has its own (`artist_repo.rs`,
+//! `album_repo.rs`, `genre_repo.rs`), but each is a dozen lines of the same
+//! shape over the same three-table corner of the schema, and they are always
+//! changed together. Splitting them would be three files of imports for no
+//! reader's benefit.
 
 use cadenza_core::domain::album::Album;
 use cadenza_core::domain::artist::Artist;

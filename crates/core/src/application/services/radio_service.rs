@@ -1,13 +1,13 @@
 //! Radio: an endless stream built out of the listener's own library.
 //!
-//! Nothing here reaches outside the machine. A station is
-//! a mood, a seed track and the same weighted sum every time — the ranking of
-//! ranking — applied to files that are already on disk and already analysed.
+//! Nothing here reaches outside the machine. A station is a mood, a seed track
+//! and the same weighted sum every time — the ranking of ranking — applied to
+//! files that are already on disk and already analysed.
 //!
 //! The service produces *picks*. It does not play them and does not own a
 //! queue: [`super::QueueService`] puts them in the radio lane, where a manual
-//! queue still outranks them. Keeping the two apart is what lets radio
-//! be tested without a speaker and the queue be tested without a mood.
+//! queue still outranks them. Keeping the two apart is what lets radio be
+//! tested without a speaker and the queue be tested without a mood.
 
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Arc, RwLock};
@@ -35,8 +35,8 @@ use crate::{CoreError, Result};
 ///
 /// A calibration knob. Long enough that a track offered this morning is not
 /// offered again this afternoon, short enough that a library smaller than a
-/// week of listening does not run out of fresh material. Measured against
-/// what the listener has heard *and* what this profile's stations have offered,
+/// week of listening does not run out of fresh material. Measured against what
+/// the listener has heard *and* what this profile's stations have offered,
 /// whichever was later.
 const FRESHNESS_WINDOW: DurationMs = DurationMs::from_secs(7 * 24 * 60 * 60);
 
@@ -149,10 +149,10 @@ impl RadioService {
 
     /// Chooses the next `wanted` tracks and records why.
     ///
-    /// Between eight and fifteen to a batch. Fewer come back only
-    /// when the library has run out of anything the session has not already
-    /// offered — a station in a small library ends rather than repeating
-    /// itself, and the caller decides what to say about that.
+    /// Between eight and fifteen to a batch. Fewer come back only when the
+    /// library has run out of anything the session has not already offered — a
+    /// station in a small library ends rather than repeating itself, and the
+    /// caller decides what to say about that.
     pub fn next_batch(&self, wanted: usize) -> Result<Vec<MediaFileId>> {
         let Some((session, mood)) = self
             .live
@@ -172,8 +172,8 @@ impl RadioService {
         let recent = self.heard_recently(profile_id)?;
 
         // Everything the session has already offered. A station may not repeat
-        // itself while it still has anything else to play — the first shuffle rule,
-        // which radio inherits.
+        // itself while it still has anything else to play — the first shuffle
+        // rule, which radio inherits.
         let mut offered: Vec<MediaFileId> = self
             .ports
             .radio
@@ -234,9 +234,9 @@ impl RadioService {
 
     /// Records what the listener thought of a pick.
     ///
-    /// A skip is a weaker signal than a dislike and both are weaker than a
-    /// like is strong; the weights are [`RadioFeedback::weight`]'s. What it
-    /// changes is the next batch, and every batch after that in any session.
+    /// A skip is a weaker signal than a dislike and both are weaker than a like
+    /// is strong; the weights are [`RadioFeedback::weight`]'s. What it changes
+    /// is the next batch, and every batch after that in any session.
     pub fn feedback(&self, media_file_id: MediaFileId, verdict: RadioFeedback) -> Result<()> {
         let Some(session) = self.session() else {
             // Not an error: a listener pressing skip during ordinary playback
@@ -326,10 +326,10 @@ impl RadioService {
             // a listener who asks for Sleep with nothing slow in their library
             // must still get music, and after the real matches are gone the
             // least-bad ordering by transition and freshness is the best answer
-            // there is. That is the objection once raised
-            // against zeroing, and separating the tiers is what answers it -
-            // nothing is flattened, because the flattened tier is only
-            // consulted once the ordered one is exhausted.
+            // there is. That is the objection once raised against zeroing, and
+            // separating the tiers is what answers it - nothing is flattened,
+            // because the flattened tier is only consulted once the ordered one
+            // is exhausted.
             let tier = if reason.mood > 0.0 {
                 &mut best
             } else {

@@ -51,8 +51,8 @@ const PYTHON_PACKAGES: &str = "pip";
 ///
 /// Cadenza never runs it for its own sake: it runs `spotdl`, and `python -m
 /// pip` to put `spotdl` there. It is named here because it is the thing a
-/// machine that has never had a Python on it is missing, and being told
-/// "pip is not on this machine" is being told the symptom.
+/// machine that has never had a Python on it is missing, and being told "pip is
+/// not on this machine" is being told the symptom.
 const PYTHON: &str = "python";
 
 /// Which Python. Any of several would do; this one is named so that the same
@@ -102,9 +102,9 @@ impl Source {
 /// not something anybody can rely on: a `pip install` that cannot write to
 /// `site-packages` quietly does a user install instead, and the launcher then
 /// lands in `%APPDATA%\Python\Python3xx\Scripts` — a folder Windows does not
-/// put on PATH and nothing here was looking in. A listener pressed install,
-/// pip said it had done it, and this said the program was still missing, round
-/// and round, and a reboot changed nothing because the folder is not on PATH at
+/// put on PATH and nothing here was looking in. A listener pressed install, pip
+/// said it had done it, and this said the program was still missing, round and
+/// round, and a reboot changed nothing because the folder is not on PATH at
 /// all.
 ///
 /// So the matcher is asked of Python instead: can it import it. That is what
@@ -349,9 +349,9 @@ impl ExternalFetcher {
     ///
     /// Asking the matcher for the addresses instead cost three things, all
     /// measured: about sixteen seconds per track before a byte was downloaded,
-    /// a limit that left the tail of a fifty-two-track list unresolved — ten
-    /// of them — and a pairing between two lists that goes wrong for every
-    /// track after any one it skipped.
+    /// a limit that left the tail of a fifty-two-track list unresolved — ten of
+    /// them — and a pairing between two lists that goes wrong for every track
+    /// after any one it skipped.
     ///
     /// Now there is one list, and each search is built from the track it is
     /// for. A track that cannot be found costs itself.
@@ -393,11 +393,11 @@ impl ExternalFetcher {
                 item: Some((done + 1, wanted)),
             });
 
-            // Already here, so not fetched again — and this is the guard
-            // that makes a second press predictable. The downloader's own
-            // memory covers the usual case, but it remembers *videos*: a
-            // search that lands on a different video for a track the listener
-            // already has would download it a second time under a second name.
+            // Already here, so not fetched again — and this is the guard that
+            // makes a second press predictable. The downloader's own memory
+            // covers the usual case, but it remembers *videos*: a search that
+            // lands on a different video for a track the listener already has
+            // would download it a second time under a second name.
             if have(track) {
                 continue;
             }
@@ -457,8 +457,8 @@ impl ExternalFetcher {
             // No archive on this route, and the reason was measured. The
             // downloader records a video the moment it has downloaded it —
             // before the conversion, before the tagging, before anything here
-            // moves the file anywhere. A track that falls over after that
-            // point is remembered as fetched and never tried again: three of
+            // moves the file anywhere. A track that falls over after that point
+            // is remembered as fetched and never tried again: three of
             // fifty-two were stuck that way, present in the memory and absent
             // from the disk, and every run afterwards skipped them.
             //
@@ -760,13 +760,13 @@ fn quietly(program: &Path) -> Command {
 
 /// Every line a child wrote, whatever bytes it chose to write them in.
 ///
-/// Not `BufReader::lines()`, and the reason is the whole of it.
-/// `lines()` yields an error the moment it meets a byte sequence that is not
-/// UTF-8, and the idiom for draining it — `map_while(Result::ok)` — treats that
-/// error as the end. The reader stops, the pipe is dropped, and the program on
-/// the other side is killed by its next `print`: *unable to open for writing:
-/// [Errno 22] Invalid argument*. It looked like a download that failed and it
-/// was a download we hung up on.
+/// Not `BufReader::lines()`, and the reason is the whole of it. `lines()`
+/// yields an error the moment it meets a byte sequence that is not UTF-8, and
+/// the idiom for draining it — `map_while(Result::ok)` — treats that error as
+/// the end. The reader stops, the pipe is dropped, and the program on the other
+/// side is killed by its next `print`: *unable to open for writing: [Errno 22]
+/// Invalid argument*. It looked like a download that failed and it was a
+/// download we hung up on.
 ///
 /// So: bytes, split on newlines, and whatever will not decode becomes U+FFFD.
 /// A character we cannot read is a character drawn wrong in a progress line.
@@ -1056,11 +1056,11 @@ impl FetchPort for ExternalFetcher {
             // The title, capped at 150 bytes.
             //
             // Not the fix for the "Error 22" people reported — that was ours
-            // and is in `lines_of`. This is for the other
-            // half of it: a genuinely long title makes a path past the 260
-            // characters Windows will accept, and yt-dlp fails with the same
-            // EINVAL it fails with for everything (yt-dlp #11251, whose
-            // reporter had a title of 214 characters).
+            // and is in `lines_of`. This is for the other half of it: a
+            // genuinely long title makes a path past the 260 characters Windows
+            // will accept, and yt-dlp fails with the same EINVAL it fails with
+            // for everything (yt-dlp #11251, whose reporter had a title of 214
+            // characters).
             //
             // Bytes rather than characters, because that is what the limit is
             // made of: 150 bytes is 150 letters of Latin and about 75 of

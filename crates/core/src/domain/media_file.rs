@@ -133,8 +133,8 @@ pub struct AudioProperties {
 /// A physical audio file, shared by every profile that has it in their library.
 ///
 /// This is global state: the file, its technical properties and its analysis
-/// belong to the machine, not to a listener. Per-profile
-/// facts live in [`super::track::Track`].
+/// belong to the machine, not to a listener. Per-profile facts live in
+/// [`super::track::Track`].
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MediaFile {
     /// Stable identifier.

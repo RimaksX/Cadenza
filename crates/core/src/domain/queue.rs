@@ -1,8 +1,8 @@
 //! The playback queue.
 //!
-//! This module holds the queue's *shape*. The advancement algorithm — what plays
-//! next given a repeat mode, a manual queue and a shuffle pool — belongs to the
-//! queue service, and the smart ordering to the shuffle policy.
+//! This module holds the queue's *shape*. The advancement algorithm — what
+//! plays next given a repeat mode, a manual queue and a shuffle pool — belongs
+//! to the queue service, and the smart ordering to the shuffle policy.
 
 use std::collections::VecDeque;
 
@@ -169,9 +169,9 @@ impl Queue {
     /// The library and a playlist hold nothing: their round is a set of rows,
     /// and the service reads the row after this one when it needs it. A
     /// playlist used to be dealt into `upcoming` like a hand of cards, which is
-    /// what made starting one look like it had filled the listener's queue
-    /// . Repeat all therefore means two different things,
-    /// and this is which of them applies.
+    /// what made starting one look like it had filled the listener's queue .
+    /// Repeat all therefore means two different things, and this is which of
+    /// them applies.
     fn holds_its_own_round(&self) -> bool {
         matches!(
             self.current,
@@ -213,11 +213,11 @@ impl Queue {
     /// Moves to the next entry and returns it, or `None` when there is nowhere
     /// left to go.
     ///
-    /// This is the whole advancement rule in one place:
-    /// repeat one holds, the manual queue outranks the continuation, and repeat
-    /// all refills from what has already played rather than stopping.
-    /// `seed` is used only for the refill: the domain has no entropy of its
-    /// own, and a round that comes back shuffled needs some.
+    /// This is the whole advancement rule in one place: repeat one holds, the
+    /// manual queue outranks the continuation, and repeat all refills from what
+    /// has already played rather than stopping. `seed` is used only for the
+    /// refill: the domain has no entropy of its own, and a round that comes
+    /// back shuffled needs some.
     pub fn advance(&mut self, seed: u64) -> Option<QueueEntry> {
         if self.repeat.holds_current_track() && self.current.is_some() {
             return self.current;
@@ -231,9 +231,9 @@ impl Queue {
             // Everything that has played goes back in front. In the order it
             // played, unless shuffle is on — a second round in the first
             // round's order is the one thing shuffle exists to prevent, and it
-            // was doing exactly that. The track that is
-            // ending is not among them yet: it is pushed below, and so leads
-            // the round after this one.
+            // was doing exactly that. The track that is ending is not among
+            // them yet: it is pushed below, and so leads the round after this
+            // one.
             let mut round = std::mem::take(&mut self.round);
             if self.shuffle {
                 crate::domain::policies::shuffle_policy::shuffle(&mut round, seed);
@@ -333,10 +333,10 @@ mod tests {
 
     #[test]
     fn a_second_round_under_shuffle_is_not_the_first_round_again() {
-        // A station, because it is the only source whose round the queue
-        // holds. The library and a playlist both continue by themselves — the
-        // service reads the row after this one — so repeat all over either of
-        // them means the next row rather than the round just played, and
+        // A station, because it is the only source whose round the queue holds.
+        // The library and a playlist both continue by themselves — the service
+        // reads the row after this one — so repeat all over either of them
+        // means the next row rather than the round just played, and
         // `holds_its_own_round` is where that is decided.
         let list = QueueOrigin::Radio(RadioSessionId::new());
         let played: Vec<QueueEntry> = (0..8).map(|_| entry(list)).collect();

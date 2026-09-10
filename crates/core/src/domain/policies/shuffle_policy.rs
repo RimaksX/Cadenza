@@ -1,8 +1,8 @@
 //! What smart shuffle is allowed to play next, and which of those it picks.
 //!
 //! The hard rules came first; the choice itself came later. Score every
-//! candidate against what is playing, keep the best handful, and pick from those
-//! at random. Three sentences, and a great deal rides on each of them —
+//! candidate against what is playing, keep the best handful, and pick from
+//! those at random. Three sentences, and a great deal rides on each of them —
 //!
 //! - **score**, so that one track follows another musically rather than by
 //!   accident. The formula lives in

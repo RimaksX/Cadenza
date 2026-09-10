@@ -149,9 +149,10 @@ pub fn percentile(values: &mut [f32], fraction: f32) -> f32 {
 
 /// Squashes a value into `0.0..=1.0` around a midpoint.
 ///
-/// Everything stored in `track_features` is normalised so that shuffle and radio can
-/// weigh one number against another. A curve rather than a clamp, so that the
-/// ends of the range stay distinguishable instead of piling up on 0 and 1.
+/// Everything stored in `track_features` is normalised so that shuffle and
+/// radio can weigh one number against another. A curve rather than a clamp, so
+/// that the ends of the range stay distinguishable instead of piling up on 0
+/// and 1.
 pub fn squash(value: f32, midpoint: f32, width: f32) -> f32 {
     if !value.is_finite() || width <= 0.0 {
         return 0.0;

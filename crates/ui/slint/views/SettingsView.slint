@@ -181,10 +181,10 @@ component FolderRow inherits Rectangle {
         }
     }
 
-    // The same hairline every list in this interface puts *between* rows —
-    // and not under the last of them. A line here means "the next one starts
-    // below this"; under the only row of a list of one it ends nothing, and
-    // this page had two of those before it had any content.
+    // The same hairline every list in this interface puts *between* rows — and
+    // not under the last of them. A line here means "the next one starts below
+    // this"; under the only row of a list of one it ends nothing, and this page
+    // had two of those before it had any content.
     if !root.last: Rectangle {
         y: parent.height - 1px;
         height: 1px;

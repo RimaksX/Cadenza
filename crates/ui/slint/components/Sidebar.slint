@@ -109,12 +109,11 @@ component NavLabel inherits Rectangle {
 
     HorizontalLayout {
         // Centred. Dividing by a *length* of two pixels rather than by the
-        // number two lands on the whole remainder instead of half of it, so
-        // the label and its rule sat against the floor of their own box. The
-        // same mistake was fixed in the settings page and
-        // this copy was missed; the two other places that divide by
-        // `Theme.px(2)` are snapping a length to an even pixel, which is what
-        // that division is actually for.
+        // number two lands on the whole remainder instead of half of it, so the
+        // label and its rule sat against the floor of their own box. The same
+        // mistake was fixed in the settings page and this copy was missed; the
+        // two other places that divide by `Theme.px(2)` are snapping a length
+        // to an even pixel, which is what that division is actually for.
         y: round((parent.height - Theme.px(18)) / 1px / 2) * 1px;
         height: Theme.px(18);
         padding-left: Theme.space-3;
@@ -154,8 +153,8 @@ component NavLabel inherits Rectangle {
 //
 // Three destinations and one that is not built yet, the wordmark above them and
 // the listener below. Nothing here scrolls and nothing here changes with the
-// page: the frame is fixed, and this is the half of it
-// that says what the application contains.
+// page: the frame is fixed, and this is the half of it that says what the
+// application contains.
 export component Sidebar inherits Rectangle {
     /// How many files are waiting for a decision. Zero hides the destination.
     in property <int> pending-reviews;
@@ -377,17 +376,16 @@ export component Sidebar inherits Rectangle {
                     }
                 }
 
-                // One line where there were two. `ACTIVE PROFILE` said in
-                // wide capitals what a name at the foot of the column already
-                // said, which is the same complaint seven page eyebrows
-                // answered to.
+                // One line where there were two. `ACTIVE PROFILE` said in wide
+                // capitals what a name at the foot of the column already said,
+                // which is the same complaint seven page eyebrows answered to.
                 VerticalLayout {
                     alignment: center;
 
-                    // The serif, which is what names things here — and what
-                    // the settings page has always set this same name in. The
-                    // sans is for prose and for a destination in the list
-                    // above; a person is a name.
+                    // The serif, which is what names things here — and what the
+                    // settings page has always set this same name in. The sans
+                    // is for prose and for a destination in the list above; a
+                    // person is a name.
                     Text {
                         text: root.profile-name;
                         font-family: Theme.serif;

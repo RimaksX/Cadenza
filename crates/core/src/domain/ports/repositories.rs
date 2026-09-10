@@ -10,11 +10,10 @@
 //! # Profile isolation
 //!
 //! Anything holding user data takes a [`ProfileId`] on every read. That is not
-//! defensive style, it is the isolation rule made
-//! impossible to forget: there is no "list all playlists" to call by accident.
-//! The exceptions are the global catalogue — media files, artists, albums,
-//! genres, features, analysis jobs — which describe the music rather than the
-//! listener.
+//! defensive style, it is the isolation rule made impossible to forget: there
+//! is no "list all playlists" to call by accident. The exceptions are the
+//! global catalogue — media files, artists, albums, genres, features, analysis
+//! jobs — which describe the music rather than the listener.
 
 use std::path::Path;
 
@@ -169,9 +168,9 @@ pub trait TrackRepositoryPort: Send + Sync {
     /// **Only ever for a track whose file has gone.** The tombstone is what
     /// keeps a removed track out of the library when its folder is scanned
     /// again; deleting one for a file still on disk would undo the removal at
-    /// the next scan, quietly and days later. Whose job
-    /// it is to check that is the caller's — but this refuses a live row
-    /// anyway, because a delete is not a thing to be wrong about twice.
+    /// the next scan, quietly and days later. Whose job it is to check that is
+    /// the caller's — but this refuses a live row anyway, because a delete is
+    /// not a thing to be wrong about twice.
     fn forget(&self, profile_id: ProfileId, media_file_id: MediaFileId) -> Result<()>;
 }
 
@@ -215,9 +214,9 @@ pub trait GenreRepositoryPort: Send + Sync {
 
     /// Genres as one profile sees them.
     ///
-    /// Its own if it has corrected them, and the file's own otherwise. A profile
-    /// that has deliberately cleared every genre sees none, which is a different
-    /// answer from having never touched them.
+    /// Its own if it has corrected them, and the file's own otherwise. A
+    /// profile that has deliberately cleared every genre sees none, which is a
+    /// different answer from having never touched them.
     fn for_profile_track(
         &self,
         profile_id: ProfileId,
@@ -271,10 +270,9 @@ pub trait PlaylistRepositoryPort: Send + Sync {
 
 /// The saved playback queue.
 ///
-/// The last queue has to come back, and it is the queue
-/// per-profile, but section 7 defines no table for it. The storage shape is
-/// settled alongside the queue service; this port is the contract that
-/// migration has to satisfy.
+/// The last queue has to come back, and it is the queue per-profile, but
+/// section 7 defines no table for it. The storage shape is settled alongside
+/// the queue service; this port is the contract that migration has to satisfy.
 pub trait QueueRepositoryPort: Send + Sync {
     /// The queue as it was left, or `None` if the profile has never played.
     fn load(&self, profile_id: ProfileId) -> Result<Option<Queue>>;
@@ -359,11 +357,11 @@ pub trait RadioRepositoryPort: Send + Sync {
 
     /// When each file was last offered by any of this profile's stations.
     ///
-    /// Half of what the freshness term is measured
-    /// against; the other half is [`StatsRepositoryPort::last_played`], and the
-    /// later of the two wins. This half is the one that works for a listener who
-    /// keeps no history at all, because a station remembers what it offered
-    /// whether or not anything is written down.
+    /// Half of what the freshness term is measured against; the other half is
+    /// [`StatsRepositoryPort::last_played`], and the later of the two wins.
+    /// This half is the one that works for a listener who keeps no history at
+    /// all, because a station remembers what it offered whether or not anything
+    /// is written down.
     fn last_offered(&self, profile_id: ProfileId) -> Result<Vec<(MediaFileId, Timestamp)>>;
 
     /// Every verdict a profile has given, summed per file.

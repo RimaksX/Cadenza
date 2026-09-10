@@ -48,8 +48,8 @@ pub struct Playlist {
     /// Serialised smart-playlist rule.
     ///
     /// Opaque to the domain on purpose: the rule language is defined with smart
-    /// playlists. Storing it as text here avoids inventing a rule AST now
-    /// and rewriting it then.
+    /// playlists. Storing it as text here avoids inventing a rule AST now and
+    /// rewriting it then.
     pub rule_json: Option<String>,
     /// When the playlist was created.
     pub created_at: Timestamp,

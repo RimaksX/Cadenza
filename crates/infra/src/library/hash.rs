@@ -15,16 +15,16 @@ const CHUNK: usize = 64 * 1024;
 /// Hashes a file's bytes.
 ///
 /// blake3 rather than a SHA family function: a 5000-track library is tens of
-/// gigabytes to read, and the background budget is about 20% of one CPU
-/// . Collision resistance is far beyond what "are these the
-/// same file" needs either way.
+/// gigabytes to read, and the background budget is about 20% of one CPU .
+/// Collision resistance is far beyond what "are these the same file" needs
+/// either way.
 ///
 /// ponytail: hashes the whole file, so editing a tag changes the hash and the
 /// same recording with different tags is not recognised as a duplicate. Hashing
-/// only the audio stream would fix that, and needs the decoder to find
-/// where the stream starts and ends. Until then the review queue catches what
-/// this misses, which is the safe direction to be wrong in — a missed duplicate
-/// is a second row, a false one is a decision the listener has to make.
+/// only the audio stream would fix that, and needs the decoder to find where
+/// the stream starts and ends. Until then the review queue catches what this
+/// misses, which is the safe direction to be wrong in — a missed duplicate is a
+/// second row, a false one is a decision the listener has to make.
 pub fn hash_file(path: &Path) -> Result<String> {
     let mut file = File::open(path).map_err(|err| {
         CoreError::FileSystem(format!("could not open {}: {err}", path.display()))

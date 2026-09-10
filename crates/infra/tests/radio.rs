@@ -1,7 +1,7 @@
 //! A station, end to end, over a real database.
 //!
-//! What radio is judged on: a mood can be chosen, the station generates a stream,
-//! and skips change what it offers next.
+//! What radio is judged on: a mood can be chosen, the station generates a
+//! stream, and skips change what it offers next.
 
 use std::sync::Arc;
 

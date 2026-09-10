@@ -1049,8 +1049,8 @@ fn a_track_queued_after_the_join_was_opened_still_plays_next() {
 fn the_transition_follows_what_is_playing_rather_than_the_switch_alone() {
     let harness = harness();
 
-    // Crossfade on for this profile. That is a statement
-    // about ordinary tracks, not about everything.
+    // Crossfade on for this profile. That is a statement about ordinary tracks,
+    // not about everything.
     let settings = SqliteSettingsRepository::new(harness.db.pool().clone());
     settings
         .profile_set(
@@ -1152,8 +1152,8 @@ fn shuffle_prefers_the_track_that_follows_best_without_insisting_on_it() {
     // Counted rather than asserted per draw. The pick is weighted, not decided:
     // with these features the good transition takes about seven draws in ten,
     // and a test that demanded it every time would be testing for the very
-    // behaviour the shuffle rules out. What is stable — and what the
-    // milestone is actually about — is which one wins most often.
+    // behaviour the shuffle rules out. What is stable — and what the milestone
+    // is actually about — is which one wins most often.
     //
     // A hundred draws rather than forty, because forty was not enough to make
     // the assertion below safe. Seven in ten over forty draws averages

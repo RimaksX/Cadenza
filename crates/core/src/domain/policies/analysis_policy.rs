@@ -1,9 +1,9 @@
 //! How hard background analysis is allowed to work.
 //!
-//! The rule is stated as a number — background work stays
-//! under roughly a fifth of the machine — and it is an absolute:
-//! every background task is low priority and never blocks. Both are here, as a
-//! share of wall-clock time the worker is permitted to spend running.
+//! The rule is stated as a number — background work stays under roughly a fifth
+//! of the machine — and it is an absolute: every background task is low
+//! priority and never blocks. Both are here, as a share of wall-clock time the
+//! worker is permitted to spend running.
 //!
 //! A share rather than a thread priority because a share is the thing that can
 //! be reasoned about and tested. Lowering a thread's priority asks the operating
@@ -27,8 +27,8 @@ pub const TOP_UP_BATCH: usize = 64;
 
 /// The share of the machine analysis may take while music is playing.
 ///
-/// A fifth of one core is the whole allowance, and while
-/// something is playing the listener has a use for the rest of it.
+/// A fifth of one core is the whole allowance, and while something is playing
+/// the listener has a use for the rest of it.
 pub const SHARE_WHILE_PLAYING: f32 = 0.2;
 
 /// The share it may take while nothing is playing.

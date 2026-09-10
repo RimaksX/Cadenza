@@ -205,8 +205,8 @@ impl LibraryService {
         // Already a folder of this profile's, and that is the answer rather
         // than a conflict: what the listener asked for is that this folder be
         // in their library, and it is. Pressing the offer twice used to reach
-        // the unique index on `(profile_id, path)` and put its name in front
-        // of somebody — "unique constraint failed" is not a sentence anybody
+        // the unique index on `(profile_id, path)` and put its name in front of
+        // somebody — "unique constraint failed" is not a sentence anybody
         // should be shown about a folder they can see.
         //
         // Re-enabled if it had been switched off, because pressing "use this
@@ -366,8 +366,8 @@ impl LibraryService {
         // Spotify used to be on that list and is not any more, and the
         // distinction is worth keeping straight: nothing can take Spotify's
         // *audio*, which is still true, but its links name a recording and the
-        // recording can be found. That is what the matcher does, and what
-        // every service claiming to "download from Spotify" does.
+        // recording can be found. That is what the matcher does, and what every
+        // service claiming to "download from Spotify" does.
         if let LinkHandler::Refused(service) = handler_for(link) {
             return Err(CoreError::invalid(
                 "link",
@@ -444,9 +444,9 @@ impl LibraryService {
             ));
         }
 
-        // Nothing new on the disk, and that is not nothing done: the list
-        // above was still rebuilt from what the listener already has, which is
-        // the whole point of pressing it a second time.
+        // Nothing new on the disk, and that is not nothing done: the list above
+        // was still rebuilt from what the listener already has, which is the
+        // whole point of pressing it a second time.
         if files.is_empty() {
             return Ok(Fetched::NothingNew);
         }
@@ -499,8 +499,8 @@ impl LibraryService {
         //
         // A playlist holds the *list*. A second fetch of the same address
         // fetches almost nothing — the memory sees to that — so a playlist
-        // built from what arrived would hold the two tracks that happened to
-        // be new and none of the fifty that were already here.
+        // built from what arrived would hold the two tracks that happened to be
+        // new and none of the fifty that were already here.
         //
         // Matched on title and artist rather than on a file name: both ends of
         // that comparison came from the same metadata — the matcher wrote the
@@ -674,8 +674,8 @@ impl LibraryService {
     ///
     /// Theirs and not the file's: the image is stored under the profile, the
     /// same way a corrected title is, so choosing a cover for yourself does not
-    /// choose it for anybody else on the machine.
-    /// The file on disk is never written to — Cadenza does not edit tags.
+    /// choose it for anybody else on the machine. The file on disk is never
+    /// written to — Cadenza does not edit tags.
     ///
     /// `Ok(false)` means the chooser was closed, which is an answer.
     pub fn choose_cover(&self, media_file_id: MediaFileId) -> Result<bool> {
@@ -960,9 +960,9 @@ impl LibraryService {
     /// keeps a removed track out when its folder is scanned again. Where the
     /// file is gone it is neither — nothing can be brought back to it and no
     /// scan will ever find it — so it is only a row nobody can act on, and a
-    /// listener who deleted a folder of fifty-two tracks is left with
-    /// fifty-two of them. Where the file is still there the row is doing its
-    /// job, and forgetting it would put the track back at the next scan.
+    /// listener who deleted a folder of fifty-two tracks is left with fifty-two
+    /// of them. Where the file is still there the row is doing its job, and
+    /// forgetting it would put the track back at the next scan.
     ///
     /// Never automatic, for the same reason. A folder on a drive that is
     /// unplugged looks exactly like a folder that was deleted, and the
@@ -1306,8 +1306,8 @@ impl LibraryService {
         self.cache_artwork(&media_file, &read.tags);
 
         if let Some(other) = self.find_duplicate(&media_file, &hash)? {
-            // Held back, not discarded. The file is catalogued so a decision can
-            // act on it, but it does not silently appear in the library.
+            // Held back, not discarded. The file is catalogued so a decision
+            // can act on it, but it does not silently appear in the library.
             self.raise_review(
                 profile_id,
                 media_file.id,
@@ -1393,8 +1393,8 @@ impl LibraryService {
         //
         // A track fetched from a link arrives with no tags on purpose — what
         // the video calls itself is not what the record is called — and the
-        // name we gave it holds both facts. Every other
-        // untagged file in the world is named the same way.
+        // name we gave it holds both facts. Every other untagged file in the
+        // world is named the same way.
         let named = title_from_path(&media_file.path);
         let (named_artist, named_title) = naming_policy::artist_and_title(&named);
 
@@ -1473,7 +1473,8 @@ impl LibraryService {
         // imported first is owed the same title, artist and album as they got.
         //
         // Copying the other profile's row instead would be cheaper and wrong —
-        // it would hand over their corrections, which is the leak profiles exist to prevent.
+        // it would hand over their corrections, which is the leak profiles
+        // exist to prevent.
         let read = self.ports.metadata.read(&media_file.path)?;
         self.upsert_track(profile_id, media_file, &read, now)
     }
@@ -1503,8 +1504,8 @@ impl LibraryService {
     ///
     /// A local override and nothing else: the file keeps its tags, the
     /// catalogue keeps its reading of them, and another profile sharing the
-    /// same file goes on seeing what it always saw. There
-    /// is no writing back to disk and there is not meant to be.
+    /// same file goes on seeing what it always saw. There is no writing back to
+    /// disk and there is not meant to be.
     ///
     /// An empty artist or album means "no artist", not "an artist called
     /// nothing": the columns already carry that distinction and a listener

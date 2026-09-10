@@ -6,8 +6,8 @@ import { Theme } from "../theme/tokens.slint";
 // because a field is a control and this interface draws its controls alike. It
 // used to be a bare underline instead, on the argument that a box would be the
 // loudest object on the page — and the argument was wrong in the one way that
-// matters. The first person who was handed the link field could not find it:
-// a line under a grey hint reads as a caption, not as somewhere to put words.
+// matters. The first person who was handed the link field could not find it: a
+// line under a grey hint reads as a caption, not as somewhere to put words.
 export component Field inherits Rectangle {
     in property <string> placeholder;
     /// Drawn inside the box, at the near end, where there is one. The field
@@ -30,9 +30,8 @@ export component Field inherits Rectangle {
     //
     // Without this the typed text sets the *minimum* width, and a pasted link
     // is three hundred pixels of it: the row could not shrink, so the buttons
-    // beside it went off the edge and the whole page went with them
-    // . Anything longer than the box scrolls inside it,
-    // which is what a text field is for.
+    // beside it went off the edge and the whole page went with them . Anything
+    // longer than the box scrolls inside it, which is what a text field is for.
     min-width: Theme.px(120);
     forward-focus: input;
     clip: true;

@@ -2,9 +2,9 @@
 //!
 //! Every feature here is arithmetic over a spectrum — a correlation, a period,
 //! an average. There is no model, nothing is downloaded and nothing is sent
-//! anywhere, which is the no-neural-networks rule stated as an architecture rather than
-//! as a promise: there is no code here that could load a model even if somebody
-//! wanted one.
+//! anywhere, which is the no-neural-networks rule stated as an architecture
+//! rather than as a promise: there is no code here that could load a model even
+//! if somebody wanted one.
 //!
 //! The work is arranged as: read a window of the file ([`decode`]), transform it
 //! once ([`dsp`]), and read every feature off the same frames — level

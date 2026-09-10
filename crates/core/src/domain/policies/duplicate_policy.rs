@@ -26,8 +26,8 @@ impl DuplicateVerdict {
 /// would also catch the same song at two bitrates — is deliberately not done
 /// here: it produces false positives, and every false positive costs the
 /// listener a review-queue decision. If exact hashing turns out to miss too
-/// much, add a second, clearly separate verdict for probable matches rather than
-/// loosening this one.
+/// much, add a second, clearly separate verdict for probable matches rather
+/// than loosening this one.
 ///
 /// A file with no hash yet compares as [`DuplicateVerdict::Distinct`]; the check
 /// runs again once hashing completes.

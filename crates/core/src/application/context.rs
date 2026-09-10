@@ -111,9 +111,8 @@ impl AppContext {
     ///
     /// Only the in-memory pointer and the notification. Stopping playback and
     /// saving the outgoing profile's state — steps 1 and 2 of the switching
-    /// procedure — are the profile service's job,
-    /// because they need the playback and queue ports this context does not
-    /// carry yet.
+    /// procedure — are the profile service's job, because they need the
+    /// playback and queue ports this context does not carry yet.
     pub fn set_active_profile(&self, profile_id: ProfileId) {
         if let Ok(mut active) = self.active_profile.write() {
             *active = Some(profile_id);

@@ -7,11 +7,11 @@ use cadenza_core::domain::ports::system_priority::{PriorityClass, SystemPriority
 ///
 /// Which, today, is not at all: `SetThreadPriority` is a Win32 call, and
 /// reaching it means either `unsafe` or a dependency taken for one function.
-/// Neither is worth it, because the guarantee actually asked
-/// for — background work under about a fifth of the machine — is kept by
-/// `analysis_policy`'s duty cycle instead: the worker rests four times as long
-/// as it works, and a share of the clock is a promise that does not depend on a
-/// scheduler agreeing with it.
+/// Neither is worth it, because the guarantee actually asked for — background
+/// work under about a fifth of the machine — is kept by `analysis_policy`'s
+/// duty cycle instead: the worker rests four times as long as it works, and a
+/// share of the clock is a promise that does not depend on a scheduler agreeing
+/// with it.
 ///
 /// So this reports success and changes nothing, which is exactly what
 /// [`SystemPriorityPort`] says an implementation that cannot lower priority

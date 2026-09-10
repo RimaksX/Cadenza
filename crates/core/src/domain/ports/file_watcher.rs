@@ -7,9 +7,9 @@ use crate::domain::value_objects::DurationMs;
 
 /// How long to wait for a burst of filesystem events to settle.
 ///
-/// A calibration knob, and debouncing is required. Copying an album
-/// into a watched folder produces one event per file per write; without a delay
-/// the scanner would start on half-written files. Too long and the library feels
+/// A calibration knob, and debouncing is required. Copying an album into a
+/// watched folder produces one event per file per write; without a delay the
+/// scanner would start on half-written files. Too long and the library feels
 /// unresponsive to a single drag-and-drop.
 pub const DEBOUNCE: DurationMs = DurationMs::from_millis(750);
 

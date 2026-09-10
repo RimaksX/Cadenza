@@ -1,9 +1,9 @@
 //! What the interface reads.
 //!
 //! The application layer publishes immutable snapshots and the UI renders them
-//! . Nothing here has behaviour beyond arithmetic on its own
-//! fields: a view state that can decide something is a business rule that
-//! escaped into the layer least able to test it.
+//! . Nothing here has behaviour beyond arithmetic on its own fields: a view
+//! state that can decide something is a business rule that escaped into the
+//! layer least able to test it.
 //!
 //! Listings are [`crate::domain::track::TrackSummary`], which is a read model
 //! rather than a view: the same rows feed the queue, playlists and radio, none

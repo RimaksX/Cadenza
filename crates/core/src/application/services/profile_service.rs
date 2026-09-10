@@ -57,10 +57,9 @@ impl ProfileService {
 
     /// Creates a profile with history disabled.
     ///
-    /// History stays off until the setup wizard asks. The
-    /// safe default is the one that records nothing: a listener who never
-    /// answers the question ends up with no history rather than with history
-    /// they did not agree to.
+    /// History stays off until the setup wizard asks. The safe default is the
+    /// one that records nothing: a listener who never answers the question ends
+    /// up with no history rather than with history they did not agree to.
     ///
     /// The first profile created becomes the active one, so a fresh install is
     /// usable without a separate "now choose a profile" step.
@@ -93,9 +92,9 @@ impl ProfileService {
     /// Turns listening history on or off.
     ///
     /// Turning it off does not by itself erase what was already recorded —
-    /// purging is the analytics service's job, and doing it here would
-    /// mean this service reaching into a repository it has no other reason to
-    /// know about. Nothing further is written while the flag is off.
+    /// purging is the analytics service's job, and doing it here would mean
+    /// this service reaching into a repository it has no other reason to know
+    /// about. Nothing further is written while the flag is off.
     pub fn set_history_enabled(&self, id: ProfileId, enabled: bool) -> Result<Profile> {
         let mut profile = self.get(id)?;
         profile.history_enabled = enabled;

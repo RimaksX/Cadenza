@@ -50,9 +50,9 @@ impl Level {
 /// different people in different decades, integrated level is mostly a
 /// measurement of the loudness war: the calmest track the owner has - bowed
 /// strings and a choir, brickwalled to 3.7 dB of range - sat at -11 dBFS,
-/// louder than the bass-led remix it was being ranked against
-/// . It still belongs in the answer, because a genuinely
-/// quiet recording is genuinely less intense; it does not belong in charge.
+/// louder than the bass-led remix it was being ranked against . It still
+/// belongs in the answer, because a genuinely quiet recording is genuinely less
+/// intense; it does not belong in charge.
 const LEVEL_WEIGHT: f32 = 0.15;
 /// What the top end is worth. Timbre, which is one of the five things Spotify
 /// names behind its own energy.

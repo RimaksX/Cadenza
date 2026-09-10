@@ -3,9 +3,8 @@
 //! Cadenza reports what it can to the listener: a command that fails puts a
 //! sentence in the player bar. This is for everything that cannot reach them —
 //! a watcher thread that could not read one file, a listen that would not
-//! record, a queue that failed to save. Those are deliberate silences
-//! , and a silence with nowhere to write is a defect
-//! nobody can diagnose afterwards.
+//! record, a queue that failed to save. Those are deliberate silences , and a
+//! silence with nowhere to write is a defect nobody can diagnose afterwards.
 //!
 //! Not a general logging facility, and deliberately not: there is no level
 //! anybody turns on, no module filter, no format string. What is written is

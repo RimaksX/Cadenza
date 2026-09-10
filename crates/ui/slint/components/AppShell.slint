@@ -19,9 +19,9 @@ import { MenuItemData } from "RowMenu.slint";
 // The frame every screen lives in: navigation down the left, the player across
 // the bottom, one content area between them.
 //
-// A fixed arrangement, and it is required — the listener does
-// not rearrange it. The content area is a switch over four screens: the
-// library, the queue, the index of playlists and one playlist's own page.
+// A fixed arrangement, and it is required — the listener does not rearrange it.
+// The content area is a switch over four screens: the library, the queue, the
+// index of playlists and one playlist's own page.
 export component AppShell inherits Rectangle {
     in property <[TrackRowData]> tracks;
     in property <string> library-summary;
@@ -238,8 +238,7 @@ export component AppShell inherits Rectangle {
     VerticalLayout {
         // The window's own frame is the first row of the shell rather than a
         // wrapper around it: the title bar, the navigation and the player are
-        // three parts of one arrangement, which is what a fixed layout
-        // means.
+        // three parts of one arrangement, which is what a fixed layout means.
         TitleBar {
             maximized: root.maximized;
             minimize => {

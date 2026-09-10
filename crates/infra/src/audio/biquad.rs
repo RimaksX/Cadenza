@@ -6,8 +6,8 @@
 //! both modes.
 //!
 //! Nothing here allocates or branches on anything but its arguments, because a
-//! [`Section`] is stepped on the realtime callback (which allows
-//! DSP there, and nothing else).
+//! [`Section`] is stepped on the realtime callback (which allows DSP there, and
+//! nothing else).
 
 /// The coefficients of one normalised second-order section.
 ///
