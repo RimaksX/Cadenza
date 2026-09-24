@@ -1,0 +1,50 @@
+import { Theme } from "../theme/tokens.slint";
+import { TextButton } from "Dialog.slint";
+
+// What a page says when it has nothing to show: what is missing, in the serif
+// at title size; a sentence of what to do about it; and the one button that
+// does it, where there is one. At the top left under the page's head on every
+// page, so the eye finds it where it found the last one. It stood in three
+// shapes on three pages before, one of them as large as the page's own name.
+export component EmptyState inherits VerticalLayout {
+    in property <string> title;
+    in property <string> hint;
+    /// The button's label, or empty for none.
+    in property <string> action;
+
+    callback acted();
+
+    alignment: start;
+    spacing: Theme.space-2;
+
+    Text {
+        text: root.title;
+        font-family: Theme.serif;
+        font-size: Theme.text-title;
+        height: Theme.px(34);
+        vertical-alignment: center;
+        color: Theme.ink-2;
+    }
+
+    Text {
+        text: root.hint;
+        font-family: Theme.sans;
+        font-size: Theme.text-body;
+        height: Theme.line-body * 2;
+        vertical-alignment: top;
+        wrap: word-wrap;
+        color: Theme.ink-mute;
+    }
+
+    if root.action != "": HorizontalLayout {
+        alignment: start;
+        padding-top: Theme.space-2;
+
+        TextButton {
+            label: root.action;
+            pressed => {
+                root.acted();
+            }
+        }
+    }
+}

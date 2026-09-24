@@ -1,0 +1,32 @@
+import { PlaylistCardData } from "../views/PlaylistsView.slint";
+import { TrackRowData } from "TrackRow.slint";
+
+// The library by artist: the shelf of tiles, and the one artist open.
+//
+// A global, like `Player`: set and answered by the controller directly, read
+// by the shell.
+export global Shelves {
+    in property <[PlaylistCardData]> artists;
+    in property <string> artists-summary;
+
+    /// What is open, and what it holds.
+    in property <string> open-name;
+    in property <string> open-summary;
+    in property <[TrackRowData]> open-tracks;
+    /// The first cover among their tracks, and the colour of it.
+    in property <image> open-cover;
+    in property <bool> open-has-cover;
+    in property <color> open-tint;
+    in property <bool> open-tinted;
+
+    callback open-artist(string);
+    /// From the first of their tracks.
+    callback play-artist(string);
+    /// A track of what is open, and the rest of it after it.
+    callback play-open(string);
+    /// What is open, from the start.
+    callback play-open-all();
+    /// Shuffle on, and everything by them from a track chosen by chance.
+    callback shuffle-artist(string);
+    callback shuffle-open();
+}

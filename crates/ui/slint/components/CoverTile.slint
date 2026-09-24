@@ -1,0 +1,98 @@
+import { Theme } from "../theme/tokens.slint";
+import { SoundCircle } from "Controls.slint";
+
+// A track as a picture: its cover square, and its name and artist beneath.
+//
+// For a row across a page, where a list would be one more list. The square is
+// the cover or the letter standing in for one, as everywhere else; under the
+// pointer the sound circle rises in its corner, the one a playlist tile shows.
+export component CoverTile inherits Rectangle {
+    in property <image> cover;
+    in property <string> initial;
+    in property <string> title;
+    in property <string> caption;
+
+    callback activated();
+
+    // One state for the whole tile, the circle on it included.
+    property <bool> hovered: touch.has-hover || mark.hovered;
+
+    // The title's 26 and the caption's 18 under the 8 that parts them from
+    // the square.
+    height: self.width + Theme.px(52);
+
+    touch := TouchArea {
+        mouse-cursor: pointer;
+        clicked => {
+            root.activated();
+        }
+    }
+
+    // Pinned to the top: a child smaller than its parent is otherwise
+    // centred in it, and the words below would run over the picture.
+    Rectangle {
+        y: 0;
+        width: parent.width;
+        height: parent.width;
+        background: Theme.bg-2;
+        border-radius: Theme.radius;
+        clip: true;
+
+        Image {
+            width: parent.width;
+            height: parent.height;
+            source: root.cover;
+            image-fit: ImageFit.cover;
+        }
+
+        Text {
+            text: root.initial;
+            font-family: Theme.serif;
+            font-italic: true;
+            font-size: Theme.text-title;
+            height: Theme.px(34);
+            color: Theme.ink-1;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+            opacity: root.cover.width > 0 ? 0.0 : 1.0;
+        }
+
+        mark := SoundCircle {
+            x: parent.width - self.width - Theme.space-3;
+            y: parent.height - self.height - Theme.space-3;
+            glyph: @image-url("../../../../resources/ui/icons/play-16.svg");
+            nudge: 1px;
+            enabled: root.hovered;
+            opacity: root.hovered ? 1.0 : 0.0;
+            animate opacity { duration: 120ms; }
+            pressed => {
+                root.activated();
+            }
+        }
+    }
+
+    Text {
+        y: root.width + Theme.space-2;
+        width: parent.width;
+        height: Theme.px(26);
+        text: root.title;
+        font-family: Theme.serif;
+        font-size: Theme.text-lead;
+        color: root.hovered ? Theme.ink-0 : Theme.ink-1;
+        vertical-alignment: center;
+        overflow: elide;
+    }
+
+    Text {
+        y: root.width + Theme.space-2 + Theme.px(26);
+        width: parent.width;
+        height: Theme.px(18);
+        text: root.caption;
+        font-family: Theme.mono;
+        font-size: Theme.text-label;
+        letter-spacing: Theme.number-spacing;
+        color: Theme.ink-mute;
+        vertical-alignment: center;
+        overflow: elide;
+    }
+}

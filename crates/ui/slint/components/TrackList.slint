@@ -1,0 +1,1102 @@
+import { ListView } from "std-widgets.slint";
+import { Theme } from "../theme/tokens.slint";
+import { RowMenu, MenuItemData } from "RowMenu.slint";
+import { TrackRow, TrackRowData } from "TrackRow.slint";
+import { Transfer } from "Transfer.slint";
+import { TextButton } from "Dialog.slint";
+import { Field } from "Field.slint";
+import { SoundCircle } from "Controls.slint";
+import { EmptyState } from "EmptyState.slint";
+
+// One column label. Mono capitals, set wide, and the same width rules as the
+// row beneath it — the header and the rows are one grid described twice, so
+// they are described in the same order and with the same numbers.
+component ColumnLabel inherits Text {
+    font-family: Theme.mono;
+    font-size: Theme.text-label;
+    height: Theme.px(18);
+    letter-spacing: Theme.label-spacing;
+    // Furniture. `ARTIST` over a column is read once, on the first visit, and
+    // is scenery every time after — at `ink-mute` it sat eight steps under the
+    // names it labels and competed with them.
+    color: Theme.ink-furniture;
+    overflow: elide;
+    vertical-alignment: bottom;
+}
+
+// A page that is a list of tracks: a head, a set of column labels, and the rows.
+//
+// The library and the queue are the same page with different words in it, and
+// this is that page. What differs between them is what they are told, not how
+// they are built — one grid, described once, so the two cannot drift apart.
+
+// A square control that carries a glyph instead of a word.
+//
+// **The second bounded exception to "no icons inside buttons"**, and it is
+// written as a class like the first. A control that *opens* something may say
+// so with a mark: `opens` gave a chevron to one that opens a menu, and this is
+// one that opens a section of the page. What makes it safe is that the glyph
+// changes when the thing is open — a download arrow to bring the importer out,
+// a chevron up to fold it away — so the button describes the state rather than
+// naming an action it does not always perform.
+//
+// Everything else about it is the one button shape: `control-height`, the same
+// hairline, the same radius, the same three states.
+export component GlyphButton inherits Rectangle {
+    in property <image> glyph;
+    in property <bool> active;
+
+    callback pressed();
+
+    width: Theme.control-height;
+    height: Theme.control-height;
+    border-radius: Theme.radius;
+    border-width: 1px;
+    border-color: touch.has-hover || root.active ? Theme.line : Theme.line-soft;
+    background: touch.pressed
+        ? Theme.bg-3
+        : (root.active || touch.has-hover ? Theme.bg-2 : transparent);
+    animate background, border-color { duration: 120ms; }
+
+    touch := TouchArea {
+        mouse-cursor: pointer;
+        clicked => {
+            root.pressed();
+        }
+    }
+
+    Image {
+        source: root.glyph;
+        width: Theme.px(16);
+        height: self.width;
+        x: round((parent.width - self.width) / 1px / 2) * 1px;
+        y: round((parent.height - self.height) / 1px / 2) * 1px;
+        image-fit: contain;
+        colorize: touch.has-hover || root.active ? Theme.ink-0 : Theme.ink-2;
+        animate colorize { duration: 120ms; }
+    }
+}
+
+export component TrackList inherits Rectangle {
+    in property <[TrackRowData]> tracks;
+    in property <string> heading;
+    in property <string> summary;
+    in property <string> playing-id;
+    /// Which row that is, or -1. Counted in Rust, where the rows are built:
+    /// the markup has no way to search a model for one.
+    in property <int> playing-row: -1;
+    /// Bumped when somebody asks to be shown the row that is playing.
+    in-out property <int> reach-for-playing;
+    in property <string> empty-title;
+    in property <string> empty-hint;
+    /// The empty page's one button, or empty for none: the library's, while
+    /// there is no library, is the way to point Cadenza at one.
+    in property <string> empty-action;
+    callback empty-acted();
+    /// Nothing at all here yet, rather than nothing that matches: the link
+    /// field stands open, because pasting one is a way to begin.
+    in property <bool> bare;
+    /// Set to make the eyebrow a way back. Empty means this page is a
+    /// destination rather than somewhere you arrived from.
+    in property <string> back-label;
+    /// True on a playlist's page: its rows can be taken out of it.
+    in property <bool> in-playlist;
+    /// How many rows are picked, and what can be done to all of them.
+    in property <int> picked-count;
+    /// A row picked with the control key (`add`) or shift (`range`).
+    callback picked(int, bool, bool);
+    /// "queue", "playlist" or "remove", for every picked row.
+    callback picked-act(string);
+    /// Let every picked row go.
+    callback unpick();
+    /// Rows can be carried up and down the list to put it in another order.
+    in property <bool> reorderable;
+    /// The row carried, and the row it is to end up on.
+    callback reordered(int, int);
+
+    // The row being carried out of this list, and which carry it is.
+    property <int> carried-row: -1;
+    property <int> carry: -1;
+    function land(before: int) {
+        let to = before > root.carried-row ? before - 1 : before;
+        if (root.carry == Transfer.drags && to != root.carried-row) {
+            root.reordered(root.carried-row, to);
+        }
+        root.carry = -1;
+    }
+    /// A page for one collection: its cover beside its name, the top of the
+    /// page washed in the cover's colour, and play and shuffle as circles at
+    /// the start of the line under it rather than a word at its end.
+    in property <bool> hero;
+    /// What the collection is, over its name: "PLAYLIST".
+    in property <string> kind;
+    in property <image> cover;
+    in property <bool> has-cover;
+    in property <color> tint;
+    in property <bool> tinted;
+    /// The whole page, shuffled.
+    callback shuffle-page();
+    /// The head's own action, if the page has one, such as "PLAY".
+    /// Empty means the page offers nothing at that level.
+    in property <string> action-label;
+    in property <bool> action-destructive;
+    /// Whether the head carries a search field. Only the library does: it is
+    /// the only list long enough to lose something in.
+    in property <bool> searchable;
+    /// Bumped when somebody asks for the search field by keyboard.
+    ///
+    /// A counter rather than a flag, because a flag can only be raised once:
+    /// the second Ctrl+F would set `true` to `true` and change nothing. What
+    /// matters is that it moved, and `changed` says so.
+    in-out property <int> reach-for-search;
+    /// Whether this page can be put in a different order. The library can; a
+    /// queue and a playlist are already in the order somebody meant.
+    in property <bool> sortable;
+    /// What the order control reads, and what the menu offers.
+    in property <string> order-label;
+    in property <[MenuItemData]> orders;
+    in-out property <string> query <=> search.text;
+    /// Whether the head carries the line that brings a track in from a link.
+    /// Only the library does: it is the page about what you have, and this is
+    /// how something joins it.
+    in property <bool> fetchable;
+    /// Whether the importer is out. Closed on arrival: a listener who came to
+    /// look at their library did not come to paste a link, and the row was
+    /// three controls and a field standing open on every visit whether or not
+    /// anybody was importing anything.
+    property <bool> importing: root.fetchable && root.bare;
+    /// Declared here rather than aliased into the field below: the field lives
+    /// inside a condition, and an element inside a condition is out of scope
+    /// for a name at this level. The binding goes the other way instead.
+    in-out property <string> link;
+    /// Whether the link in the box names one recording, and whether it names a
+    /// list. Both, for an address that could be either — which is most of them
+    /// (`domain::policies::link_policy::readings_of`).
+    in property <bool> offers-a-track;
+    in property <bool> offers-a-list;
+    /// True while a fetch is running. What it costs the listener is the field
+    /// and the button: one at a time, because two downloads writing into one
+    /// folder is a race nobody asked for.
+    in property <bool> fetching;
+    in property <int> fetch-percent;
+    /// What happened, in a line. Empty says nothing has yet.
+    in property <string> fetch-note;
+    /// True where the fetch stopped because there is nowhere to put anything.
+    /// The offer to make the folder appears with it.
+    in property <bool> fetch-needs-folder;
+    /// What the one offered button would do, or empty for no button.
+    ///
+    /// A label rather than a flag, because the two things it offers — install
+    /// what is missing, update what has fallen behind — are never both true and
+    /// the word on the button is the whole of the difference.
+    in property <string> fetch-offer;
+
+    callback play(string);
+    callback enqueue(string, bool);
+    /// A row's place, what it plays, and what was asked of it.
+    callback act(int, string, string);
+    callback back();
+    callback act-on-page();
+    callback searched(string);
+    callback set-order(string);
+    callback fetch(string);
+    /// Everything the playlist on the end of that link holds.
+    callback fetch-playlist(string);
+    /// Enough. What has finished is kept.
+    callback stop-fetch();
+    /// Do the thing the offer says, then try again.
+    callback fix-fetch();
+    callback make-local-folder();
+
+    background: Theme.bg-0;
+
+    // Asked for from the keyboard. Only where there is a field to reach: on a
+    // page that does not search, Ctrl+F is a press with nothing behind it.
+    /// Where the list has been scrolled to.
+    ///
+    /// Bound both ways to the list's own offset: the list writes it as somebody
+    /// scrolls, and writing it scrolls the list. It exists because the list is
+    /// built inside a condition — a page with no tracks draws no list at all —
+    /// and an element inside a condition cannot be reached by name from out
+    /// here.
+    in-out property <length> offset;
+
+    // Scrolled down a collection's list, its head gives the rows its room: the
+    // cover and the large name fold away, and the name stands beside the
+    // circles instead.
+    //
+    // It folds as the list moves down, and it comes back as the list moves up
+    // within the head's own height of the top - where it would be if it were
+    // the top of the list. It used to wait for the list to arrive at the top,
+    // and the wheel on this toolkit is smoothed, so the head opened only after
+    // the scroll had finished gliding: late, and then pushing every row down.
+    //
+    // Only where the list is longer than the page by at least the head's own
+    // height. A list barely longer than the page, scrolled to its foot, would
+    // be moved back up by the room the folding head gives it - which reads as
+    // scrolling up, and would open the head again.
+    //
+    // Measured and set when something changes, never bound. Bound, a turn of
+    // the wheel crashed the window: the smoothed scroll reads the list's
+    // height while it settles the offset, the height hangs on the head, and
+    // the head hung on that same offset - which Slint stops on as recursion.
+    // Reproduced with the wheel as Windows delivers it, and gone with this.
+    property <bool> long-list;
+    property <bool> folded-head;
+    /// Where the list was when it last moved, to tell down from up.
+    property <length> last-offset;
+    /// The head's height: the cover and what the row pads around it.
+    property <length> head-room: Theme.px(176) + Theme.space-2 + Theme.space-3;
+    function measure() {
+        root.long-list = root.tracks.length * Theme.row-height > root.height + root.head-room;
+        root.last-offset = root.offset;
+        root.fold();
+    }
+    function fold() {
+        if (!root.hero || !root.long-list || root.offset >= 0) {
+            root.folded-head = false;
+        } else if (root.offset < root.last-offset) {
+            root.folded-head = true;
+        } else if (root.offset > root.last-offset && root.offset > -root.head-room) {
+            root.folded-head = false;
+        }
+        root.last-offset = root.offset;
+    }
+    init => {
+        root.measure();
+    }
+    changed height => {
+        root.measure();
+    }
+    changed tracks => {
+        root.measure();
+    }
+    changed offset => {
+        root.fold();
+    }
+
+    // Two rows above the one that is playing, rather than hard against the
+    // ceiling: a row at the very top reads as the beginning of the list rather
+    // than as a place in it, and what is above it is part of the answer to
+    // "where am I".
+    changed reach-for-playing => {
+        if (root.playing-row >= 0) {
+            root.offset = -(max(0, root.playing-row - 2) * Theme.row-height);
+        }
+    }
+
+    changed reach-for-search => {
+        if (root.searchable) {
+            search.focus();
+        }
+    }
+
+    // The cover's colour, washed down from the top and gone by the rows.
+    if root.hero && root.tinted: Rectangle {
+        y: 0;
+        height: Theme.px(400);
+        background: @linear-gradient(180deg, root.tint.with-alpha(Theme.wash) 0%, root.tint.with-alpha(0) 100%);
+    }
+
+    VerticalLayout {
+        // The page head. One title, set large, with the count beneath it in the
+        // same mono capitals the column labels use — the eye learns one rule.
+        VerticalLayout {
+            // Takes the height it needs and no more. Without this the layout
+            // shares the spare height between the head and the list, and the
+            // page opens with the library halfway down the window.
+            vertical-stretch: 0;
+            padding-left: Theme.page-inset;
+            padding-right: Theme.page-inset;
+            padding-top: Theme.page-top;
+            padding-bottom: Theme.page-bottom;
+            spacing: Theme.space-2;
+
+            // The way back, where there is one. There used to be a second use
+            // for this line — an eyebrow naming the page — and on every screen
+            // that had one it named the page the sidebar had just named: `YOUR
+            // LIBRARY` over `Library`, `YOUR LISTS` over `Playlists`. A caption
+            // that repeats the word beside it is decoration.
+            //
+            // The row goes with the words rather than standing empty, so the
+            // heading rises by its 18 and the 8 above it. A page reached from
+            // somewhere still says where from.
+            if root.back-label != "": HorizontalLayout {
+                alignment: start;
+
+                Rectangle {
+                    // Hugs the text, so only the words are clickable.
+                    width: label.width;
+                    height: label.height;
+
+                    back-touch := TouchArea {
+                        mouse-cursor: pointer;
+                        clicked => {
+                            root.back();
+                        }
+                    }
+
+                    label := Text {
+                        text: "← " + root.back-label;
+                        font-family: Theme.mono;
+                        font-size: Theme.text-label;
+                        height: Theme.px(18);
+                        vertical-alignment: center;
+                        letter-spacing: Theme.label-spacing;
+                        color: back-touch.has-hover ? Theme.ink-0 : Theme.ink-mute;
+                        animate color { duration: 120ms; }
+                    }
+                }
+            }
+
+            // A collection's own page: its cover beside its name, the way a
+            // record is shown on its sleeve rather than as a line of text.
+            if root.hero: Rectangle {
+                height: root.folded-head ? 0px : hero-row.preferred-height;
+                animate height { duration: Theme.fold-time; easing: cubic-bezier(0.4, 0, 0.2, 1); }
+                // Only while it folds or is folded: open, the sleeve's shadow
+                // reaches past the edge.
+                clip: self.height < hero-row.preferred-height;
+
+            // Pinned to the bottom, so it goes up and away as a scrolled
+            // page would rather than being cut off from below.
+            hero-row := HorizontalLayout {
+                y: parent.height - self.height;
+                height: self.preferred-height;
+                spacing: Theme.space-6;
+                padding-top: Theme.space-2;
+                padding-bottom: Theme.space-3;
+
+                // Lies on the page, as the sleeve it is.
+                Rectangle {
+                    width: Theme.px(176);
+                    height: Theme.px(176);
+                    border-radius: Theme.radius;
+                    drop-shadow-blur: Theme.px(24);
+                    drop-shadow-color: Colors.black.with-alpha(0.4 * Theme.shadow-depth);
+
+                    Rectangle {
+                        border-radius: Theme.radius;
+                        clip: true;
+                        // With no picture, the stand-in a tile has: the name
+                        // set large on the gradient, inside a hairline.
+                        background: @linear-gradient(150deg, Theme.bg-2 0%, Theme.bg-1 55%, Theme.bg-0 100%);
+                        border-width: root.has-cover ? 0px : 1px;
+                        border-color: Theme.line-soft;
+
+                        if root.has-cover: Image {
+                            width: 100%;
+                            height: 100%;
+                            source: root.cover;
+                            image-fit: ImageFit.cover;
+                        }
+
+                        if !root.has-cover: Text {
+                            x: Theme.px(20);
+                            y: Theme.px(20);
+                            width: parent.width - Theme.px(40);
+                            height: parent.height - Theme.px(40);
+                            text: root.heading;
+                            font-family: Theme.serif;
+                            font-italic: true;
+                            font-size: Theme.text-title;
+                            color: Theme.ink-0;
+                            vertical-alignment: center;
+                            wrap: word-wrap;
+                            overflow: elide;
+                        }
+                    }
+                }
+
+                VerticalLayout {
+                    alignment: end;
+                    horizontal-stretch: 1;
+                    spacing: Theme.space-2;
+
+                    Text {
+                        text: root.kind;
+                        font-family: Theme.mono;
+                        font-size: Theme.text-label;
+                        height: Theme.px(18);
+                        vertical-alignment: center;
+                        letter-spacing: Theme.label-spacing;
+                        color: Theme.ink-furniture;
+                    }
+                    Text {
+                        text: root.heading;
+                        font-family: Theme.serif;
+                        font-size: Theme.text-display;
+                        height: Theme.heading-box;
+                        color: Theme.ink-0;
+                        vertical-alignment: bottom;
+                        overflow: elide;
+                    }
+                    Text {
+                        text: root.summary;
+                        font-family: Theme.mono;
+                        font-size: Theme.text-label;
+                        height: Theme.px(18);
+                        vertical-alignment: center;
+                        letter-spacing: Theme.number-spacing;
+                        color: Theme.ink-2;
+                    }
+                }
+            }
+            }
+
+            // The heading has the width of the page to itself.
+            if !root.hero: Text {
+                text: root.heading;
+                font-family: Theme.serif;
+                font-size: Theme.text-display;
+                height: Theme.heading-box;
+                color: Theme.ink-0;
+                vertical-alignment: bottom;
+                overflow: elide;
+            }
+
+            // The quantities, and whatever this page offers at the level of the
+            // page itself — one field or one action, on the same line, in the
+            // same place on every screen.
+            //
+            // On this line rather than beside the heading, which is where it
+            // was. A lone bordered box in the white space to the right of a
+            // title belongs to nothing: it is not part of the name and it is
+            // not part of the content. Here it stands at the end of a line that
+            // already has words on it, directly above the thing it acts on.
+            HorizontalLayout {
+                alignment: space-between;
+                spacing: Theme.space-5;
+
+                // The quantities give way when the window is narrow. They can
+                // be read short; a search field pushed off the edge cannot be
+                // used at all.
+                VerticalLayout {
+                    alignment: center;
+                    horizontal-stretch: 1;
+
+                    // On a collection's page the quantities are under its
+                    // name, and the start of this line is where it is played
+                    // from: in its order, or shuffled.
+                    if root.hero && root.tracks.length > 0: HorizontalLayout {
+                        spacing: Theme.space-3;
+
+                        SoundCircle {
+                            glyph: @image-url("../../../../resources/ui/icons/play-16.svg");
+                            nudge: 1px;
+                            pressed => {
+                                root.act-on-page();
+                            }
+                        }
+                        SoundCircle {
+                            glyph: @image-url("../../../../resources/ui/icons/shuffle.svg");
+                            pressed => {
+                                root.shuffle-page();
+                            }
+                        }
+
+                        // The name, once the head has folded away.
+                        VerticalLayout {
+                            alignment: center;
+                            horizontal-stretch: 1;
+                            padding-left: Theme.space-2;
+                            opacity: root.folded-head ? 1 : 0;
+                            animate opacity { duration: Theme.fade-time; easing: ease-in-out; }
+
+                            Text {
+                                text: root.heading;
+                                font-family: Theme.serif;
+                                font-size: Theme.text-title;
+                                height: Theme.px(34);
+                                vertical-alignment: center;
+                                color: Theme.ink-0;
+                                overflow: elide;
+                            }
+                        }
+                    }
+
+                    if !root.hero: Text {
+                        text: root.summary;
+                        font-family: Theme.mono;
+                        font-size: Theme.text-label;
+                        height: Theme.px(18);
+                        vertical-alignment: center;
+                        letter-spacing: Theme.number-spacing;
+                        color: Theme.ink-2;
+                    }
+                }
+
+                // Side by side, because the library has two of them: the
+                // order it is in, and what is being looked for in it. They
+                // used to be stacked, which was invisible while only one page
+                // ever showed one.
+                //
+                // Twelve between them, which is what the design calls the gap
+                // between controls on one line — and what the two buttons under
+                // the search box have always had between them. It was eight,
+                // which is the gap for parts of one thing, and the two lines
+                // disagreed by four pixels in a place where one sits directly
+                // above the other.
+                HorizontalLayout {
+                    alignment: end;
+                    spacing: Theme.space-3;
+
+                    // Not inside a condition: a `PopupWindow` cannot be one,
+                    // and the alias below names it. Collapsed in both
+                    // directions where the page cannot be reordered, the same
+                    // way the search field is.
+                    VerticalLayout {
+                        alignment: center;
+
+                        Rectangle {
+                            width: root.sortable ? Theme.px(176) : 0px;
+                            height: root.sortable ? Theme.control-height : 0px;
+
+                            // A menu rather than a list drawn in place, for the
+                            // reason `RowMenu` gives: it has to cover what is
+                            // under it instead of pushing the page down.
+                            picker := RowMenu {
+                                x: 0;
+                                y: parent.height + Theme.px(4);
+                                items: root.orders;
+                                chosen(order) => {
+                                    root.set-order(order);
+                                }
+                            }
+
+                            // The one control in the interface that carries a
+                            // glyph. It opens a menu, and drawn without the
+                            // chevron it was the same object as the button
+                            // beside it that does something instead.
+                            if root.sortable: TextButton {
+                                label: root.order-label;
+                                fixed-width: Theme.px(176);
+                                opens: @image-url("../../../../resources/ui/icons/chevron-down.svg");
+                                pressed => {
+                                    picker.show();
+                                }
+                            }
+                        }
+                    }
+
+                VerticalLayout {
+                    alignment: center;
+
+                    // Built whether or not this page searches, because the
+                    // alias above names it: an element inside a condition is
+                    // out of scope everywhere else.
+                    //
+                    // Collapses in both directions where the page does not
+                    // search. Left at its full height it was an invisible
+                    // control standing above the page's own button, and the
+                    // head grew by that much.
+                    // Exactly the two buttons below it: GET at 100, PLAYLIST
+                    // at 140, and the twelve between them. Two controls in a
+                    // column that nearly line up read as a mistake; the same
+                    // two that line up exactly read as a grid.
+                    search := Field {
+                        width: root.searchable ? Theme.px(252) : 0px;
+                        height: root.searchable ? Theme.control-height : 0px;
+                        icon: @image-url("../../../../resources/ui/icons/search.svg");
+                        placeholder: @tr("Search");
+                        edited => {
+                            root.searched(self.text);
+                        }
+                    }
+
+                    if root.action-label != "": TextButton {
+                        label: root.action-label;
+                        destructive: root.action-destructive;
+                        pressed => {
+                            root.act-on-page();
+                        }
+                    }
+                }
+
+                // The one control that brings the importer out and puts it
+                // away. At the end of the line it belongs to, because what it
+                // opens is underneath.
+                if root.fetchable: VerticalLayout {
+                    alignment: center;
+
+                    GlyphButton {
+                        glyph: root.importing
+                            ? @image-url("../../../../resources/ui/icons/chevron-up.svg")
+                            : @image-url("../../../../resources/ui/icons/download.svg");
+                        active: root.importing;
+                        pressed => {
+                            root.importing = !root.importing;
+                        }
+                    }
+                }
+                }
+            }
+
+            // Folded away until it is asked for, and it unfolds by its height
+            // rather than by appearing: a row of controls that arrives all at
+            // once where there was nothing reads as the page having jumped.
+            // 180 ms, which is the far end of what this interface allows —
+            // long enough to be seen as a movement, short enough that nobody
+            // waits for it.
+            //
+            // A download in progress holds it open whatever the button says,
+            // because the percentage counts inside it and a listener who
+            // switched pages should not come back to a closed drawer with no
+            // way to see what is happening.
+            Rectangle {
+                property <bool> out: root.importing || root.fetching;
+
+                height: self.out ? importer.preferred-height : 0px;
+                clip: true;
+                animate height { duration: 180ms; easing: ease-out; }
+
+                importer := VerticalLayout {
+                    width: parent.width;
+                    spacing: Theme.space-2;
+
+            // The line between what the library is and what to add to it.
+            //
+            // Four bordered boxes stacked two by two read as one toolbar of
+            // four equal things, and they are not: the row above searches and
+            // orders what is already here, and the row below brings something
+            // in from outside. The rule is the interface's own way of ending
+            // one thing and starting another, and it is the width of the
+            // content like every other rule here.
+            if root.fetchable: Rectangle {
+                height: Theme.space-4;
+
+                Rectangle {
+                    y: round((parent.height - 1px) / 1px / 2) * 1px;
+                    height: 1px;
+                    background: Theme.line-soft;
+                }
+            }
+
+            // Bringing a track in from a link. On the page about what you have,
+            // because that is where somebody stands when they want more of it —
+            // and on one line, because it is one field and one press.
+            //
+            // Cadenza fetches nothing itself: this hands the address to a
+            // downloader the listener installed, and what comes back is a file
+            // in their folder like any other.
+            if root.fetchable: HorizontalLayout {
+                spacing: Theme.space-3;
+
+                Field {
+                    horizontal-stretch: 1;
+                    text <=> root.link;
+                    // Names the site people actually paste from, rather than
+                    // promising "a link" and leaving them to find out which
+                    // kind. Most video sites work too; the ones that do not are
+                    // named when somebody tries one.
+                    // Says both things it takes, because the pair of
+                    // buttons beside it is the only other clue and a listener
+                    // reads the field first.
+                    placeholder: @tr("Paste a YouTube link - a track, or a playlist");
+                    accepted => {
+                        root.fetch(self.text);
+                    }
+                }
+
+                // No height of their own. They and the field are all one
+                // control height, which is what makes the line read as one
+                // object rather than as a box with two larger things beside
+                // it — the field used to be six pixels taller than every
+                // button in the interface, and these two matched the field.
+                TextButton {
+                    // The percentage stands in the button rather than in a
+                    // bar of its own: it is the same object that started
+                    // the download, and watching it count is watching the
+                    // thing you pressed.
+                    //
+                    // `ADD TRACK` rather than `GET`, which named no object and
+                    // left the button beside it to imply what the first one
+                    // must have meant.
+                    label: root.fetching ? root.fetch-percent + "%" : @tr("ADD TRACK");
+                    fixed-width: Theme.px(140);
+                    enabled: !root.fetching && root.offers-a-track;
+                    pressed => {
+                        root.fetch(root.link);
+                    }
+                }
+
+                // The same link read the other way. Two buttons rather than a
+                // guess at the address: a YouTube link that carries a playlist
+                // is a reasonable request for one track and a reasonable
+                // request for forty, and only the listener knows which they
+                // meant.
+                //
+                // What the link *cannot* be is switched off rather than hidden,
+                // so the ambiguity is shown instead of guessed at: paste a bare
+                // `watch?v=` and only one of these lives; paste `…&list=…` and
+                // both do, because both readings are real. It also answers the
+                // question nobody would have asked — that a playlist can be
+                // pasted at all.
+                if !root.fetching: TextButton {
+                    label: @tr("ADD PLAYLIST");
+                    fixed-width: Theme.px(140);
+                    enabled: root.offers-a-list;
+                    pressed => {
+                        root.fetch-playlist(root.link);
+                    }
+                }
+
+                // In its place while something is coming, because a download
+                // with no way out is a download that owns the listener's
+                // evening. What has finished is kept and pressing PLAYLIST
+                // again carries on from there.
+                if root.fetching: TextButton {
+                    label: @tr("STOP");
+                    fixed-width: Theme.px(140);
+                    destructive: true;
+                    pressed => {
+                        root.stop-fetch();
+                    }
+                }
+
+                // Beside the words that explain why nothing happened, so
+                // that the reason and the answer to it are one object.
+                if !root.fetching && root.fetch-offer != "": TextButton {
+                    label: root.fetch-offer;
+                    fixed-width: Theme.px(140);
+                    pressed => {
+                        root.fix-fetch();
+                    }
+                }
+
+                if root.fetch-needs-folder: TextButton {
+                    label: @tr("MAKE A FOLDER");
+                    fixed-width: Theme.px(176);
+                    pressed => {
+                        root.make-local-folder();
+                    }
+                }
+            }
+
+            // Two lines rather than one elided. What goes here is the only
+            // thing on the page somebody has to *act* on — a command to type, a
+            // reason the far end refused — and half of an instruction ending in
+            // an ellipsis is worse than no instruction: it looks like the
+            // application said something and reads like it said nothing.
+            //
+            // A stated box, even, and two lines of it whether or not the second
+            // is used, so that the list below does not jump up and down as the
+            // message changes length.
+            if root.fetchable && root.fetch-note != "": Text {
+                text: root.fetch-note;
+                font-family: Theme.mono;
+                font-size: Theme.text-label;
+                height: Theme.line-label * 2;
+                wrap: word-wrap;
+                vertical-alignment: top;
+                letter-spacing: Theme.label-spacing;
+                color: Theme.ink-mute;
+            }
+                }
+            }
+        }
+
+        // Column labels on the row's grid, and the rule that ends the head.
+        VerticalLayout {
+            vertical-stretch: 0;
+            padding-left: Theme.page-inset;
+            padding-right: Theme.page-inset;
+
+            HorizontalLayout {
+                padding-bottom: Theme.row-padding;
+                // The same twelve the rows carry on the near side, and on the
+                // far side the gutter the scrollbar takes — otherwise every
+                // label stands beside the column it names rather than above it.
+                padding-left: Theme.space-3;
+                padding-right: Theme.row-end-inset + Theme.scroll-gutter;
+                spacing: Theme.column-gap;
+                // Nothing is written over the covers — a heading there would
+                // name a column that is already obvious — but the space has to
+                // be kept, or every label below shifts left of what it labels.
+                ColumnLabel {
+                    width: Theme.px(36);
+                    text: "";
+                }
+
+                ColumnLabel {
+                    text: @tr("TITLE");
+                    horizontal-stretch: 1;
+                    preferred-width: 0px;
+                }
+                ColumnLabel {
+                    text: @tr("ARTIST");
+                    horizontal-stretch: 1;
+                    preferred-width: 0px;
+                }
+                ColumnLabel {
+                    width: Theme.album-column;
+                    text: @tr("ALBUM");
+                }
+                ColumnLabel {
+                    width: Theme.time-column;
+                    text: @tr("TIME");
+                    horizontal-alignment: right;
+                }
+                // The row's menu column, named by nothing: a heading over a
+                // control that only exists under the pointer would be a
+                // heading over an empty column most of the time.
+                ColumnLabel {
+                    width: Theme.px(32);
+                    text: "";
+                }
+            }
+
+            // Stronger than the hairlines between rows: this one ends a section,
+            // they only separate items inside it.
+            Rectangle {
+                height: 1px;
+                background: Theme.line;
+            }
+        }
+
+        // An empty list is a state with an answer, not a blank page.
+        //
+        // `vertical-stretch: 1` is not decoration. A column layout whose every
+        // child asks for nothing shares the spare height between all of them —
+        // so without this the page head grew, its three lines drifted apart,
+        // and the column labels sank into the middle of the window. One child
+        // that will take the surplus keeps every other child at its own height.
+        if root.tracks.length == 0: VerticalLayout {
+            vertical-stretch: 1;
+            alignment: start;
+            padding-left: Theme.page-inset;
+            padding-right: Theme.page-inset;
+            padding-top: Theme.space-6;
+
+            EmptyState {
+                title: root.empty-title;
+                hint: root.empty-hint;
+                action: root.empty-action;
+                acted => {
+                    root.empty-acted();
+                }
+            }
+        }
+
+        // The list carries the page inset, so hover and the row's own hairline
+        // both stop where the content stops rather than running to the window
+        // edge.
+        if root.tracks.length > 0: HorizontalLayout {
+            vertical-stretch: 1;
+            padding-left: Theme.page-inset;
+            padding-right: Theme.page-inset;
+
+            // A plain rectangle rather than the layout itself, so the bar can
+            // be drawn *over* the list instead of taking a column beside it.
+            // The gutter the rows already leave is where it lands.
+            Rectangle {
+                list := ListView {
+                width: parent.width;
+                height: parent.height;
+                // The toolkit's own bar is off. It is the one control in this
+                // application that was drawn by somebody else — a wide grey
+                // track with a rounded grey thumb, in nobody's palette, on a
+                // page that has no other grey rounded object anywhere.
+                vertical-scrollbar-policy: ScrollBarPolicy.always-off;
+                viewport-y <=> root.offset;
+
+                // Not animated, and it was tried. `viewport-y` is the property
+                // the `Flickable` writes on every wheel notch, so an animation
+                // on it animates scrolling itself — and the owner, who has the
+                // wheel this window cannot test, took it back out.
+
+                // Wrapped rather than made part of the row, because what a row
+                // is stays one question and where it can be carried is another.
+                //
+                // A press still reaches the row underneath — a drag area takes
+                // the pointer only once it has moved past a threshold — so a
+                // click still plays. Only where the list can be put in another
+                // order: carrying a row is for that and nothing else.
+                for entry[index] in root.tracks: DragArea {
+                    enabled: root.reorderable;
+                    height: Theme.row-height;
+                    data: Transfer.of-track(entry.id);
+                    drag-image: entry.cover;
+                    changed dragging => {
+                        if (self.dragging) {
+                            Transfer.drags += 1;
+                            root.carry = Transfer.drags;
+                            root.carried-row = index;
+                            Transfer.hint = @tr("Let go between rows to move it");
+                        }
+                    }
+                    allow-copy: true;
+
+                    // Let go of over a row of the same list: above its middle
+                    // is before it, below is after.
+                    DropArea {
+                        enabled: root.reorderable && root.carry == Transfer.drags;
+                        property <bool> lower;
+                        can-drop(event) => {
+                            self.lower = event.position.y > self.height / 2;
+                            return DragAction.copy;
+                        }
+                        dropped(event) => {
+                            root.land(index + (event.position.y > self.height / 2 ? 1 : 0));
+                            return DragAction.copy;
+                        }
+
+                        // Where the row would land: the top edge or the bottom.
+                        Rectangle {
+                            visible: parent.has-drag;
+                            y: parent.lower ? parent.height - 1px : -1px;
+                            height: Theme.px(2);
+                            background: Theme.ink-1;
+                        }
+                    }
+
+                    TrackRow {
+                    // Short of the list by the width of its bar, which is
+                    // drawn over the content rather than beside it.
+                    //
+                    // Anchored, because a `DragArea` centres what it holds: a
+                    // row merely made narrower loses half the gutter off its
+                    // left as well, and every number, title and time in the
+                    // list stands four pixels right of the label naming it.
+                    x: 0px;
+                    width: parent.width - Theme.scroll-gutter;
+                    data: entry;
+                    playing: entry.id == root.playing-id;
+                    in-playlist: root.in-playlist;
+                    activated => {
+                        root.play(entry.id);
+                    }
+                    picked(add, range) => {
+                        root.picked(index, add, range);
+                    }
+                    enqueued(next) => {
+                        root.enqueue(entry.id, next);
+                    }
+                    acted(action) => {
+                        root.act(index, entry.id, action);
+                    }
+                    }
+                }
+            }
+
+            // The bar: a thumb and no track. A track says "this can scroll" to
+            // somebody who already knows; the thumb carries the information —
+            // how much of the list is on screen and where in it you are.
+            //
+            // Quiet by default, louder when reached for: `line` rising to
+            // `ink-mute` under the pointer. Round, because a handle is a circle
+            // and everything else is six.
+            //
+            // **Animated in colour only.** The position follows the wheel, and
+            // a gesture that arrives smoothed arrives late.
+            if list.viewport-height > list.visible-height: Rectangle {
+                property <length> travel: list.visible-height - self.height;
+                property <float> through: -list.viewport-y
+                    / (list.viewport-height - list.visible-height);
+
+                width: Theme.px(4);
+                x: parent.width - Theme.scroll-gutter
+                    + round((Theme.scroll-gutter - self.width) / 1px / 2) * 1px;
+                // Its share of the list, and never so short that it stops
+                // reading as an object: a library of thousands would otherwise
+                // put a two-pixel mark on the edge of the window.
+                height: max(Theme.px(32),
+                    list.visible-height * list.visible-height / list.viewport-height);
+                y: round(clamp(self.through, 0.0, 1.0) * self.travel / 1px) * 1px;
+                border-radius: self.width / 2;
+                background: bar-touch.has-hover ? Theme.ink-mute : Theme.line;
+                animate background { duration: 120ms; }
+            }
+
+            // What can be done to the picked rows, over the foot of the list
+            // while there are any: the head has the search and the order in
+            // it, and they stay where they are.
+            if root.picked-count > 0: Rectangle {
+                x: round((parent.width - Theme.scroll-gutter - self.width) / 1px / 2) * 1px;
+                y: parent.height - self.height - Theme.space-5;
+                width: picks.preferred-width;
+                height: Theme.px(58);
+                background: Theme.bg-2;
+                border-radius: Theme.radius;
+                border-width: 1px;
+                border-color: Theme.line;
+                drop-shadow-blur: Theme.px(24);
+                drop-shadow-color: Colors.black.with-alpha(0.5 * Theme.shadow-depth);
+
+                picks := HorizontalLayout {
+                    padding-left: Theme.space-5;
+                    padding-right: Theme.space-3;
+                    spacing: Theme.space-3;
+
+                    VerticalLayout {
+                        alignment: center;
+
+                        Text {
+                            text: @tr("Picked: {}", root.picked-count);
+                            font-family: Theme.mono;
+                            font-size: Theme.text-label;
+                            height: Theme.px(18);
+                            vertical-alignment: center;
+                            letter-spacing: Theme.label-spacing;
+                            color: Theme.ink-1;
+                        }
+                    }
+
+                    VerticalLayout {
+                        alignment: center;
+
+                        TextButton {
+                            label: @tr("TO THE QUEUE");
+                            pressed => {
+                                root.picked-act("queue");
+                            }
+                        }
+                    }
+
+                    VerticalLayout {
+                        alignment: center;
+
+                        TextButton {
+                            label: @tr("TO A PLAYLIST…");
+                            pressed => {
+                                root.picked-act("playlist");
+                            }
+                        }
+                    }
+
+                    VerticalLayout {
+                        alignment: center;
+
+                        TextButton {
+                            label: @tr("REMOVE…");
+                            destructive: true;
+                            pressed => {
+                                root.picked-act("remove");
+                            }
+                        }
+                    }
+
+                    VerticalLayout {
+                        alignment: center;
+
+                        TextButton {
+                            label: @tr("CANCEL");
+                            pressed => {
+                                root.unpick();
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Over the gutter and nothing else, so it brightens the bar
+            // without taking a single click away from the rows.
+            bar-touch := TouchArea {
+                x: parent.width - Theme.scroll-gutter;
+                width: Theme.scroll-gutter;
+                height: parent.height;
+            }
+            }
+        }
+    }
+}

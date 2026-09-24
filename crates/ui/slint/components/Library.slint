@@ -1,0 +1,42 @@
+import { TrackRowData } from "TrackRow.slint";
+import { MenuItemData } from "RowMenu.slint";
+import { ReviewRowData, ReviewChoice } from "../views/ReviewsView.slint";
+
+// The library page: the tracks as shown, how they are searched and ordered, the track being edited, and the decisions waiting about files.
+//
+// A global, like `Player`: set and answered by the controller directly, read
+// by the shell, rather than declared twice and passed down line by line.
+export global Library {
+    /// Nothing in the library at all, as against nothing matching a search.
+    in property <bool> bare;
+    in property <[TrackRowData]> tracks;
+    in property <string> summary;
+    in property <string> empty-hint;
+    in-out property <string> query;
+    in-out property <int> reach-for-search;
+    in property <int> playing-row;
+    in-out property <int> reach-for-playing;
+    in property <string> order-label;
+    in property <[MenuItemData]> orders;
+    in property <string> editing-id;
+    in property <string> editing-title;
+    in property <string> editing-artist;
+    in property <string> editing-album;
+    in property <[ReviewRowData]> reviews;
+    in property <string> reviews-summary;
+    callback play(string);
+    /// How many rows are picked, and what is done to them.
+    in property <int> picked;
+    callback pick(int, bool, bool);
+    callback queue-picked();
+    callback remove-picked();
+    callback unpick();
+    callback remove-from-library(string);
+    callback choose-cover(string);
+    callback clear-cover(string);
+    callback search(string);
+    callback set-order(string);
+    callback decide-review(string, ReviewChoice);
+    callback edit-track(string);
+    callback save-track(string, string, string, string);
+}

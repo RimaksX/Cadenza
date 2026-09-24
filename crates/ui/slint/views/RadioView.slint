@@ -1,0 +1,283 @@
+import { Theme } from "../theme/tokens.slint";
+import { TextButton } from "../components/Dialog.slint";
+import { ScrollFade } from "../components/ScrollFade.slint";
+
+// One mood the listener can start a station from.
+export struct MoodRowData {
+    id: string,
+    name: string,
+    /// What it asks for, in a few words: "125-175 bpm, loud".
+    asks: string,
+}
+
+// A line of explanation under a group.
+component SectionNote inherits Text {
+    font-family: Theme.sans;
+    font-size: Theme.text-body;
+    height: Theme.px(22);
+    vertical-alignment: center;
+    color: Theme.ink-mute;
+    overflow: elide;
+}
+
+// A heading over a group, the same rule-to-the-edge the sidebar and the
+// settings screen use.
+component SectionLabel inherits Rectangle {
+    in property <string> text;
+
+    height: Theme.px(26);
+
+    HorizontalLayout {
+        y: round((parent.height - Theme.px(18)) / 1px / 2) * 1px;
+        height: Theme.px(18);
+        spacing: Theme.space-2;
+
+        VerticalLayout {
+            alignment: center;
+
+            Text {
+                text: root.text;
+                font-family: Theme.mono;
+                font-size: Theme.text-label;
+                height: Theme.px(18);
+                vertical-alignment: center;
+                letter-spacing: Theme.label-spacing;
+                color: Theme.ink-furniture;
+            }
+        }
+
+    }
+}
+
+// One mood: its name, and what it is asking the library for.
+component MoodCard inherits Rectangle {
+    in property <MoodRowData> data;
+    in property <bool> playing;
+
+    callback chosen();
+
+    height: Theme.px(76);
+    border-width: 1px;
+    // The accent: what is happening now, which is what the palette keeps it
+    // for. It was the loudest ink, which says "pointed at", not "playing".
+    border-color: root.playing ? Theme.accent : Theme.line-soft;
+    animate border-color, background { duration: 120ms; }
+    background: touch.has-hover ? Theme.bg-2 : Theme.bg-1;
+    // The one bordered object in the application that had square corners. Every
+    // other — a button, a field, a sleeve, a playlist tile, the band across the
+    // playlists page — is rounded by the same six, and a corner is how this
+    // interface says two things are the same kind of thing.
+    border-radius: Theme.radius;
+
+    touch := TouchArea {
+        mouse-cursor: pointer;
+        clicked => {
+            root.chosen();
+        }
+    }
+
+    VerticalLayout {
+        x: Theme.space-4;
+        y: round((parent.height - Theme.px(48)) / 1px / 2) * 1px;
+        width: parent.width - Theme.space-4 * 2;
+        height: Theme.px(48);
+        spacing: Theme.px(2);
+
+        Text {
+            text: root.data.name;
+            font-family: Theme.serif;
+            font-size: Theme.text-title;
+            height: Theme.px(34);
+            vertical-alignment: center;
+            color: Theme.ink-0;
+            overflow: elide;
+        }
+
+        Text {
+            text: root.data.asks;
+            font-family: Theme.mono;
+            font-size: Theme.text-label;
+            height: Theme.px(18);
+            vertical-alignment: center;
+            // Lower case, so the spacing of numbers rather than of capitals:
+            // at the capitals' it ran out of room.
+            letter-spacing: Theme.number-spacing;
+            color: Theme.ink-mute;
+            overflow: elide;
+        }
+    }
+}
+
+// Choosing a mood and telling the station what it got wrong.
+export component RadioView inherits Rectangle {
+    in property <[MoodRowData]> moods;
+    /// The mood playing now, empty when nothing is.
+    in property <string> playing-mood;
+    in property <string> summary;
+    /// What the station is playing, for the verdict buttons to name.
+    in property <string> now-title;
+
+    /// Named for what it does rather than "start": `start` is also the value
+    /// `alignment` takes, and a callback of that name shadows it everywhere
+    /// below.
+    callback listen(string);
+    /// True to say more like this, false for less.
+    callback judge(bool);
+
+    background: Theme.bg-0;
+
+    VerticalLayout {
+        VerticalLayout {
+            vertical-stretch: 0;
+            padding-left: Theme.page-inset;
+            padding-right: Theme.page-inset;
+            padding-top: Theme.page-top;
+            padding-bottom: Theme.page-bottom;
+            spacing: Theme.space-2;
+
+            Text {
+                text: @tr("Radio");
+                font-family: Theme.serif;
+                font-size: Theme.text-display;
+                height: Theme.heading-box;
+                vertical-alignment: bottom;
+                color: Theme.ink-0;
+            }
+
+            Text {
+                // A sentence, so the sans: mono under a page's name is for
+                // counts.
+                text: root.summary;
+                font-family: Theme.sans;
+                font-size: Theme.text-body;
+                height: Theme.px(22);
+                vertical-alignment: center;
+                color: Theme.ink-2;
+            }
+        }
+
+        HorizontalLayout {
+            vertical-stretch: 1;
+            padding-left: Theme.page-inset;
+            padding-right: Theme.page-inset;
+            padding-bottom: Theme.space-5;
+            spacing: Theme.space-6;
+
+            VerticalLayout {
+                horizontal-stretch: 1;
+                spacing: Theme.space-2;
+
+                SectionLabel {
+                    text: @tr("A MOOD TO START FROM");
+                }
+
+                // A rectangle rather than a layout, so the fade stands over the
+                // last card instead of pushing it up.
+                Rectangle {
+                    vertical-stretch: 1;
+
+                    moods := Flickable {
+                        width: parent.width;
+                        height: parent.height;
+                        viewport-height: moods-column.preferred-height;
+
+                        moods-column := VerticalLayout {
+                            width: parent.width;
+                            spacing: Theme.space-2;
+
+                            for mood in root.moods: MoodCard {
+                                data: mood;
+                                playing: root.playing-mood == mood.name;
+                                chosen => {
+                                    root.listen(mood.id);
+                                }
+                            }
+                        }
+                    }
+
+                    ScrollFade {
+                        y: parent.height - self.height;
+                        width: parent.width;
+                        more: moods.viewport-height + moods.viewport-y > moods.height;
+                    }
+                }
+            }
+
+            // What can be said to a station while it plays.
+            VerticalLayout {
+                width: Theme.px(320);
+                spacing: Theme.space-5;
+
+                VerticalLayout {
+                    spacing: Theme.space-2;
+
+                    SectionLabel {
+                        text: @tr("WHAT IS PLAYING");
+                    }
+
+                    // The name of a record, set the way this interface sets
+                    // the name of a record: the same face and the same size a
+                    // track has in the library. It was sans at body size, which
+                    // is the voice this page uses for its own explanations —
+                    // so the one thing the panel is about was saying itself in
+                    // the same tone as the sentence under it.
+                    Text {
+                        text: root.now-title == "" ? @tr("nothing yet") : root.now-title;
+                        font-family: Theme.serif;
+                        font-size: Theme.text-lead;
+                        height: Theme.px(44);
+                        vertical-alignment: center;
+                        wrap: word-wrap;
+                        color: root.now-title == "" ? Theme.ink-mute : Theme.ink-0;
+                    }
+
+                    Text {
+                        text: @tr("A verdict steers what the station offers next. It never bans a track.");
+                        font-family: Theme.sans;
+                        font-size: Theme.text-body;
+                        height: Theme.px(44);
+                        wrap: word-wrap;
+                        color: Theme.ink-mute;
+                    }
+
+                    HorizontalLayout {
+                        alignment: start;
+                        spacing: Theme.space-2;
+
+                        TextButton {
+                            label: @tr("MORE LIKE THIS");
+                            fixed-width: Theme.px(156);
+                            enabled: root.playing-mood != "";
+                            pressed => {
+                                root.judge(true);
+                            }
+                        }
+                        TextButton {
+                            label: @tr("LESS");
+                            fixed-width: Theme.px(156);
+                            enabled: root.playing-mood != "";
+                            destructive: true;
+                            pressed => {
+                                root.judge(false);
+                            }
+                        }
+                    }
+                }
+
+                // Nothing here ends the station. Playing a track, a playlist or
+                // another mood is how a listener says they are done with it,
+                // and a button that only repeated one of those would be a
+                // fourth way to do a thing there are already three ways to do.
+                // Under the verdicts it belongs with, not at the foot of the
+                // column four hundred pixels away.
+                SectionNote {
+                    text: @tr("Playing anything else ends the station.");
+                }
+
+                Rectangle {
+                    vertical-stretch: 1;
+                }
+            }
+        }
+    }
+}

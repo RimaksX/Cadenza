@@ -1,0 +1,196 @@
+//! Turning playlists into cards.
+
+use crate::text::{plural, tr, tr_owned};
+use cadenza_core::application::services::PlaylistSummary;
+use cadenza_core::domain::value_objects::DurationMs;
+
+use crate::{MenuItemData, PlaylistCardData};
+
+/// Formats the index of playlists.
+///
+/// `read` turns a path into a picture, and it is passed in rather than called
+/// here so that the caller can decide whether the bytes have been decoded
+/// before. They usually have: this runs on every entry into the page, and a
+/// playlist's cover does not change between two of them.
+///
+/// A picture that will not decode is treated as no picture at all rather than
+/// as an error: it is a file on somebody's disk that may have been replaced by
+/// anything since it was chosen, and the tile has something to fall back to.
+pub fn cards(
+    summaries: &[PlaylistSummary],
+    read: impl Fn(&std::path::Path) -> slint::Image,
+) -> Vec<PlaylistCardData> {
+    summaries
+        .iter()
+        .enumerate()
+        .map(|(index, summary)| {
+            let cover = summary.cover.as_deref().map(&read).unwrap_or_default();
+            PlaylistCardData {
+                id: summary.playlist.id.to_string().into(),
+                // The favourites list is named by a migration, so its name is
+                // translated like any other built-in; a list somebody named
+                // themselves is not in the catalogue and stays as they typed it.
+                name: tr_owned(summary.playlist.name.as_str()).into(),
+                // The tile's corner marks, in the mono capitals everything numeric
+                // is set in. Upper-cased here rather than in the markup: Slint has
+                // no text-transform, so a label that must read as capitals has to
+                // arrive as capitals.
+                position: format!("№ {:02}", index + 1).into(),
+                // What the album tile puts here is the artist. A playlist has no
+                // artist; what it has is whose list it is - or, for the one
+                // nobody made, where it came from.
+                maker: if summary.playlist.is_favourites() {
+                    tr("FROM WHAT YOU PLAY").into()
+                } else {
+                    tr("MADE BY YOU").into()
+                },
+                automatic: summary.playlist.is_favourites(),
+                meta: meta(summary).into(),
+                // Asked of the picture rather than of the path: a file that
+                // will not decode is not a cover, and a tile that hides its
+                // name for one that never draws is a blank square.
+                has_cover: cover.size().width > 0,
+                cover,
+            }
+        })
+        .collect()
+}
+
+/// The playlists as a list of destinations to pick from.
+///
+/// The same struct the menus use, because it is the same thing: a label and
+/// what the interface hands back when it is chosen.
+pub fn options(summaries: &[PlaylistSummary]) -> Vec<MenuItemData> {
+    summaries
+        .iter()
+        .map(|summary| MenuItemData {
+            action: summary.playlist.id.to_string().into(),
+            label: summary.playlist.name.as_str().into(),
+            meta: meta(summary).into(),
+            destructive: false,
+        })
+        .collect()
+}
+
+/// The line under the tile: how many tracks, and how long they run.
+fn meta(summary: &PlaylistSummary) -> String {
+    format!(
+        "{} {} · {}",
+        summary.track_count,
+        noun(summary.track_count).to_uppercase(),
+        duration(summary)
+    )
+}
+
+/// The noun that goes with the count.
+fn noun(tracks: usize) -> &'static str {
+    plural(tracks as u64, "track|one", "tracks|few", "tracks|many")
+}
+
+/// How long a playlist runs, or a dash when there is nothing in it.
+///
+/// A dash rather than "0:00": an empty list has no length, and a zero invites
+/// the reader to wonder whether the tracks are all silent.
+fn duration(summary: &PlaylistSummary) -> String {
+    if summary.track_count == 0 {
+        return "-".to_owned();
+    }
+    summary.duration.to_string()
+}
+
+/// The line under the page title: how many lists, and how much is in them.
+pub fn summary_line(summaries: &[PlaylistSummary]) -> String {
+    if summaries.is_empty() {
+        return tr("no lists yet").to_owned();
+    }
+
+    let lists = summaries.len();
+    let tracks: usize = summaries.iter().map(|summary| summary.track_count).sum();
+    let total = summaries.iter().fold(DurationMs::ZERO, |sum, summary| {
+        sum.saturating_add(summary.duration)
+    });
+
+    format!(
+        "{lists} {} · {tracks} {} · {total}",
+        plural(lists as u64, "list|one", "lists|few", "lists|many"),
+        noun(tracks)
+    )
+}
+
+#[cfg(test)]
+mod tests {
+    use cadenza_core::application::services::PlaylistSummary;
+    use cadenza_core::domain::ids::{PlaylistId, ProfileId};
+    use cadenza_core::domain::playlist::Playlist;
+    use cadenza_core::domain::value_objects::{DurationMs, Timestamp};
+
+    use super::{cards, duration, meta, noun, summary_line};
+
+    fn summary(name: &str, track_count: usize, seconds: u64) -> PlaylistSummary {
+        PlaylistSummary {
+            cover: None,
+            playlist: Playlist {
+                id: PlaylistId::new(),
+                profile_id: ProfileId::new(),
+                name: name.to_owned(),
+                description: None,
+                is_smart: false,
+                rule_json: None,
+                created_at: Timestamp::from_millis(0),
+                updated_at: Timestamp::from_millis(0),
+            },
+            track_count,
+            duration: DurationMs::from_secs(seconds),
+        }
+    }
+
+    #[test]
+    fn a_card_carries_its_name_its_place_and_what_is_in_it() {
+        // No pictures in a test about words: the loader is the caller's, and
+        // this one hands back nothing.
+        let listed = cards(
+            &[summary("Late night", 12, 2_640), summary("Morning", 3, 600)],
+            |_| slint::Image::default(),
+        );
+        assert_eq!(listed[0].name, "Late night");
+        assert_eq!(
+            listed[0].position, "№ 01",
+            "padded, so a column of them is one"
+        );
+        assert_eq!(listed[1].position, "№ 02");
+        assert_eq!(listed[0].meta, "12 TRACKS · 44:00");
+        assert!(
+            !listed[0].id.is_empty(),
+            "the card hands its id back on click"
+        );
+    }
+
+    #[test]
+    fn one_track_reads_as_one_track_on_the_tile_too() {
+        assert_eq!(meta(&summary("Single", 1, 300)), "1 TRACK · 5:00");
+    }
+
+    #[test]
+    fn one_track_is_not_one_tracks() {
+        assert_eq!(noun(1), "track");
+        assert_eq!(noun(0), "tracks");
+    }
+
+    #[test]
+    fn an_empty_list_has_no_length_rather_than_a_zero_one() {
+        assert_eq!(duration(&summary("New", 0, 0)), "-");
+    }
+
+    #[test]
+    fn the_page_line_counts_lists_and_what_is_in_them() {
+        let listed = [summary("Late night", 12, 2_640), summary("Morning", 3, 600)];
+        assert_eq!(summary_line(&listed), "2 lists · 15 tracks · 54:00");
+        assert_eq!(summary_line(&listed[..1]), "1 list · 12 tracks · 44:00");
+        assert_eq!(summary_line(&[]), "no lists yet");
+    }
+
+    #[test]
+    fn an_empty_list_shows_a_dash_where_its_length_would_go() {
+        assert_eq!(meta(&summary("New", 0, 0)), "0 TRACKS · -");
+    }
+}

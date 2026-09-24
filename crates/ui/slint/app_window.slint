@@ -1,0 +1,278 @@
+// The three faces, compiled into the binary. Cadenza is offline: a font fetched
+// at runtime is a font that is missing on the machine that matters. All three
+// are SIL OFL 1.1, whose licence ships beside them.
+//
+// **They answer to names no machine will already have, and that is the point.**
+// fontdb gathers every face carrying the family name and breaks a tie in favour
+// of the one it saw first, which is the system's. A listener with Cormorant
+// Garamond installed would get their copy, of whatever version, instead of the
+// one this interface was drawn against. "Cadenza Serif" cannot be answered by
+// anybody but us. The renaming is `scripts/rename_font.py` and touches only the
+// name table.
+//
+// Cormorant Garamond replaced Instrument Serif, which has no Cyrillic at all —
+// a Russian title fell through to whatever the system offered, mid-list.
+import "../../../resources/ui/fonts/Cormorant_Garamond/CadenzaSerif-Regular.ttf";
+import "../../../resources/ui/fonts/Cormorant_Garamond/CadenzaSerif-Italic.ttf";
+import "../../../resources/ui/fonts/Manrope/CadenzaSans-Regular.ttf";
+import "../../../resources/ui/fonts/JetBrains_Mono/CadenzaMono-Regular.ttf";
+
+import { Theme } from "theme/tokens.slint";
+import { Transfer } from "components/Transfer.slint";
+import { AppShell } from "components/AppShell.slint";
+import { Player } from "components/Player.slint";
+import { Shelves } from "components/Shelves.slint";
+import { Listening } from "components/Listening.slint";
+import { Radio } from "components/Radio.slint";
+import { Home } from "components/Home.slint";
+import { Fetch } from "components/Fetch.slint";
+import { Settings } from "components/Settings.slint";
+import { Playlists } from "components/Playlists.slint";
+import { Library } from "components/Library.slint";
+import { Queue } from "components/Queue.slint";
+import { Equaliser } from "components/Equaliser.slint";
+import { Section } from "components/Section.slint";
+import { TrackRowData } from "components/TrackRow.slint";
+import { PlaylistCardData } from "views/PlaylistsView.slint";
+import { MenuItemData } from "components/RowMenu.slint";
+import { EqPresetData, EqBandData, ToneBand } from "views/EqualiserView.slint";
+import { FolderRowData, TakenOutRowData } from "views/SettingsView.slint";
+import { MoodRowData } from "views/RadioView.slint";
+import { TopTrackData } from "views/ListeningView.slint";
+import { ReviewRowData, ReviewChoice } from "views/ReviewsView.slint";
+
+// Re-exported so the controller can set the palette. A global's input is set
+// from the native side; markup may read it but never assign to it, which is
+// what keeps the theme a decision of the application layer rather than of a
+// view that happens to know about profiles.
+export { Theme }
+
+// The window, and the whole boundary between Rust and the markup.
+//
+// Everything in is a property, everything out is a callback. There is no other
+// channel: the markup cannot reach a database, a file or the audio engine, and
+// this file is where that is checked by reading.
+export component AppWindow inherits Window {
+    title: "Cadenza";
+    background: Theme.bg-0;
+    // The frame is ours, and so is everything it used to do: the buttons and
+    // the drag are in `TitleBar`, and the resizable edges are in `winit_seam`.
+    // They had to be. An undecorated window answers every point with "client",
+    // so nothing ever asks the system to resize it, however willing the system
+    // is.
+    no-frame: true;
+    default-font-family: Theme.sans;
+    default-font-size: Theme.text-body;
+    preferred-width: Theme.px(1320);
+    preferred-height: Theme.px(760);
+    // Measured rather than hoped for. The old floor of 880 by 560 was never
+    // rendered at: the search field hung off the right edge and the player bar
+    // was pushed out of the bottom of the window entirely. What the interface
+    // actually needs is this, and it is stated here so that nobody can drag the
+    // window somewhere it does not work.
+    //
+    // The width is the least page with the open sidebar beside it and the
+    // folded now-playing rail after it. The open panel is not counted: where
+    // it does not fit it floats over the page instead.
+    min-width: Theme.sidebar-width + Theme.page-least + Theme.rail-width;
+    min-height: Theme.px(720);
+
+    // Down: what to draw.
+    /// True while files from outside are being held over the window.
+    in property <bool> dropping;
+    in property <bool> first-run;
+
+    /// Who is listening, for the foot of the sidebar.
+    in property <string> profile-name;
+    in property <bool> sidebar-folded;
+    in property <bool> panel-folded;
+    in-out property <string> message;
+    /// The message is a failure rather than news.
+    in property <bool> message-is-error;
+    // Named apart from the window's own `maximized`, which 1.17 added and
+    // which this would otherwise shadow. Ours says what the title bar should
+    // draw; the window's says what the window is.
+    in property <bool> window-maximized;
+
+    // Up: what the listener asked for.
+    callback minimize();
+    callback toggle-maximize();
+    callback close-window();
+    callback drag-window(length, length);
+    callback toggle-sidebar();
+    callback toggle-panel();
+    callback start-here(string, bool, bool);
+    callback showing(Section);
+
+    // Given the window rather than asked what it would like. A child placed in
+    // a Window with no size takes its preferred one, so the shell was as big as
+    // whichever page was showing — which left a band of bare window under the
+    // player bar on any page whose content was shorter than the window, and the
+    // page itself sitting in a corner of it.
+    AppShell {
+        width: root.width;
+        height: root.height;
+        maximized: root.window-maximized;
+        minimize => {
+            root.minimize();
+        }
+        toggle-maximize => {
+            root.toggle-maximize();
+        }
+        close-window => {
+            root.close-window();
+        }
+        drag-window(dx, dy) => {
+            root.drag-window(dx, dy);
+        }
+
+        first-run: root.first-run;
+        profile-name: root.profile-name;
+        sidebar-folded: root.sidebar-folded;
+        panel-folded: root.panel-folded;
+        message <=> root.message;
+        message-is-error: root.message-is-error;
+
+        toggle-sidebar => {
+            root.toggle-sidebar();
+        }
+        toggle-panel => {
+            root.toggle-panel();
+        }
+        start-here(name, folder, find) => {
+            root.start-here(name, folder, find);
+        }
+        showing(name) => {
+            root.showing(name);
+        }
+    }
+
+    // Over everything, including the player bar, because the window as a whole
+    // is what a file is being offered to. Drawn last so it stands above the
+    // shell rather than inside a page that could be scrolled away from it.
+    Rectangle {
+        width: root.width;
+        height: root.height;
+        background: Theme.bg-0.with-alpha(0.96);
+
+        // Faded in rather than switched on, like every other appearance here.
+        // Kept in the tree rather than made conditional so that it can be: it
+        // holds no touch area, so while it is invisible it is also untouchable.
+        opacity: root.dropping ? 1.0 : 0.0;
+        animate opacity {
+            duration: 120ms;
+            easing: ease-out;
+        }
+
+        Rectangle {
+            x: Theme.space-6;
+            y: Theme.space-6;
+            width: root.width - Theme.space-6 * 2;
+            height: root.height - Theme.space-6 * 2;
+            border-width: Theme.px(2);
+            border-color: Theme.ink-2;
+            border-radius: Theme.radius;
+            background: transparent;
+        }
+
+        VerticalLayout {
+            alignment: center;
+            spacing: Theme.space-2;
+
+            Text {
+                text: @tr("Let go to add this to your library");
+                font-family: Theme.serif;
+                font-size: Theme.text-display;
+                height: Theme.px(56);
+                horizontal-alignment: center;
+                vertical-alignment: center;
+                color: Theme.ink-0;
+            }
+
+            Text {
+                text: @tr("A FOLDER JOINS THE LIBRARY · A TRACK IS TAKEN WHERE IT LIES");
+                font-family: Theme.mono;
+                font-size: Theme.text-label;
+                height: Theme.px(18);
+                horizontal-alignment: center;
+                vertical-alignment: center;
+                letter-spacing: Theme.label-spacing;
+                color: Theme.ink-mute;
+            }
+        }
+    }
+
+    // Space is the one shortcut worth having before there is a settings screen
+    // to list shortcuts in.
+    //
+    // Zero-sized, and that is the whole of it. A `FocusScope` left to its own
+    // devices expands to fill its parent, and this one is declared last — so it
+    // lay over the entire window, took the first press anywhere as a request
+    // for focus, and swallowed it. Every button in the application needed two
+    // clicks whenever a text field held the focus: the first to feed this, the
+    // second to reach what was actually being aimed at.
+    //
+    // With no area it can still hold focus and still hear the keyboard; it
+    // simply has nowhere for a pointer to land.
+    forward-focus: keys;
+    keys := FocusScope {
+        width: 0px;
+        height: 0px;
+        key-pressed(event) => {
+            // Play, because a music player is the one program where the space
+            // bar has an obvious meaning.
+            if (event.text == " ") {
+                Player.toggle-play();
+                return accept;
+            }
+
+            // The search field, from anywhere. The shortcut every list in every
+            // program has, and the only one worth spending a modifier on here.
+            // It reaches the field on whichever page has one, which today is
+            // the library. Moving to that page as well would need the shell's
+            // own `section`, which is private to it, and a shortcut that
+            // navigates is a bigger promise than one that focuses.
+            if (event.modifiers.control && event.text == "f") {
+                Library.reach-for-search += 1;
+                return accept;
+            }
+
+            // And out of it. Escape empties the search rather than only losing
+            // the focus: a field that keeps filtering the library after
+            // somebody has plainly finished with it is a field they have to go
+            // back and clear by hand.
+            if (event.text == Key.Escape) {
+                // A pick is let go first: it is the most recent thing made.
+                if (Library.picked > 0 || Playlists.open-picked > 0) {
+                    Library.unpick();
+                    Playlists.unpick-open();
+                    return accept;
+                }
+                if (Library.query != "") {
+                    Library.query = "";
+                    Library.search("");
+                    return accept;
+                }
+                return reject;
+            }
+
+            return reject;
+        }
+    }
+}
+
+// The payload global, so Rust can implement its two callbacks.
+export { Transfer }
+
+// Set by the controller directly: what is playing and the transport.
+export { Player }
+export { Shelves }
+export { Listening }
+export { Radio }
+export { Home }
+export { Fetch }
+export { Settings }
+export { Playlists }
+export { Library }
+export { Queue }
+export { Equaliser }

@@ -1,0 +1,53 @@
+// What is playing, and the transport's commands.
+//
+// A global rather than properties of the window: the window's properties had
+// to be declared again in the shell and passed down line by line, and every
+// part of the player took three edits to add. The controller sets these and
+// answers these directly, and whatever draws the player reads them here.
+export global Player {
+    in property <string> title;
+    in property <string> subtitle;
+    in property <string> initial;
+    in property <image> cover;
+
+    /// The cover's colour, when it has one worth taking.
+    in property <color> tint;
+    in property <bool> tinted;
+
+    /// The loudness of what is playing along its length, `0..1`.
+    in property <[float]> waveform;
+    in property <string> position: "0:00";
+    in property <string> duration: "0:00";
+    in property <string> playing-id;
+    in property <float> progress;
+    in property <bool> playing;
+    in property <bool> loaded;
+    in property <bool> muted;
+    in property <string> sleep;
+    in property <int> speed-percent: 100;
+    in property <float> volume: 1.0;
+    in property <bool> shuffle;
+    in property <bool> repeating;
+    in property <bool> repeat-one;
+    in property <bool> has-next;
+    in property <bool> has-previous;
+
+    /// Put what is playing in the favourites, or take it out again.
+    callback toggle-favourite();
+    /// Opens the page of whoever made what is playing; false where there is
+    /// no such page.
+    callback show-artist() -> bool;
+
+    /// Whether what is playing is in them already.
+    in property <bool> favourite;
+    callback toggle-play();
+    callback seek(float);
+    callback set-volume(float);
+    callback toggle-mute();
+    callback set-sleep(string);
+    callback set-speed(int);
+    callback next();
+    callback previous();
+    callback toggle-shuffle();
+    callback cycle-repeat();
+}

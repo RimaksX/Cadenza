@@ -1,0 +1,212 @@
+import { Theme } from "../theme/tokens.slint";
+import { TextButton } from "../components/Dialog.slint";
+import { ScrollFade } from "../components/ScrollFade.slint";
+
+// One file waiting for a decision.
+// What a listener may decide about a file waiting for review.
+//
+// An enum rather than the three strings this used to pass, because the strings
+// met a `match` in Rust whose wildcard sent anything unrecognised to
+// `AddAnyway` - the most destructive of the three. A typo in this markup would
+// have added a file the listener asked to keep out, and nothing would have said
+// so.
+//
+// **`keep` is first, and the order is load-bearing**: Slint's Rust generator
+// marks the first value `#[default]`, so anything that ever does arrive
+// unnamed is the choice that changes nothing.
+export enum ReviewChoice {
+    keep,
+    add,
+    replace,
+}
+
+export struct ReviewRowData {
+    id: string,
+    /// Where the file is.
+    path: string,
+    /// Why it is waiting, in a sentence.
+    reason: string,
+    /// The track it duplicates, if that is why. Empty otherwise.
+    existing: string,
+    /// True when the four choices apply — the others are one-sided.
+    duplicate: bool,
+}
+
+// One decision: what arrived, what it collides with, and what may be done.
+component ReviewCard inherits Rectangle {
+    in property <ReviewRowData> data;
+
+    callback decided(ReviewChoice);
+
+    height: root.data.duplicate ? Theme.px(188) : Theme.px(148);
+    border-width: 1px;
+    border-color: Theme.line-soft;
+    background: Theme.bg-1;
+
+    VerticalLayout {
+        padding: Theme.space-4;
+        spacing: Theme.space-2;
+
+        Text {
+            text: root.data.reason;
+            font-family: Theme.mono;
+            font-size: Theme.text-label;
+            height: Theme.px(18);
+            vertical-alignment: center;
+            letter-spacing: Theme.label-spacing;
+            color: Theme.ink-mute;
+        }
+
+        Text {
+            text: root.data.path;
+            font-family: Theme.sans;
+            font-size: Theme.text-body;
+            height: Theme.px(22);
+            vertical-alignment: center;
+            color: Theme.ink-0;
+            overflow: elide;
+        }
+
+        Text {
+            text: root.data.existing;
+            font-family: Theme.sans;
+            font-size: Theme.text-body;
+            height: Theme.px(22);
+            vertical-alignment: center;
+            color: Theme.ink-2;
+            overflow: elide;
+        }
+
+        // The four choices, in the order somebody would consider them: leave
+        // things as they are, take both, or replace what is there. Correcting
+        // the tags is the fourth, and it adds the file first — there is nothing
+        // to correct until it is in the library.
+        HorizontalLayout {
+            alignment: start;
+            spacing: Theme.space-2;
+
+            TextButton {
+                label: @tr("KEEP MINE");
+                fixed-width: Theme.px(132);
+                pressed => {
+                    root.decided(ReviewChoice.keep);
+                }
+            }
+            TextButton {
+                label: @tr("ADD ANYWAY");
+                fixed-width: Theme.px(132);
+                pressed => {
+                    root.decided(ReviewChoice.add);
+                }
+            }
+            if root.data.duplicate: TextButton {
+                label: @tr("REPLACE MINE");
+                fixed-width: Theme.px(148);
+                destructive: true;
+                pressed => {
+                    root.decided(ReviewChoice.replace);
+                }
+            }
+        }
+    }
+}
+
+// Everything held back rather than imported, and what to do about it.
+export component ReviewsView inherits Rectangle {
+    in property <[ReviewRowData]> reviews;
+    in property <string> summary;
+
+    callback decide(string, ReviewChoice);
+
+    background: Theme.bg-0;
+
+    VerticalLayout {
+        VerticalLayout {
+            vertical-stretch: 0;
+            padding-left: Theme.page-inset;
+            padding-right: Theme.page-inset;
+            padding-top: Theme.page-top;
+            padding-bottom: Theme.page-bottom;
+            spacing: Theme.space-2;
+
+            Text {
+                text: @tr("Decisions");
+                font-family: Theme.serif;
+                font-size: Theme.text-display;
+                height: Theme.heading-box;
+                vertical-alignment: bottom;
+                color: Theme.ink-0;
+            }
+
+            Text {
+                text: root.summary;
+                font-family: Theme.mono;
+                font-size: Theme.text-label;
+                height: Theme.px(18);
+                vertical-alignment: center;
+                letter-spacing: Theme.number-spacing;
+                color: Theme.ink-2;
+            }
+        }
+
+        VerticalLayout {
+            vertical-stretch: 1;
+            padding-left: Theme.page-inset;
+            padding-right: Theme.page-inset;
+            padding-bottom: Theme.space-5;
+
+            if root.reviews.length == 0: VerticalLayout {
+                vertical-stretch: 1;
+                alignment: start;
+                spacing: Theme.space-2;
+
+                Text {
+                    text: @tr("Nothing to decide");
+                    font-family: Theme.serif;
+                    font-size: Theme.text-title;
+                    height: Theme.px(34);
+                    vertical-alignment: center;
+                    color: Theme.ink-2;
+                }
+
+                Text {
+                    text: @tr("Cadenza never drops a file quietly. A copy of something you already have, or a file it could not read, waits here until you say what should happen to it.");
+                    font-family: Theme.sans;
+                    font-size: Theme.text-body;
+                    height: Theme.px(44);
+                    wrap: word-wrap;
+                    color: Theme.ink-mute;
+                }
+            }
+
+            if root.reviews.length > 0: Rectangle {
+                vertical-stretch: 1;
+
+                waiting := Flickable {
+                    width: parent.width;
+                    height: parent.height;
+                    viewport-height: cards.preferred-height;
+
+                    cards := VerticalLayout {
+                        width: parent.width;
+                        alignment: start;
+                        spacing: Theme.space-2;
+
+                        for review in root.reviews: ReviewCard {
+                            data: review;
+                            decided(choice) => {
+                                root.decide(review.id, choice);
+                            }
+                        }
+                    }
+                }
+
+                ScrollFade {
+                    y: parent.height - self.height;
+                    width: parent.width;
+                    more: waiting.viewport-height + waiting.viewport-y > waiting.height;
+                }
+            }
+        }
+    }
+}

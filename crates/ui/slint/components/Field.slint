@@ -1,0 +1,145 @@
+import { Theme } from "../theme/tokens.slint";
+
+// A box to type in.
+//
+// One shape, everywhere: the same hairline rectangle the buttons are drawn as,
+// because a field is a control and this interface draws its controls alike. It
+// used to be a bare underline instead, on the argument that a box would be the
+// loudest object on the page — and the argument was wrong in the one way that
+// matters. The first person who was handed the link field could not find it: a
+// line under a grey hint reads as a caption, not as somewhere to put words.
+export component Field inherits Rectangle {
+    in property <string> placeholder;
+    /// Drawn inside the box, at the near end, where there is one. The field
+    /// makes room for it — a search glass is part of the control rather than
+    /// something stood in front of it.
+    in property <image> icon;
+    out property <bool> has-focus <=> input.has-focus;
+    in-out property <string> text <=> input.text;
+
+    callback accepted();
+    /// Every keystroke. What a search field needs; a name field ignores it.
+    callback edited(string);
+
+    // Where the words start. Far enough in that they are not against the
+    // hairline, and further where an icon stands in front of them.
+    private property <length> inset: root.icon.width > 0 ? Theme.px(38) : Theme.space-3;
+
+    height: Theme.control-height;
+    // A field is as wide as it is given, never as wide as what is in it.
+    //
+    // Without this the typed text sets the *minimum* width, and a pasted link
+    // is three hundred pixels of it: the row could not shrink, so the buttons
+    // beside it went off the edge and the whole page went with them. Anything
+    // longer than the box scrolls inside it, which is what a text field is for.
+    min-width: Theme.px(120);
+    forward-focus: input;
+    clip: true;
+    border-radius: Theme.radius;
+    border-width: 1px;
+    // Three states and not two. Focus and hover were both `line`, so a field
+    // somebody was **typing into** was drawn exactly like one the pointer
+    // happened to be crossing — and the interface's only focus indicator said
+    // nothing.
+    //
+    // `ink-2` for focus: a step above `line` and the loudest a hairline gets
+    // here, which is right for the one mark that has to be unmistakable.
+    // Measured against the surfaces it sits on it clears 6.4:1 where `line`
+    // manages 1.9 — a focus ring at 1.9 is a focus ring nobody can find.
+    border-color: input.has-focus
+        ? Theme.ink-2
+        : (touch.has-hover ? Theme.line : Theme.line-soft);
+    // Lit while it is being used or pointed at, flat otherwise. Hover belongs
+    // to the whole object, so the box changes rather than anything inside it.
+    background: input.has-focus || touch.has-hover ? Theme.bg-1 : transparent;
+    animate background, border-color { duration: 120ms; }
+
+    // Clicking anywhere on the field, including the empty part after the text,
+    // puts the cursor in it — a two-character name should not have to be aimed
+    // at.
+    touch := TouchArea {
+        // Qualified: this component has a `text` property of its own, and a
+        // bare `text` here resolves to that string rather than to the cursor.
+        mouse-cursor: MouseCursor.text;
+        clicked => {
+            input.focus();
+        }
+    }
+
+    if root.icon.width > 0: Image {
+        source: root.icon;
+        width: Theme.px(14);
+        height: self.width;
+        x: Theme.space-3;
+        y: round((parent.height - self.height) / 1px / 2) * 1px;
+        colorize: input.text == "" ? Theme.ink-mute : Theme.ink-1;
+        animate colorize { duration: 120ms; }
+    }
+
+    VerticalLayout {
+        alignment: center;
+        padding-left: root.inset;
+        padding-right: Theme.space-3;
+
+        // The placeholder is a second Text under the input rather than a
+        // property of it: the built-in input has none, and a caption drawn in
+        // the field's own colour would be indistinguishable from typed words.
+        // Rounded: a text box asks for a fractional height, the layout centres
+        // that fraction, and the line inside lands between two pixel rows —
+        // which is what makes one letter of a word sit lower than its
+        // neighbours.
+        Rectangle {
+            // Rounded up to an even number, not merely to a whole one. The
+            // field around it is even, so an odd box leaves an odd remainder
+            // and the layout centres it on half a pixel — which is the
+            // staircase, one letter at a time.
+            height: ceil(input.preferred-height / Theme.px(2)) * Theme.px(2);
+
+            // Sits exactly where the first typed character will, which is the
+            // whole point of it: a hint centred over a left-aligned field is a
+            // label, and a label that vanishes when you type is a puzzle.
+            // In the mono face, like every other hint and label here. Set in
+            // the interface's own sans it read as neutral system furniture —
+            // the one place in the window where the type did not sound like
+            // the rest of it.
+            if input.text == "": Text {
+                width: 100%;
+                height: 100%;
+                text: root.placeholder;
+                font-family: Theme.mono;
+                font-size: Theme.text-label;
+                letter-spacing: Theme.number-spacing;
+                // `ink-mute`, not `ink-disabled`. The palette says plainly
+                // that `ink-disabled` sits below the readable minimum on
+                // purpose, because it marks a control that cannot be used —
+                // and it was drawing the one line that explains what a field
+                // is for. Somebody hunting for the link box had to read every
+                // other word on the page before finding it.
+                color: Theme.ink-mute;
+                horizontal-alignment: left;
+                vertical-alignment: center;
+            }
+
+            input := TextInput {
+                width: 100%;
+                // The same even box the placeholder gets. Left to its own
+                // metrics the typed line sits at a fraction of a pixel and
+                // the letters climb and fall as they are rasterised.
+                height: 100%;
+                vertical-alignment: center;
+                font-family: Theme.sans;
+                font-size: Theme.text-body;
+                color: Theme.ink-0;
+                selection-background-color: Theme.ink-mute;
+                selection-foreground-color: Theme.bg-0;
+                single-line: true;
+                accepted => {
+                    root.accepted();
+                }
+                edited => {
+                    root.edited(self.text);
+                }
+            }
+        }
+    }
+}

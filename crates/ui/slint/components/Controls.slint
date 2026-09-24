@@ -1,0 +1,581 @@
+import { Theme } from "../theme/tokens.slint";
+import { RowMenu, MenuItemData } from "RowMenu.slint";
+import { TextButton } from "Dialog.slint";
+
+// The player's controls, shared by the bar and the Now Playing screen so that
+// the same control is the same thing wherever it is drawn.
+
+// A transport control. The icons are line drawings in `currentColor`, and
+// `colorize` repaints whatever they render as, so one file serves both themes
+// and every state.
+//
+// `primary` inverts it: a filled circle in the accent with the glyph cut
+// out of it, the colour every circle that makes sound wears. One button on the bar is the one you reach for without looking,
+// and it is the only thing here that is not a line on a surface.
+export component TransportButton inherits Rectangle {
+    in property <image> glyph;
+    in property <bool> primary;
+    in property <bool> quiet;
+    in property <bool> active;
+    in property <bool> enabled: true;
+    /// How big the glyph is drawn.
+    ///
+    /// Three steps by default - see the note where it is used - and settable
+    /// for a control that belongs to none of the three. The heart is the one:
+    /// it stands apart from the group, so it is not a step back from anything,
+    /// and at the quiet 16 it read as a mark rather than as a button.
+    in property <length> glyph-size: root.primary
+        ? Theme.icon-large
+        : (root.quiet ? Theme.icon : Theme.px(18));
+    /// Moves the glyph off the geometric middle, for a glyph whose weight is
+    /// not in its middle. See the note on the play button below.
+    in property <length> nudge;
+    /// The same, upwards, for a glyph standing beside text.
+    ///
+    /// A line of type centred in a box is centred by its *line box* — ascent
+    /// and descent — and the descent is empty in a title with no `g` or `y` in
+    /// it. So the words ride high in their box while a glyph centred in its own
+    /// box does not, and the two read as misaligned even though their boxes
+    /// agree exactly.
+    in property <length> lift;
+
+    callback pressed();
+
+    // Equal heights, because a row lays children of differing height against
+    // its top edge — which is what put the small buttons above the play
+    // button's axis. The width still hugs what it draws, or the gaps between
+    // icons grow by the difference and the group reads as scattered.
+    width: root.primary ? Theme.px(40) : Theme.px(32);
+    height: Theme.px(40);
+
+    // The circle is a child, centred in that square.
+    Rectangle {
+        width: root.primary ? Theme.px(40) : Theme.px(32);
+        height: self.width;
+        x: round((parent.width - self.width) / 1px / 2) * 1px;
+        y: round((parent.height - self.height) / 1px / 2) * 1px;
+        border-radius: self.width / 2;
+        // A disabled primary button loses its fill as well as its glyph. Left
+        // filled, it shouts "press me" in the loudest ink in the palette while
+        // the icon inside says it cannot be pressed.
+        background: !root.primary
+            ? transparent
+            : (!root.enabled
+                ? Theme.bg-2
+                : (touch.has-hover ? Theme.accent.brighter(0.12) : Theme.accent));
+        animate background { duration: 120ms; }
+    }
+
+    /// Swells once as it is pressed on: the heart, whose answer is otherwise
+    /// only a change of colour.
+    in property <bool> pulses;
+    property <bool> swell;
+    swell-timer := Timer {
+        interval: 160ms;
+        running: false;
+        triggered => {
+            root.swell = false;
+            self.running = false;
+        }
+    }
+
+    touch := TouchArea {
+        enabled: root.enabled;
+        clicked => {
+            if (root.pulses && !root.active) {
+                root.swell = true;
+                swell-timer.running = true;
+            }
+            root.pressed();
+        }
+    }
+
+    Image {
+        source: root.glyph;
+        // Twenty for the one that starts the music, eighteen for the ones
+        // beside it, sixteen for the two modes that sit a step back. The three
+        // steps are the ones this bar always had — 16, 16 and 14 — moved up
+        // together, because at those sizes a glyph in a 40-pixel circle read as
+        // a mark rather than as a control.
+        // Down by two under the finger and back, so a press is felt as well
+        // as heard; up by four for the heart's one swell.
+        width: root.glyph-size
+            + (root.swell ? Theme.px(4) : 0px)
+            - (touch.pressed && root.enabled ? Theme.px(2) : 0px);
+        animate width { duration: 120ms; easing: ease-out; }
+        height: self.width;
+        x: round((parent.width - self.width) / 1px / 2) * 1px + root.nudge;
+        y: round((parent.height - self.height) / 1px / 2) * 1px - root.lift;
+        image-fit: contain;
+        // Three answers, not two. `active` is a mode that is *on* — shuffle,
+        // repeat — and it takes the accent, the same colour as the progress
+        // line and the number of the row that is sounding: this interface says
+        // "in force" in one colour. Hover is only where the pointer is, and
+        // says so in the loudest ink. They were the same before, so a mode
+        // that was on looked like a button being pointed at.
+        colorize: !root.enabled
+            ? Theme.ink-disabled
+            : (root.primary
+                ? Theme.bg-0
+                : (root.active
+                    ? Theme.accent
+                    : (touch.has-hover ? Theme.ink-0 : Theme.ink-2)));
+        animate colorize { duration: 120ms; }
+        // Shuffle and repeat sit a step back from the three that move the
+        // music: they change how it continues, not whether it is playing.
+        opacity: root.quiet && !root.active ? 0.7 : 1.0;
+    }
+}
+
+// A line that reports a fraction, and can be dragged by it.
+//
+// The line itself is Theme.px(2); the target around it is Theme.px(14), because a Theme.px(2) line is
+// a thing you aim at rather than a thing you use. The knob appears on hover
+// and is what the hand goes for — but the whole target drags, whether the
+// press landed on the knob or not.
+//
+// `live` decides when the fraction is reported. Volume is an atomic store and
+// can follow the finger; a seek is a flush handshake with the audio callback
+// that can block for 200ms, so the position is reported once, on release,
+// and the line shows where the finger is in the meantime.
+export component Scrubber inherits Rectangle {
+    in property <float> progress;
+    in property <bool> enabled: true;
+    in property <bool> live;
+    // The accent's home. What is playing and how far through it are the one
+    // thing this window is about, and the ten per cent of a screen that may
+    // carry a colour is spent here rather than spread over controls that would
+    // then all be asking for attention at once.
+    in property <color> fill: Theme.accent;
+    /// A track's loudness along its length, `0..1`. Where there is one, the
+    /// line is drawn as bars of it while nobody is touching it, and the bars
+    /// fold down into the line and its knob under the pointer.
+    in property <[float]> shape;
+
+    callback moved(float);
+
+    // Where the finger is while it is down. Nothing outside this component
+    // sees it — it exists so the fill can lead the value it will eventually
+    // report.
+    private property <float> held;
+    private property <float> shown: touch.pressed
+        ? root.held
+        : max(0, min(1, root.progress));
+    /// Where the line reads now, finger included, for whoever labels it.
+    out property <float> at: root.shown;
+    out property <bool> dragging: touch.pressed;
+
+    height: Theme.px(14);
+
+    // Bars only while the line is left alone: under the pointer it is the
+    // plain line again, which is the thing to aim at.
+    private property <bool> waving: root.shape.length > 0 && !touch.has-hover && !touch.pressed;
+    // One bar every four pixels, as many as the width holds: a wider window
+    // shows more of the same shape rather than the same bars stretched.
+    private property <int> bars: root.shape.length > 0 ? max(1, floor(root.width / Theme.px(4))) : 0;
+
+    for bar in root.bars: Rectangle {
+        property <float> level: root.shape[floor(bar * root.shape.length / root.bars)];
+
+        x: bar * Theme.px(4);
+        width: Theme.px(2);
+        // Up to twenty tall, folding to the line's own two when touched.
+        height: root.waving ? max(Theme.px(2), round(self.level * 10) * Theme.px(2)) : Theme.px(2);
+        y: round((parent.height - self.height) / 1px / 2) * 1px;
+        // Square ends: a radius on a two-pixel bar makes a capsule, and its
+        // antialiased ends read as points.
+        background: (bar + 0.5) / root.bars <= root.shown ? root.fill : Theme.line;
+        opacity: root.waving ? 1.0 : 0.0;
+        animate height, opacity { duration: 180ms; easing: ease-in-out; }
+    }
+
+    touch := TouchArea {
+        enabled: root.enabled;
+        mouse-cursor: pointer;
+
+        pointer-event(event) => {
+            // Move events carry no button, and `moved` already handles them.
+            if (event.button != PointerEventButton.left) {
+                return;
+            }
+            if (event.kind == PointerEventKind.down) {
+                root.grab();
+            } else if (event.kind == PointerEventKind.up) {
+                // A plain click never fires `moved`, so this is also what
+                // makes a click work: press set `held`, release reports it.
+                root.moved(root.held);
+            }
+        }
+
+        // The pointer is grabbed on press, so this keeps arriving after the
+        // finger has left the line — dragging past either end pins the
+        // fraction to that end rather than losing the drag.
+        moved => {
+            root.grab();
+        }
+    }
+
+    function grab() {
+        root.held = max(0, min(1, touch.mouse-x / touch.width));
+        if (root.live) {
+            root.moved(root.held);
+        }
+    }
+
+    Rectangle {
+        height: Theme.px(2);
+        y: round((parent.height - self.height) / 1px / 2) * 1px;
+        background: Theme.line;
+        // Gives way to the bars, and comes back as they fold into it.
+        opacity: root.waving ? 0.0 : 1.0;
+        animate opacity { duration: 180ms; easing: ease-in-out; }
+
+        played := Rectangle {
+            x: 0;
+            width: parent.width * root.shown;
+            height: parent.height;
+            background: root.fill;
+        }
+    }
+
+    // Hidden rather than absent, so it can fade. It is drawn last, over the
+    // line, and it is not a target of its own: the touch area under it is.
+    Rectangle {
+        width: touch.pressed ? Theme.px(12) : Theme.px(10);
+        height: self.width;
+        border-radius: self.width / 2;
+        x: played.width - self.width / 2;
+        y: round((parent.height - self.height) / 1px / 2) * 1px;
+        background: Theme.ink-0;
+        opacity: root.enabled && (touch.has-hover || touch.pressed) ? 1.0 : 0.0;
+        animate opacity, width { duration: 120ms; }
+    }
+}
+
+// The speed as a line from 0.8 to 1.2, its ends, and the way back to the
+// music's own.
+//
+// Reported on release, like a seek and for the same reason: every change of
+// speed restarts decoding from where the listener is, and a drag reported as
+// it moves would restart it at every step. `reading` follows the finger in the
+// meantime, for whoever shows the number.
+export component SpeedLine inherits Rectangle {
+    in property <int> percent;
+
+    /// What the line reads now: a step of two per cent, 80 to 120.
+    out property <int> reading: line.dragging
+        ? 80 + round(line.at * 20) * 2
+        : root.percent;
+
+    callback chosen(int);
+
+    VerticalLayout {
+        spacing: Theme.space-3;
+
+        line := Scrubber {
+            progress: (root.percent - 80) / 40;
+            moved(fraction) => {
+                root.chosen(80 + round(fraction * 20) * 2);
+            }
+        }
+
+        // The ends, and the middle as the way back: the one speed anybody
+        // needs to find exactly is the music's own. A button, so it reads as a
+        // control and not as a third mark on the scale.
+        HorizontalLayout {
+            VerticalLayout {
+                alignment: center;
+
+                Text {
+                    text: 0.8 + "×";
+                    font-family: Theme.mono;
+                    font-size: Theme.text-label;
+                    height: Theme.px(18);
+                    letter-spacing: Theme.number-spacing;
+                    color: Theme.ink-mute;
+                    vertical-alignment: center;
+                }
+            }
+            HorizontalLayout {
+                horizontal-stretch: 1;
+                alignment: center;
+
+                TextButton {
+                    label: 1 + "×";
+                    pressed => {
+                        root.chosen(100);
+                    }
+                }
+            }
+            VerticalLayout {
+                alignment: center;
+
+                Text {
+                    text: 1.2 + "×";
+                    font-family: Theme.mono;
+                    font-size: Theme.text-label;
+                    height: Theme.px(18);
+                    letter-spacing: Theme.number-spacing;
+                    color: Theme.ink-mute;
+                    vertical-alignment: center;
+                }
+            }
+        }
+    }
+}
+
+// The speed, opened from a button.
+export component SpeedPanel inherits PopupWindow {
+    in property <int> percent;
+
+    callback chosen(int);
+
+    close-policy: PopupClosePolicy.close-on-click-outside;
+    width: Theme.px(260);
+    height: layout.preferred-height;
+
+    Rectangle {
+        background: Theme.bg-1;
+        border-width: 1px;
+        border-color: Theme.line;
+        border-radius: Theme.radius;
+
+        layout := VerticalLayout {
+            padding: Theme.space-4;
+            spacing: Theme.space-3;
+
+            HorizontalLayout {
+                VerticalLayout {
+                    alignment: center;
+
+                    Text {
+                        text: @tr("SPEED");
+                        font-family: Theme.mono;
+                        font-size: Theme.text-label;
+                        height: Theme.px(18);
+                        letter-spacing: Theme.label-spacing;
+                        color: Theme.ink-furniture;
+                        vertical-alignment: center;
+                    }
+                }
+                VerticalLayout {
+                    alignment: center;
+                    horizontal-stretch: 1;
+
+                    Text {
+                        text: (speed.reading / 100) + "×";
+                        font-family: Theme.mono;
+                        font-size: Theme.text-label;
+                        height: Theme.px(18);
+                        letter-spacing: Theme.number-spacing;
+                        color: speed.reading == 100 ? Theme.ink-0 : Theme.accent;
+                        horizontal-alignment: right;
+                        vertical-alignment: center;
+                    }
+                }
+            }
+
+            speed := SpeedLine {
+                percent: root.percent;
+                chosen(percent) => {
+                    root.chosen(percent);
+                }
+            }
+        }
+    }
+}
+
+// The sleep timer's choices, and a way out while one is running.
+export component SleepMenu inherits RowMenu {
+    /// Whether a timer is running, which is when it can be turned off.
+    in property <bool> running;
+
+    property <[MenuItemData]> idle: [
+        { action: "15", label: @tr("15 minutes") },
+        { action: "30", label: @tr("30 minutes") },
+        { action: "45", label: @tr("45 minutes") },
+        { action: "60", label: @tr("1 hour") },
+        { action: "end", label: @tr("When this track ends") },
+    ];
+    property <[MenuItemData]> counting: [
+        { action: "15", label: @tr("15 minutes") },
+        { action: "30", label: @tr("30 minutes") },
+        { action: "45", label: @tr("45 minutes") },
+        { action: "60", label: @tr("1 hour") },
+        { action: "end", label: @tr("When this track ends") },
+        { action: "" },
+        { action: "off", label: @tr("Turn the timer off") },
+    ];
+    items: root.running ? self.counting : self.idle;
+}
+
+// How tracks meet and how loud they sit: two switches that are set once and
+// left, so they wait behind one button rather than taking a screen's room.
+export component SoundPanel inherits PopupWindow {
+    in property <bool> crossfade-on;
+    in property <int> crossfade-seconds;
+    in property <bool> normalise-on;
+
+    callback set-crossfade(bool, int);
+    callback set-normalise(bool);
+
+    close-policy: PopupClosePolicy.close-on-click-outside;
+    width: Theme.px(300);
+    height: layout.preferred-height;
+
+    Rectangle {
+        background: Theme.bg-1;
+        border-width: 1px;
+        border-color: Theme.line;
+        border-radius: Theme.radius;
+
+        layout := VerticalLayout {
+            padding: Theme.space-4;
+            spacing: Theme.space-2;
+
+            Text {
+                text: @tr("SOUND");
+                font-family: Theme.mono;
+                font-size: Theme.text-label;
+                height: Theme.px(18);
+                letter-spacing: Theme.label-spacing;
+                color: Theme.ink-furniture;
+                vertical-alignment: center;
+            }
+
+            HorizontalLayout {
+                VerticalLayout {
+                    alignment: center;
+                    horizontal-stretch: 1;
+
+                    Text {
+                        text: @tr("Crossfade");
+                        font-family: Theme.sans;
+                        font-size: Theme.text-body;
+                        height: Theme.px(22);
+                        color: Theme.ink-1;
+                        vertical-alignment: center;
+                    }
+                }
+                VerticalLayout {
+                    alignment: center;
+
+                    TextButton {
+                        label: root.crossfade-on ? @tr("ON") : @tr("OFF");
+                        fixed-width: Theme.px(64);
+                        selected: root.crossfade-on;
+                        pressed => {
+                            root.set-crossfade(!root.crossfade-on, root.crossfade-seconds);
+                        }
+                    }
+                }
+            }
+
+            HorizontalLayout {
+                VerticalLayout {
+                    alignment: center;
+                    horizontal-stretch: 1;
+
+                    Text {
+                        text: @tr("Even loudness");
+                        font-family: Theme.sans;
+                        font-size: Theme.text-body;
+                        height: Theme.px(22);
+                        color: Theme.ink-1;
+                        vertical-alignment: center;
+                    }
+                }
+                VerticalLayout {
+                    alignment: center;
+
+                    TextButton {
+                        label: root.normalise-on ? @tr("ON") : @tr("OFF");
+                        fixed-width: Theme.px(64);
+                        selected: root.normalise-on;
+                        pressed => {
+                            root.set-normalise(!root.normalise-on);
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// A circle for something that makes sound, standing on a picture or at the
+// head of a page: filled in the accent, the glyph cut out of it. A picture is
+// any colour at all, and white on a pale sleeve was a circle nobody saw. A
+// collection's tile and its page carry two, play and shuffle.
+export component SoundCircle inherits Rectangle {
+    in property <image> glyph;
+    /// How far right of the middle the glyph sits: a triangle's ink is not
+    /// where its box is.
+    in property <length> nudge;
+    in property <bool> enabled: true;
+    out property <bool> hovered: touch.has-hover;
+
+    callback pressed();
+
+    width: Theme.px(44);
+    height: self.width;
+    border-radius: self.width / 2;
+    background: touch.has-hover ? Theme.accent.brighter(0.12) : Theme.accent;
+    animate background { duration: 120ms; }
+
+    Image {
+        source: root.glyph;
+        width: Theme.icon - (touch.pressed ? Theme.px(2) : 0px);
+        animate width { duration: 120ms; easing: ease-out; }
+        height: self.width;
+        x: round((parent.width - self.width) / 2 / 1px) * 1px + root.nudge;
+        y: round((parent.height - self.height) / 1px / 2) * 1px;
+        colorize: Theme.bg-0;
+    }
+
+    touch := TouchArea {
+        enabled: root.enabled;
+        mouse-cursor: pointer;
+        clicked => {
+            root.pressed();
+        }
+    }
+}
+
+// A cover that changes by dissolving into the next rather than jumping: two
+// layers, the new picture put on the hidden one and the two crossed over. A
+// track that changes by itself was seen only in the colour of the panel.
+export component CoverImage inherits Rectangle {
+    in property <image> source;
+
+    property <bool> a-front: true;
+    property <image> a;
+    property <image> b;
+    init => {
+        root.a = root.source;
+    }
+    changed source => {
+        if (root.a-front) {
+            root.b = root.source;
+        } else {
+            root.a = root.source;
+        }
+        root.a-front = !root.a-front;
+    }
+
+    Image {
+        width: parent.width;
+        height: parent.height;
+        source: root.a;
+        image-fit: ImageFit.cover;
+        opacity: root.a-front ? 1 : 0;
+        animate opacity { duration: Theme.swap-time; easing: ease-in-out; }
+    }
+    Image {
+        width: parent.width;
+        height: parent.height;
+        source: root.b;
+        image-fit: ImageFit.cover;
+        opacity: root.a-front ? 0 : 1;
+        animate opacity { duration: Theme.swap-time; easing: ease-in-out; }
+    }
+}

@@ -1,0 +1,104 @@
+import { ScrollView } from "std-widgets.slint";
+import { Theme } from "../theme/tokens.slint";
+import { EmptyState } from "../components/EmptyState.slint";
+import { PlaylistCard, PlaylistCardData } from "PlaylistsView.slint";
+
+// A shelf of tiles: the library's albums, or its artists.
+//
+// The playlists' grid, with the playlists' tiles - the same squares, the same
+// gaps, the same lift under the pointer - and none of their menu: an album is
+// not renamed or deleted here, it is played or opened.
+export component ShelfView inherits Rectangle {
+    in property <string> heading;
+    in property <string> summary;
+    in property <string> kind;
+    in property <string> empty-title;
+    in property <string> empty-hint;
+    in property <[PlaylistCardData]> cards;
+
+    callback open(string);
+    callback play(string);
+    callback shuffle(string);
+
+    // The playlists' own numbers, for the same grid: see `PlaylistsView`.
+    property <length> min-tile: Theme.px(176);
+    property <length> gap-x: Theme.space-6;
+    property <length> gap-y: Theme.px(40);
+    property <length> caption-height: Theme.px(64);
+    property <length> headroom: Theme.px(6);
+    property <length> available: self.width - 2 * Theme.page-inset;
+    property <int> columns: max(1, min(5, floor((root.available + root.gap-x) / (root.min-tile + root.gap-x))));
+    property <length> tile-width: round((root.available - (root.columns - 1) * root.gap-x) / root.columns / 1px) * 1px;
+    property <length> card-height: root.tile-width + root.caption-height;
+    property <length> row-height: root.card-height + root.gap-y;
+
+    background: Theme.bg-0;
+
+    VerticalLayout {
+        VerticalLayout {
+            vertical-stretch: 0;
+            padding-left: Theme.page-inset;
+            padding-right: Theme.page-inset;
+            padding-top: Theme.page-top;
+            padding-bottom: Theme.page-bottom;
+            spacing: Theme.space-2;
+
+            Text {
+                text: root.heading;
+                font-family: Theme.serif;
+                font-size: Theme.text-display;
+                height: Theme.heading-box;
+                vertical-alignment: bottom;
+                color: Theme.ink-0;
+            }
+
+            Text {
+                text: root.summary;
+                font-family: Theme.mono;
+                font-size: Theme.text-label;
+                height: Theme.px(18);
+                vertical-alignment: center;
+                letter-spacing: Theme.number-spacing;
+                color: Theme.ink-2;
+            }
+        }
+
+        if root.cards.length == 0: VerticalLayout {
+            vertical-stretch: 1;
+            alignment: start;
+            padding-left: Theme.page-inset;
+            padding-right: Theme.page-inset;
+            padding-top: Theme.space-6;
+
+            EmptyState {
+                title: root.empty-title;
+                hint: root.empty-hint;
+            }
+        }
+
+        if root.cards.length > 0: ScrollView {
+            vertical-stretch: 1;
+            viewport-height: root.headroom
+                + ceil(root.cards.length / root.columns) * root.row-height;
+
+            for entry[index] in root.cards: PlaylistCard {
+                data: entry;
+                kind: root.kind;
+                has-menu: false;
+                width: root.tile-width;
+                height: root.card-height;
+                x: Theme.page-inset + mod(index, root.columns) * (root.tile-width + root.gap-x);
+                y: root.headroom + floor(index / root.columns) * root.row-height;
+                activated => {
+                    root.open(entry.id);
+                }
+                shuffled => {
+                    root.shuffle(entry.id);
+                }
+                played => {
+                    root.play(entry.id);
+                }
+            }
+        }
+    }
+}

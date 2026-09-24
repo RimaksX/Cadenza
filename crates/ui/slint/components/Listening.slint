@@ -1,0 +1,15 @@
+import { TopTrackData } from "../views/ListeningView.slint";
+
+// What has been listened to.
+//
+// A global, like `Player`: set and answered by the controller directly, read
+// by the shell, rather than declared twice and passed down line by line.
+export global Listening {
+    in property <[TopTrackData]> top-tracks;
+    in property <string> summary;
+    in property <string> heard;
+    in property <string> listens;
+    in property <string> tracks;
+    in property <string> skip-rate;
+    in property <bool> kept;
+}

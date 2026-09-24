@@ -1,0 +1,560 @@
+import { Theme } from "../theme/tokens.slint";
+import { TransportButton, CoverImage } from "Controls.slint";
+import { TextButton } from "Dialog.slint";
+import { TrackRowData } from "TrackRow.slint";
+import { TrackLine } from "TrackLine.slint";
+import { ScrollFade } from "ScrollFade.slint";
+import { Transfer } from "Transfer.slint";
+
+// A cover in the folded panel: the size the library's rows draw theirs.
+component RailCover inherits Rectangle {
+    in property <image> cover;
+    in property <string> initial;
+    /// The one playing now, ringed in the accent.
+    in property <bool> current;
+
+    callback activated();
+
+    width: Theme.px(36);
+    height: Theme.px(36);
+    border-radius: Theme.radius;
+    background: Theme.bg-2;
+    border-width: root.current ? 1px : 0px;
+    border-color: Theme.accent;
+    clip: true;
+    // The waiting ones a step back, brought up under the pointer.
+    opacity: root.current || touch.has-hover ? 1.0 : 0.8;
+    animate opacity { duration: 120ms; }
+
+    Image {
+        width: parent.width;
+        height: parent.height;
+        source: root.cover;
+        image-fit: ImageFit.cover;
+    }
+
+    Text {
+        text: root.initial;
+        font-family: Theme.serif;
+        font-italic: true;
+        font-size: Theme.text-lead;
+        height: Theme.px(26);
+        color: Theme.ink-2;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+        opacity: root.cover.width > 0 ? 0.0 : 1.0;
+    }
+
+    touch := TouchArea {
+        mouse-cursor: pointer;
+        clicked => {
+            root.activated();
+        }
+    }
+}
+
+// What is playing and what follows it, at the window's right on every page.
+//
+// Unfolded: the cover large, what it is, the queue and what plays on after it.
+// Folded: a narrow rail of the same covers at the size the library's rows draw
+// them - what is playing, what is queued, a hairline, and what plays on - for
+// somebody who wants the page's width and still to see what is coming. Either
+// way a press on a cover plays it. Or, where Settings says so, folded away
+// altogether and opened again from the player bar. Hidden altogether while
+// nothing is loaded.
+export component NowPanel inherits Rectangle {
+    /// Unfolded or folded to the rail.
+    in property <bool> expanded: true;
+    /// Folds to the strip; otherwise folds away and the player bar opens it.
+    in property <bool> rail: true;
+    in property <string> title;
+    in property <string> subtitle;
+    in property <string> initial;
+    in property <image> cover;
+    /// The cover's colour, when it has one worth taking.
+    in property <color> tint;
+    in property <bool> tinted;
+    in property <bool> loaded: true;
+    in property <bool> favourite;
+    in property <[TrackRowData]> queue;
+    /// What plays on after the queue, and where it comes from.
+    in property <[TrackRowData]> then;
+    in property <string> then-label;
+    /// Too little room beside the page for the open panel: it opens over
+    /// the page's right edge instead, and the page keeps the rail's width.
+    in property <bool> floating;
+
+    callback fold();
+    callback toggle-favourite();
+    callback show-in-library();
+    callback play-queued(int);
+    callback remove-from-queue(int);
+    callback clear-queue();
+    /// A waiting track carried from one row of the queue to another.
+    callback reorder-queue(int, int);
+
+    // The row being carried, and which carry it is: see `Transfer.drags`.
+    property <int> carried-row: -1;
+    property <int> carry: -1;
+    function land(before: int) {
+        let to = before > root.carried-row ? before - 1 : before;
+        if (root.carry == Transfer.drags && to != root.carried-row) {
+            root.reorder-queue(root.carried-row, to);
+        }
+        root.carry = -1;
+    }
+    callback play-following(string);
+    /// Where what plays on comes from, opened: the playlist, the artist, the
+    /// station or the library.
+    callback open-source();
+    /// Whoever made what is playing, on their own page.
+    callback show-artist();
+
+    // Comes in from the right edge when something starts playing and goes out
+    // the same way when nothing is: `shown` runs from none of it to all of it,
+    // and the sheet, pinned to the right, slides rather than squeezes.
+    property <float> shown: root.loaded ? 1 : 0;
+    animate shown { duration: Theme.fold-time; easing: cubic-bezier(0.4, 0, 0.2, 1); }
+    opacity: root.shown;
+    // Only while it comes and goes: once it is in, an open sheet may float
+    // over the page again.
+    clip: root.shown < 1;
+
+    // What the page gives up: the sheet's width, or only the rail's while the
+    // sheet floats over it.
+    width: root.shown * (root.floating ? (root.rail ? Theme.rail-width : 0px) : sheet.width);
+
+
+    // The panel itself, standing against the window's right edge and growing
+    // leftwards: beside the page, or over it when it floats.
+    sheet := Rectangle {
+        x: parent.width - self.width;
+        // The rail is a cover and its margins; the panel a cover of its own
+        // width.
+        width: root.expanded ? Theme.px(320) : (root.rail ? Theme.rail-width : 0px);
+        animate width { duration: Theme.fold-time; easing: cubic-bezier(0.4, 0, 0.2, 1); }
+        background: Theme.bg-1;
+        clip: true;
+        // Over the page, it casts a shadow on it, so it reads as lying on top
+        // rather than as the page's own last column.
+        drop-shadow-blur: root.floating && root.expanded ? Theme.px(24) : 0px;
+        drop-shadow-color: Colors.black.with-alpha(0.6 * Theme.shadow-depth);
+
+        // The cover's colour, washed down from the top and gone by the
+        // middle: the panel takes on the record without its words having
+        // to stand on a colour. It moves to the next cover's rather than
+        // switching, and a cover with no colour leaves the panel plain.
+        property <color> wash: root.tinted ? root.tint : Theme.bg-1;
+        animate wash { duration: 700ms; easing: ease-in-out; }
+
+        // The open panel's alone: the strip is covers on the plain ground.
+        Rectangle {
+            background: @linear-gradient(180deg, wash.with-alpha(Theme.wash) 0%, wash.with-alpha(0) 60%);
+            opacity: root.expanded ? 1 : 0;
+            animate opacity { duration: Theme.fade-time; easing: ease-in-out; }
+        }
+
+        // The seam against the hub.
+        Rectangle {
+            x: 0;
+            width: 1px;
+            background: Theme.line-soft;
+        }
+
+        // The open face, drawn at its full width from the sheet's left edge:
+        // it comes out with the edge rather than being laid out again at
+        // every width on the way.
+        Rectangle {
+            x: 0;
+            width: Theme.px(320);
+            opacity: root.expanded ? 1 : 0;
+            animate opacity { duration: Theme.fade-time; easing: ease-in-out; }
+            visible: self.opacity > 0.01;
+
+            VerticalLayout {
+                padding: Theme.space-5;
+                spacing: Theme.space-2;
+
+                HorizontalLayout {
+                    VerticalLayout {
+                        alignment: center;
+                        horizontal-stretch: 1;
+
+                        Text {
+                            text: @tr("NOW PLAYING");
+                            font-family: Theme.mono;
+                            font-size: Theme.text-label;
+                            height: Theme.px(18);
+                            letter-spacing: Theme.label-spacing;
+                            color: Theme.ink-furniture;
+                            vertical-alignment: center;
+                        }
+                    }
+                    TransportButton {
+                        height: Theme.px(32);
+                        glyph: @image-url("../../../../resources/ui/icons/panel-right-close.svg");
+                        glyph-size: Theme.icon;
+                        pressed => {
+                            root.fold();
+                        }
+                    }
+                }
+
+                // The cover, or the letter standing in for one.
+                Rectangle {
+                    height: self.width;
+                    background: Theme.bg-2;
+                    border-radius: Theme.radius;
+                    clip: true;
+
+                    CoverImage {
+                        width: parent.width;
+                        height: parent.height;
+                        source: root.cover;
+                    }
+
+                    Text {
+                        text: root.initial;
+                        font-family: Theme.serif;
+                        font-italic: true;
+                        font-size: Theme.text-display;
+                        height: Theme.heading-box;
+                        color: Theme.ink-1;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                        opacity: root.cover.width > 0 ? 0.0 : 1.0;
+                    }
+                }
+
+                HorizontalLayout {
+                    padding-top: Theme.space-2;
+                    spacing: Theme.space-2;
+
+                    // The title leads to the track's row in the library.
+                    VerticalLayout {
+                        alignment: center;
+                        horizontal-stretch: 1;
+
+                        Text {
+                            text: root.loaded ? root.title : @tr("Nothing playing");
+                            font-family: Theme.serif;
+                            font-size: Theme.text-title;
+                            height: Theme.px(34);
+                            vertical-alignment: center;
+                            color: !root.loaded
+                                ? Theme.ink-mute
+                                : (title-touch.has-hover ? Theme.ink-1 : Theme.ink-0);
+                            overflow: elide;
+
+                            title-touch := TouchArea {
+                                enabled: root.loaded;
+                                mouse-cursor: pointer;
+                                clicked => {
+                                    root.show-in-library();
+                                }
+                            }
+                        }
+                    }
+
+                    TransportButton {
+                        height: Theme.px(34);
+                        glyph: root.favourite
+                            ? @image-url("../../../../resources/ui/icons/heart-filled.svg")
+                            : @image-url("../../../../resources/ui/icons/heart.svg");
+                        active: root.favourite;
+                        pulses: true;
+                        quiet: true;
+                        glyph-size: Theme.icon-large;
+                        enabled: root.loaded;
+                        pressed => {
+                            root.toggle-favourite();
+                        }
+                    }
+                }
+
+                // Who made it, and the way to the rest of what they made.
+                if root.subtitle != "": Text {
+                    text: root.subtitle;
+                    font-family: Theme.mono;
+                    font-size: Theme.text-label;
+                    height: Theme.px(18);
+                    letter-spacing: Theme.label-spacing;
+                    color: maker-touch.has-hover ? Theme.ink-1 : Theme.ink-mute;
+                    animate color { duration: 120ms; }
+                    vertical-alignment: center;
+                    overflow: elide;
+
+                    maker-touch := TouchArea {
+                        mouse-cursor: pointer;
+                        clicked => {
+                            root.show-artist();
+                        }
+                    }
+                }
+
+                // Only when there is nothing at all to say what comes next. What
+                // plays on belongs to something playing: after a restart the
+                // station a queue remembers is not playing until it is started.
+                if root.queue.length == 0 && (root.then.length == 0 || !root.loaded): VerticalLayout {
+                    padding-top: Theme.space-5;
+                    spacing: Theme.space-2;
+
+                    Text {
+                        text: @tr("UP NEXT");
+                        font-family: Theme.mono;
+                        font-size: Theme.text-label;
+                        height: Theme.px(28);
+                        letter-spacing: Theme.label-spacing;
+                        color: Theme.ink-furniture;
+                        vertical-alignment: center;
+                    }
+                    Text {
+                        text: @tr("Nothing is queued. The library plays on by itself.");
+                        font-family: Theme.sans;
+                        font-size: Theme.text-body;
+                        height: Theme.line-body * 2;
+                        color: Theme.ink-2;
+                        wrap: word-wrap;
+                    }
+                }
+
+                Rectangle {
+                    vertical-stretch: 1;
+
+                    upcoming := Flickable {
+                        width: parent.width;
+                        height: parent.height;
+                        viewport-width: self.width;
+                        viewport-height: lines.preferred-height;
+
+                        lines := VerticalLayout {
+                            width: parent.width;
+                            alignment: start;
+
+                            // The listener's own list: what they put here, to
+                            // take out again or clear.
+                            if root.queue.length > 0: HorizontalLayout {
+                                padding-top: Theme.space-5;
+
+                                VerticalLayout {
+                                    alignment: center;
+                                    horizontal-stretch: 1;
+
+                                    Text {
+                                        text: @tr("IN THE QUEUE");
+                                        font-family: Theme.mono;
+                                        font-size: Theme.text-label;
+                                        height: Theme.px(28);
+                                        letter-spacing: Theme.label-spacing;
+                                        color: Theme.ink-furniture;
+                                        vertical-alignment: center;
+                                    }
+                                }
+                                TextButton {
+                                    label: @tr("CLEAR");
+                                    pressed => {
+                                        root.clear-queue();
+                                    }
+                                }
+                            }
+                            // Carried up and down to put the queue in another
+                            // order; a press still plays and the cross still
+                            // takes it out, as a carry starts only once the
+                            // pointer has moved.
+                            for track[index] in root.queue: DragArea {
+                                height: Theme.px(52);
+                                data: Transfer.of-track(track.id);
+                                drag-image: track.cover;
+                                allow-copy: true;
+                                changed dragging => {
+                                    if (self.dragging) {
+                                        Transfer.drags += 1;
+                                        root.carry = Transfer.drags;
+                                        root.carried-row = index;
+                                        Transfer.hint = @tr("Let go between rows to move it");
+                                    }
+                                }
+
+                                TrackLine {
+                                    x: 0px;
+                                    width: parent.width;
+                                    data: track;
+                                    removable: true;
+                                    activated => {
+                                        root.play-queued(index);
+                                    }
+                                    removed => {
+                                        root.remove-from-queue(index);
+                                    }
+                                }
+
+                                DropArea {
+                                    enabled: root.carry == Transfer.drags;
+                                    property <bool> lower;
+                                    can-drop(event) => {
+                                        self.lower = event.position.y > self.height / 2;
+                                        return DragAction.copy;
+                                    }
+                                    dropped(event) => {
+                                        root.land(index + (event.position.y > self.height / 2 ? 1 : 0));
+                                        return DragAction.copy;
+                                    }
+
+                                    // Where the row would land: the top edge or the bottom.
+                                    Rectangle {
+                                        visible: parent.has-drag;
+                                        y: parent.lower ? parent.height - 1px : -1px;
+                                        height: Theme.px(2);
+                                        background: Theme.ink-1;
+                                    }
+                                }
+                            }
+
+                            // And what plays on after it, from wherever the
+                            // music is coming from.
+                            if root.loaded && root.then.length > 0: VerticalLayout {
+                                // Named, and the way back to it.
+                                Text {
+                                    text: root.then-label;
+                                    font-family: Theme.mono;
+                                    font-size: Theme.text-label;
+                                    height: Theme.px(28) + Theme.space-5;
+                                    letter-spacing: Theme.label-spacing;
+                                    color: source-touch.has-hover ? Theme.ink-1 : Theme.ink-furniture;
+                                    animate color { duration: 120ms; }
+                                    vertical-alignment: bottom;
+                                    overflow: elide;
+
+                                    source-touch := TouchArea {
+                                        mouse-cursor: pointer;
+                                        clicked => {
+                                            root.open-source();
+                                        }
+                                    }
+                                }
+                                for track in root.then: TrackLine {
+                                    data: track;
+                                    activated => {
+                                        root.play-following(track.id);
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    ScrollFade {
+                        y: parent.height - self.height;
+                        width: parent.width;
+                        ground: Theme.bg-1;
+                        more: upcoming.viewport-height + upcoming.viewport-y > upcoming.height;
+                    }
+                }
+            }
+        }
+
+        // The strip, against the right edge.
+        Rectangle {
+            x: parent.width - self.width;
+            width: Theme.rail-width;
+            opacity: root.expanded || !root.rail ? 0 : 1;
+            animate opacity { duration: Theme.fade-time; easing: ease-in-out; }
+            visible: self.opacity > 0.01;
+
+            VerticalLayout {
+                // The sidebar's own top and its button's height, so the two fold
+                // buttons stand on one line when both columns are folded.
+                padding-top: Theme.space-6;
+                padding-bottom: Theme.space-5;
+                spacing: Theme.space-3;
+
+                HorizontalLayout {
+                    alignment: center;
+
+                    TransportButton {
+                        height: Theme.px(34);
+                        glyph: @image-url("../../../../resources/ui/icons/panel-right-open.svg");
+                        glyph-size: Theme.icon;
+                        pressed => {
+                            root.fold();
+                        }
+                    }
+                }
+
+                // What is playing: a press opens the panel on it.
+                HorizontalLayout {
+                    alignment: center;
+
+                    RailCover {
+                        cover: root.cover;
+                        initial: root.initial;
+                        current: true;
+                        activated => {
+                            root.fold();
+                        }
+                    }
+                }
+
+                Rectangle {
+                    vertical-stretch: 1;
+
+                    rail := Flickable {
+                        width: parent.width;
+                        height: parent.height;
+                        viewport-width: self.width;
+                        viewport-height: covers.preferred-height;
+
+                        covers := VerticalLayout {
+                            width: parent.width;
+                            alignment: start;
+                            spacing: Theme.space-2;
+
+                            for track[index] in root.queue: HorizontalLayout {
+                                alignment: center;
+
+                                RailCover {
+                                    cover: track.cover;
+                                    initial: track.initial;
+                                    activated => {
+                                        root.play-queued(index);
+                                    }
+                                }
+                            }
+
+                            // Between what somebody queued and what plays on by itself.
+                            if root.queue.length > 0 && root.then.length > 0: HorizontalLayout {
+                                alignment: center;
+                                padding-top: Theme.space-1;
+                                padding-bottom: Theme.space-1;
+
+                                Rectangle {
+                                    width: Theme.px(24);
+                                    height: 1px;
+                                    background: Theme.line;
+                                }
+                            }
+
+                            for track in root.then: HorizontalLayout {
+                                alignment: center;
+
+                                RailCover {
+                                    cover: track.cover;
+                                    initial: track.initial;
+                                    activated => {
+                                        root.play-following(track.id);
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    ScrollFade {
+                        y: parent.height - self.height;
+                        width: parent.width;
+                        ground: Theme.bg-1;
+                        more: rail.viewport-height + rail.viewport-y > rail.height;
+                    }
+                }
+            }
+        }
+    }
+}

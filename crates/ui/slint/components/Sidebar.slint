@@ -1,0 +1,426 @@
+import { Theme } from "../theme/tokens.slint";
+import { TransportButton } from "Controls.slint";
+
+/// The destination under the pointer while the sidebar is folded, and the
+/// height of its middle in the window. The sidebar clips whatever leaves its
+/// edge, so the name is drawn by the shell, beside it; this is how the shell
+/// hears which one.
+export global SidebarHint {
+    in-out property <string> text;
+    in-out property <length> y;
+}
+import { Section } from "Section.slint";
+
+// One line of navigation.
+//
+// The icon and the label move together: both brighten on hover, both go loud
+// when selected, both dim when the destination does not exist yet. One state,
+// shown twice, so the eye can pick either.
+component NavItem inherits Rectangle {
+    in property <string> label;
+    in property <image> glyph;
+    in property <bool> selected;
+    in property <bool> enabled: true;
+    /// The sidebar is folded to its icons: the label goes.
+    in property <bool> folded;
+    /// How many are waiting, where anything is: at the end of the row open,
+    /// and as a dot on the icon folded.
+    in property <int> count;
+
+    callback chosen();
+
+    // The colour every part of the row shares, worked out once.
+    property <color> tone: !root.enabled
+        ? Theme.ink-disabled
+        : (root.selected
+            ? Theme.ink-0
+            : (touch.has-hover ? Theme.ink-1 : Theme.ink-2));
+
+    height: Theme.px(32);
+    background: root.selected ? Theme.bg-1 : transparent;
+    border-radius: Theme.radius;
+    animate background { duration: 120ms; }
+
+    touch := TouchArea {
+        enabled: root.enabled;
+        clicked => {
+            root.chosen();
+        }
+    }
+
+    // Folded, the label is gone, so the name is offered on hover instead.
+    property <bool> hinting: root.folded && touch.has-hover;
+    changed hinting => {
+        if (root.hinting) {
+            SidebarHint.text = root.label;
+            SidebarHint.y = root.absolute-position.y + root.height / 2;
+        } else if (SidebarHint.text == root.label) {
+            SidebarHint.text = "";
+        }
+    }
+
+    HorizontalLayout {
+        padding-left: Theme.space-3;
+        padding-right: Theme.space-3;
+        spacing: Theme.space-3;
+
+        VerticalLayout {
+            alignment: center;
+
+            Image {
+                source: root.glyph;
+                width: Theme.icon;
+                height: self.width;
+                image-fit: contain;
+                colorize: root.tone;
+                animate colorize { duration: 120ms; }
+            }
+        }
+
+        // Wrapped like the icon beside it. A layout child with a height of its
+        // own cannot stretch, so it sits at the top of the row — which is why
+        // the labels rode above their icons.
+        VerticalLayout {
+            alignment: center;
+            horizontal-stretch: 1;
+
+            Text {
+                opacity: root.folded ? 0 : 1;
+                animate opacity { duration: Theme.fade-time; easing: ease-in-out; }
+                text: root.label;
+                font-family: Theme.sans;
+                font-size: Theme.text-body;
+                height: Theme.px(22);
+                color: root.tone;
+                animate color { duration: 120ms; }
+                vertical-alignment: center;
+            }
+        }
+
+        if root.count > 0: VerticalLayout {
+            alignment: center;
+
+            Text {
+                opacity: root.folded ? 0 : 1;
+                animate opacity { duration: Theme.fade-time; easing: ease-in-out; }
+                text: root.count;
+                font-family: Theme.mono;
+                font-size: Theme.text-label;
+                height: Theme.px(18);
+                letter-spacing: Theme.number-spacing;
+                color: Theme.accent;
+                vertical-alignment: center;
+            }
+        }
+    }
+
+    // Folded, the number has no room: a dot on the icon says the same.
+    if root.count > 0: Rectangle {
+        x: Theme.space-3 + Theme.icon - Theme.px(2);
+        y: round((parent.height - Theme.icon) / 1px / 2) * 1px - Theme.px(2);
+        width: Theme.px(8);
+        height: Theme.px(8);
+        border-radius: Theme.px(4);
+        background: Theme.accent;
+        opacity: root.folded ? 1 : 0;
+        animate opacity { duration: Theme.fade-time; easing: ease-in-out; }
+    }
+}
+
+component NavLabel inherits Rectangle {
+    in property <string> text;
+    /// Folded: the rule alone marks where the group starts.
+    in property <bool> folded;
+
+    // A box of its own rather than a layout with padding. The rule has to sit
+    // on the words' own middle, and a layout that centres it in the padded box
+    // puts it below them — which is why one group's line hung low and the next
+    // one's, with different padding above it, rode high.
+    height: Theme.px(26);
+
+    HorizontalLayout {
+        // Centred. Dividing by a *length* of two pixels rather than by the
+        // number two lands on the whole remainder instead of half of it, so the
+        // label and its rule sat against the floor of their own box. The same
+        // mistake was fixed in the settings page and this copy was missed; the
+        // two other places that divide by `Theme.px(2)` are snapping a length
+        // to an even pixel, which is what that division is actually for.
+        y: round((parent.height - Theme.px(18)) / 1px / 2) * 1px;
+        height: Theme.px(18);
+        padding-left: Theme.space-3;
+        padding-right: Theme.space-3;
+        spacing: Theme.space-2;
+
+        // Wrapped, like every boxed line in a row: a child with a height of
+        // its own cannot stretch, and a layout stands it at the top rather than
+        // beside what it belongs with.
+        VerticalLayout {
+            alignment: center;
+
+            Text {
+                opacity: root.folded ? 0 : 1;
+                animate opacity { duration: Theme.fade-time; easing: ease-in-out; }
+                text: root.text;
+                font-family: Theme.mono;
+                font-size: Theme.text-label;
+                height: Theme.px(18);
+                letter-spacing: Theme.label-spacing;
+                color: Theme.ink-furniture;
+                vertical-alignment: center;
+            }
+        }
+
+        // The rule runs from the label to the edge, which is how the eye finds
+        // the group boundary without a heavier separator. On the line's own
+        // middle: half of eighteen is nine, and nine is where a capital's waist
+        // is.
+        Rectangle {
+            y: Theme.px(8);
+            height: 1px;
+            background: Theme.line-soft;
+            opacity: root.folded ? 0 : 1;
+            animate opacity { duration: Theme.fade-time; easing: ease-in-out; }
+        }
+    }
+
+    // Folded, the rule alone, across the strip's own width. From this box's
+    // own edge: the column already sets it in by its margin, so the rule
+    // stands in the middle of the strip.
+    Rectangle {
+        x: 0;
+        width: Theme.rail-width - 2 * Theme.space-3;
+        y: round(parent.height / 1px / 2) * 1px;
+        height: 1px;
+        background: Theme.line-soft;
+        opacity: root.folded ? 1 : 0;
+        animate opacity { duration: Theme.fade-time; easing: ease-in-out; }
+    }
+}
+
+// Where everything is, down the left edge.
+//
+// Three destinations and one that is not built yet, the wordmark above them and
+// the listener below. Nothing here scrolls and nothing here changes with the
+// page: the frame is fixed, and this is the half of it that says what the
+// application contains.
+export component Sidebar inherits Rectangle {
+    /// How many files are waiting for a decision. Zero hides the destination.
+    in property <int> pending-reviews;
+    /// Which screen is showing. A name rather than an index: an index would
+    /// renumber every time a destination is added.
+    in property <Section> section;
+
+    /// Folded to its icons, which still take a press.
+    in property <bool> folded;
+
+    callback select(Section);
+    /// Fold or unfold.
+    callback fold();
+
+    width: root.folded ? Theme.rail-width : Theme.sidebar-width;
+    animate width { duration: Theme.fold-time; easing: cubic-bezier(0.4, 0, 0.2, 1); }
+    clip: true;
+    background: Theme.bg-0;
+
+
+    // A single hairline, not a border: the sidebar and the content are one
+    // surface with a seam, not two panels.
+    Rectangle {
+        x: parent.width - 1px;
+        width: 1px;
+        background: Theme.line-soft;
+    }
+
+    VerticalLayout {
+        padding-top: Theme.space-6;
+        // None at the foot: nothing stands there, and the column runs to the
+        // bottom of the window.
+        padding-bottom: 0px;
+        spacing: Theme.space-6;
+
+        // Wordmark. The name is the only place the serif is set this large.
+        // Beside it the fold button, on the name's own line; folded, the
+        // button alone, in the middle of what is left. The box keeps the
+        // wordmark's height when it goes, or the list below would jump up as
+        // the column folds.
+        Rectangle {
+            height: Theme.px(54);
+
+            Rectangle {
+                x: Theme.space-5;
+                width: Theme.sidebar-width - Theme.space-5 - Theme.space-3 - Theme.px(28);
+                opacity: root.folded ? 0 : 1;
+                animate opacity { duration: Theme.fade-time; easing: ease-in-out; }
+
+                VerticalLayout {
+                    alignment: start;
+                    spacing: Theme.px(2);
+
+                    // Title rather than display, though it is the application's
+                    // own name: display belongs to whatever the listener is
+                    // looking at, and two things at the same size on one screen
+                    // compete instead of ranking.
+                    Text {
+                        text: "Cadenza";
+                        font-family: Theme.serif;
+                        font-size: Theme.text-title;
+                        height: Theme.px(34);
+                        vertical-alignment: center;
+                        color: Theme.ink-0;
+                    }
+                    Text {
+                        text: @tr("LOCAL PLAYER");
+                        font-family: Theme.mono;
+                        font-size: Theme.text-label;
+                        height: Theme.px(18);
+                        vertical-alignment: center;
+                        letter-spacing: Theme.label-spacing;
+                        color: Theme.ink-furniture;
+                    }
+                }
+            }
+
+            // Where the button stands is worked out from the width, so it
+            // slides with the edge: beside the name when open, in the middle
+            // of the strip when folded, and in between on the way.
+            TransportButton {
+                x: round((Theme.px(18) + (parent.width - Theme.rail-width) / (Theme.sidebar-width - Theme.rail-width) * (Theme.sidebar-width - Theme.space-3 - Theme.px(28) - Theme.px(18))) / 1px) * 1px;
+                y: 0;
+                height: Theme.px(34);
+                glyph: root.folded
+                    ? @image-url("../../../../resources/ui/icons/panel-left-open.svg")
+                    : @image-url("../../../../resources/ui/icons/panel-left-close.svg");
+                glyph-size: Theme.icon;
+                pressed => {
+                    root.fold();
+                }
+            }
+
+            // Folded, the name gives way to the mark, in the room under the
+            // button and above the first group's rule: centred between the
+            // two, and outside this box, which keeps the list where it was.
+            Image {
+                opacity: root.folded ? 1 : 0;
+                animate opacity { duration: Theme.fade-time; easing: ease-in-out; }
+                width: Theme.px(24);
+                height: self.width;
+                x: round((parent.width - self.width) / 1px / 2) * 1px;
+                y: Theme.px(50);
+                source: @image-url("../../../../resources/branding/cadenza-mark.svg");
+                colorize: Theme.ink-2;
+            }
+        }
+
+        VerticalLayout {
+            padding-left: Theme.space-3;
+            padding-right: Theme.space-3;
+            spacing: Theme.px(2);
+
+            NavLabel {
+                folded: root.folded;
+                text: @tr("COLLECTION");
+            }
+            NavItem {
+                folded: root.folded;
+                label: @tr("Home");
+                glyph: @image-url("../../../../resources/ui/icons/house.svg");
+                selected: root.section == Section.home;
+                chosen => {
+                    root.select(Section.home);
+                }
+            }
+            NavItem {
+                folded: root.folded;
+                label: @tr("Library");
+                glyph: @image-url("../../../../resources/ui/icons/library.svg");
+                selected: root.section == Section.library;
+                chosen => {
+                    root.select(Section.library);
+                }
+            }
+            NavItem {
+                folded: root.folded;
+                label: @tr("Artists");
+                glyph: @image-url("../../../../resources/ui/icons/mic.svg");
+                selected: root.section == Section.artists || root.section == Section.artist;
+                chosen => {
+                    root.select(Section.artists);
+                }
+            }
+            NavItem {
+                folded: root.folded;
+                label: @tr("Playlists");
+                glyph: @image-url("../../../../resources/ui/icons/playlist.svg");
+                // One playlist is reached from the index and is still the
+                // playlists section, so the item stays lit while it is open.
+                selected: root.section == Section.playlists || root.section == Section.playlist;
+                chosen => {
+                    root.select(Section.playlists);
+                }
+            }
+            // Only while there is something to decide. A destination that is
+            // empty nine days in ten is a destination nobody looks at, and one
+            // that appears when it has something to say is read the first time.
+            if root.pending-reviews > 0: NavItem {
+                folded: root.folded;
+                label: @tr("Decisions");
+                count: root.pending-reviews;
+                glyph: @image-url("../../../../resources/ui/icons/review.svg");
+                selected: root.section == Section.reviews;
+                chosen => {
+                    root.select(Section.reviews);
+                }
+            }
+            NavItem {
+                folded: root.folded;
+                label: @tr("Listening");
+                glyph: @image-url("../../../../resources/ui/icons/analytics.svg");
+                selected: root.section == Section.listening;
+                chosen => {
+                    root.select(Section.listening);
+                }
+            }
+            NavItem {
+                folded: root.folded;
+                label: @tr("Radio");
+                glyph: @image-url("../../../../resources/ui/icons/radio.svg");
+                selected: root.section == Section.radio;
+                chosen => {
+                    root.select(Section.radio);
+                }
+            }
+
+            // A group of its own. The equaliser is not somewhere the music is
+            // kept, it is something done to it — and a rule with a word on it
+            // is how this sidebar says so.
+            NavLabel {
+                folded: root.folded;
+                text: @tr("SETUP");
+                height: Theme.px(42);
+            }
+            NavItem {
+                folded: root.folded;
+                label: @tr("Equaliser");
+                glyph: @image-url("../../../../resources/ui/icons/equalizer.svg");
+                selected: root.section == Section.equaliser;
+                chosen => {
+                    root.select(Section.equaliser);
+                }
+            }
+            NavItem {
+                folded: root.folded;
+                label: @tr("Settings");
+                glyph: @image-url("../../../../resources/ui/icons/settings.svg");
+                selected: root.section == Section.settings;
+                chosen => {
+                    root.select(Section.settings);
+                }
+            }
+        }
+
+        // Takes the rest of the column. Without something that stretches, the
+        // column is only as tall as its items, and the row it stands in - the
+        // page beside it with it - stops there.
+        Rectangle { }
+    }
+}

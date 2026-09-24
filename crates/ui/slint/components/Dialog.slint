@@ -1,0 +1,620 @@
+import { ListView } from "std-widgets.slint";
+import { ScrollView } from "std-widgets.slint";
+
+import { Theme } from "../theme/tokens.slint";
+import { Field } from "Field.slint";
+import { MenuItemData } from "RowMenu.slint";
+
+// A word set in mono capitals, inside the same outline the rows use.
+//
+// One button shape for everything that is not the transport: a hairline
+// rectangle with a label in it, brightening under the pointer. The row's QUEUE
+// control was already this shape; making the dialogs and the page actions the
+// same means the interface has two kinds of button — a circle for the thing
+// that makes sound, and this for everything else — instead of four.
+export component TextButton inherits Rectangle {
+    in property <string> label;
+    /// One of a set, and the one in force. A filled ground rather than louder
+    /// ink, because "this is chosen" and "this is the thing to press" are two
+    /// different sentences and were being said the same way.
+    in property <bool> selected;
+    in property <bool> destructive;
+    /// The accent, in the label and the border.
+    ///
+    /// The one action that starts everything, on the one screen that has
+    /// nothing else on it: the only button that stands out from the rest, and
+    /// the only one that wears the colour.
+    in property <bool> accented;
+    /// Set to make every button in a group the same size. A column of controls
+    /// whose widths follow their labels is a column with a ragged edge, and a
+    /// ragged edge is noise with no meaning in it.
+    in property <length> fixed-width;
+    /// A button that is there but cannot be pressed yet — the action exists,
+    /// the conditions for it do not. Shown rather than hidden so the page does
+    /// not change shape under the hand.
+    in property <bool> enabled: true;
+    /// A mark after the label, for a control that opens a menu.
+    ///
+    /// **The one exception to "no icons inside buttons", and it is bounded to
+    /// one class of control.** That rule exists because a glyph in a label
+    /// makes a second button style out of the one there is. A chevron is not
+    /// decoration: it is the only mark that says "there is more behind this",
+    /// and without it a control that opens a menu is drawn exactly like a
+    /// control that does something — which is what the sort button was.
+    /// Nothing else may take one.
+    in property <image> opens;
+
+    callback pressed();
+
+    property <color> tone: !root.enabled
+        ? Theme.ink-disabled
+        : (root.destructive
+            ? Theme.danger
+            : (root.accented
+                ? Theme.accent
+                : (root.selected ? Theme.ink-0 : Theme.ink-2)));
+
+    // Whole, even pixels: a button whose width is fractional is placed by its
+    // layout at a fractional x, and every letter of its label is then
+    // rasterised from half a pixel out.
+    width: root.fixed-width > 0
+        ? root.fixed-width
+        : round((label.preferred-width + 2 * Theme.space-4
+                 + (root.opens.width > 0 ? Theme.px(20) : 0px)) / Theme.px(2)) * Theme.px(2);
+    height: Theme.control-height;
+    border-radius: Theme.radius;
+    border-width: 1px;
+    border-color: !root.enabled
+        ? Theme.line-soft
+        : (root.accented
+            ? Theme.accent
+            : (root.selected
+                ? Theme.line
+                : (touch.has-hover
+                    ? (root.destructive ? Theme.danger.with-alpha(0.5) : Theme.line)
+                    : Theme.line-soft)));
+    // Three states, not two. A control that looks the same held down as it
+    // does under the pointer gives nothing back at the moment of the press,
+    // which is the moment somebody is asking whether it worked.
+    background: !root.enabled
+        ? transparent
+        : (touch.pressed
+        ? (root.destructive ? Theme.danger.with-alpha(0.22) : Theme.bg-3)
+        : (root.selected
+            ? Theme.bg-2
+            : (touch.has-hover
+                ? (root.destructive ? Theme.danger.with-alpha(0.12) : Theme.bg-2)
+                : transparent)));
+    animate background, border-color { duration: 120ms; }
+
+    touch := TouchArea {
+        enabled: root.enabled;
+        mouse-cursor: pointer;
+        clicked => {
+            root.pressed();
+        }
+    }
+
+    // Placed rather than laid out. A label that spans its button has to be
+    // told to, and a child told to fill inside a layout tells the layout it
+    // wants everything — which made every button in a row demand the whole row
+    // and put the four of them one row-width apart.
+    //
+    // Centring the *text* is safe where centring an element is not: the box is
+    // the button, whose width is already whole and even, so the only thing that
+    // can land on a fraction is the glyph run, which the renderer places as one
+    // piece.
+    label := Text {
+        x: 0;
+        // An even height, so centring it in an even button is whole arithmetic.
+        // Left to ask for its own, a line of type wants something fractional
+        // and the letters come out at different heights.
+        y: round((root.height - Theme.px(18)) / 1px / 2) * 1px;
+        // Short by the chevron and its gap where there is one, so the words
+        // stay centred in the space they actually have rather than in the
+        // whole button with a glyph sitting on top of them.
+        width: root.width - (root.opens.width > 0 ? Theme.px(20) : 0px);
+        height: Theme.px(18);
+        text: root.label;
+        font-family: Theme.mono;
+        font-size: Theme.text-label;
+        letter-spacing: Theme.label-spacing;
+        // Full strength, where it used to be four fifths at rest.
+        //
+        // **No alpha on a label.** At 0.8 a resting `ink-2` measured 4.43:1
+        // against the 6.40 the ink itself gives, and a disabled label at
+        // `ink-mute` × 0.8 landed near `ink-disabled` by arithmetic rather than
+        // by saying so - so raising the ink ladder made unavailable buttons
+        // *more* legible.
+        //
+        // Hover is a real step now: `ink-2` to `ink-0`. A button already in a
+        // loud tone keeps it, having nowhere louder to go.
+        color: touch.has-hover && !root.destructive && !root.accented
+            ? Theme.ink-0
+            : root.tone;
+        animate color { duration: 120ms; }
+        vertical-alignment: center;
+        horizontal-alignment: center;
+        overflow: elide;
+    }
+
+    // The mark that says a menu is behind this. See `opens` above for why this
+    // is the one glyph allowed inside a button.
+    if root.opens.width > 0: Image {
+        source: root.opens;
+        width: Theme.px(12);
+        height: self.width;
+        x: root.width - Theme.space-4 - self.width;
+        y: round((root.height - self.height) / 1px / 2) * 1px;
+        image-fit: contain;
+        colorize: label.color;
+        animate colorize { duration: 120ms; }
+    }
+}
+
+// One question, asked over the whole window.
+//
+// Modal on purpose: every one of these is a decision the next thing depends on
+// — what the list is called, whether the track really goes. A panel that can be
+// left open while something else is clicked is a panel that has to be told what
+// to do when the something else invalidates it.
+export component Dialog inherits Rectangle {
+    in property <string> title;
+    in property <string> message;
+    in property <string> placeholder;
+    /// Empty means the dialog asks nothing and only confirms.
+    in property <bool> asks-for-text;
+    in property <string> confirm-label: @tr("SAVE");
+    in property <bool> destructive;
+    /// Set where the dialog tells rather than asks. A panel of explanation has
+    /// nothing to cancel: there is one way out of it and it is the way out.
+    in property <bool> informs;
+    /// What the field starts with. A binding rather than a value pushed in: the
+    /// dialog is built fresh every time it opens, and typing replaces it.
+    in property <string> initial;
+
+    callback confirmed(string);
+    callback cancelled();
+
+    // Fills the window and eats every click that is not on the card, which is
+    // what makes it modal without a second window.
+    background: Theme.bg-0.with-alpha(0.72);
+
+    backdrop := TouchArea {
+        clicked => {
+            root.cancelled();
+        }
+    }
+
+    // Escape closes it. A modal that can only be dismissed by aiming at a
+    // particular word is a modal that traps people who reached for the key
+    // every other application answers.
+    keys := FocusScope {
+        key-pressed(event) => {
+            if (event.text == Key.Escape) {
+                root.cancelled();
+                return accept;
+            }
+            return reject;
+        }
+    }
+
+    card := Rectangle {
+        // Wider where the dialog explains: a paragraph at 440 is a column of
+        // six words, and seven of them is a wall.
+        width: root.informs ? Theme.px(560) : Theme.px(440);
+        // As tall as it wants to be, and never taller than the window it is
+        // standing in. The explaining card had grown to within thirty pixels of
+        // the bottom at 100 per cent and past it at any larger size — and a
+        // card that does not fit is a card whose last paragraph and whose only
+        // button are both somewhere off the screen.
+        height: min(layout.preferred-height, parent.height - Theme.px(64));
+        // Whole pixels. A card centred on a window of odd height lands on
+        // half a pixel, every glyph inside it is then snapped to the pixel
+        // grid on its own, and the line comes out with its letters at
+        // different heights. That is the whole of "the type is jumping".
+        x: round((parent.width - self.width) / 1px / 2) * 1px;
+        y: round((parent.height - self.height) / 1px / 2) * 1px;
+        background: Theme.bg-1;
+        border-width: 1px;
+        border-color: Theme.line;
+        border-radius: Theme.radius;
+
+        // Clicks on the card are not clicks on the backdrop.
+        TouchArea { }
+
+        layout := VerticalLayout {
+            padding: Theme.space-6;
+            spacing: Theme.space-4;
+
+            Text {
+                text: root.title;
+                font-family: Theme.serif;
+                font-size: Theme.text-title;
+                color: Theme.ink-0;
+                wrap: word-wrap;
+            }
+
+            // The paragraphs, and the only part of the card that gives way
+            // when there is not enough room. The title stays, the field stays,
+            // the buttons stay: those are what the card is *for*, and a
+            // dialog whose confirm button has been squeezed off the bottom is
+            // worse than one whose explanation has to be scrolled.
+            if root.message != "": ScrollView {
+                vertical-stretch: 1;
+                preferred-height: words.preferred-height;
+                viewport-height: words.preferred-height;
+
+                words := Text {
+                    // Short of the viewport by the width of the bar, which is
+                    // drawn over the content rather than beside it — the same
+                    // gutter the track list keeps.
+                    width: parent.width - Theme.scroll-gutter;
+                    text: root.message;
+                    font-family: Theme.sans;
+                    font-size: Theme.text-body;
+                    color: Theme.ink-2;
+                    wrap: word-wrap;
+                }
+            }
+
+            // Always built, and collapsed when the dialog only confirms: an
+            // element inside an `if` is out of scope everywhere else, and both
+            // the alias above and the confirm button below need to reach it.
+            Rectangle {
+                height: root.asks-for-text ? Theme.px(40) : 0px;
+                clip: true;
+
+                field := Field {
+                    width: 100%;
+                    placeholder: root.placeholder;
+                    text: root.initial;
+                    accepted => {
+                        root.confirmed(self.text);
+                    }
+                }
+            }
+
+            HorizontalLayout {
+                alignment: end;
+                spacing: Theme.space-2;
+
+                if !root.informs: TextButton {
+                    label: @tr("CANCEL");
+                    pressed => {
+                        root.cancelled();
+                    }
+                }
+
+                TextButton {
+                    label: root.confirm-label;
+                    destructive: root.destructive;
+                    pressed => {
+                        root.confirmed(field.text);
+                    }
+                }
+            }
+        }
+    }
+}
+
+// A question whose answers are a list rather than a word.
+//
+// Used for "which playlist?", where a text field would be asking somebody to
+// type the name of something the application already knows. The last row makes
+// a new one, so an empty library of lists is not a dead end.
+export component PickDialog inherits Rectangle {
+    in property <string> title;
+    in property <string> message;
+    in property <[MenuItemData]> options;
+    in property <string> create-label;
+
+    callback picked(string);
+    callback create();
+    callback cancelled();
+
+    background: Theme.bg-0.with-alpha(0.72);
+
+    TouchArea {
+        clicked => {
+            root.cancelled();
+        }
+    }
+
+    FocusScope {
+        key-pressed(event) => {
+            if (event.text == Key.Escape) {
+                root.cancelled();
+                return accept;
+            }
+            return reject;
+        }
+    }
+
+    // A row of the list, and how many of them the card will show before the
+    // rest have to be scrolled to. Six because the card must still hold its
+    // title, its buttons and its own padding inside a small window.
+    property <length> option-height: Theme.px(52);
+    property <int> shown-options: 6;
+
+    Rectangle {
+        width: Theme.px(440);
+        // The card is as tall as what it holds. It used to be capped instead,
+        // and a seventh playlist pushed the buttons out through the bottom
+        // edge — the list scrolls now, so the height cannot run away.
+        height: layout.preferred-height;
+        // Whole pixels. A card centred on a window of odd height lands on
+        // half a pixel, every glyph inside it is then snapped to the pixel
+        // grid on its own, and the line comes out with its letters at
+        // different heights. That is the whole of "the type is jumping".
+        x: round((parent.width - self.width) / 1px / 2) * 1px;
+        y: round((parent.height - self.height) / 1px / 2) * 1px;
+        background: Theme.bg-1;
+        border-width: 1px;
+        border-color: Theme.line;
+        border-radius: Theme.radius;
+
+        TouchArea { }
+
+        layout := VerticalLayout {
+            padding: Theme.space-6;
+            spacing: Theme.space-4;
+
+            Text {
+                text: root.title;
+                font-family: Theme.serif;
+                font-size: Theme.text-title;
+                color: Theme.ink-0;
+                wrap: word-wrap;
+            }
+
+            if root.message != "": Text {
+                text: root.message;
+                font-family: Theme.sans;
+                font-size: Theme.text-body;
+                color: Theme.ink-2;
+                wrap: word-wrap;
+            }
+
+            // The options are their own list, with nothing between them: the
+            // dialog's own layout puts sixteen pixels between everything it
+            // holds, and applied to a list that turns rows into cards floating
+            // apart from each other.
+            //
+            // A list rather than a column, because there is no number of
+            // playlists at which this question stops being askable.
+            ListView {
+                height: min(root.options.length * root.option-height,
+                    root.shown-options * root.option-height);
+
+            for option in root.options: Rectangle {
+                height: root.option-height;
+
+                option-touch := TouchArea {
+                    mouse-cursor: pointer;
+                    clicked => {
+                        root.picked(option.action);
+                    }
+                }
+
+                // The whole row lights, the way a track row does. An inset
+                // highlight has to be spaced against the rule between rows,
+                // and there is no spacing that looks even from both sides.
+                Rectangle {
+                    background: option-touch.has-hover ? Theme.bg-2 : transparent;
+                    animate background { duration: 90ms; }
+                }
+
+                HorizontalLayout {
+                    // Wider than the menu rows are: the list can scroll, and a
+                    // scrollbar drawn inside the right edge would otherwise
+                    // stand on top of the last digits of a length.
+                    padding-left: Theme.space-4;
+                    padding-right: Theme.space-4;
+                    spacing: Theme.space-4;
+
+                    VerticalLayout {
+                        alignment: center;
+                        horizontal-stretch: 1;
+
+                        Text {
+                            text: option.label;
+                            font-family: Theme.serif;
+                            font-size: Theme.text-title;
+                            height: Theme.px(34);
+                            vertical-alignment: center;
+                            color: option-touch.has-hover ? Theme.ink-0 : Theme.ink-1;
+                            overflow: elide;
+                            animate color { duration: 90ms; }
+                        }
+                    }
+
+                    VerticalLayout {
+                        alignment: center;
+
+                        Text {
+                            text: option.meta;
+                            font-family: Theme.mono;
+                            font-size: Theme.text-label;
+                            height: Theme.px(18);
+                            vertical-alignment: center;
+                            letter-spacing: Theme.label-spacing;
+                            color: Theme.ink-mute;
+                            horizontal-alignment: right;
+                        }
+                    }
+                }
+
+                // A hairline under every row, exactly as a track list draws
+                // one: the highlight fills the row, so the rule sits on its
+                // edge and has no gap to be uneven in.
+                Rectangle {
+                    y: parent.height - 1px;
+                    height: 1px;
+                    background: Theme.line-soft;
+                }
+            }
+            }
+
+            HorizontalLayout {
+                alignment: space-between;
+                padding-top: Theme.space-2;
+
+                TextButton {
+                    label: root.create-label;
+                    pressed => {
+                        root.create();
+                    }
+                }
+
+                TextButton {
+                    label: @tr("CANCEL");
+                    pressed => {
+                        root.cancelled();
+                    }
+                }
+            }
+        }
+    }
+}
+
+// Three fields, because a track is called three things.
+//
+// The generic dialog above asks for one word and is right to: naming a playlist
+// is one decision. Correcting a track is three, and three dialogs in a row
+// would make somebody confirm twice to fix a typo in an album title. Its own
+// component rather than a fourth flag on that one, which already carries three.
+export component EditTrackDialog inherits Rectangle {
+    in property <string> title-value;
+    in property <string> artist-value;
+    in property <string> album-value;
+
+    callback confirmed(string, string, string);
+    callback cancelled();
+
+    background: Theme.bg-0.with-alpha(0.72);
+
+    backdrop := TouchArea {
+        clicked => {
+            root.cancelled();
+        }
+    }
+
+    keys := FocusScope {
+        key-pressed(event) => {
+            if (event.text == Key.Escape) {
+                root.cancelled();
+                return accept;
+            }
+            return reject;
+        }
+    }
+
+    card := Rectangle {
+        width: Theme.px(440);
+        height: layout.preferred-height;
+        x: round((parent.width - self.width) / 1px / 2) * 1px;
+        y: round((parent.height - self.height) / 1px / 2) * 1px;
+        background: Theme.bg-1;
+        border-width: 1px;
+        border-color: Theme.line;
+        border-radius: Theme.radius;
+
+        TouchArea { }
+
+        layout := VerticalLayout {
+            padding: Theme.space-6;
+            spacing: Theme.space-4;
+
+            Text {
+                text: @tr("What this track is called");
+                font-family: Theme.serif;
+                font-size: Theme.text-title;
+                color: Theme.ink-0;
+                wrap: word-wrap;
+            }
+
+            Text {
+                text: @tr("Yours alone. The file keeps its own tags.");
+                font-family: Theme.sans;
+                font-size: Theme.text-body;
+                color: Theme.ink-2;
+                wrap: word-wrap;
+            }
+
+            VerticalLayout {
+                spacing: Theme.space-2;
+
+                Text {
+                    text: @tr("TITLE");
+                    font-family: Theme.mono;
+                    font-size: Theme.text-label;
+                    height: Theme.px(18);
+                    vertical-alignment: center;
+                    letter-spacing: Theme.label-spacing;
+                    color: Theme.ink-furniture;
+                }
+
+                title-field := Field {
+                    width: 100%;
+                    placeholder: "Mysterons";
+                    text: root.title-value;
+                }
+
+                Text {
+                    text: @tr("ARTIST");
+                    font-family: Theme.mono;
+                    font-size: Theme.text-label;
+                    height: Theme.px(18);
+                    vertical-alignment: center;
+                    letter-spacing: Theme.label-spacing;
+                    color: Theme.ink-furniture;
+                }
+
+                artist-field := Field {
+                    width: 100%;
+                    placeholder: "Portishead";
+                    text: root.artist-value;
+                }
+
+                Text {
+                    text: @tr("ALBUM");
+                    font-family: Theme.mono;
+                    font-size: Theme.text-label;
+                    height: Theme.px(18);
+                    vertical-alignment: center;
+                    letter-spacing: Theme.label-spacing;
+                    color: Theme.ink-furniture;
+                }
+
+                album-field := Field {
+                    width: 100%;
+                    placeholder: "Dummy";
+                    text: root.album-value;
+                    accepted => {
+                        root.confirmed(title-field.text, artist-field.text, album-field.text);
+                    }
+                }
+            }
+
+            HorizontalLayout {
+                alignment: end;
+                spacing: Theme.space-2;
+
+                TextButton {
+                    label: @tr("CANCEL");
+                    pressed => {
+                        root.cancelled();
+                    }
+                }
+
+                TextButton {
+                    label: @tr("SAVE");
+                    pressed => {
+                        root.confirmed(title-field.text, artist-field.text, album-field.text);
+                    }
+                }
+            }
+        }
+    }
+}

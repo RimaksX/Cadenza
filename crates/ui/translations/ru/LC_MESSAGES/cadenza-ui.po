@@ -1,0 +1,1105 @@
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Language: ru\n"
+"Plural-Forms: nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%10<=4 && (n%100<12 || n%100>14) ? 1 : 2);\n"
+
+# Sidebar
+msgid "COLLECTION"
+msgstr "МУЗЫКА"
+
+msgid "SETUP"
+msgstr "НАСТРОЙКА"
+
+msgid "LOCAL PLAYER"
+msgstr "ЛОКАЛЬНЫЙ ПЛЕЕР"
+
+msgid "Library"
+msgstr "Библиотека"
+
+msgid "Playlists"
+msgstr "Плейлисты"
+
+msgid "Listening"
+msgstr "Статистика"
+
+msgid "Radio"
+msgstr "Радио"
+
+msgid "Equaliser"
+msgstr "Эквалайзер"
+
+msgid "Settings"
+msgstr "Настройки"
+
+msgid "Decisions"
+msgstr "Ждут решения"
+
+# Library and lists
+msgid "Search"
+msgstr "Поиск"
+
+msgid "TITLE"
+msgstr "НАЗВАНИЕ"
+
+msgid "ARTIST"
+msgstr "ИСПОЛНИТЕЛЬ"
+
+msgid "ALBUM"
+msgstr "АЛЬБОМ"
+
+msgid "TIME"
+msgstr "ВРЕМЯ"
+
+msgid "Nothing here yet"
+msgstr "Здесь пока пусто"
+
+msgid "This list is empty"
+msgstr "Этот список пуст"
+
+msgid "No lists yet"
+msgstr "Списков пока нет"
+
+msgid "No folders yet"
+msgstr "Папок пока нет"
+
+msgid "PLAYLIST"
+msgstr "ПЛЕЙЛИСТ"
+
+msgid "PLAYLISTS"
+msgstr "ПЛЕЙЛИСТЫ"
+
+msgid "NEW PLAYLIST"
+msgstr "НОВЫЙ ПЛЕЙЛИСТ"
+
+msgid "ADD PLAYLIST"
+msgstr "ДОБАВИТЬ"
+
+msgid "Add to playlist"
+msgstr "В плейлист"
+
+msgid "Add to playlist…"
+msgstr "Добавить в плейлист…"
+
+msgid "MAKE A FOLDER"
+msgstr "СОЗДАТЬ ПАПКУ"
+
+msgid "STOP"
+msgstr "ОСТАНОВИТЬ"
+
+msgid "Paste a YouTube link - a track, or a playlist"
+msgstr "Вставьте ссылку с YouTube - трек или плейлист"
+
+# Track row
+msgid "Edit details…"
+msgstr "Изменить сведения…"
+
+msgid "Choose a cover…"
+msgstr "Выбрать обложку…"
+
+msgid "Use the cover from the file"
+msgstr "Вернуть обложку из файла"
+
+msgid "Remove from library"
+msgstr "Убрать из библиотеки"
+
+msgid "Remove from this list"
+msgstr "Убрать из списка"
+
+# Playlists
+msgid "Change the cover…"
+msgstr "Сменить обложку…"
+
+msgid "Change the picture…"
+msgstr "Сменить изображение…"
+
+msgid "Choose a picture…"
+msgstr "Выбрать изображение…"
+
+msgid "Remove the cover"
+msgstr "Убрать обложку"
+
+
+msgid "Delete playlist"
+msgstr "Удалить плейлист"
+
+# Player
+msgid "Nothing playing"
+msgstr "Ничего не играет"
+
+# Dialogs
+msgid "SAVE"
+msgstr "СОХРАНИТЬ"
+
+msgid "CANCEL"
+msgstr "ОТМЕНА"
+
+msgid "What this track is called"
+msgstr "Как называется этот трек"
+
+# Equaliser
+msgid "SIMPLE"
+msgstr "ПРОСТОЙ"
+
+msgid "ADVANCED"
+msgstr "ПОДРОБНЫЙ"
+
+msgid "PRESETS"
+msgstr "ПРЕСЕТЫ"
+
+msgid "BAND"
+msgstr "ПОЛОСА"
+
+msgid "BASS"
+msgstr "НИЗ"
+
+msgid "MID"
+msgstr "СЕРЕДИНА"
+
+msgid "TREBLE"
+msgstr "ВЕРХ"
+
+msgid "LOWER"
+msgstr "НИЖЕ"
+
+msgid "HIGHER"
+msgstr "ВЫШЕ"
+
+msgid "WIDER"
+msgstr "ШИРЕ"
+
+msgid "NARROWER"
+msgstr "УЖЕ"
+
+msgid "RESET"
+msgstr "СБРОС"
+
+msgid "SAVE AS…"
+msgstr "СОХРАНИТЬ…"
+
+msgid "Rename…"
+msgstr "Переименовать…"
+
+msgid "Delete this sound"
+msgstr "Удалить пресет"
+
+# Radio
+msgid "A MOOD TO START FROM"
+msgstr "С КАКОГО НАСТРОЕНИЯ НАЧАТЬ"
+
+msgid "WHAT IS PLAYING"
+msgstr "ЧТО ИГРАЕТ"
+
+msgid "MORE LIKE THIS"
+msgstr "НРАВИТСЯ"
+
+msgid "LESS"
+msgstr "НЕ ТО"
+
+msgid "A verdict steers what the station offers next. It never bans a track."
+msgstr "Оценка влияет на то, что станция поставит дальше, но ничего не запрещает навсегда."
+
+msgid "Playing anything else ends the station."
+msgstr "Другой трек остановит станцию."
+
+# Listening
+msgid "HEARD"
+msgstr "ПРОСЛУШАНО"
+
+msgid "LISTENS"
+msgstr "ПРОСЛУШИВАНИЙ"
+
+msgid "TRACKS"
+msgstr "ТРЕКОВ"
+
+msgid "SKIPPED"
+msgstr "ПРОПУЩЕНО"
+
+msgid "PLAYED THROUGH MOST"
+msgstr "СЛУШАЛИ ЧАЩЕ ВСЕГО"
+
+msgid "Nothing is being kept"
+msgstr "Ничего не сохраняется"
+
+# Reviews
+msgid "Nothing to decide"
+msgstr "Нечего решать"
+
+msgid "KEEP MINE"
+msgstr "ОСТАВИТЬ СВОЁ"
+
+msgid "ADD ANYWAY"
+msgstr "ВСЁ РАВНО ДОБАВИТЬ"
+
+msgid "REPLACE MINE"
+msgstr "ЗАМЕНИТЬ СВОЁ"
+
+msgid "Cadenza never drops a file quietly. A copy of something you already have, or a file it could not read, waits here until you say what should happen to it."
+msgstr "Cadenza не выбрасывает файлы молча. Копия того, что у вас уже есть, или файл, который не удалось прочитать, ждут здесь, пока вы не решите их судьбу."
+
+# Settings
+
+
+
+msgid "MAKE ME ONE"
+msgstr "СОЗДАТЬ"
+
+
+msgid "Remove the picture"
+msgstr "Убрать изображение"
+
+msgid "WHERE YOUR MUSIC IS"
+msgstr "ГДЕ ВАША МУЗЫКА"
+
+msgid "Cadenza watches these and picks up what you put in them."
+msgstr "Cadenza следит за этими папками и подхватывает то, что вы в них кладёте."
+
+msgid "ADD FOLDER…"
+msgstr "ДОБАВИТЬ ПАПКУ…"
+
+msgid "SCAN NOW"
+msgstr "СКАНИРОВАТЬ"
+
+msgid "SYNC"
+msgstr "СВЕРИТЬ"
+
+msgid "REMOVE"
+msgstr "УБРАТЬ"
+
+msgid "TAKEN OUT"
+msgstr "УБРАННЫЕ ТРЕКИ"
+
+msgid "Removed here, not deleted from disk."
+msgstr "Убрано отсюда, а не удалено с диска."
+
+msgid "BRING BACK"
+msgstr "ВЕРНУТЬ"
+
+msgid "FORGET THE GONE"
+msgstr "ЗАБЫТЬ ПРОПАВШИЕ"
+
+msgid "APPEARANCE"
+msgstr "ВНЕШНИЙ ВИД"
+
+msgid "Which way round the ink and the paper go."
+msgstr "Светлый текст на тёмном или тёмный на светлом."
+
+msgid "DARK"
+msgstr "ТЁМНАЯ"
+
+msgid "LIGHT"
+msgstr "СВЕТЛАЯ"
+
+msgid "SIZE"
+msgstr "РАЗМЕР"
+
+msgid "How large everything is drawn."
+msgstr "Насколько крупным будет интерфейс."
+
+msgid "The window grows and shrinks with it."
+msgstr "Окно растёт и сжимается вместе с ним."
+
+msgid "LANGUAGE"
+msgstr "ЯЗЫК"
+
+msgid "What the interface speaks."
+msgstr "На каком языке говорит интерфейс."
+
+msgid "CROSSFADE"
+msgstr "ПЛАВНЫЙ ПЕРЕХОД"
+
+msgid "Ordinary tracks fade into each other."
+msgstr "Обычные треки перетекают друг в друга."
+
+msgid "Seconds. Playlists and radio never fade."
+msgstr "Секунды. В плейлистах и радио перехода нет."
+
+msgid "ON"
+msgstr "ВКЛ"
+
+msgid "OFF"
+msgstr "ВЫКЛ"
+
+msgid "HISTORY"
+msgstr "ИСТОРИЯ"
+
+msgid "What you played, kept for thirty days."
+msgstr "История прослушиваний хранится 30 дней."
+
+msgid "KEEP"
+msgstr "ХРАНИТЬ"
+
+msgid "DO NOT"
+msgstr "НЕ ХРАНИТЬ"
+
+# Welcome
+msgid "Let's get started"
+msgstr "Начнём"
+
+msgid "WHAT SHOULD I CALL YOU"
+msgstr "КАК К ВАМ ОБРАЩАТЬСЯ"
+
+msgid "Your name"
+msgstr "Ваше имя"
+
+msgid "A FOLDER TO KEEP MUSIC IN"
+msgstr "ПАПКА ДЛЯ МУЗЫКИ"
+
+msgid "MAKE ONE"
+msgstr "СОЗДАТЬ"
+
+msgid "NOT NOW"
+msgstr "НЕ СЕЙЧАС"
+
+msgid "START LISTENING"
+msgstr "НАЧАТЬ СЛУШАТЬ"
+
+# Drag and drop
+msgid "Let go to add this to your library"
+msgstr "Отпустите, чтобы добавить в библиотеку"
+
+msgid "A FOLDER JOINS THE LIBRARY · A TRACK IS TAKEN WHERE IT LIES"
+msgstr "ПАПКА ДОБАВИТСЯ В БИБЛИОТЕКУ · ФАЙЛ ОСТАНЕТСЯ НА СВОЁМ МЕСТЕ"
+
+
+
+
+msgid "Point Cadenza at music you already have - or let it make a folder for you to put some in."
+msgstr "Укажите Cadenza на музыку, которая у вас уже есть, - или позвольте ей создать папку, куда её сложить."
+
+
+# Built in Rust: view models and the controller
+msgid "Welcome, {}"
+msgstr "Здравствуйте, {}"
+
+msgid "WITH SUBFOLDERS"
+msgstr "С ПОДПАПКАМИ"
+
+msgid "THIS FOLDER ONLY"
+msgstr "ТОЛЬКО ЭТА ПАПКА"
+
+msgid "Unknown artist"
+msgstr "Неизвестный исполнитель"
+
+
+
+
+
+msgid "no tracks yet"
+msgstr "треков пока нет"
+
+msgid "no lists yet"
+msgstr "списков пока нет"
+
+msgid "nothing of {} matches"
+msgstr "из {} ничего не нашлось"
+
+msgid "of|found"
+msgstr "из"
+
+msgid "track|one"
+msgstr "трек"
+
+msgid "tracks|few"
+msgstr "трека"
+
+msgid "tracks|many"
+msgstr "треков"
+
+msgid "list|one"
+msgstr "плейлист"
+
+msgid "lists|few"
+msgstr "плейлиста"
+
+msgid "lists|many"
+msgstr "плейлистов"
+
+msgid "file|one"
+msgstr "файл"
+
+msgid "files|few"
+msgstr "файла"
+
+msgid "files|many"
+msgstr "файлов"
+
+msgid "listen|one"
+msgstr "прослушивание"
+
+msgid "listens|few"
+msgstr "прослушивания"
+
+msgid "listens|many"
+msgstr "прослушиваний"
+
+msgid "day|one"
+msgstr "день"
+
+msgid "days|few"
+msgstr "дня"
+
+msgid "days|many"
+msgstr "дней"
+
+msgid "over|span"
+msgstr "за"
+
+msgid "history is off - nothing is written down"
+msgstr "история выключена - ничего не записывается"
+
+msgid "nothing played in the last {} days"
+msgstr "за последние {} дней ничего не играло"
+
+msgid "pick a mood - it plays from what you already have"
+msgstr "выберите настроение - станция соберётся из вашей музыки"
+
+msgid "anything at all"
+msgstr "что угодно"
+
+msgid "lined up"
+msgstr "в очереди"
+
+msgid "the same as"
+msgstr "то же, что"
+
+msgid "nothing is held back"
+msgstr "на проверке ничего нет"
+
+msgid "held back rather than imported"
+msgstr "на проверке"
+
+msgid "ALREADY IN YOUR LIBRARY"
+msgstr "УЖЕ В ВАШЕЙ БИБЛИОТЕКЕ"
+
+msgid "ITS TAGS WOULD NOT READ"
+msgstr "НЕ УДАЛОСЬ ПРОЧИТАТЬ ТЕГИ"
+
+msgid "IT WOULD NOT DECODE"
+msgstr "ФАЙЛ НЕ ВОСПРОИЗВОДИТСЯ"
+
+msgid "IT WAS GONE BY THE TIME WE LOOKED"
+msgstr "К МОМЕНТУ ПРОВЕРКИ ФАЙЛ ИСЧЕЗ"
+
+msgid "FROM WHAT YOU PLAY"
+msgstr "ИЗ ВАШИХ ПРОСЛУШИВАНИЙ"
+
+msgid "MADE BY YOU"
+msgstr "ВАШ ПЛЕЙЛИСТ"
+
+msgid "Everything you have"
+msgstr "Всё, что у вас есть"
+
+
+
+msgid "nothing yet"
+msgstr "пока ничего"
+
+msgid "NEWEST FIRST"
+msgstr "СНАЧАЛА НОВЫЕ"
+
+msgid "BY TITLE"
+msgstr "ПО НАЗВАНИЮ"
+
+msgid "BY ARTIST"
+msgstr "ПО ИСПОЛНИТЕЛЮ"
+
+msgid "BY ALBUM"
+msgstr "ПО АЛЬБОМУ"
+
+msgid "play|one"
+msgstr "раз"
+
+msgid "plays|few"
+msgstr "раза"
+
+msgid "plays|many"
+msgstr "раз"
+
+# Built-in names that live in the database
+msgid "Workout"
+msgstr "Тренировка"
+
+msgid "Focus"
+msgstr "Фокус"
+
+msgid "Chill"
+msgstr "Отдых"
+
+msgid "Party"
+msgstr "Вечеринка"
+
+msgid "Driving"
+msgstr "Дорога"
+
+msgid "Sleep"
+msgstr "Сон"
+
+msgid "Gaming"
+msgstr "Игра"
+
+msgid "Morning"
+msgstr "Утро"
+
+msgid "Standard"
+msgstr "Обычный"
+
+msgid "Pop"
+msgstr "Поп"
+
+msgid "Rock"
+msgstr "Рок"
+
+msgid "Classical"
+msgstr "Классика"
+
+msgid "Electronic"
+msgstr "Электроника"
+
+msgid "Vocal Enhance"
+msgstr "Голос"
+
+msgid "Spatial Enhance"
+msgstr "Простор"
+
+msgid "Bass Boost"
+msgstr "Больше низа"
+
+msgid "Treble Boost"
+msgstr "Больше верха"
+
+msgid "Favourites"
+msgstr "Любимое"
+
+msgid "three controls"
+msgstr "три ручки"
+
+msgid "eight bands"
+msgstr "восемь полос"
+
+msgid "flat"
+msgstr "без изменений"
+
+msgid "in use"
+msgstr "включено"
+
+# Dialogs, empty pages, downloads and the system chooser
+
+msgid "New playlist"
+msgstr "Новый плейлист"
+
+msgid "Rename playlist"
+msgstr "Переименовать плейлист"
+
+msgid "Rename this sound"
+msgstr "Переименовать пресет"
+
+msgid "Save this sound"
+msgstr "Сохранить как пресет"
+
+msgid "Using the equaliser"
+msgstr "Как пользоваться эквалайзером"
+
+msgid "CREATE"
+msgstr "СОЗДАТЬ"
+
+msgid "RENAME"
+msgstr "ПЕРЕИМЕНОВАТЬ"
+
+msgid "DELETE"
+msgstr "УДАЛИТЬ"
+
+msgid "GOT IT"
+msgstr "ПОНЯТНО"
+
+msgid "PLAY"
+msgstr "ИГРАТЬ"
+
+msgid "QUEUE"
+msgstr "ОЧЕРЕДЬ"
+
+msgid "ADD TRACK"
+msgstr "ДОБАВИТЬ ТРЕК"
+
+msgid "INSTALL"
+msgstr "УСТАНОВИТЬ"
+
+msgid "UPDATE"
+msgstr "ОБНОВИТЬ"
+
+msgid "Late night"
+msgstr "Поздний вечер"
+
+msgid "Late night listening"
+msgstr "Для позднего вечера"
+
+
+
+msgid "That sound goes. What is playing keeps whatever it is set to now."
+msgstr "Пресет будет удалён. То, что сейчас играет, продолжит звучать как есть."
+
+msgid "“{}” goes; the tracks in it stay in your library."
+msgstr "Плейлист «{}» будет удалён, а его треки останутся в библиотеке."
+
+
+
+msgid "There are no lists yet. Making one puts this track in it."
+msgstr "Плейлистов пока нет. Трек попадёт в новый."
+
+msgid "A sound belongs to the track you set it on. Choose a preset while something is playing and that track keeps it; the next track starts at Standard. RESET takes the sound away and the memory of it with it."
+msgstr "Звучание принадлежит треку, на котором вы его выставили. Выберите пресет, пока что-то играет, - и этот трек его запомнит; следующий начнёт с «Обычного». СБРОС убирает звучание вместе с памятью о нём."
+
+msgid "The three controls change the whole sound at once: bass, middle and treble. Nothing to choose, nothing to aim at."
+msgstr "Три ручки меняют весь звук сразу: низ, середину и верх. Ничего не нужно выбирать и никуда целиться."
+
+msgid "The eight bands each change one part of it, and every band is three numbers."
+msgstr "Восемь полос меняют каждая свою часть, и у каждой полосы три числа."
+
+msgid "GAIN is the fader itself - how far that band lifts or cuts. It is the only one of the three you hear on its own."
+msgstr "УСИЛЕНИЕ - сам ползунок: насколько полоса поднимает или срезает. Только его из трёх слышно само по себе."
+
+msgid "FREQUENCY is where the band sits. LOWER and HIGHER move it a sixth of an octave at a time."
+msgstr "ЧАСТОТА - где стоит полоса. НИЖЕ и ВЫШЕ сдвигают её на шестую часть октавы."
+
+msgid "WIDTH is how much of the sound around it comes along. WIDER and NARROWER."
+msgstr "ШИРИНА - сколько звука вокруг захватывается вместе с ней. ШИРЕ и УЖЕ."
+
+msgid "Choose a band with the dot under its fader, then change it. A band at 0 dB does nothing wherever you put it, so move its fader first - otherwise LOWER and HIGHER are moving a filter that is not doing anything, and you will hear no difference at all."
+msgstr "Выберите полосу точкой под её ползунком, потом меняйте. Полоса на 0 дБ ничего не делает, куда её ни ставь, поэтому сначала сдвиньте ползунок - иначе НИЖЕ и ВЫШЕ двигают фильтр, который ничего не делает, и разницы вы не услышите."
+
+msgid "A preset stays lit while the sound is exactly that preset. Move anything and it goes out, which is the screen telling the truth rather than losing your work: everything you set is still there and still playing."
+msgstr "Пресет подсвечен, пока звучание в точности совпадает с ним. Сдвиньте что угодно - и он погаснет: экран говорит правду, а не теряет вашу работу. Всё, что вы выставили, на месте и звучит."
+
+msgid "One of these has no file left. Forgetting it takes it off this list for good."
+msgstr "У одного из них больше нет файла. Если забыть, он навсегда уйдёт из этого списка."
+
+msgid "{} of these have no file left. Forgetting them takes them off this list for good."
+msgstr "Файлов больше нет у {} из них. Если забыть, они навсегда уйдут из этого списка."
+
+msgid "the file is gone"
+msgstr "файла больше нет"
+
+msgid "Choose a folder with your music"
+msgstr "Выберите папку с музыкой"
+
+msgid "Choose a cover"
+msgstr "Выберите обложку"
+
+msgid "Choose a picture"
+msgstr "Выберите изображение"
+
+msgid "drop a file on this window, paste a link above,\nor point Cadenza at a folder in Settings"
+msgstr "перетащите файл в это окно, вставьте ссылку выше\nили укажите папку в настройках"
+
+msgid "press + NEW PLAYLIST to start one"
+msgstr "нажмите «+ НОВЫЙ ПЛЕЙЛИСТ», чтобы начать"
+
+msgid "no track here answers to that"
+msgstr "ничего подходящего не нашлось"
+
+msgid "add tracks from the library\nwith the ··· at the end of a row"
+msgstr "добавьте треки из библиотеки\nчерез ··· в конце строки"
+
+msgid "reaching for it…"
+msgstr "начинаем загрузку…"
+
+msgid "nothing new - everything on that link is already in your library"
+msgstr "ничего нового - всё по этой ссылке уже есть в библиотеке"
+
+msgid "a track needs somewhere to land - Cadenza can make {}"
+msgstr "трек некуда сохранить - Cadenza может создать папку {}"
+
+msgid "track|of"
+msgstr "трек"
+
+msgid "installing what this needs…"
+msgstr "устанавливаем нужное…"
+
+msgid "updating yt-dlp…"
+msgstr "обновляем yt-dlp…"
+
+msgid "installed - trying again"
+msgstr "установлено - пробуем снова"
+
+msgid "that folder could not be made"
+msgstr "эту папку создать не удалось"
+
+msgid "{n} track came from outside these folders"
+msgid_plural "{n} tracks came from outside these folders"
+msgstr[0] "{n} трек пришёл не из этих папок"
+msgstr[1] "{n} трека пришли не из этих папок"
+msgstr[2] "{n} треков пришли не из этих папок"
+
+# A mood's line: whole phrases, so the adjective agrees
+msgid "energy low"
+msgstr "энергия низкая"
+
+msgid "energy middling"
+msgstr "энергия средняя"
+
+msgid "energy high"
+msgstr "энергия высокая"
+
+msgid "mood low"
+msgstr "настрой мрачный"
+
+msgid "mood middling"
+msgstr "настрой ровный"
+
+msgid "mood high"
+msgstr "настрой светлый"
+
+msgid "pull low"
+msgstr "ритм слабый"
+
+msgid "pull middling"
+msgstr "ритм средний"
+
+msgid "pull high"
+msgstr "ритм сильный"
+
+msgid "{m}m"
+msgstr "{m}м"
+
+msgid "{h}h {m}m"
+msgstr "{h}ч {m}м"
+
+msgid "Play next"
+msgstr "Играть следующим"
+
+msgid "Add to the end"
+msgstr "Добавить в конец"
+
+msgid "15 minutes"
+msgstr "15 минут"
+
+msgid "30 minutes"
+msgstr "30 минут"
+
+msgid "45 minutes"
+msgstr "45 минут"
+
+msgid "1 hour"
+msgstr "1 час"
+
+msgid "When this track ends"
+msgstr "Когда закончится трек"
+
+msgid "Turn the timer off"
+msgstr "Выключить таймер"
+
+
+msgid "EVEN LOUDNESS"
+msgstr "ВЫРАВНИВАНИЕ ГРОМКОСТИ"
+
+msgid "Loud tracks are turned down to sit with the rest."
+msgstr "Громкие треки звучат тише, вровень с остальными."
+
+msgid "SPEED"
+msgstr "СКОРОСТЬ"
+
+msgid "SOUND"
+msgstr "ЗВУК"
+
+msgid "Crossfade"
+msgstr "Плавный переход"
+
+msgid "Even loudness"
+msgstr "Выравнивание громкости"
+
+msgid "Home"
+msgstr "Главная"
+
+msgid "NOW PLAYING"
+msgstr "СЕЙЧАС ИГРАЕТ"
+
+msgid "PLAYED LATELY"
+msgstr "НЕДАВНО ИГРАЛО"
+
+msgid "What you play turns up here."
+msgstr "Здесь появится то, что вы слушаете."
+
+msgid "LEAVE IT TO CHANCE"
+msgstr "НАУГАД"
+
+msgid "ANY TRACK"
+msgstr "СЛУЧАЙНЫЙ ТРЕК"
+
+msgid "ANY PLAYLIST"
+msgstr "СЛУЧАЙНЫЙ ПЛЕЙЛИСТ"
+
+msgid "UP NEXT"
+msgstr "ДАЛЕЕ"
+
+msgid "CLEAR"
+msgstr "ОЧИСТИТЬ"
+
+msgid "Clear favourites"
+msgstr "Очистить Любимое"
+
+msgid "Everything comes out, the tracks you pinned as well. The list fills again from what you play from now on."
+msgstr "Из списка уйдёт всё, в том числе треки, отмеченные вручную. Дальше он снова наполнится тем, что вы слушаете."
+
+msgid "Nothing is queued. The library plays on by itself."
+msgstr "Очередь пуста. Библиотека будет играть дальше сама."
+
+msgid "NEW IN THE LIBRARY"
+msgstr "НОВОЕ В БИБЛИОТЕКЕ"
+
+msgid "NOT HEARD THIS MONTH"
+msgstr "НЕ ЗВУЧАЛО ЗА МЕСЯЦ"
+
+msgid "THE LAST THIRTY DAYS"
+msgstr "ПОСЛЕДНИЕ 30 ДНЕЙ"
+
+msgid "IN THE QUEUE"
+msgstr "В ОЧЕРЕДИ"
+
+msgid "NEXT FROM THE LIBRARY"
+msgstr "ДАЛЕЕ ИЗ БИБЛИОТЕКИ"
+
+msgid "NEXT FROM THE PLAYLIST"
+msgstr "ДАЛЕЕ ИЗ ПЛЕЙЛИСТА"
+
+msgid "NEXT ON THE STATION"
+msgstr "ДАЛЕЕ НА СТАНЦИИ"
+
+msgid "Newest first"
+msgstr "Сначала новые"
+
+msgid "By title"
+msgstr "По названию"
+
+msgid "By artist"
+msgstr "По исполнителю"
+
+msgid "By album"
+msgstr "По альбому"
+
+msgid "Delete this playlist"
+msgstr "Удалить плейлист"
+
+msgid "A COPY OF EVERYTHING"
+msgstr "КОПИЯ ВСЕГО"
+
+msgid "CHOOSE A COPY…"
+msgstr "ВЫБРАТЬ КОПИЮ…"
+
+
+msgid "Export a playlist"
+msgstr "Экспорт плейлиста"
+
+msgid "Export…"
+msgstr "Экспорт…"
+
+msgid "IMPORT…"
+msgstr "ИМПОРТ…"
+
+msgid "Import a playlist"
+msgstr "Импорт плейлиста"
+
+
+msgid "RESTORE…"
+msgstr "ВОССТАНОВИТЬ…"
+
+msgid "Restore Cadenza from a copy"
+msgstr "Восстановить Cadenza из копии"
+
+msgid "Restore from a copy"
+msgstr "Восстановить из копии"
+
+msgid "SAVE A COPY…"
+msgstr "СОХРАНИТЬ КОПИЮ…"
+
+msgid "Save a copy of Cadenza"
+msgstr "Сохранить копию Cadenza"
+
+msgid "The music files are not in it: keep those where they are."
+msgstr "Самих музыкальных файлов в копии нет: они остаются там, где лежат."
+
+msgid "What is here now is kept beside it, in case the copy was the wrong one."
+msgstr "Нынешние данные сохранятся рядом - на случай, если копия окажется не той."
+
+msgid "“{}” holds {} of the {} tracks the file lists"
+msgstr "В «{}» {} из {} треков, перечисленных в файле"
+
+msgid "Saved as {}"
+msgstr "Сохранено как {}"
+
+msgid "A copy is saved as {}"
+msgstr "Копия сохранена как {}"
+
+msgid "Picked: {}"
+msgstr "Выбрано: {}"
+
+msgid "REMOVE…"
+msgstr "УБРАТЬ…"
+
+msgid "Remove {} tracks"
+msgstr "Убрать треки: {}"
+
+msgid "TO A PLAYLIST…"
+msgstr "В ПЛЕЙЛИСТ…"
+
+msgid "TO THE QUEUE"
+msgstr "В ОЧЕРЕДЬ"
+
+msgid "They leave this playlist and stay in your library."
+msgstr "Они уйдут из этого плейлиста и останутся в библиотеке."
+
+
+msgid "{} in the queue"
+msgstr "Добавлено в очередь: {}"
+
+msgid "ARTISTS"
+msgstr "ИСПОЛНИТЕЛИ"
+
+msgid "Artists"
+msgstr "Исполнители"
+
+msgid "NEXT BY THE ARTIST"
+msgstr "ДАЛЬШЕ У ИСПОЛНИТЕЛЯ"
+
+msgid "No artists yet"
+msgstr "Исполнителей пока нет"
+
+msgid "Nothing here now"
+msgstr "Здесь пока пусто"
+
+msgid "tracks whose tags name who made them gather here"
+msgstr "здесь собираются треки, у которых в тегах указан исполнитель"
+
+msgid "album|one"
+msgstr "альбом"
+
+msgid "albums|few"
+msgstr "альбома"
+
+msgid "albums|many"
+msgstr "альбомов"
+
+msgid "artist|one"
+msgstr "исполнитель"
+
+msgid "artists|few"
+msgstr "исполнителя"
+
+msgid "artists|many"
+msgstr "исполнителей"
+
+msgid "Let go between rows to move it"
+msgstr "Отпустите между строками, чтобы переставить"
+
+msgid "Everything here is replaced by what the copy holds: playlists, history, sounds and pictures. Cadenza closes and opens again on it."
+msgstr "Всё, что здесь есть, заменится содержимым копии: плейлисты, история, звучание и картинки. Cadenza закроется и откроется уже с ней."
+
+msgid "History is off, so nothing you play is written down. Turn it on in Settings and this page fills up as you listen."
+msgstr "История выключена, поэтому прослушивания не записываются. Включите её в настройках, и эта страница начнёт заполняться."
+
+msgid "Home greets you by it."
+msgstr "Так вас будет приветствовать главная."
+
+msgid "Playlists, history, sounds and the pictures you chose, in one file."
+msgstr "Плейлисты, история, звучание и выбранные вами картинки - в одном файле."
+
+msgid "The track leaves your library. The file stays on disk."
+msgstr "Трек уйдёт из библиотеки. Файл останется на диске."
+
+msgid "They leave your library. The files stay on disk."
+msgstr "Они уйдут из библиотеки. Файлы останутся на диске."
+
+msgid "WHAT TO CALL YOU"
+msgstr "КАК ВАС НАЗЫВАТЬ"
+
+msgid "Yours alone. The file keeps its own tags."
+msgstr "Только у вас. Сам файл сохранит свои теги."
+
+msgid "THE PANEL ON THE RIGHT"
+msgstr "ПАНЕЛЬ СПРАВА"
+
+msgid "What is left of it when you fold it."
+msgstr "Что от неё остаётся, когда вы её сворачиваете."
+
+msgid "A STRIP"
+msgstr "ПОЛОСКА"
+
+msgid "NOTHING"
+msgstr "НИЧЕГО"
+
+msgid "{} - in your library"
+msgstr "{} - в вашей библиотеке"
+
+msgid "{} so far"
+msgstr "Пока {}"
+
+msgid "{} forgotten"
+msgstr "Забыто: {}"
+
+msgid "nothing to forget: every one of these still has its file"
+msgstr "забывать нечего: у каждого из них ещё есть файл"
+
+msgid "{} added"
+msgstr "Добавлено: {}"
+
+msgid "{} re-read"
+msgstr "Перечитано: {}"
+
+msgid "{} already here"
+msgstr "Уже есть: {}"
+
+msgid "{} gone from the folder"
+msgstr "Пропало из папки: {}"
+
+msgid "{} could not be read - see Decisions"
+msgstr "Не читается: {} - см. «Ждут решения»"
+
+msgid "nothing there to add"
+msgstr "добавлять нечего"
+
+msgid "{} - yt-dlp has probably fallen behind"
+msgstr "{} - похоже, yt-dlp устарел"
+
+msgid "{} - trying again"
+msgstr "{} - пробую снова"
+
+msgid "NEXT FROM “{}”"
+msgstr "ДАЛЕЕ ИЗ «{}»"
+
+msgid "NEXT BY {}"
+msgstr "ДАЛЕЕ: {}"
+
+msgid "NEXT ON “{}”"
+msgstr "ДАЛЕЕ НА СТАНЦИИ «{}»"
+
+msgid "the library is empty - add a folder in Settings"
+msgstr "библиотека пуста - добавьте папку в настройках"
+
+msgid "no playlist has anything in it yet"
+msgstr "ни в одном плейлисте пока ничего нет"
+
+msgid "start|one"
+msgstr "запуск"
+
+msgid "starts|few"
+msgstr "запуска"
+
+msgid "starts|many"
+msgstr "запусков"
+
+msgid "Anything you download goes here. Music you already have stays where it is, and nothing of yours is moved or copied."
+msgstr "Сюда попадает всё, что вы скачиваете. Музыка, которая у вас уже есть, остаётся на месте - ничего не переносится и не копируется."
+
+msgid "Nothing to play yet"
+msgstr "Играть пока нечего"
+
+msgid "Point Cadenza at the folder your music is in, and the library builds itself from what is there."
+msgstr "Укажите папку, где лежит ваша музыка, и библиотека соберётся сама."
+
+msgid "SHOW ME WHERE"
+msgstr "ПОКАЖУ ГДЕ"
+
+msgid "THE MUSIC YOU ALREADY HAVE"
+msgstr "МУЗЫКА, КОТОРАЯ УЖЕ ЕСТЬ"
+
+msgid "Your music stays on this computer. Cadenza needs to know what to call you and where your music is."
+msgstr "Ваша музыка остаётся на этом компьютере. Cadenza нужно знать, как к вам обращаться и где лежит музыка."

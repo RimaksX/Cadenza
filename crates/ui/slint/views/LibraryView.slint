@@ -1,0 +1,12 @@
+import { TrackList } from "../components/TrackList.slint";
+
+// Everything the profile has, in one list.
+//
+// The words are the whole of this view: the page it draws is `TrackList`, which
+// the queue draws too. What makes this the library is what it is called and what
+// it says when it is empty — `tracks`, `summary`, `playing-id` and `play` come
+// through from `TrackList` unchanged.
+export component LibraryView inherits TrackList {
+    heading: @tr("Everything you have");
+    empty-title: @tr("Nothing here yet");
+}

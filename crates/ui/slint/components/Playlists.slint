@@ -1,0 +1,58 @@
+import { TrackRowData } from "TrackRow.slint";
+import { MenuItemData } from "RowMenu.slint";
+import { PlaylistCardData } from "../views/PlaylistsView.slint";
+
+// The playlists: the index, the favourites card, and the one open.
+//
+// A global, like `Player`: set and answered by the controller directly, read
+// by the shell, rather than declared twice and passed down line by line.
+export global Playlists {
+    in property <[PlaylistCardData]> playlists;
+
+    /// The favourites list, drawn across the page above the grid.
+    in property <PlaylistCardData> favourites;
+    in property <bool> has-favourites;
+    /// The colour of its picture, which Home is washed in.
+    in property <color> favourites-tint;
+    in property <bool> favourites-tinted;
+    in property <string> summary;
+    in property <string> hint;
+    in property <[TrackRowData]> open-tracks;
+    in property <string> open-name;
+    in property <string> open-summary;
+    in property <string> open-hint;
+    in property <string> open-id;
+    /// The open list's cover, if it has one, and the colour of its picture.
+    in property <image> open-cover;
+    in property <bool> open-has-cover;
+    in property <color> open-tint;
+    in property <bool> open-tinted;
+    in property <[MenuItemData]> open-options;
+    callback open-playlist(string);
+    callback play-playlist(string);
+    /// Shuffle on, and the list from a track chosen by chance.
+    callback shuffle-playlist(string);
+    callback create-playlist(string);
+    callback rename-playlist(string, string);
+    callback delete-playlist(string);
+    callback add-to-playlist(string, string);
+    callback create-playlist-with(string, string);
+    callback remove-from-playlist(int);
+    callback choose-playlist-cover(string);
+    callback clear-playlist-cover(string);
+    callback play-from-playlist(string);
+    /// How many rows of the open list are picked, and what is done to them.
+    in property <int> open-picked;
+    callback pick-in-open(int, bool, bool);
+    callback queue-open-picked();
+    callback remove-open-picked();
+    callback unpick-open();
+    /// The open list is the favourites, whose order its counts decide.
+    in property <bool> open-automatic;
+    /// A row of the open list carried to another row.
+    callback move-in-playlist(int, int);
+    /// Writes a playlist out as a file another player can read.
+    callback export-playlist(string);
+    /// Reads a playlist in from a file another player wrote.
+    callback import-playlist();
+}

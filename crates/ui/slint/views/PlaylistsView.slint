@@ -1,0 +1,683 @@
+import { ScrollView } from "std-widgets.slint";
+import { Theme } from "../theme/tokens.slint";
+import { EmptyState } from "../components/EmptyState.slint";
+import { TextButton } from "../components/Dialog.slint";
+import { RowMenu, MenuItemData } from "../components/RowMenu.slint";
+import { SoundCircle } from "../components/Controls.slint";
+
+// One playlist, as the view model hands it over. Every field is already the
+// string to draw: numbering, pluralising and formatting a duration are
+// decisions, and decisions belong in Rust.
+export struct PlaylistCardData {
+    id: string,
+    name: string,
+    position: string,
+    maker: string,
+    meta: string,
+    /// The picture somebody chose for it. Empty until anybody does.
+    cover: image,
+    /// Whether there is a cover to take off again.
+    has-cover: bool,
+    /// Whether this is the automatic favourites list, which cannot be renamed
+    /// or deleted and so is offered neither.
+    automatic: bool,
+}
+
+
+// The favourites list, across the page.
+//
+// Every other list on this screen is one of a grid of squares, which is the
+// right shape for a thing you made and one of many. This one nobody made and
+// there is one, so it is drawn as what it is: a band the width of the content,
+// with a picture in it.
+//
+// It also does something for the page that the page needed. A grid of equal
+// squares is the most monotonous shape an interface has, and the one screen in
+// this application anybody has ever called beautiful is the first-run card on
+// its photograph. This is that shape, put to work.
+export component FavouritesBanner inherits Rectangle {
+    in property <PlaylistCardData> data;
+
+    callback activated();
+    callback played();
+    callback shuffled();
+    callback acted(string);
+
+    // One state for the whole band, so the two controls on it do not switch
+    // each other off as the hand moves between them — the same reason a tile
+    // asks all three of its areas rather than only its own.
+    property <bool> hovered: touch.has-hover || start.hovered || mix.hovered || dots.has-hover;
+
+    height: Theme.banner-height;
+    border-radius: Theme.radius;
+    clip: true;
+
+    // The picture. A cover the listener chose if there is one; otherwise the
+    // photograph the first run stands on — the same file, so the two screens
+    // are visibly the same application rather than two moods of one.
+    Image {
+        width: 100%;
+        height: 100%;
+        source: root.data.has-cover
+            ? root.data.cover
+            : @image-url("../../../../resources/ui/background/Background.jpeg");
+        image-fit: ImageFit.cover;
+    }
+
+    touch := TouchArea {
+        mouse-cursor: pointer;
+        clicked => {
+            root.activated();
+        }
+    }
+
+    // The name stands on a surface rather than on the photograph.
+    //
+    // Measured on the file we ship: the middle band averages `L*` 24, which
+    // gives white text 10.8:1 — but the lit edges of the clouds in it reach
+    // 2.7:1, and a listener may put any picture here at all. A plate is what
+    // this interface already does when text has to land on something it does
+    // not control: it is the first-run card, on this very photograph, and it is
+    // the play button on a sleeve. No scrim and no gradient — a surface, which
+    // is how objects are drawn here.
+    Rectangle {
+        // The same 24 it has inside it, on every side of it.
+        x: Theme.space-5;
+        y: round((parent.height - self.height) / 1px / 2) * 1px;
+        width: plate.preferred-width;
+        height: plate.preferred-height;
+        background: Theme.bg-0;
+        border-radius: Theme.radius;
+        // The lift a tile makes under the pointer, made by the one thing here
+        // that is not the picture.
+        border-width: 1px;
+        border-color: root.hovered ? Theme.line : transparent;
+        animate border-color { duration: 120ms; }
+
+        plate := VerticalLayout {
+            padding: Theme.space-5;
+            spacing: Theme.space-1;
+
+            Text {
+                text: root.data.name;
+                font-family: Theme.serif;
+                font-size: Theme.text-display;
+                height: Theme.heading-box;
+                vertical-alignment: center;
+                color: Theme.ink-0;
+            }
+
+            // Everything this list has to say is inside the block: there is no
+            // caption under it, the way there is under a tile. What a tile puts
+            // outside, a band that spans the page has room to keep.
+            Text {
+                text: root.data.meta;
+                font-family: Theme.mono;
+                font-size: Theme.text-label;
+                height: Theme.px(18);
+                vertical-alignment: center;
+                letter-spacing: Theme.label-spacing;
+                color: Theme.ink-2;
+            }
+        }
+    }
+
+    // Play the list without opening it, in order or shuffled. The same two
+    // circles a tile has, at the same 44 and the same 16 from its corner: the
+    // band is a different shape from a tile, and the controls on it should
+    // not be different objects.
+    HorizontalLayout {
+        x: parent.width - self.width - Theme.px(16);
+        y: parent.height - self.height - Theme.px(16);
+        width: 2 * Theme.px(44) + Theme.space-2;
+        height: Theme.px(44);
+        spacing: Theme.space-2;
+        opacity: root.hovered ? 1.0 : 0.0;
+        animate opacity { duration: 120ms; }
+
+        start := SoundCircle {
+            glyph: @image-url("../../../../resources/ui/icons/play-16.svg");
+            nudge: 1px;
+            enabled: root.hovered;
+            pressed => {
+                root.played();
+            }
+        }
+        mix := SoundCircle {
+            glyph: @image-url("../../../../resources/ui/icons/shuffle.svg");
+            enabled: root.hovered;
+            pressed => {
+                root.shuffled();
+            }
+        }
+    }
+
+    // And the menu, which is how a picture is chosen for it. A tile carries
+    // one; the band carried nothing, so the only list on the page that cannot
+    // be renamed or deleted was also the only one whose cover could not be
+    // changed.
+    Rectangle {
+        x: parent.width - self.width - Theme.px(12);
+        y: Theme.px(12);
+        width: Theme.px(32);
+        height: self.width;
+        border-radius: Theme.radius;
+        background: dots.has-hover ? Theme.bg-3 : transparent;
+        opacity: root.hovered ? 1.0 : 0.0;
+        animate background, opacity { duration: 120ms; }
+
+        Image {
+            source: @image-url("../../../../resources/ui/icons/dots.svg");
+            width: Theme.icon;
+            height: self.width;
+            x: round((parent.width - self.width) / 1px / 2) * 1px;
+            y: round((parent.height - self.height) / 1px / 2) * 1px;
+            colorize: dots.has-hover ? Theme.ink-0 : Theme.ink-1;
+            animate colorize { duration: 120ms; }
+        }
+
+        dots := TouchArea {
+            enabled: root.hovered;
+            mouse-cursor: pointer;
+            clicked => {
+                menu.show();
+            }
+        }
+
+        menu := RowMenu {
+            x: Theme.px(32) - self.width;
+            y: Theme.px(32);
+            property <[MenuItemData]> without-cover: [
+                { action: "cover", label: @tr("Choose a picture…") },
+                { action: "export", label: @tr("Export…") },
+                { action: "" },
+                { action: "clear", label: @tr("Clear favourites"), destructive: true },
+            ];
+            property <[MenuItemData]> with-cover: [
+                { action: "cover", label: @tr("Change the picture…") },
+                { action: "uncover", label: @tr("Remove the picture") },
+                { action: "export", label: @tr("Export…") },
+                { action: "" },
+                { action: "clear", label: @tr("Clear favourites"), destructive: true },
+            ];
+
+            items: root.data.has-cover ? self.with-cover : self.without-cover;
+            chosen(action) => {
+                root.acted(action);
+            }
+        }
+    }
+}
+
+// One playlist as a tile: a square, and its name and size beneath.
+//
+// The square is where a picture goes when a listener can choose one. Until then
+// it holds the name, set large — which is what the reference does for a record
+// with no sleeve, and is why the page will not change shape the day the first
+// cover arrives.
+export component PlaylistCard inherits Rectangle {
+    in property <PlaylistCardData> data;
+    /// What the stand-in calls the thing, where there is no picture.
+    in property <string> kind: @tr("PLAYLIST");
+    /// Whether the tile has a menu: a list does, an album or an artist, which
+    /// cannot be renamed or deleted, does not.
+    in property <bool> has-menu: true;
+
+    callback activated();
+    callback played();
+    callback shuffled();
+    callback acted(string);
+
+    // One state for the whole tile. A nested touch area takes the pointer from
+    // the one beneath it, so asking only the tile's own area meant the tile
+    // dropped back down the moment the hand reached a button on it.
+    property <bool> hovered: touch.has-hover || dots.has-hover || start.hovered || mix.hovered;
+
+    touch := TouchArea {
+        // One click. Opening a list is not a destructive act, and there is
+        // nothing else a click on a tile could mean.
+        mouse-cursor: pointer;
+        clicked => {
+            root.activated();
+        }
+        // The right button opens the same menu the dots do. Nobody has to know
+        // that it works, which is exactly why it is not the only way in.
+        pointer-event(event) => {
+            if (root.has-menu && event.button == PointerEventButton.right && event.kind == PointerEventKind.down) {
+                menu.show();
+            }
+        }
+    }
+
+    VerticalLayout {
+        spacing: Theme.space-3;
+
+        // The square keeps its place in the layout; what rises under the
+        // pointer is what is drawn inside it. A layout sets its children's `y`
+        // itself, so the lift has to happen a level down.
+        Rectangle {
+            height: root.width;
+
+            Rectangle {
+                width: 100%;
+                height: 100%;
+                y: root.hovered ? -Theme.px(4) : 0;
+                background: @linear-gradient(150deg, Theme.bg-2 0%, Theme.bg-1 55%, Theme.bg-0 100%);
+                // The hairline belongs to the stand-in, not to the sleeve. With
+                // no cover it is what gives the gradient an edge; over a cover
+                // it is a line drawn across somebody's artwork. The tile still
+                // answers the pointer by lifting, which it does either way.
+                border-width: root.data.has-cover ? 0px : 1px;
+                border-color: root.hovered ? Theme.line : Theme.line-soft;
+                // The same corner the same object has at 36 pixels in a row and
+                // at 56 in the player bar. It was the one sleeve on the screen
+                // with square corners, which made it a different kind of thing
+                // at a different size. The clip below is what carries the
+                // corner into the picture inside.
+                border-radius: Theme.radius;
+                clip: true;
+                animate y, border-color { duration: 300ms; easing: ease-out; }
+
+                // A chosen picture replaces the whole stand-in rather than
+                // sitting behind it: the name set large *is* the sleeve for a
+                // list that has none, and two sleeves at once is one too many.
+                // What the list is called is still written under the tile.
+                if root.data.has-cover: Image {
+                    width: 100%;
+                    height: 100%;
+                    source: root.data.cover;
+                    image-fit: ImageFit.cover;
+                }
+
+                if !root.data.has-cover: VerticalLayout {
+                padding: Theme.px(20);
+
+                HorizontalLayout {
+                    VerticalLayout {
+                        alignment: center;
+                        horizontal-stretch: 1;
+
+                        Text {
+                            text: root.kind;
+                            font-family: Theme.mono;
+                            font-size: Theme.text-label;
+                            height: Theme.px(18);
+                            vertical-alignment: center;
+                            letter-spacing: Theme.label-spacing;
+                            color: Theme.ink-furniture;
+                        }
+                    }
+                    // The number steps aside for the menu rather than sharing
+                    // the corner with it: the same trade the track rows make,
+                    // where a mark becomes the control that acts on it.
+                    VerticalLayout {
+                        alignment: center;
+
+                        Text {
+                            text: root.data.position;
+                            font-family: Theme.mono;
+                            font-size: Theme.text-label;
+                            height: Theme.px(18);
+                            vertical-alignment: center;
+                            letter-spacing: Theme.label-spacing;
+                            color: Theme.ink-mute;
+                            opacity: root.hovered ? 0.0 : 1.0;
+                            animate opacity { duration: 120ms; }
+                        }
+                    }
+                }
+
+                // The name, filling the middle. Italic serif: a playlist's name
+                // is a thing somebody called something, not a title of a work.
+                //
+                // `text-title` rather than `text-display`, because the square
+                // is smaller now. Forty was chosen for a tile of 254; in one of
+                // 183 the text column is 143, which is three or four letters a
+                // line — a name set so large it stops being readable is a name
+                // set too large. Twenty-four is Heading 2, which is what this
+                // is: a thing inside a page rather than the page's own name.
+                Text {
+                    text: root.data.name;
+                    font-family: Theme.serif;
+                    font-italic: true;
+                    font-size: Theme.text-title;
+                    color: Theme.ink-0;
+                    vertical-alignment: center;
+                    wrap: word-wrap;
+                    overflow: elide;
+                    vertical-stretch: 1;
+                }
+
+                Text {
+                    text: root.data.maker;
+                    font-family: Theme.mono;
+                    font-size: Theme.text-label;
+                    height: Theme.px(18);
+                    vertical-alignment: center;
+                    letter-spacing: Theme.label-spacing;
+                    color: Theme.ink-2;
+                }
+                }
+
+                // The list's own actions, in the corner its number occupies at
+                // rest. Three dots because there is no shape for "rename", and
+                // a shape nobody can read is worse than a mark that says
+                // "there is more here".
+                //
+                // Always built, faded rather than absent: its own touch area is
+                // named in the condition that would have created it, and an
+                // element cannot decide whether to exist by asking itself.
+                Rectangle {
+                    visible: root.has-menu;
+                    x: parent.width - self.width - Theme.px(12);
+                    y: Theme.px(12);
+                    width: Theme.px(32);
+                    height: Theme.px(32);
+                    border-radius: Theme.radius;
+                    background: dots.has-hover ? Theme.bg-3 : transparent;
+                    opacity: root.hovered ? 1.0 : 0.0;
+                    animate background, opacity { duration: 120ms; }
+
+                    // Horizontal on a tile, where there is width to spare and
+                    // the mark sits in a corner of its own.
+                    Image {
+                        source: @image-url("../../../../resources/ui/icons/dots.svg");
+                        width: Theme.icon;
+                        height: self.width;
+                        x: round((parent.width - self.width) / 1px / 2) * 1px;
+                        y: round((parent.height - self.height) / 1px / 2) * 1px;
+                        colorize: dots.has-hover ? Theme.ink-0 : Theme.ink-1;
+                        animate colorize { duration: 120ms; }
+                    }
+
+                    dots := TouchArea {
+                        // Invisible until the tile is under the pointer, and
+                        // unclickable until then: a button nobody can see is
+                        // not a button, whatever it does when pressed.
+                        enabled: root.hovered;
+                        mouse-cursor: pointer;
+                        clicked => {
+                            menu.show();
+                        }
+                    }
+
+                    // Opens to the left of the dots, because they sit at the
+                    // right edge of a tile that may itself be at the right edge
+                    // of the window.
+                    menu := RowMenu {
+                        x: Theme.px(32) - self.width;
+                        y: Theme.px(32);
+                        property <[MenuItemData]> without-cover: [
+                            { action: "rename", label: @tr("Rename…") },
+                            { action: "cover", label: @tr("Choose a cover…") },
+                            { action: "export", label: @tr("Export…") },
+                            { action: "" },
+                            { action: "delete", label: @tr("Delete this playlist"), destructive: true },
+                        ];
+                        property <[MenuItemData]> with-cover: [
+                            { action: "rename", label: @tr("Rename…") },
+                            { action: "cover", label: @tr("Change the cover…") },
+                            { action: "uncover", label: @tr("Remove the cover") },
+                            { action: "export", label: @tr("Export…") },
+                            { action: "" },
+                            { action: "delete", label: @tr("Delete this playlist"), destructive: true },
+                        ];
+                        // The favourites list keeps its name and its place. It
+                        // may still be given a picture: that is a decoration,
+                        // not a change to what the list is.
+                        property <[MenuItemData]> automatic-without-cover: [
+                            { action: "cover", label: @tr("Choose a cover…") },
+                            { action: "export", label: @tr("Export…") },
+                        ];
+                        property <[MenuItemData]> automatic-with-cover: [
+                            { action: "cover", label: @tr("Change the cover…") },
+                            { action: "uncover", label: @tr("Remove the cover") },
+                            { action: "export", label: @tr("Export…") },
+                        ];
+
+                        items: root.data.automatic
+                            ? (root.data.has-cover ? self.automatic-with-cover : self.automatic-without-cover)
+                            : (root.data.has-cover ? self.with-cover : self.without-cover);
+                        chosen(action) => {
+                            root.acted(action);
+                        }
+                    }
+                }
+
+                // Play the list without opening it, in order or shuffled. The
+                // filled circle is the one the player bar uses for the button
+                // you reach for without looking, and it means the same here.
+                HorizontalLayout {
+                    x: parent.width - self.width - Theme.px(16);
+                    y: parent.height - self.height - Theme.px(16);
+                    width: 2 * Theme.px(44) + Theme.space-2;
+                    height: Theme.px(44);
+                    spacing: Theme.space-2;
+                    opacity: root.hovered ? 1.0 : 0.0;
+                    animate opacity { duration: 120ms; }
+
+                    start := SoundCircle {
+                        glyph: @image-url("../../../../resources/ui/icons/play-16.svg");
+                        nudge: 1px;
+                        enabled: root.hovered;
+                        pressed => {
+                            root.played();
+                        }
+                    }
+                    mix := SoundCircle {
+                        glyph: @image-url("../../../../resources/ui/icons/shuffle.svg");
+                        enabled: root.hovered;
+                        pressed => {
+                            root.shuffled();
+                        }
+                    }
+                }
+            }
+        }
+
+        // The caption. It does not move with the square: the tile lifts, the
+        // words stay where they were read.
+        VerticalLayout {
+            spacing: Theme.px(4);
+            vertical-stretch: 0;
+
+            Text {
+                text: root.data.name;
+                font-family: Theme.serif;
+                font-size: Theme.text-title;
+                height: Theme.px(34);
+                vertical-alignment: center;
+                color: root.hovered ? Theme.ink-0 : Theme.ink-1;
+                overflow: elide;
+                animate color { duration: 120ms; }
+            }
+
+            Text {
+                text: root.data.meta;
+                font-family: Theme.mono;
+                font-size: Theme.text-label;
+                height: Theme.px(18);
+                vertical-alignment: center;
+                letter-spacing: Theme.label-spacing;
+                color: Theme.ink-mute;
+                overflow: elide;
+            }
+        }
+    }
+}
+
+// The lists the listener keeps.
+export component PlaylistsView inherits Rectangle {
+    in property <[PlaylistCardData]> playlists;
+    in property <string> summary;
+    in property <string> empty-hint;
+
+    callback open(string);
+    callback play(string);
+    callback shuffle(string);
+    callback create();
+    /// Read a playlist in from a file another player wrote.
+    callback import();
+    /// A playlist, its name and what to do to it. The name travels with the
+    /// identifier because the dialog that follows has to show it, and finding
+    /// a row by identifier in a model is work the model already did.
+    callback act(string, string, string);
+
+    // A tile stops being a tile below this: the name inside it is set large,
+    // and a square too small to hold two words of it is a grey box.
+    //
+    // 176 rather than the 220 it was, which is one more column in the default
+    // window: three squares of 254 across a page that also carries a band read
+    // as heavy. The name inside the stand-in came down with it — see below,
+    // because that limit is the *reason* for this one.
+    property <length> min-tile: Theme.px(176);
+    property <length> gap-x: Theme.space-6;
+    property <length> gap-y: Theme.px(40);
+    // The square, plus the caption under it and the space between: twelve for
+    // the gap, thirty-four for the name, four between the two lines, eighteen for
+    // the size. Counted rather than estimated — at forty-eight the caption
+    // overflowed its own card by sixteen pixels into the gap below, and the
+    // rows stood that much closer together than the grid said they did.
+    property <length> caption-height: Theme.px(68);
+    // Room above the first row for the lift on hover. A scroll view clips at
+    // its own edge, so without this the top row rises straight through it and
+    // loses its border to the crop.
+    property <length> headroom: Theme.px(6);
+
+
+    property <length> available: self.width - 2 * Theme.page-inset;
+    property <int> columns: max(1, min(5, floor((root.available + root.gap-x) / (root.min-tile + root.gap-x))));
+    // Down to a whole, even pixel. A tile on a fractional x puts every word in it
+    // on a fractional x too, and text snapped to the pixel grid from half a
+    // pixel out is text whose letters sit at slightly different heights.
+    property <length> tile-width: floor((root.available - (root.columns - 1) * root.gap-x) / root.columns / 2px) * 2px;
+    property <length> card-height: root.tile-width + root.caption-height;
+    property <length> row-height: root.card-height + root.gap-y;
+
+    background: Theme.bg-0;
+
+    VerticalLayout {
+        VerticalLayout {
+            vertical-stretch: 0;
+            padding-left: Theme.page-inset;
+            padding-right: Theme.page-inset;
+            padding-top: Theme.page-top;
+            padding-bottom: Theme.page-bottom;
+            spacing: Theme.space-2;
+
+            Text {
+                text: @tr("Playlists");
+                font-family: Theme.serif;
+                font-size: Theme.text-display;
+                height: Theme.heading-box;
+                vertical-alignment: bottom;
+                color: Theme.ink-0;
+            }
+
+            // The quantities, and the one action the page itself offers, on the
+            // same line and in the same place as on every other screen. It
+            // stood beside the heading before, alone in the white space to the
+            // right of one word, belonging to neither the name above it nor the
+            // content below.
+            HorizontalLayout {
+                alignment: space-between;
+                spacing: Theme.space-5;
+
+                VerticalLayout {
+                    alignment: center;
+                    horizontal-stretch: 1;
+
+                    Text {
+                        text: root.summary;
+                        font-family: Theme.mono;
+                        font-size: Theme.text-label;
+                        height: Theme.px(18);
+                        vertical-alignment: center;
+                        letter-spacing: Theme.number-spacing;
+                        color: Theme.ink-2;
+                    }
+                }
+
+                // The two ways a list begins, side by side at the end of the
+                // head: made here, or read in from another player's file.
+                HorizontalLayout {
+                    horizontal-stretch: 0;
+                    spacing: Theme.space-3;
+
+                    VerticalLayout {
+                        alignment: center;
+
+                        TextButton {
+                            label: @tr("IMPORT…");
+                            pressed => {
+                                root.import();
+                            }
+                        }
+                    }
+
+                    VerticalLayout {
+                        alignment: center;
+
+                        TextButton {
+                            label: @tr("NEW PLAYLIST");
+                            pressed => {
+                                root.create();
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // See the note in `TrackList`: without a child that takes the surplus,
+        // a column layout spreads it across every child and the page head comes
+        // apart.
+        if root.playlists.length == 0: VerticalLayout {
+            vertical-stretch: 1;
+            alignment: start;
+            padding-left: Theme.page-inset;
+            padding-right: Theme.page-inset;
+            padding-top: Theme.space-6;
+
+            EmptyState {
+                title: @tr("No lists yet");
+                hint: root.empty-hint;
+            }
+        }
+
+        // Placed rather than laid out: Slint's layouts are one row or one
+        // column, and a grid over a model's length is arithmetic on the index —
+        // which is what its own date picker does with a month of days.
+        // The band scrolls with the squares rather than standing over them.
+        //
+        // It was outside the scroll view, which made the page two things that
+        // moved at different speeds — and on a short window the grid below had
+        // only the leftover height to scroll in. One surface, one gesture.
+        if root.playlists.length > 0: ScrollView {
+            vertical-stretch: 1;
+            viewport-height: root.headroom
+                + ceil(root.playlists.length / root.columns) * root.row-height;
+
+            for entry[index] in root.playlists: PlaylistCard {
+                data: entry;
+                width: root.tile-width;
+                height: root.card-height;
+                x: Theme.page-inset + mod(index, root.columns) * (root.tile-width + root.gap-x);
+                y: root.headroom
+                    + floor(index / root.columns) * root.row-height;
+                activated => {
+                    root.open(entry.id);
+                }
+                played => {
+                    root.play(entry.id);
+                }
+                shuffled => {
+                    root.shuffle(entry.id);
+                }
+                acted(action) => {
+                    root.act(entry.id, entry.name, action);
+                }
+            }
+        }
+    }
+}

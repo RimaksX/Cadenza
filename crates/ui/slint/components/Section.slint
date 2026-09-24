@@ -1,0 +1,21 @@
+// Which page the window is showing.
+//
+// A name rather than an index, so adding a page renumbers nothing; and a type
+// rather than a string, so a page misspelt in one of the places that names it
+// is a build that fails rather than a press that does nothing.
+export enum Section {
+    home,
+    library,
+    playlists,
+    // One playlist, open. Reached from the index, and lit in the sidebar as
+    // the playlists.
+    playlist,
+    // The library by artist, and one artist open.
+    artists,
+    artist,
+    reviews,
+    listening,
+    radio,
+    settings,
+    equaliser,
+}

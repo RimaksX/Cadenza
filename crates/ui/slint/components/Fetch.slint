@@ -1,0 +1,29 @@
+// Fetching from a link: what is typed, what it offers, and how far a fetch
+// has got.
+//
+// A global, like `Player`: set and answered by the controller directly, read
+// by the shell, rather than declared twice and passed down line by line.
+export global Fetch {
+    in-out property <string> link;
+    /// Said whenever the link changes, so the controller can work out what it
+    /// offers.
+    callback link-typed();
+
+    /// What the link in the box can be asked for. Worked out in Rust, because
+    /// which readings an address offers is a rule and rules live in the domain.
+    in property <bool> offers-a-track;
+    in property <bool> offers-a-list;
+
+    in property <bool> fetching;
+    in property <int> percent;
+    in property <string> note;
+    in property <bool> needs-folder;
+    /// What the one offered button would do, or empty for no button.
+    in property <string> offer;
+
+    callback fetch(string);
+    callback fetch-playlist(string);
+    callback stop-fetch();
+    callback fix-fetch();
+    callback make-local-folder();
+}

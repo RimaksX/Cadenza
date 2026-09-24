@@ -1,0 +1,13 @@
+import { MoodRowData } from "../views/RadioView.slint";
+
+// The radio: the moods on offer and the one playing.
+//
+// A global, like `Player`: set and answered by the controller directly, read
+// by the shell, rather than declared twice and passed down line by line.
+export global Radio {
+    in property <[MoodRowData]> moods;
+    in property <string> mood;
+    in property <string> summary;
+    callback start(string);
+    callback judge(bool);
+}

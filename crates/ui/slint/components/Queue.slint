@@ -1,0 +1,21 @@
+import { TrackRowData } from "TrackRow.slint";
+
+// What plays next: the queue, what follows it, and what is done to them.
+//
+// A global, like `Player`: set and answered by the controller directly, read
+// by the shell, rather than declared twice and passed down line by line.
+export global Queue {
+    in property <[TrackRowData]> tracks;
+    in property <[TrackRowData]> then;
+    in property <string> then-label;
+    callback enqueue(string, bool);
+    callback play-queued(int);
+    callback remove-from-queue(int);
+    callback clear-queue();
+    /// A waiting track carried from one row to another.
+    callback reorder(int, int);
+    callback play-following(string);
+    /// Opens where what is playing comes from, and names the page it is on:
+    /// "playlist", "artist", "radio" or "library".
+    callback open-source() -> string;
+}

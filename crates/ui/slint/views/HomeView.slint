@@ -1,0 +1,301 @@
+import { Theme } from "../theme/tokens.slint";
+import { TextButton } from "../components/Dialog.slint";
+import { TrackRowData } from "../components/TrackRow.slint";
+import { TrackLine } from "../components/TrackLine.slint";
+import { ScrollFade } from "../components/ScrollFade.slint";
+import { CoverTile } from "../components/CoverTile.slint";
+import { FavouritesBanner, PlaylistCardData } from "PlaylistsView.slint";
+import { SectionLabel } from "SettingsView.slint";
+import { SoundCircle } from "../components/Controls.slint";
+import { EmptyState } from "../components/EmptyState.slint";
+
+// A way to have something play, as the sound circle it is and the words
+// beside it. One object: the pointer over either part lights both.
+component ChanceButton inherits Rectangle {
+    in property <image> glyph;
+    in property <string> label;
+
+    callback pressed();
+
+    property <bool> hovered: touch.has-hover || mark.hovered;
+
+    width: row.preferred-width;
+    height: Theme.px(44);
+
+    touch := TouchArea {
+        mouse-cursor: pointer;
+        clicked => {
+            root.pressed();
+        }
+    }
+
+    row := HorizontalLayout {
+        spacing: Theme.space-3;
+
+        mark := SoundCircle {
+            glyph: root.glyph;
+            pressed => {
+                root.pressed();
+            }
+        }
+
+        VerticalLayout {
+            alignment: center;
+
+            Text {
+                text: root.label;
+                font-family: Theme.mono;
+                font-size: Theme.text-label;
+                height: Theme.px(18);
+                letter-spacing: Theme.label-spacing;
+                vertical-alignment: center;
+                color: root.hovered ? Theme.ink-0 : Theme.ink-1;
+                animate color { duration: 120ms; }
+            }
+        }
+    }
+}
+
+// Where a listener starts: what to play. What is playing, and what follows
+// it, is the panel at the window's right, on every page.
+export component HomeView inherits Rectangle {
+    in property <string> profile-name;
+    in property <PlaylistCardData> favourites;
+    in property <bool> has-favourites;
+    /// The colour of the favourites' picture, which the top of the page is
+    /// washed in.
+    in property <color> tint;
+    in property <bool> tinted;
+    in property <[TrackRowData]> recent;
+    /// The newest in the library.
+    in property <[TrackRowData]> fresh;
+    /// Some of what has not been heard inside the history's window.
+    in property <[TrackRowData]> forgotten;
+
+
+    callback open-playlist(string);
+    callback play-playlist(string);
+    callback shuffle-playlist(string);
+    callback favourites-acted(string, string, string);
+    callback play(string);
+    callback play-random-track();
+    callback play-random-playlist();
+    /// Points Cadenza at a folder: what an empty library needs first.
+    callback add-folder();
+
+    // The hub's rows of tiles fit as many as the width holds, two to six, at
+    // no less than 112 each. Whole pixels, so nothing in a tile sits between
+    // two of them.
+    property <length> available: root.width - 2 * Theme.page-inset;
+    property <length> gap: Theme.space-4;
+    property <int> columns: max(2, min(6, floor((root.available + root.gap) / (Theme.px(112) + root.gap))));
+    property <length> tile: floor((root.available - (root.columns - 1) * root.gap) / root.columns / 2px) * 2px;
+
+    background: Theme.bg-0;
+
+    // The favourites' picture, in its colour, around the band and gone by the
+    // end of it: the page takes on the list it leads with, as the panel takes
+    // on the record. Under everything, so nothing stands on a colour.
+    if root.has-favourites && root.tinted: Rectangle {
+        y: 0;
+        height: Theme.page-top + Theme.heading-box + Theme.px(22) + Theme.banner-height + Theme.space-6 * 2;
+        background: @linear-gradient(180deg, root.tint.with-alpha(Theme.wash) 0%, root.tint.with-alpha(0) 100%);
+    }
+
+    HorizontalLayout {
+        // The hub.
+        VerticalLayout {
+            horizontal-stretch: 1;
+
+            VerticalLayout {
+                padding-left: Theme.page-inset;
+                padding-right: Theme.page-inset;
+                padding-top: Theme.page-top;
+                padding-bottom: Theme.page-bottom;
+                spacing: Theme.space-2;
+
+                Text {
+                    text: @tr("Home");
+                    font-family: Theme.serif;
+                    font-size: Theme.text-display;
+                    height: Theme.heading-box;
+                    vertical-alignment: bottom;
+                    color: Theme.ink-0;
+                }
+                Text {
+                    text: root.profile-name == "" ? "" : @tr("Welcome, {}", root.profile-name);
+                    font-family: Theme.sans;
+                    font-size: Theme.text-body;
+                    height: Theme.px(22);
+                    vertical-alignment: center;
+                    color: Theme.ink-2;
+                }
+            }
+
+            Rectangle {
+                vertical-stretch: 1;
+
+                scroller := Flickable {
+                    width: parent.width;
+                    height: parent.height;
+                    viewport-width: self.width;
+                    viewport-height: hub.preferred-height;
+
+                    hub := VerticalLayout {
+                        width: parent.width;
+                        alignment: start;
+                        padding-left: Theme.page-inset;
+                        padding-right: Theme.page-inset;
+                        padding-bottom: Theme.space-6;
+                        spacing: Theme.space-6;
+
+                        // Pinned here rather than listed with the others: it
+                        // is the list a listener comes back to.
+                        if root.has-favourites: FavouritesBanner {
+                            data: root.favourites;
+                            activated => {
+                                root.open-playlist(root.favourites.id);
+                            }
+                            played => {
+                                root.play-playlist(root.favourites.id);
+                            }
+                            shuffled => {
+                                root.shuffle-playlist(root.favourites.id);
+                            }
+                            acted(action) => {
+                                root.favourites-acted(root.favourites.id, root.favourites.name, action);
+                            }
+                        }
+
+                        // Nothing to play yet: what is missing, and the one
+                        // press that begins it. The newest in the library is
+                        // empty exactly when the library is.
+                        if root.fresh.length == 0: EmptyState {
+                            title: @tr("Nothing to play yet");
+                            hint: @tr("Point Cadenza at the folder your music is in, and the library builds itself from what is there.");
+                            action: @tr("ADD FOLDER…");
+                            acted => {
+                                root.add-folder();
+                            }
+                        }
+
+                        // One press and something plays: the commonest way in,
+                        // so it stands first after the list a listener keeps.
+                        // Sound circles, because what they do is start music.
+                        if root.fresh.length > 0: VerticalLayout {
+                            spacing: Theme.space-2;
+
+                            SectionLabel {
+                                text: @tr("LEAVE IT TO CHANCE");
+                            }
+                            HorizontalLayout {
+                                alignment: start;
+                                spacing: Theme.space-6;
+
+                                ChanceButton {
+                                    glyph: @image-url("../../../../resources/ui/icons/shuffle.svg");
+                                    label: @tr("ANY TRACK");
+                                    pressed => {
+                                        root.play-random-track();
+                                    }
+                                }
+                                ChanceButton {
+                                    glyph: @image-url("../../../../resources/ui/icons/playlist.svg");
+                                    label: @tr("ANY PLAYLIST");
+                                    pressed => {
+                                        root.play-random-playlist();
+                                    }
+                                }
+                            }
+                        }
+                        VerticalLayout {
+                            spacing: Theme.space-2;
+
+                            SectionLabel {
+                                text: @tr("PLAYED LATELY");
+                            }
+
+                            if root.recent.length == 0: Text {
+                                text: @tr("What you play turns up here.");
+                                font-family: Theme.sans;
+                                font-size: Theme.text-body;
+                                height: Theme.px(22);
+                                vertical-alignment: center;
+                                color: Theme.ink-2;
+                            }
+
+                            for track in root.recent: TrackLine {
+                                data: track;
+                                activated => {
+                                    root.play(track.id);
+                                }
+                            }
+                        }
+
+                        // The newest in the library, as covers.
+                        if root.fresh.length > 0: VerticalLayout {
+                            spacing: Theme.space-3;
+
+                            SectionLabel {
+                                text: @tr("NEW IN THE LIBRARY");
+                            }
+                            Rectangle {
+                                height: root.tile + Theme.px(52);
+
+                                for track[index] in root.fresh: CoverTile {
+                                    x: index * (root.tile + root.gap);
+                                    width: root.tile;
+                                    visible: index < root.columns;
+                                    cover: track.cover;
+                                    initial: track.initial;
+                                    title: track.title;
+                                    caption: track.artist;
+                                    activated => {
+                                        root.play(track.id);
+                                    }
+                                }
+                            }
+                        }
+
+                        // What has gone quiet: a handful of what the history
+                        // has not heard, a different handful each visit.
+                        if root.forgotten.length > 0: VerticalLayout {
+                            spacing: Theme.space-2;
+
+                            SectionLabel {
+                                text: @tr("NOT HEARD THIS MONTH");
+                            }
+                            for track in root.forgotten: TrackLine {
+                                data: track;
+                                activated => {
+                                    root.play(track.id);
+                                }
+                            }
+                        }
+
+                    }
+                }
+
+                // The top edge fades too, once there is something above it:
+                // the band was cut by a straight line across its picture. The
+                // ground is the wash as it stands at this height.
+                ScrollFade {
+                    y: 0;
+                    width: parent.width;
+                    from-top: true;
+                    ground: root.has-favourites && root.tinted
+                        ? Theme.bg-0.mix(root.tint, 1 - Theme.wash * 0.7)
+                        : Theme.bg-0;
+                    more: scroller.viewport-y < 0;
+                }
+
+                ScrollFade {
+                    y: parent.height - self.height;
+                    width: parent.width;
+                    more: scroller.viewport-height + scroller.viewport-y > scroller.height;
+                }
+            }
+        }
+
+    }
+}

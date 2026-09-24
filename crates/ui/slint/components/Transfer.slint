@@ -1,0 +1,19 @@
+// What a row carries when it is dragged to another place in its own list.
+//
+// Carrying puts a list in order - a playlist's, or the queue's - and nothing
+// else: a track joins the queue by the button on its row. A global because
+// the list a carry starts in and the rows it may land between have to agree
+// on which carry is in the air, and on the line that says where it can go.
+export global Transfer {
+    /// The payload for one track, by its identifier.
+    pure callback of-track(string) -> data-transfer;
+
+    /// Where the carry in the air can be let go of, for the line that says
+    /// so; empty while nothing is carried.
+    in-out property <string> hint;
+
+    /// How many carries have begun. A list that starts one keeps the number,
+    /// and takes a row back to itself only while the carry in the air is
+    /// still that one - never one that began anywhere else.
+    in-out property <int> drags;
+}

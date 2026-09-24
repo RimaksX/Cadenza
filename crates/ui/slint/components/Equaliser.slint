@@ -1,0 +1,31 @@
+import { EqBandData, EqPresetData, ToneBand } from "../views/EqualiserView.slint";
+
+// The equaliser: its mode, its bands and presets, and what is done to them.
+//
+// A global, like `Player`: set and answered by the controller directly, read
+// by the shell, rather than declared twice and passed down line by line.
+export global Equaliser {
+    in property <bool> advanced;
+    in property <float> bass;
+    in property <float> mid;
+    in property <float> treble;
+    in property <[EqBandData]> bands;
+    in property <[EqPresetData]> presets;
+    in property <string> summary;
+    in property <int> selected;
+    in property <string> selected-frequency;
+    in property <string> selected-q;
+    in property <string> selected-gain;
+    callback set-mode(bool);
+    callback set-simple(ToneBand, float);
+    callback move-band(int, float);
+    callback tune-band(int, int);
+    callback select-band(int);
+    callback settle();
+    callback widen-band(int, float);
+    callback pick-preset(string);
+    callback save-preset(string);
+    callback rename-preset(string, string);
+    callback delete-preset(string);
+    callback reset();
+}

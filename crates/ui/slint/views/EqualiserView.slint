@@ -1,0 +1,855 @@
+import { Theme } from "../theme/tokens.slint";
+import { TextButton } from "../components/Dialog.slint";
+import { GlyphButton } from "../components/TrackList.slint";
+import { ScrollFade } from "../components/ScrollFade.slint";
+import { ListView } from "std-widgets.slint";
+import { RowMenu, MenuItemData } from "../components/RowMenu.slint";
+
+// One preset, as the view model hands it over.
+export struct EqPresetData {
+    id: string,
+    name: string,
+    selected: bool,
+    editable: bool,
+}
+
+// One band of the parametric equaliser, already placed on its fader: `y` is how
+// far down the track the handle sits, from zero to one. Hertz and decibels are
+// the listener's units and stay in Rust, as words.
+export struct EqBandData {
+    index: int,
+    y: float,
+    frequency: string,
+    q: string,
+    gain: string,
+    selected: bool,
+}
+
+// One arm of the dial: a track from the middle outwards, and a handle on it.
+//
+// Three of these make the figure. The reference draws it as a radar and calls
+// the shape the control; ours is the same idea in this interface's own hand —
+// hairlines, one filled handle, mono capitals.
+component DialArm inherits Rectangle {
+    in property <string> label;
+    in property <float> value;
+    in property <float> lowest;
+    in property <float> highest;
+    /// Where the middle of the dial is, and how far the arm reaches.
+    in property <length> centre-x;
+    in property <length> centre-y;
+    in property <length> reach;
+    /// The direction the arm points, as a unit vector. Worked out by the parent
+    /// so that all three agree about where the middle is.
+    in property <float> unit-x;
+    in property <float> unit-y;
+
+    callback moved(float);
+    /// The hand let go, so what was set is worth writing down.
+    callback settled();
+
+    // How far along the arm the handle sits, from the middle out.
+    property <float> travel: (root.value - root.lowest) / (root.highest - root.lowest);
+    property <length> handle-x: root.centre-x + root.reach * root.travel * root.unit-x;
+    property <length> handle-y: root.centre-y + root.reach * root.travel * root.unit-y;
+
+    // The track. Drawn as a path because a line at an angle is not a rectangle,
+    // and Slint will not rotate one.
+    Path {
+        // One viewbox unit is one pixel. Left at its default a path is scaled
+        // to fill whatever it is given, which stretched every arm out to the
+        // corners of the page and left the ring somewhere in the middle of it.
+        viewbox-x: 0;
+        viewbox-y: 0;
+        viewbox-width: root.width / 1px;
+        viewbox-height: root.height / 1px;
+        // Whole numbers, on purpose. A float turned into text takes the decimal
+        // separator of the language the interface is in, so under Russian this
+        // read "M 312,5 338" and the path parser took the comma for the space
+        // between two coordinates - the arms went wherever that led. An integer
+        // has no separator to disagree about.
+        commands: "M " + round(root.centre-x / 1px) + " " + round(root.centre-y / 1px)
+            + " L " + round((root.centre-x + root.reach * root.unit-x) / 1px)
+            + " " + round((root.centre-y + root.reach * root.unit-y) / 1px);
+        stroke: Theme.line-soft;
+        stroke-width: Theme.px(2);
+    }
+
+    // The handle.
+    Rectangle {
+        x: root.handle-x - self.width / 2;
+        y: root.handle-y - self.height / 2;
+        width: touch.pressed ? Theme.px(22) : Theme.px(18);
+        height: self.width;
+        border-radius: self.width / 2;
+        background: touch.has-hover || touch.pressed ? Theme.ink-0 : Theme.ink-1;
+        animate width, height, background { duration: 120ms; }
+    }
+
+    touch := TouchArea {
+        x: root.handle-x - Theme.px(22);
+        y: root.handle-y - Theme.px(22);
+        width: Theme.px(44);
+        height: Theme.px(44);
+        mouse-cursor: pointer;
+
+        // Where the pointer is on the dial, whatever this target has done in
+        // the meantime. Two things make a delta wrong here: the handle follows
+        // the value, so the target moves out from under the hand and the delta
+        // stops growing; and `moved` arrives on hover as well as on a drag, so
+        // a delta measured from a press that never happened is nonsense. An
+        // absolute position has neither problem.
+        property <length> pointer-x: self.absolute-position.x + self.mouse-x - root.absolute-position.x;
+        property <length> pointer-y: self.absolute-position.y + self.mouse-y - root.absolute-position.y;
+        /// How far along the arm the pointer is, projected onto it. Movement
+        /// across the arm is ignored rather than losing the grip.
+        property <float> along: ((self.pointer-x - root.centre-x) / 1px * root.unit-x
+            + (self.pointer-y - root.centre-y) / 1px * root.unit-y) / (root.reach / 1px);
+
+        pointer-event(event) => {
+            if (event.kind == PointerEventKind.up) {
+                root.settled();
+            }
+        }
+        moved => {
+            if (self.pressed) {
+                root.moved(max(root.lowest, min(root.highest,
+                    root.lowest + self.along * (root.highest - root.lowest))));
+            }
+        }
+    }
+
+    // The name and the number, at the far end of the arm where the handle is
+    // heading rather than where it happens to be.
+    VerticalLayout {
+        x: root.centre-x + (root.reach + Theme.px(26)) * root.unit-x - self.width / 2;
+        y: root.centre-y + (root.reach + Theme.px(26)) * root.unit-y - self.height / 2;
+        alignment: center;
+        spacing: Theme.px(2);
+
+        Text {
+            text: root.label;
+            font-family: Theme.mono;
+            font-size: Theme.text-label;
+            height: Theme.px(18);
+            vertical-alignment: center;
+            horizontal-alignment: center;
+            letter-spacing: Theme.label-spacing;
+            color: Theme.ink-mute;
+        }
+        Text {
+            text: root.value == 0 ? "0" : (root.value > 0
+                ? "+" + round(root.value * 10) / 10
+                : "" + round(root.value * 10) / 10);
+            font-family: Theme.mono;
+            font-size: Theme.text-body;
+            height: Theme.px(22);
+            vertical-alignment: center;
+            horizontal-alignment: center;
+            letter-spacing: Theme.number-spacing;
+            color: Theme.ink-0;
+        }
+    }
+}
+
+// The three tone controls, as one figure.
+// Which of the simple equaliser's three controls a hand is on.
+//
+// It used to be an int, and the `match` on the Rust side ended in a wildcard
+// that sent every unnamed index to treble. Three named values cost nothing and
+// let the compiler check both ends.
+export enum ToneBand {
+    bass,
+    mid,
+    treble,
+}
+
+component ToneDial inherits Rectangle {
+    in property <float> bass;
+    in property <float> mid;
+    in property <float> treble;
+
+    /// Which control moved, and where to.
+    callback moved(ToneBand, float);
+    /// The hand let go.
+    callback settled();
+
+    property <length> side: min(root.width, root.height);
+    // On whole pixels, and the reach even, so the rings built from them -
+    // the reach and half of it either side of the centre - are too. Only the
+    // arms and handles, set along angles, fall between pixels.
+    property <length> centre-x: round(root.width / 2 / 1px) * 1px;
+    property <length> centre-y: round(root.height / 2 / 1px) * 1px;
+    // Room at the edge for the labels, which sit outside the reach.
+    property <length> reach: round((root.side / 2 - Theme.px(56)) / 2px) * 2px;
+
+    // The ring the arms end on: the outer edge of every control, drawn once.
+    Rectangle {
+        x: root.centre-x - root.reach - 1px;
+        y: root.centre-y - root.reach - 1px;
+        width: 2 * root.reach + Theme.px(2);
+        height: self.width;
+        border-radius: self.width / 2;
+        border-width: 1px;
+        border-color: Theme.line-soft;
+    }
+
+    // And the ring at rest: where every handle sits when nothing is added.
+    Rectangle {
+        x: root.centre-x - root.reach / 2;
+        y: root.centre-y - root.reach / 2;
+        width: root.reach;
+        height: self.width;
+        border-radius: self.width / 2;
+        border-width: 1px;
+        border-color: Theme.line-soft.with-alpha(0.5);
+    }
+
+    // Up, lower-left, lower-right — the arrangement the reference uses, and the
+    // one that reads as a figure rather than as three sliders in a fan.
+    DialArm {
+        label: @tr("MID");
+        value: root.mid;
+        lowest: -12;
+        highest: 12;
+        centre-x: root.centre-x;
+        centre-y: root.centre-y;
+        reach: root.reach;
+        unit-x: 0;
+        unit-y: -1;
+        moved(value) => {
+            root.moved(ToneBand.mid, value);
+        }
+        settled => {
+            root.settled();
+        }
+    }
+    DialArm {
+        label: @tr("BASS");
+        value: root.bass;
+        lowest: -12;
+        highest: 12;
+        centre-x: root.centre-x;
+        centre-y: root.centre-y;
+        reach: root.reach;
+        unit-x: -0.866;
+        unit-y: 0.5;
+        moved(value) => {
+            root.moved(ToneBand.bass, value);
+        }
+        settled => {
+            root.settled();
+        }
+    }
+    DialArm {
+        label: @tr("TREBLE");
+        value: root.treble;
+        lowest: -12;
+        highest: 12;
+        centre-x: root.centre-x;
+        centre-y: root.centre-y;
+        reach: root.reach;
+        unit-x: 0.866;
+        unit-y: 0.5;
+        moved(value) => {
+            root.moved(ToneBand.treble, value);
+        }
+        settled => {
+            root.settled();
+        }
+    }
+}
+
+// One band, as a fader of its own.
+//
+// Its own column, its own line, its own target. The first arrangement put all
+// eight inside one box and let a row of layouts decide where each line fell,
+// which meant the visible line and the place that answered a click were not the
+// same place — aim at one band, move its neighbour.
+//
+// The volume slider had already got this right and is the model: read the
+// pointer's position on the track, ignore where it started, and let the handle
+// follow rather than lead.
+component Fader inherits Rectangle {
+    in property <float> value;
+    in property <string> gain;
+    in property <string> frequency;
+    in property <bool> selected;
+
+    callback moved(float);
+    callback chosen();
+    callback settled();
+
+    // Always the same width as its neighbours, whatever its numbers read: a
+    // column sized by its label changes width when the value does, and a bank
+    // of them shuffles under the hand as it is being used.
+    //
+    // A preferred width and a floor rather than one number, which is the whole
+    // of the fix for a window at its smallest. Eight of these at 64 with their
+    // gaps want 540, and the smallest window leaves the left column 408 — a
+    // stated width cannot shrink, so the bank ran off the page and took the
+    // last two bands with it. Between 46 and 64 they divide what there is and
+    // stay a bank.
+    preferred-width: Theme.px(64);
+    min-width: Theme.px(46);
+
+    VerticalLayout {
+        spacing: Theme.space-2;
+
+        Text {
+            text: root.gain;
+            font-family: Theme.mono;
+            font-size: Theme.text-label;
+            height: Theme.px(18);
+            vertical-alignment: center;
+            horizontal-alignment: center;
+            letter-spacing: Theme.number-spacing;
+            color: root.selected ? Theme.ink-0 : Theme.ink-2;
+            animate color { duration: 120ms; }
+        }
+
+        track := Rectangle {
+            vertical-stretch: 1;
+
+            // The line this band runs on.
+            Rectangle {
+                x: round((parent.width - self.width) / 1px / 2) * 1px;
+                width: Theme.px(2);
+                background: Theme.line-soft;
+            }
+
+            // Where this band does nothing. A tick of its own rather than a
+            // rule across the bank: eight faders standing on one line read as
+            // one control with eight handles, which is what this was.
+            Rectangle {
+                x: round((parent.width - self.width) / 1px / 2) * 1px;
+                y: round((parent.height - self.height) / 1px / 2) * 1px;
+                width: Theme.px(16);
+                height: 1px;
+                background: Theme.line;
+            }
+
+            // From that tick to the handle: how far this band is from doing
+            // nothing, and which way.
+            Rectangle {
+                x: round((parent.width - self.width) / 1px / 2) * 1px;
+                y: min(parent.height * root.value, parent.height / 2);
+                width: Theme.px(2);
+                height: abs(parent.height * root.value - parent.height / 2);
+                background: root.selected ? Theme.ink-0 : Theme.ink-2;
+                animate background { duration: 120ms; }
+            }
+
+            Rectangle {
+                x: round((parent.width - self.width) / 1px / 2) * 1px;
+                y: round((parent.height * root.value - self.height / 2) / 1px) * 1px;
+                width: touch.pressed ? Theme.px(20) : (root.selected ? Theme.px(18) : Theme.px(15));
+                height: self.width;
+                border-radius: self.width / 2;
+                background: root.selected || touch.has-hover ? Theme.ink-0 : Theme.ink-1;
+                animate width, height, background { duration: 120ms; }
+            }
+
+            // The target: narrower than the column, so there is dead ground
+            // between one fader and the next and a near miss moves nothing.
+            // It never moves itself — a target that followed its handle would
+            // slide out from under the hand.
+            touch := TouchArea {
+                x: round((parent.width - self.width) / 1px / 2) * 1px;
+                width: Theme.px(44);
+                mouse-cursor: pointer;
+
+                pointer-event(event) => {
+                    if (event.kind == PointerEventKind.down) {
+                        root.chosen();
+                        root.moved(max(0, min(1, self.mouse-y / (parent.height / 1px) / 1px)));
+                    } else if (event.kind == PointerEventKind.up) {
+                        root.settled();
+                    }
+                }
+                // `moved` arrives on hover as well as on a drag.
+                moved => {
+                    if (self.pressed) {
+                        root.moved(max(0, min(1, self.mouse-y / (parent.height / 1px) / 1px)));
+                    }
+                }
+            }
+        }
+
+        // Where this band sits. The row no longer says so by position — a fader
+        // is a fader wherever it stands — so it says so in words, under its own
+        // line rather than under the gap beside it.
+        Text {
+            text: root.frequency;
+            font-family: Theme.mono;
+            font-size: Theme.text-label;
+            height: Theme.px(18);
+            vertical-alignment: center;
+            horizontal-alignment: center;
+            letter-spacing: Theme.number-spacing;
+            color: root.selected ? Theme.ink-1 : Theme.ink-mute;
+            animate color { duration: 120ms; }
+        }
+
+        // The way to choose a band without moving it. Pressing the fader also
+        // chooses, but pressing a fader is how a fader is moved — and choosing
+        // which band to retune should not retune the one you were listening to.
+        Rectangle {
+            height: Theme.px(32);
+
+            Image {
+                source: root.selected
+                    ? @image-url("../../../../resources/ui/icons/circle-dot.svg")
+                    : @image-url("../../../../resources/ui/icons/circle.svg");
+                width: Theme.icon;
+                height: self.width;
+                x: round((parent.width - self.width) / 1px / 2) * 1px;
+                y: round((parent.height - self.height) / 1px / 2) * 1px;
+                colorize: root.selected
+                    ? Theme.ink-0
+                    : (dot.has-hover ? Theme.ink-1 : Theme.ink-mute);
+                animate colorize { duration: 120ms; }
+            }
+
+            dot := TouchArea {
+                x: round((parent.width - self.width) / 1px / 2) * 1px;
+                width: Theme.px(32);
+                mouse-cursor: pointer;
+                clicked => {
+                    root.chosen();
+                }
+            }
+        }
+    }
+}
+
+// The eight bands, side by side.
+component FaderBank inherits Rectangle {
+    in property <[EqBandData]> bands;
+
+    callback moved(int, float);
+    callback chosen(int);
+    callback settled();
+
+    HorizontalLayout {
+        alignment: center;
+        spacing: Theme.space-1;
+
+        for band[index] in root.bands: Fader {
+            value: band.y;
+            gain: band.gain;
+            frequency: band.frequency;
+            selected: band.selected;
+
+            moved(value) => {
+                root.moved(index, value);
+            }
+            chosen => {
+                root.chosen(index);
+            }
+            settled => {
+                root.settled();
+            }
+        }
+    }
+}
+
+// One saved sound in the column: the name to press, and the corner that says
+// what else can be done to it.
+//
+// A component rather than a block inside the loop, because a popup menu cannot
+// be repeated directly — the track row and the playlist tile are the same shape
+// for the same reason.
+component PresetRow inherits Rectangle {
+    in property <EqPresetData> data;
+
+    callback picked();
+    callback acted(string);
+
+    // Taller than the control in it, and the difference is the air between one
+    // sound and the next. A scrolling list has no spacing of its own to give —
+    // it lays its rows out edge to edge — so the row carries its own.
+    //
+    // Forty rather than forty-two so that the nine that ship fit the column
+    // exactly. Six pixels over and the last of them is clipped and the rule
+    // beneath is lit, which says "there is another sound below" about six
+    // pixels of a button.
+    height: Theme.px(40);
+    // The column's own width. It was eight narrower while there was a scroll
+    // bar to leave room for, which left the list standing four pixels to the
+    // left of the two controls centred under it.
+    width: Theme.px(208);
+
+    // Full width, every row of them. Reserving a column for the mark made the
+    // nine that shipped end short of the two controls under them, which is a
+    // ragged edge of a different kind: the mark sits *over* the end of its own
+    // row instead, and only a listener's own sound has one.
+    TextButton {
+        y: round((parent.height - self.height) / 1px / 2) * 1px;
+        width: parent.width;
+        label: root.data.name;
+        selected: root.data.selected;
+        pressed => {
+            root.picked();
+        }
+    }
+
+    // Declared after the button, so it is above it: a nested touch area takes
+    // the pointer from the one beneath, which is what stops the ··· choosing
+    // the preset it belongs to.
+    Rectangle {
+        x: parent.width - self.width - 1px;
+        y: round((parent.height - self.height) / 1px / 2) * 1px;
+        width: Theme.px(32);
+        height: Theme.px(32);
+        border-radius: Theme.radius;
+        background: dots.has-hover ? Theme.bg-3 : transparent;
+        opacity: root.data.editable ? 1.0 : 0.0;
+        animate background { duration: 120ms; }
+
+        Image {
+            source: @image-url("../../../../resources/ui/icons/dots-vertical.svg");
+            width: Theme.icon;
+            height: self.width;
+            x: round((parent.width - self.width) / 1px / 2) * 1px;
+            y: round((parent.height - self.height) / 1px / 2) * 1px;
+            colorize: dots.has-hover ? Theme.ink-0 : Theme.ink-mute;
+            animate colorize { duration: 120ms; }
+        }
+
+        dots := TouchArea {
+            enabled: root.data.editable;
+            mouse-cursor: pointer;
+            clicked => {
+                menu.show();
+            }
+        }
+
+        // Opens to the left: this is the right edge of the page.
+        menu := RowMenu {
+            x: Theme.px(32) - self.width;
+            y: Theme.px(32);
+            items: [
+                { action: "rename", label: @tr("Rename…") },
+                { action: "" },
+                { action: "delete", label: @tr("Delete this sound"), destructive: true },
+            ];
+            chosen(action) => {
+                root.acted(action);
+            }
+        }
+    }
+}
+
+// The equaliser: what the sound is set to, and what it can be set from.
+export component EqualiserView inherits Rectangle {
+    in property <bool> advanced;
+    in property <float> bass;
+    in property <float> mid;
+    in property <float> treble;
+    in property <[EqBandData]> bands;
+    in property <[EqPresetData]> presets;
+    in property <string> summary;
+    /// The band whose numbers are shown under the curve.
+    in property <int> selected;
+    in property <string> selected-frequency;
+    in property <string> selected-q;
+    in property <string> selected-gain;
+
+    callback set-mode(bool);
+    callback set-simple(ToneBand, float);
+    callback move-band(int, float);
+    /// Which way to move the chosen band's own frequency.
+    callback tune-band(int, int);
+    callback select-band(int);
+    /// A control was let go of: what is set is worth writing down.
+    callback settle-eq();
+    callback widen-band(int, float);
+    callback pick-preset(string);
+    /// Somebody asked what all this does.
+    callback explain();
+    /// A saved sound, and what to do to it. The name travels with the
+    /// identifier because the question that follows has to show it.
+    callback act-on-preset(string, string, string);
+    callback save-preset();
+    callback reset-eq();
+
+    background: Theme.bg-0;
+
+    VerticalLayout {
+        VerticalLayout {
+            vertical-stretch: 0;
+            padding-left: Theme.page-inset;
+            padding-right: Theme.page-inset;
+            padding-top: Theme.page-top;
+            padding-bottom: Theme.page-bottom;
+            spacing: Theme.space-2;
+
+            Text {
+                text: @tr("Equaliser");
+                font-family: Theme.serif;
+                font-size: Theme.text-display;
+                height: Theme.heading-box;
+                vertical-alignment: bottom;
+                color: Theme.ink-0;
+            }
+
+            // What is in force, and the page's own controls at the end of the
+            // same line, where every other page keeps them. They stood beside
+            // the heading, the one page that did.
+            HorizontalLayout {
+                spacing: Theme.space-5;
+
+                VerticalLayout {
+                    alignment: center;
+                    horizontal-stretch: 1;
+
+                    Text {
+                        text: root.summary;
+                        font-family: Theme.mono;
+                        font-size: Theme.text-label;
+                        height: Theme.px(18);
+                        vertical-alignment: center;
+                        letter-spacing: Theme.number-spacing;
+                        color: Theme.ink-2;
+                    }
+                }
+
+                // The two modes, side by side rather than one button that
+                // flips: both states are visible, and each is directly
+                // reachable. A control that has to say what it will do next is
+                // a control that needs explaining.
+                HorizontalLayout {
+                    horizontal-stretch: 0;
+                    spacing: Theme.space-2;
+
+                    VerticalLayout {
+                        alignment: center;
+
+                        TextButton {
+                            label: @tr("SIMPLE");
+                            fixed-width: Theme.px(128);
+                            selected: !root.advanced;
+                            pressed => {
+                                root.set-mode(false);
+                            }
+                        }
+                    }
+                    VerticalLayout {
+                        alignment: center;
+
+                        TextButton {
+                            label: @tr("ADVANCED");
+                            fixed-width: Theme.px(128);
+                            selected: root.advanced;
+                            pressed => {
+                                root.set-mode(true);
+                            }
+                        }
+                    }
+                }
+
+                // A different action from the two modes, so the gap for two
+                // actions rather than for two halves of one choice. The icon
+                // button the library's importer uses: a shape everybody knows.
+                VerticalLayout {
+                    alignment: center;
+
+                    GlyphButton {
+                        glyph: @image-url("../../../../resources/ui/icons/circle-question-mark.svg");
+                        pressed => {
+                            root.explain();
+                        }
+                    }
+                }
+            }
+        }
+
+        // The control itself, whichever one it is.
+        HorizontalLayout {
+            vertical-stretch: 1;
+            padding-left: Theme.page-inset;
+            padding-right: Theme.page-inset;
+            padding-bottom: Theme.space-5;
+            spacing: Theme.space-6;
+
+            VerticalLayout {
+                horizontal-stretch: 1;
+                spacing: Theme.space-4;
+
+                if !root.advanced: ToneDial {
+                    bass: root.bass;
+                    mid: root.mid;
+                    treble: root.treble;
+                    moved(which, value) => {
+                        root.set-simple(which, value);
+                    }
+                    settled => {
+                        root.settle-eq();
+                    }
+                }
+
+                if root.advanced: FaderBank {
+                    bands: root.bands;
+                    moved(index, y) => {
+                        root.move-band(index, y);
+                    }
+                    chosen(index) => {
+                        root.select-band(index);
+                    }
+                    settled => {
+                        root.settle-eq();
+                    }
+                }
+
+                // What the chosen band is, in the listener's own units, and
+                // the two things a fader cannot say: where the band sits and
+                // how wide it is.
+                //
+                // Centred under the bank, like the controls beneath it. A
+                // reading pinned to the left with its own buttons centred below
+                // it is two alignments in six inches of screen.
+                if root.advanced: VerticalLayout {
+                    vertical-stretch: 0;
+                    spacing: Theme.space-2;
+
+                    VerticalLayout {
+                        spacing: Theme.px(2);
+
+                        Text {
+                            text: @tr("BAND");
+                            font-family: Theme.mono;
+                            font-size: Theme.text-label;
+                            height: Theme.px(18);
+                            vertical-alignment: center;
+                            horizontal-alignment: center;
+                            letter-spacing: Theme.label-spacing;
+                            color: Theme.ink-furniture;
+                        }
+                        Text {
+                            text: root.selected-frequency + " Hz · Q " + root.selected-q
+                                + " · " + root.selected-gain + " dB";
+                            font-family: Theme.mono;
+                            font-size: Theme.text-body;
+                            height: Theme.px(22);
+                            vertical-alignment: center;
+                            horizontal-alignment: center;
+                            letter-spacing: Theme.number-spacing;
+                            color: Theme.ink-0;
+                        }
+                    }
+
+                    HorizontalLayout {
+                        alignment: center;
+                        spacing: Theme.space-2;
+
+                        TextButton {
+                            label: @tr("LOWER");
+                            fixed-width: Theme.px(94);
+                            pressed => {
+                                root.tune-band(root.selected, -1);
+                            }
+                        }
+                        TextButton {
+                            label: @tr("HIGHER");
+                            fixed-width: Theme.px(94);
+                            pressed => {
+                                root.tune-band(root.selected, 1);
+                            }
+                        }
+                        TextButton {
+                            label: @tr("WIDER");
+                            fixed-width: Theme.px(94);
+                            pressed => {
+                                root.widen-band(root.selected, -0.3);
+                            }
+                        }
+                        TextButton {
+                            label: @tr("NARROWER");
+                            fixed-width: Theme.px(94);
+                            pressed => {
+                                root.widen-band(root.selected, 0.3);
+                            }
+                        }
+                    }
+                }
+            }
+
+            // The presets, in the column the reference puts them in — two
+            // abreast, under the control, in reach without scrolling.
+            VerticalLayout {
+                width: Theme.px(208);
+                spacing: Theme.space-2;
+
+                Text {
+                    text: @tr("PRESETS");
+                    font-family: Theme.mono;
+                    font-size: Theme.text-label;
+                    height: Theme.px(18);
+                    vertical-alignment: center;
+                    letter-spacing: Theme.label-spacing;
+                    color: Theme.ink-furniture;
+                }
+
+                // Scrolled, because this column grows: nine sounds shipped and
+                // the tenth is the listener's. Without it the page reached past
+                // the bottom of the window the first time one was saved.
+                // The scroll bar is the one thing on this page drawn by the
+                // widget library rather than by us, and it shows: it is inset
+                // from the ends of its own track, so at the top of the list it
+                // sits below the first button and says there is something above
+                // it. There is not. It is turned off, and the list says it
+                // itself by fading out where it continues.
+                Rectangle {
+                    vertical-stretch: 1;
+
+                    list := ListView {
+                    width: parent.width;
+                    height: parent.height;
+                    vertical-scrollbar-policy: ScrollBarPolicy.always-off;
+
+                    for preset[index] in root.presets: PresetRow {
+                        data: preset;
+                        picked => {
+                            root.pick-preset(preset.id);
+                        }
+                        acted(action) => {
+                            root.act-on-preset(preset.id, preset.name, action);
+                        }
+                    }
+                }
+
+                    ScrollFade {
+                        y: parent.height - self.height;
+                        width: parent.width;
+                        more: list.viewport-height + list.viewport-y > list.visible-height;
+                    }
+                }
+
+                HorizontalLayout {
+                    alignment: center;
+                    spacing: Theme.space-2;
+
+                    TextButton {
+                        label: @tr("SAVE AS…");
+                        // With RESET, exactly the 208 of the column above. Wider
+                        // than it once was, for a translated label that is
+                        // longer than the English.
+                        fixed-width: Theme.px(124);
+                        pressed => {
+                            root.save-preset();
+                        }
+                    }
+                    TextButton {
+                        label: @tr("RESET");
+                        fixed-width: Theme.px(76);
+                        pressed => {
+                            root.reset-eq();
+                        }
+                    }
+
+                }
+            }
+        }
+    }
+}

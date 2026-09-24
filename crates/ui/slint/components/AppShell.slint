@@ -1,0 +1,1047 @@
+import { Theme } from "../theme/tokens.slint";
+import { Sidebar, SidebarHint } from "Sidebar.slint";
+import { PlayerBar } from "PlayerBar.slint";
+import { TitleBar } from "TitleBar.slint";
+import { TrackRowData } from "TrackRow.slint";
+import { LibraryView } from "../views/LibraryView.slint";
+import { PlaylistsView, PlaylistCardData } from "../views/PlaylistsView.slint";
+import { PlaylistDetailView } from "../views/PlaylistDetailView.slint";
+import { EqualiserView, EqPresetData, EqBandData, ToneBand } from "../views/EqualiserView.slint";
+import { SettingsView, FolderRowData, TakenOutRowData } from "../views/SettingsView.slint";
+import { RadioView, MoodRowData } from "../views/RadioView.slint";
+import { ListeningView, TopTrackData } from "../views/ListeningView.slint";
+import { ReviewsView, ReviewRowData, ReviewChoice } from "../views/ReviewsView.slint";
+import { WelcomeView } from "../views/WelcomeView.slint";
+import { HomeView } from "../views/HomeView.slint";
+import { ShelfView } from "../views/ShelfView.slint";
+import { TrackList } from "TrackList.slint";
+import { NowPanel } from "NowPanel.slint";
+import { Section } from "Section.slint";
+import { Player } from "Player.slint";
+import { Listening } from "Listening.slint";
+import { Radio } from "Radio.slint";
+import { Home } from "Home.slint";
+import { Fetch } from "Fetch.slint";
+import { Settings } from "Settings.slint";
+import { Playlists } from "Playlists.slint";
+import { Library } from "Library.slint";
+import { Shelves } from "Shelves.slint";
+import { Queue } from "Queue.slint";
+import { Transfer } from "Transfer.slint";
+import { Equaliser } from "Equaliser.slint";
+import { Dialog, PickDialog, EditTrackDialog } from "Dialog.slint";
+import { MenuItemData } from "RowMenu.slint";
+
+// The frame every screen lives in: navigation down the left, the player across
+// the bottom, one content area between them.
+//
+// A fixed arrangement, and it is required — the listener does not rearrange it.
+// The content area is a switch over four screens: the library, the queue, the
+// index of playlists and one playlist's own page.
+export component AppShell inherits Rectangle {
+
+    /// True while nobody has been created yet, which is the one state where
+    /// none of the rest of this shell means anything.
+    in property <bool> first-run;
+
+    /// The screen showing. Held here rather than passed in, because navigation
+    /// changes nothing outside the window.
+    // In-out, so the window can move somebody to a page: pressing what is
+    // playing takes you to the library whichever page you were on.
+    in-out property <Section> section: Section.home;
+
+    /// Which question is open, if any: "" while none is. The shell owns this
+    /// because a modal covers the whole window, and because what it asks about
+    /// is a decision the interface makes before the application hears anything.
+    property <string> dialog;
+    /// What the answer will be applied to.
+    property <string> dialog-target;
+    /// What the field starts with, and what the question names.
+    property <string> dialog-value;
+    in property <string> profile-name;
+
+    /// Which sides are folded to their rails.
+    in property <bool> sidebar-folded;
+    in property <bool> panel-folded;
+    /// A line for the listener: news, which goes by itself, or a failure,
+    /// which stays until it is dismissed or the next command succeeds.
+    /// In-out so that the line can take itself away.
+    in-out property <string> message;
+    in property <bool> message-is-error;
+    in property <bool> maximized;
+
+    callback minimize();
+    callback toggle-maximize();
+    callback close-window();
+    callback drag-window(length, length);
+    callback toggle-sidebar();
+    callback toggle-panel();
+    /// The listener moved to a screen, which is that screen's cue to re-read
+    /// what it shows.
+    callback showing(Section);
+    /// A name, and whether to make the folder that was offered with it.
+    callback start-here(string, bool, bool);
+
+    // The page keeps the least it can be drawn in, or the now-playing panel
+    // floats over it rather than squeezing it.
+    //
+    // Worked out when the width changes rather than bound to it: the panel's
+    // width is part of what the window measures to size itself, so a binding
+    // on the window's width would be a loop.
+    property <bool> panel-floating;
+    function place-panel() {
+        root.panel-floating = root.width
+            - (root.sidebar-folded ? Theme.rail-width : Theme.sidebar-width)
+            - Theme.px(320) < Theme.page-least;
+    }
+    init => {
+        root.place-panel();
+    }
+    changed width => {
+        root.place-panel();
+    }
+    changed sidebar-folded => {
+        root.place-panel();
+    }
+
+    // What is typed in the link box, watched here: the controller works out
+    // what the address offers each time it changes.
+    property <string> link <=> Fetch.link;
+    changed link => {
+        Fetch.link-typed();
+    }
+
+    // The last thing the message line said, kept while it slides shut: the
+    // words go with the line rather than a moment before it.
+    property <string> said;
+    changed message => {
+        if (root.message != "") {
+            root.said = root.message;
+        }
+    }
+
+    background: Theme.bg-0;
+    // The window has no frame of its own now, so it needs an edge of its own —
+    // otherwise it dissolves into a dark desktop.
+    border-width: 1px;
+    border-color: Theme.line-soft;
+
+    VerticalLayout {
+        // The window's own frame is the first row of the shell rather than a
+        // wrapper around it: the title bar, the navigation and the player are
+        // three parts of one arrangement, which is what a fixed layout means.
+        TitleBar {
+            maximized: root.maximized;
+            minimize => {
+                root.minimize();
+            }
+            toggle-maximize => {
+                root.toggle-maximize();
+            }
+            close-window => {
+                root.close-window();
+            }
+            drag(dx, dy) => {
+                root.drag-window(dx, dy);
+            }
+        }
+
+        // Everything below the title bar, and only once there is somebody for
+        // it to belong to. Before that there is one screen and it asks for
+        // exactly what is missing.
+        if root.first-run: WelcomeView {
+            suggested: Settings.suggested-folder;
+            begin(name, folder, find) => {
+                root.start-here(name, folder, find);
+            }
+        }
+
+        if !root.first-run: HorizontalLayout {
+            Sidebar {
+                folded: root.sidebar-folded;
+                fold => {
+                    root.toggle-sidebar();
+                }
+                pending-reviews: Library.reviews.length;
+                section: root.section;
+                select(name) => {
+                    root.section = name;
+                    root.showing(name);
+                }
+            }
+
+            // Which screen is showing is the interface's own state, and moving
+            // between them changes nothing outside the window. What it does
+            // change is whether what a screen last drew is still true: a page
+            // built from a service reads that service when it was last asked
+            // to, not when it is looked at. So the move is announced, and the
+            // screen being opened re-reads what it draws.
+            if root.section == Section.home: HomeView {
+                profile-name: root.profile-name;
+                favourites: Playlists.favourites;
+                has-favourites: Playlists.has-favourites;
+                tint: Playlists.favourites-tint;
+                tinted: Playlists.favourites-tinted;
+                recent: Home.recent;
+                fresh: Home.fresh;
+                forgotten: Home.forgotten;
+
+                open-playlist(id) => {
+                    root.section = Section.playlist;
+                    Playlists.open-playlist(id);
+                }
+                shuffle-playlist(id) => {
+                    Playlists.shuffle-playlist(id);
+                }
+                play-playlist(id) => {
+                    Playlists.play-playlist(id);
+                }
+                favourites-acted(id, name, action) => {
+                    if (action == "cover") {
+                        Playlists.choose-playlist-cover(id);
+                    } else if (action == "uncover") {
+                        Playlists.clear-playlist-cover(id);
+                    } else if (action == "clear") {
+                        root.ask("clear-favourites", id, name);
+                    } else if (action == "export") {
+                        Playlists.export-playlist(id);
+                    }
+                }
+                play(id) => {
+                    Library.play(id);
+                }
+                add-folder => {
+                    Settings.add-folder();
+                }
+                play-random-track => {
+                    Home.play-random-track();
+                }
+                play-random-playlist => {
+                    Home.play-random-playlist();
+                }
+            }
+
+            if root.section == Section.library: LibraryView {
+                bare: Library.bare;
+                empty-action: Library.bare ? @tr("ADD FOLDER…") : "";
+                empty-acted => {
+                    Settings.add-folder();
+                }
+                picked-count: Library.picked;
+                picked(row, add, range) => {
+                    Library.pick(row, add, range);
+                }
+                picked-act(action) => {
+                    if (action == "queue") {
+                        Library.queue-picked();
+                    } else if (action == "playlist") {
+                        root.ask("pick-playlist", "picked:library", "");
+                    } else if (action == "remove") {
+                        root.ask("remove-picked", "library", Library.picked);
+                    }
+                }
+                unpick => {
+                    Library.unpick();
+                }
+                searchable: true;
+                query <=> Library.query;
+                reach-for-search: Library.reach-for-search;
+                playing-row: Library.playing-row;
+                reach-for-playing: Library.reach-for-playing;
+                sortable: true;
+                order-label: Library.order-label;
+                orders: Library.orders;
+                set-order(order) => {
+                    Library.set-order(order);
+                }
+                fetchable: true;
+                link <=> Fetch.link;
+                offers-a-track: Fetch.offers-a-track;
+                offers-a-list: Fetch.offers-a-list;
+                fetching: Fetch.fetching;
+                fetch-percent: Fetch.percent;
+                fetch-note: Fetch.note;
+                fetch-needs-folder: Fetch.needs-folder;
+                fetch-offer: Fetch.offer;
+                fetch-playlist(address) => {
+                    Fetch.fetch-playlist(address);
+                }
+                fix-fetch() => {
+                    Fetch.fix-fetch();
+                }
+                stop-fetch() => {
+                    Fetch.stop-fetch();
+                }
+                fetch(address) => {
+                    Fetch.fetch(address);
+                }
+                make-local-folder => {
+                    Fetch.make-local-folder();
+                }
+                tracks: Library.tracks;
+                summary: Library.summary;
+                playing-id: Player.playing-id;
+                empty-hint: Library.empty-hint;
+                play(id) => {
+                    Library.play(id);
+                }
+                enqueue(id, next) => {
+                    Queue.enqueue(id, next);
+                }
+                act(index, id, action) => {
+                    root.row-acted(index, id, action);
+                }
+                searched(text) => {
+                    Library.search(text);
+                }
+            }
+
+            if root.section == Section.playlists: PlaylistsView {
+                playlists: Playlists.playlists;
+                summary: Playlists.summary;
+                empty-hint: Playlists.hint;
+                open(id) => {
+                    // Two things happen: the shell changes page, and the
+                    // application loads what the page shows. Neither can do the
+                    // other's half.
+                    root.section = Section.playlist;
+                    Playlists.open-playlist(id);
+                }
+                shuffle(id) => {
+                    Playlists.shuffle-playlist(id);
+                }
+                play(id) => {
+                    Playlists.play-playlist(id);
+                }
+                create => {
+                    root.ask("new-playlist", "", "");
+                }
+                import => {
+                    Playlists.import-playlist();
+                }
+                act(id, name, action) => {
+                    if (action == "export") {
+                        Playlists.export-playlist(id);
+                    } else if (action == "cover") {
+                        Playlists.choose-playlist-cover(id);
+                    } else if (action == "uncover") {
+                        Playlists.clear-playlist-cover(id);
+                    } else {
+                        root.ask(action == "rename" ? "rename-playlist" : "delete-playlist", id, name);
+                    }
+                }
+            }
+
+            if root.section == Section.reviews: ReviewsView {
+                reviews: Library.reviews;
+                summary: Library.reviews-summary;
+                decide(id, choice) => {
+                    Library.decide-review(id, choice);
+                }
+            }
+
+            if root.section == Section.listening: ListeningView {
+                top: Listening.top-tracks;
+                summary: Listening.summary;
+                heard: Listening.heard;
+                listens: Listening.listens;
+                tracks: Listening.tracks;
+                skip-rate: Listening.skip-rate;
+                keeping: Listening.kept;
+                play(id) => {
+                    Library.play(id);
+                }
+            }
+
+            if root.section == Section.radio: RadioView {
+                moods: Radio.moods;
+                playing-mood: Radio.mood;
+                summary: Radio.summary;
+                now-title: Player.title;
+
+                listen(id) => {
+                    Radio.start(id);
+                }
+                judge(like) => {
+                    Radio.judge(like);
+                }
+            }
+
+            if root.section == Section.settings: SettingsView {
+                name: root.profile-name;
+                rename(name) => {
+                    Settings.rename-profile(name);
+                }
+                dark: Settings.dark;
+                crossfade-on: Settings.crossfade-on;
+                normalise-on: Settings.normalise-on;
+                crossfade-seconds: Settings.crossfade-seconds;
+                ui-scale: Settings.ui-scale;
+                language: Settings.language;
+                history-on: Settings.history-on;
+                folders: Settings.folders;
+                taken-out: Settings.taken-out;
+                gone-for-good: Settings.gone-for-good;
+                outside-folders: Settings.outside-folders;
+                suggested: Settings.suggested-folder;
+                summary: Settings.summary;
+
+                set-theme(dark) => {
+                    Settings.set-theme(dark);
+                }
+                set-crossfade(on, seconds) => {
+                    Settings.set-crossfade(on, seconds);
+                }
+                set-normalise(on) => {
+                    Settings.set-normalise(on);
+                }
+                set-language(tag) => {
+                    Settings.set-language(tag);
+                }
+                set-ui-scale(percent) => {
+                    Settings.set-ui-scale(percent);
+                }
+                set-history(on) => {
+                    Settings.set-history(on);
+                }
+                panel-rail: Settings.panel-rail;
+                set-panel-rail(keep) => {
+                    Settings.set-panel-rail(keep);
+                }
+                add-folder => {
+                    Settings.add-folder();
+                }
+                use-suggested => {
+                    Settings.use-suggested-folder();
+                }
+                remove-folder(id) => {
+                    Settings.remove-folder(id);
+                }
+                synchronise-folder(id) => {
+                    Settings.synchronise-folder(id);
+                }
+                restore-track(id) => {
+                    Settings.restore-track(id);
+                }
+                forget-gone => {
+                    Settings.forget-gone();
+                }
+                scan-now => {
+                    Settings.scan-now();
+                }
+                save-backup => {
+                    Settings.save-backup();
+                }
+                restore-backup => {
+                    root.ask("restore-backup", "", "");
+                }
+            }
+
+            if root.section == Section.equaliser: EqualiserView {
+                advanced: Equaliser.advanced;
+                bass: Equaliser.bass;
+                mid: Equaliser.mid;
+                treble: Equaliser.treble;
+                bands: Equaliser.bands;
+                presets: Equaliser.presets;
+                summary: Equaliser.summary;
+                selected: Equaliser.selected;
+                selected-frequency: Equaliser.selected-frequency;
+                selected-q: Equaliser.selected-q;
+                selected-gain: Equaliser.selected-gain;
+
+                set-mode(advanced) => {
+                    Equaliser.set-mode(advanced);
+                }
+                set-simple(which, value) => {
+                    Equaliser.set-simple(which, value);
+                }
+                move-band(index, y) => {
+                    Equaliser.move-band(index, y);
+                }
+                tune-band(index, direction) => {
+                    Equaliser.tune-band(index, direction);
+                }
+                select-band(index) => {
+                    Equaliser.select-band(index);
+                }
+                settle-eq => {
+                    Equaliser.settle();
+                }
+                widen-band(index, step) => {
+                    Equaliser.widen-band(index, step);
+                }
+                pick-preset(id) => {
+                    Equaliser.pick-preset(id);
+                }
+                save-preset => {
+                    root.ask("new-eq-preset", "", "");
+                }
+                explain => {
+                    root.ask("eq-help", "", "");
+                }
+                act-on-preset(id, name, action) => {
+                    root.ask(action == "rename" ? "rename-eq-preset" : "delete-eq-preset", id, name);
+                }
+                reset-eq => {
+                    Equaliser.reset();
+                }
+            }
+
+            if root.section == Section.artists: ShelfView {
+                heading: @tr("Artists");
+                summary: Shelves.artists-summary;
+                kind: @tr("ARTIST");
+                empty-title: @tr("No artists yet");
+                empty-hint: @tr("tracks whose tags name who made them gather here");
+                cards: Shelves.artists;
+                open(id) => {
+                    root.section = Section.artist;
+                    Shelves.open-artist(id);
+                }
+                play(id) => {
+                    Shelves.play-artist(id);
+                }
+                shuffle(id) => {
+                    Shelves.shuffle-artist(id);
+                }
+            }
+
+            // One artist: a list like a playlist's, played through in its own
+            // order.
+            if root.section == Section.artist: TrackList {
+                back-label: @tr("ARTISTS");
+                empty-title: @tr("Nothing here now");
+                hero: true;
+                kind: @tr("ARTIST");
+                cover: Shelves.open-cover;
+                has-cover: Shelves.open-has-cover;
+                tint: Shelves.open-tint;
+                tinted: Shelves.open-tinted;
+                shuffle-page => {
+                    Shelves.shuffle-open();
+                }
+                tracks: Shelves.open-tracks;
+                heading: Shelves.open-name;
+                summary: Shelves.open-summary;
+                playing-id: Player.playing-id;
+                play(id) => {
+                    Shelves.play-open(id);
+                }
+                enqueue(id, next) => {
+                    Queue.enqueue(id, next);
+                }
+                act(index, id, action) => {
+                    root.row-acted(index, id, action);
+                }
+                act-on-page => {
+                    Shelves.play-open-all();
+                }
+                back => {
+                    root.section = Section.artists;
+                    root.showing(Section.artists);
+                }
+            }
+
+            if root.section == Section.playlist: PlaylistDetailView {
+                in-playlist: true;
+                picked-count: Playlists.open-picked;
+                picked(row, add, range) => {
+                    Playlists.pick-in-open(row, add, range);
+                }
+                picked-act(action) => {
+                    if (action == "queue") {
+                        Playlists.queue-open-picked();
+                    } else if (action == "playlist") {
+                        root.ask("pick-playlist", "picked:playlist", "");
+                    } else if (action == "remove") {
+                        root.ask("remove-picked", "playlist", Playlists.open-picked);
+                    }
+                }
+                unpick => {
+                    Playlists.unpick-open();
+                }
+                reorderable: !Playlists.open-automatic;
+                reordered(from, to) => {
+                    Playlists.move-in-playlist(from, to);
+                }
+                cover: Playlists.open-has-cover
+                    ? Playlists.open-cover
+                    : Playlists.open-automatic
+                        ? @image-url("../../../../resources/ui/background/Background.jpeg")
+                        : Playlists.open-cover;
+                has-cover: Playlists.open-has-cover || Playlists.open-automatic;
+                tint: Playlists.open-tint;
+                tinted: Playlists.open-tinted;
+                shuffle-page => {
+                    Playlists.shuffle-playlist(Playlists.open-id);
+                }
+                tracks: Playlists.open-tracks;
+                heading: Playlists.open-name;
+                summary: Playlists.open-summary;
+                playing-id: Player.playing-id;
+                empty-hint: Playlists.open-hint;
+                play(id) => {
+                    Playlists.play-from-playlist(id);
+                }
+                enqueue(id, next) => {
+                    Queue.enqueue(id, next);
+                }
+                act(index, id, action) => {
+                    root.row-acted(index, id, action);
+                }
+                act-on-page => {
+                    Playlists.play-playlist(Playlists.open-id);
+                }
+                back => {
+                    root.section = Section.playlists;
+                }
+            }
+        
+            // What is playing and what follows, on every page, folded or not.
+            // Always there, and drawn to nothing while nothing is loaded, so
+            // that it can come in rather than appear.
+            NowPanel {
+                expanded: !root.panel-folded;
+                rail: Settings.panel-rail;
+                floating: root.panel-floating;
+                title: Player.title;
+                subtitle: Player.subtitle;
+                initial: Player.initial;
+                cover: Player.cover;
+                tint: Player.tint;
+                tinted: Player.tinted;
+                loaded: Player.loaded;
+                favourite: Player.favourite;
+                queue: Queue.tracks;
+                then: Queue.then;
+                then-label: Queue.then-label;
+
+                toggle-favourite => {
+                    Player.toggle-favourite();
+                }
+                show-in-library => {
+                    root.section = Section.library;
+                    root.showing(Section.library);
+                    Library.reach-for-playing += 1;
+                }
+                play-queued(index) => {
+                    Queue.play-queued(index);
+                }
+                remove-from-queue(index) => {
+                    Queue.remove-from-queue(index);
+                }
+                clear-queue => {
+                    Queue.clear-queue();
+                }
+                reorder-queue(from, to) => {
+                    Queue.reorder(from, to);
+                }
+                play-following(id) => {
+                    Queue.play-following(id);
+                }
+                open-source => {
+                    let page = Queue.open-source();
+                    if (page == "playlist") {
+                        root.section = Section.playlist;
+                    } else if (page == "artist") {
+                        root.section = Section.artist;
+                    } else if (page == "radio") {
+                        root.section = Section.radio;
+                        root.showing(Section.radio);
+                    } else {
+                        root.section = Section.library;
+                        root.showing(Section.library);
+                        Library.reach-for-playing += 1;
+                    }
+                }
+                show-artist => {
+                    if (Player.show-artist()) {
+                        root.section = Section.artist;
+                    }
+                }
+                fold => {
+                    root.toggle-panel();
+                }
+            }
+        }
+
+        // A line of its own, for news and for whatever went wrong. It used to
+        // be drawn along the bottom edge of the bar itself, on the grounds that
+        // the edge interrupted nothing — but the bar is three blocks with no
+        // spare band, and the line lay across the progress bar. A failure stays
+        // until the next command succeeds or it is pressed away, so it cannot
+        // be allowed to sit on a control.
+        // Slides open and shut rather than appearing: everything above it
+        // moved by its height at once, which read as the page jumping.
+        Rectangle {
+            height: root.message != "" ? Theme.px(30) : 0px;
+            animate height { duration: Theme.fold-time; easing: cubic-bezier(0.4, 0, 0.2, 1); }
+            clip: true;
+            background: Theme.bg-1;
+
+            Rectangle {
+                y: 0;
+                height: 1px;
+                background: Theme.line-soft;
+            }
+
+            Text {
+                x: Theme.space-5;
+                width: parent.width - 2 * Theme.space-5;
+                y: round((parent.height - self.height) / 1px / 2) * 1px;
+                height: Theme.px(18);
+                text: root.said;
+                font-family: Theme.mono;
+                font-size: Theme.text-label;
+                letter-spacing: Theme.label-spacing;
+                color: root.message-is-error ? Theme.danger : Theme.ink-2;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+                overflow: elide;
+            }
+
+            // Pressed away, either kind.
+            TouchArea {
+                mouse-cursor: pointer;
+                clicked => {
+                    root.message = "";
+                }
+            }
+        }
+
+        // Rises from the bottom edge when something starts playing, and
+        // sinks away when nothing is: a bar saying nothing is playing has
+        // nothing to do. The slot grows; the bar, held to its foot, slides
+        // up whole rather than being squeezed into what there is so far.
+        if !root.first-run: Rectangle {
+            height: Player.loaded ? Theme.player-height : 0px;
+            animate height { duration: Theme.fold-time; easing: cubic-bezier(0.4, 0, 0.2, 1); }
+            clip: true;
+
+            PlayerBar {
+                y: parent.height - self.height;
+                opacity: Player.loaded ? 1 : 0;
+                animate opacity { duration: Theme.fold-time; easing: ease-in-out; }
+                // What is playing, large, with what follows it: the panel at the
+                // right, opened where the listener is rather than on another page.
+                show-playing => {
+                    if (root.panel-folded) {
+                        root.toggle-panel();
+                    }
+                }
+                // With no strip to open it from, the bar carries the way in.
+                panel-button: !Settings.panel-rail;
+                panel-open: !root.panel-folded;
+                toggle-panel => {
+                    root.toggle-panel();
+                }
+                title: Player.title;
+                subtitle: Player.subtitle;
+                initial: Player.initial;
+                cover: Player.cover;
+                waveform: Player.waveform;
+                position: Player.position;
+                duration: Player.duration;
+                progress: Player.progress;
+                playing: Player.playing;
+                loaded: Player.loaded;
+                muted: Player.muted;
+                sleep: Player.sleep;
+                speed-percent: Player.speed-percent;
+                crossfade-on: Settings.crossfade-on;
+                crossfade-seconds: Settings.crossfade-seconds;
+                normalise-on: Settings.normalise-on;
+                volume: Player.volume;
+                shuffle: Player.shuffle;
+                repeating: Player.repeating;
+                repeat-one: Player.repeat-one;
+                has-next: Player.has-next;
+                has-previous: Player.has-previous;
+                favourite: Player.favourite;
+
+                toggle-favourite => {
+                    Player.toggle-favourite();
+                }
+                toggle-play => {
+                    Player.toggle-play();
+                }
+                seek(fraction) => {
+                    Player.seek(fraction);
+                }
+                set-volume(level) => {
+                    Player.set-volume(level);
+                }
+                toggle-mute => {
+                    Player.toggle-mute();
+                }
+                set-sleep(choice) => {
+                    Player.set-sleep(choice);
+                }
+                set-speed(choice) => {
+                    Player.set-speed(choice);
+                }
+                set-crossfade(on, seconds) => {
+                    Settings.set-crossfade(on, seconds);
+                }
+                set-normalise(on) => {
+                    Settings.set-normalise(on);
+                }
+                next => {
+                    Player.next();
+                }
+                previous => {
+                    Player.previous();
+                }
+                toggle-shuffle => {
+                    Player.toggle-shuffle();
+                }
+                cycle-repeat => {
+                    Player.cycle-repeat();
+                }
+            }
+        }
+    }
+
+    // The name of a destination in the folded sidebar, beside its icon: the
+    // label the sidebar has no room for, drawn here because the sidebar clips
+    // anything that leaves its edge.
+    if root.sidebar-folded && SidebarHint.text != "": Rectangle {
+        x: Theme.rail-width + Theme.space-2;
+        y: round((SidebarHint.y - self.height / 2) / 1px) * 1px;
+        width: hint.preferred-width + 2 * Theme.space-3;
+        height: Theme.px(30);
+        background: Theme.bg-2;
+        border-radius: Theme.radius;
+        border-width: 1px;
+        border-color: Theme.line-soft;
+
+        hint := Text {
+            x: Theme.space-3;
+            height: Theme.px(22);
+            y: round((parent.height - self.height) / 1px / 2) * 1px;
+            text: SidebarHint.text;
+            font-family: Theme.sans;
+            font-size: Theme.text-body;
+            color: Theme.ink-0;
+            vertical-alignment: center;
+        }
+    }
+
+    // While something is carried: where it can be let go of. Over the foot of
+    // the page, clear of the rows it may be dropped between.
+    if Transfer.hint != "": Rectangle {
+        x: round((parent.width - self.width) / 1px / 2) * 1px;
+        y: parent.height - self.height - Theme.px(112);
+        width: carried.preferred-width + 2 * Theme.space-5;
+        height: Theme.px(36);
+        background: Theme.bg-3;
+        border-radius: Theme.radius;
+        border-width: 1px;
+        border-color: Theme.line;
+        drop-shadow-blur: Theme.px(16);
+        drop-shadow-color: Colors.black.with-alpha(0.5 * Theme.shadow-depth);
+
+        carried := Text {
+            x: Theme.space-5;
+            height: Theme.px(18);
+            y: round((parent.height - self.height) / 1px / 2) * 1px;
+            text: Transfer.hint;
+            font-family: Theme.mono;
+            font-size: Theme.text-label;
+            letter-spacing: Theme.label-spacing;
+            vertical-alignment: center;
+            color: Theme.ink-1;
+        }
+    }
+
+    // Over everything, and outside the column layout so that it covers the
+    // player bar too: a question that can be answered while the music is
+    // being scrubbed is a question about a state that may no longer hold.
+    if root.dialog != "" && root.dialog != "pick-playlist": Dialog {
+        width: 100%;
+        height: 100%;
+
+        // Wide enough for a paragraph, because one of these is a paragraph.
+        informs: root.dialog == "eq-help";
+
+        title: root.dialog == "eq-help"
+                ? @tr("Using the equaliser")
+            : (root.dialog == "rename-eq-preset"
+                ? @tr("Rename this sound")
+            : (root.dialog == "delete-eq-preset"
+                ? @tr("Delete this sound")
+            : (root.dialog == "new-eq-preset"
+                ? @tr("Save this sound")
+
+            : (root.dialog == "new-playlist" || root.dialog == "new-playlist-with"
+                ? @tr("New playlist")
+            : (root.dialog == "rename-playlist"
+                ? @tr("Rename playlist")
+            : (root.dialog == "remove-track"
+                ? @tr("Remove from library")
+            : (root.dialog == "clear-favourites"
+                ? @tr("Clear favourites")
+            : (root.dialog == "remove-picked"
+                ? @tr("Remove {} tracks", root.dialog-value)
+            : (root.dialog == "restore-backup"
+                ? @tr("Restore from a copy")
+            : @tr("Delete playlist"))))))))));
+        message: root.dialog == "eq-help"
+                ? @tr("A sound belongs to the track you set it on. Choose a preset while something is playing and that track keeps it; the next track starts at Standard. RESET takes the sound away and the memory of it with it.") + "\n\n" + @tr("The three controls change the whole sound at once: bass, middle and treble. Nothing to choose, nothing to aim at.") + "\n\n" + @tr("The eight bands each change one part of it, and every band is three numbers.") + "\n\n" + @tr("GAIN is the fader itself - how far that band lifts or cuts. It is the only one of the three you hear on its own.") + "\n\n" + @tr("FREQUENCY is where the band sits. LOWER and HIGHER move it a sixth of an octave at a time.") + "\n\n" + @tr("WIDTH is how much of the sound around it comes along. WIDER and NARROWER.") + "\n\n" + @tr("Choose a band with the dot under its fader, then change it. A band at 0 dB does nothing wherever you put it, so move its fader first - otherwise LOWER and HIGHER are moving a filter that is not doing anything, and you will hear no difference at all.") + "\n\n" + @tr("A preset stays lit while the sound is exactly that preset. Move anything and it goes out, which is the screen telling the truth rather than losing your work: everything you set is still there and still playing.")
+            : (root.dialog == "delete-eq-preset"
+                ? @tr("That sound goes. What is playing keeps whatever it is set to now.")
+            : (root.dialog == "delete-playlist"
+                ? @tr("“{}” goes; the tracks in it stay in your library.", root.dialog-value)
+
+            : (root.dialog == "remove-track"
+                ? @tr("The track leaves your library. The file stays on disk.")
+            : (root.dialog == "clear-favourites"
+                ? @tr("Everything comes out, the tracks you pinned as well. The list fills again from what you play from now on.")
+            : (root.dialog == "remove-picked"
+                ? (root.dialog-target == "library" ? @tr("They leave your library. The files stay on disk.") : @tr("They leave this playlist and stay in your library."))
+            : (root.dialog == "restore-backup"
+                ? @tr("Everything here is replaced by what the copy holds: playlists, history, sounds and pictures. Cadenza closes and opens again on it.") + "\n\n" + @tr("What is here now is kept beside it, in case the copy was the wrong one.")
+            : ""))))));
+        placeholder: root.dialog == "new-eq-preset" ? @tr("Late night listening") : @tr("Late night");
+        asks-for-text: root.dialog == "new-playlist"
+            || root.dialog == "new-playlist-with"
+            || root.dialog == "rename-playlist"
+            || root.dialog == "new-eq-preset"
+            || root.dialog == "rename-eq-preset";
+        initial: root.dialog == "rename-playlist" || root.dialog == "rename-eq-preset"
+            ? root.dialog-value
+            : "";
+        confirm-label: root.dialog == "eq-help"
+                ? @tr("GOT IT")
+            : (root.dialog == "rename-eq-preset" || root.dialog == "rename-playlist"
+                ? @tr("RENAME")
+            : (root.dialog == "new-eq-preset"
+                ? @tr("SAVE")
+            : (root.dialog == "new-playlist" || root.dialog == "new-playlist-with"
+                ? @tr("CREATE")
+            : (root.dialog == "remove-track" || root.dialog == "remove-picked"
+                ? @tr("REMOVE")
+            : (root.dialog == "clear-favourites"
+                ? @tr("CLEAR")
+            : (root.dialog == "restore-backup"
+                ? @tr("CHOOSE A COPY…")
+            : @tr("DELETE")))))));
+        destructive: root.dialog == "delete-playlist"
+            || root.dialog == "remove-track"
+            || root.dialog == "delete-eq-preset"
+            || root.dialog == "clear-favourites"
+            || root.dialog == "restore-backup"
+            || root.dialog == "remove-picked";
+
+        confirmed(value) => {
+            if (root.dialog == "eq-help") {
+                // Nothing to do: it was read.
+            } else if (root.dialog == "new-eq-preset") {
+                Equaliser.save-preset(value);
+            } else if (root.dialog == "rename-eq-preset") {
+                Equaliser.rename-preset(root.dialog-target, value);
+            } else if (root.dialog == "delete-eq-preset") {
+                Equaliser.delete-preset(root.dialog-target);
+            } else if (root.dialog == "new-playlist") {
+                Playlists.create-playlist(value);
+            } else if (root.dialog == "new-playlist-with") {
+                Playlists.create-playlist-with(root.dialog-target, value);
+            } else if (root.dialog == "rename-playlist") {
+                Playlists.rename-playlist(root.dialog-target, value);
+            } else if (root.dialog == "remove-track") {
+                Library.remove-from-library(root.dialog-target);
+            } else if (root.dialog == "clear-favourites") {
+                Home.clear-favourites();
+            } else if (root.dialog == "remove-picked") {
+                if (root.dialog-target == "library") {
+                    Library.remove-picked();
+                } else {
+                    Playlists.remove-open-picked();
+                }
+            } else if (root.dialog == "restore-backup") {
+                Settings.restore-backup();
+            } else if (root.dialog == "delete-playlist") {
+                // Named, not left to fall through to: a dialog added without
+                // its own case used to delete the playlist in the target.
+                Playlists.delete-playlist(root.dialog-target);
+            }
+            root.dialog = "";
+        }
+        cancelled => {
+            root.dialog = "";
+        }
+    }
+
+    // Correcting a track is three questions at once, so it has a card of its
+    // own rather than a flag on the general one. Opened by an identifier rather
+    // than by the `dialog` string every other card uses: what is being edited
+    // is the answer to "which track", and a second property to hold that would
+    // be the same thing said twice.
+    if Library.editing-id != "": EditTrackDialog {
+        title-value: Library.editing-title;
+        artist-value: Library.editing-artist;
+        album-value: Library.editing-album;
+
+        confirmed(title, artist, album) => {
+            Library.save-track(Library.editing-id, title, artist, album);
+        }
+        cancelled => {
+            Library.edit-track("");
+        }
+    }
+
+    // "Which playlist?" is a question with a list of answers rather than a word
+    // to type: the application already knows the names, and asking somebody to
+    // spell one is asking them to do its work.
+    if root.dialog == "pick-playlist": PickDialog {
+        width: 100%;
+        height: 100%;
+        title: @tr("Add to playlist");
+        message: Playlists.open-options.length == 0
+            ? @tr("There are no lists yet. Making one puts this track in it.")
+            : "";
+        options: Playlists.open-options;
+        create-label: @tr("NEW PLAYLIST");
+
+        picked(playlist) => {
+            Playlists.add-to-playlist(root.dialog-target, playlist);
+            root.dialog = "";
+        }
+        // The track waits in `dialog-target` while the name is asked for, so
+        // that making a list and putting something in it is one act.
+        create => {
+            root.dialog = "new-playlist-with";
+        }
+        cancelled => {
+            root.dialog = "";
+        }
+    }
+
+    /// Opens a question. One place, so that every one of them is opened the
+    /// same way and closed the same way.
+    function ask(kind: string, target: string, value: string) {
+        root.dialog-target = target;
+        root.dialog-value = value;
+        root.dialog = kind;
+    }
+
+    /// What a row asked for. The shell decides whether that is a question or a
+    /// command; the row only knows what was pressed.
+    function row-acted(index: int, id: string, action: string) {
+        if (action == "edit") {
+            Library.edit-track(id);
+        } else if (action == "add-to-playlist") {
+            root.ask("pick-playlist", id, "");
+        } else if (action == "remove-from-playlist") {
+            Playlists.remove-from-playlist(index);
+        } else if (action == "cover") {
+            Library.choose-cover(id);
+        } else if (action == "uncover") {
+            Library.clear-cover(id);
+        } else if (action == "remove-from-library") {
+            root.ask("remove-track", id, "");
+        }
+    }
+}
+

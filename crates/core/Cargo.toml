@@ -1,0 +1,19 @@
+[package]
+name = "cadenza-core"
+description = "Cadenza domain and application layer. Depends on nothing from infra or ui."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+# Layering rule: core -> infra and core -> ui are forbidden.
+# Keep this section free of any cadenza-* dependency.
+#
+# Third-party dependencies here must stay pure computation: no IO, no OS access,
+# no networking. Timestamps are plain unix milliseconds, so no calendar crate is
+# needed until the daily aggregates.
+[dependencies]
+thiserror = "2"
+uuid = { version = "1", features = ["v4"] }

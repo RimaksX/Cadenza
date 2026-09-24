@@ -1,0 +1,535 @@
+import { Theme } from "../theme/tokens.slint";
+import { TransportButton, Scrubber, SpeedPanel, SleepMenu, SoundPanel, CoverImage } from "Controls.slint";
+
+export component PlayerBar inherits Rectangle {
+    in property <string> title;
+    in property <string> subtitle;
+    in property <string> initial;
+    /// The cover of what is playing, empty where there is none.
+    in property <image> cover;
+    /// The loudness of what is playing along its length, for the progress line.
+    in property <[float]> waveform;
+    in property <string> position;
+    in property <string> duration;
+    in property <float> progress;
+    in property <bool> playing;
+    in property <bool> loaded;
+    in property <bool> muted;
+    in property <float> volume;
+    in property <bool> shuffle;
+    in property <bool> repeating;
+    in property <bool> repeat-one;
+    in property <bool> has-next;
+    in property <bool> has-previous;
+    /// Whether what is playing is in the listener's favourites.
+    in property <bool> favourite;
+    /// Time left on the sleep timer, empty when none is set.
+    in property <string> sleep;
+    /// The speed as a percentage.
+    in property <int> speed-percent: 100;
+    in property <bool> crossfade-on;
+    in property <int> crossfade-seconds;
+    in property <bool> normalise-on;
+
+    callback toggle-play();
+    /// Take me to what this is describing.
+    callback show-playing();
+    /// Whether the bar carries the panel's button, and whether it is open.
+    in property <bool> panel-button;
+    in property <bool> panel-open;
+    callback toggle-panel();
+    callback seek(float);
+    callback set-volume(float);
+    callback toggle-mute();
+    callback next();
+    callback previous();
+    callback toggle-shuffle();
+    callback cycle-repeat();
+    callback toggle-favourite();
+    /// A choice from the sleep menu: minutes, "end" or "off".
+    callback set-sleep(string);
+    /// A speed chosen on the line, as a percentage.
+    callback set-speed(int);
+    callback set-crossfade(bool, int);
+    callback set-normalise(bool);
+
+    height: Theme.player-height;
+    background: Theme.bg-1;
+
+    HorizontalLayout {
+        // No padding on the near side. The block that says what is playing
+        // carries its own, so that the highlight behind it can reach the edge
+        // of the window while the cover still stands where it always did.
+        padding-right: Theme.space-5;
+        spacing: Theme.space-5;
+
+        // What is playing, and the way back to it.
+        //
+        // The block that says what is playing is the thing to press to be shown
+        // it — the same gesture every music player has, and the one place where
+        // it needs no button of its own. It lights as a whole under the
+        // pointer, which is this interface's own way of saying a thing can be
+        // pressed, and it does nothing at all while nothing is playing.
+        //
+        // The same width the controls take on the other side, so the
+        // transport between them stays on the window's own middle. What
+        // changed is where the 24 goes: it used to be the layout's padding,
+        // outside the highlight, and is now the block's own — the same gap
+        // before the cover and after the words, with the mark itself running
+        // to the edge.
+        Rectangle {
+            // Both sides one fixed width, so the transport stays on the
+            // window's middle and every other pixel goes to the progress line.
+            // Wide enough for the right side at its fullest - a timer's time
+            // beside the hourglass - with the volume line at its shortest.
+            width: Theme.bar-side;
+            background: root.loaded && now-touch.has-hover ? Theme.bg-2 : transparent;
+            // No radius. Everything this mark touches is square — the window's
+            // corner, the bar's own seam, the edge of the screen — and a
+            // rounded box against three straight edges reads as a sticker
+            // rather than as part of the bar.
+            animate background { duration: 120ms; }
+
+            now-touch := TouchArea {
+                enabled: root.loaded;
+                mouse-cursor: pointer;
+                clicked => {
+                    root.show-playing();
+                }
+            }
+
+        HorizontalLayout {
+            padding-left: Theme.space-5;
+            padding-right: Theme.space-5;
+            spacing: Theme.space-3;
+            alignment: start;
+
+            VerticalLayout {
+                alignment: center;
+
+                // The square where the cover goes, and a letter until there is
+                // one. Rounded like the covers in the rows: the same picture
+                // twice on one screen should not be two different shapes. No
+                // border. A cover is a picture, and a hairline drawn round it
+                // is a line across the edge of somebody's artwork — the same
+                // square in a library row never had one, and the two are the
+                // same object. The surface underneath is what shows while there
+                // is no picture.
+                Rectangle {
+                    width: Theme.px(56);
+                    height: Theme.px(56);
+                    background: Theme.bg-2;
+                    border-radius: Theme.radius;
+                    clip: true;
+
+                    CoverImage {
+                        width: parent.width;
+                        height: parent.height;
+                        source: root.cover;
+                    }
+
+                    // The letter is what a square holds when it has no picture,
+                    // and it steps aside for one.
+                    Text {
+                        text: root.initial;
+                        font-family: Theme.serif;
+                        font-italic: true;
+                        font-size: Theme.text-title;
+                        height: Theme.px(34);
+                        color: Theme.ink-1;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                        opacity: root.cover.width > 0 ? 0.0 : 1.0;
+                        animate opacity { duration: 300ms; }
+                    }
+
+                    // Nothing else is drawn here. Eight bars used to stand on
+                    // the floor of this square while something played, which
+                    // was worth looking at when the square was usually empty —
+                    // and became a lattice over the record's own cover once
+                    // every track had one.
+                }
+            }
+
+            // Both lines carry an explicit, even height. The block is two
+            // lines or one depending on what is playing; left to their natural
+            // heights the pair sums to something odd, the layout centres it on
+            // half a pixel, and the title comes out visibly softer than the
+            // same face everywhere else in the window.
+            VerticalLayout {
+                alignment: center;
+                spacing: Theme.px(4);
+                horizontal-stretch: 1;
+
+                // The name and the heart share a line, because the heart is
+                // about the *track* and the track's name is this line. Beside
+                // the whole two-line block it sat level with the gap between
+                // title and caption, belonging to neither.
+                //
+                // **`alignment: start` is load-bearing.** This row and the
+                // caption are the two children of a content-sized block, so the
+                // block is as wide as the wider of them. With the title
+                // stretching, a short name under a long artist padded this row
+                // out to the artist's width and the title absorbed it all,
+                // throwing the heart against the right edge. A title too long
+                // for the bar's fixed width still elides.
+                HorizontalLayout {
+                    spacing: Theme.space-3;
+                    alignment: start;
+
+                    // Wrapped, like the button beside it. A layout child with
+                    // a height of its own cannot stretch, so it would sit
+                    // against the top of the row rather than on its middle —
+                    // the mistake that once put the sidebar's labels above
+                    // their icons, and the one the audit checks for.
+                    VerticalLayout {
+                        alignment: center;
+
+                        Text {
+                            height: Theme.px(34);
+                            text: root.loaded ? root.title : @tr("Nothing playing");
+                            font-family: Theme.serif;
+                            font-size: Theme.text-title;
+                            color: root.loaded ? Theme.ink-0 : Theme.ink-mute;
+                            overflow: elide;
+                        }
+                    }
+
+                    VerticalLayout {
+                        alignment: center;
+
+                        TransportButton {
+                            // Thirty-four rather than the transport's forty, so
+                            // the line it shares stays the title's own 34 and
+                            // the block keeps its rhythm.
+                            height: Theme.px(34);
+                            glyph: root.favourite
+                                ? @image-url("../../../../resources/ui/icons/heart-filled.svg")
+                                : @image-url("../../../../resources/ui/icons/heart.svg");
+                            active: root.favourite;
+                            pulses: true;
+                            quiet: true;
+                            glyph-size: Theme.icon-large;
+                            // Two, measured. On a rendered window the title's
+                            // ink centred on row 711.0 and the heart's on
+                            // 713.5, so it sat two and a half low. Two rather
+                            // than three, because half pixels are not available
+                            // and undershooting by half is the same error as
+                            // overshooting by half — the reasoning the play
+                            // triangle's one-pixel nudge already uses.
+                            lift: Theme.px(2);
+                            enabled: root.loaded;
+                            pressed => {
+                                root.toggle-favourite();
+                            }
+                        }
+                    }
+                }
+                // Artist and album on one line, in the same mono capitals the
+                // column labels use: it is a caption, not a name.
+                if root.subtitle != "": Text {
+                    height: Theme.px(18);
+                    text: root.subtitle;
+                    font-family: Theme.mono;
+                    font-size: Theme.text-label;
+                    letter-spacing: Theme.label-spacing;
+                    color: Theme.ink-mute;
+                    overflow: elide;
+                }
+            }
+        }
+        }
+
+        // Transport, and the progress line under it. Both centred, and the line
+        // stops well short of the window edges: the bar is three things beside
+        // each other, not one line stretched across a screen.
+        VerticalLayout {
+            alignment: center;
+            spacing: Theme.space-3;
+            horizontal-stretch: 1;
+
+            HorizontalLayout {
+                alignment: center;
+                spacing: Theme.space-4;
+
+                // Shuffle and repeat are modes rather than moves: they say what
+                // happens later, so they answer whether or not anything is
+                // playing now.
+                TransportButton {
+                    glyph: @image-url("../../../../resources/ui/icons/shuffle.svg");
+                    quiet: true;
+                    active: root.shuffle;
+                    pressed => {
+                        root.toggle-shuffle();
+                    }
+                }
+                // Enabled whenever a track is loaded, not only when something
+                // played before it: near the start of the first track, previous
+                // means "start it again".
+                TransportButton {
+                    glyph: @image-url("../../../../resources/ui/icons/previous.svg");
+                    enabled: root.loaded;
+                    pressed => {
+                        root.previous();
+                    }
+                }
+                TransportButton {
+                    glyph: root.playing
+                        ? @image-url("../../../../resources/ui/icons/pause.svg")
+                        : @image-url("../../../../resources/ui/icons/play.svg");
+                    primary: true;
+                    // One pixel right, for the triangle only.
+                    //
+                    // A right-pointing triangle centred by its box looks left of
+                    // centre, because its weight is not where its box says.
+                    // Measured on the rendered window: the ink sits 0.90 px left
+                    // of the disc's centre, so one whole pixel leaves 0.10 - and
+                    // a fractional offset would take the glyph off the pixel
+                    // grid and soften it. Still one pixel at every scale, the
+                    // error being 4.5% of the glyph.
+                    //
+                    // Pause gets none: two bars either side of the middle are
+                    // their own centre.
+                    nudge: root.playing ? 0px : 1px;
+                    enabled: root.loaded;
+                    pressed => {
+                        root.toggle-play();
+                    }
+                }
+                TransportButton {
+                    glyph: @image-url("../../../../resources/ui/icons/next.svg");
+                    enabled: root.has-next;
+                    pressed => {
+                        root.next();
+                    }
+                }
+                // One button, three states: the glyph says which repeat mode is
+                // on, and the lit colour says that one of them is.
+                TransportButton {
+                    glyph: root.repeat-one
+                        ? @image-url("../../../../resources/ui/icons/repeat-one.svg")
+                        : @image-url("../../../../resources/ui/icons/repeat.svg");
+                    quiet: true;
+                    active: root.repeating;
+                    pressed => {
+                        root.cycle-repeat();
+                    }
+                }
+            }
+
+            // Not centred: centring gives each child the width it asks for, and
+            // a line with no content of its own asks for none. The row stretches
+            // instead, and stays centred on the window because the blocks either
+            // side of it are the same width.
+            HorizontalLayout {
+                spacing: Theme.space-4;
+
+                VerticalLayout {
+                    alignment: center;
+                    width: Theme.px(48);
+
+                    Text {
+                        text: root.position;
+                        font-family: Theme.mono;
+                        font-size: Theme.text-label;
+                        height: Theme.px(18);
+                        letter-spacing: Theme.number-spacing;
+                        color: Theme.ink-mute;
+                        vertical-alignment: center;
+                        horizontal-alignment: right;
+                    }
+                }
+
+                VerticalLayout {
+                    alignment: center;
+                    horizontal-stretch: 1;
+
+                    Scrubber {
+                        progress: root.progress;
+                        shape: root.waveform;
+                        enabled: root.loaded;
+                        // Not live: see the note on `Scrubber`.
+                        moved(fraction) => {
+                            root.seek(fraction);
+                        }
+                    }
+                }
+
+                VerticalLayout {
+                    alignment: center;
+                    width: Theme.px(48);
+
+                    Text {
+                        text: root.duration;
+                        font-family: Theme.mono;
+                        font-size: Theme.text-label;
+                        height: Theme.px(18);
+                        letter-spacing: Theme.number-spacing;
+                        color: Theme.ink-mute;
+                        vertical-alignment: center;
+                    }
+                }
+            }
+        }
+
+        // Level. Fixed width to match the left block, so the middle is centred
+        // on the window rather than on what is left over. The 52 is the heart
+        // and its own padding, so the two ends of the bar weigh the same and
+        // the transport between them sits on the window's middle. Measured on
+        // the rendered window rather than reasoned about.
+        HorizontalLayout {
+            width: Theme.bar-side;
+            alignment: end;
+            spacing: Theme.space-3;
+
+            // The panel at the right, opened and closed from here when it
+            // folds away rather than to a strip that could open it.
+            if root.panel-button: VerticalLayout {
+                alignment: center;
+
+                TransportButton {
+                    glyph: root.panel-open
+                        ? @image-url("../../../../resources/ui/icons/panel-right-close.svg")
+                        : @image-url("../../../../resources/ui/icons/panel-right-open.svg");
+                    active: root.panel-open;
+                    pressed => {
+                        root.toggle-panel();
+                    }
+                }
+            }
+
+            // The speed, as the same kind of button as the two beside it. In
+            // the accent while it is not the music's own: a slowed song nobody
+            // remembers slowing sounds like a broken one. The number itself is
+            // in the panel it opens.
+            VerticalLayout {
+                alignment: center;
+
+                TransportButton {
+                    glyph: @image-url("../../../../resources/ui/icons/gauge.svg");
+                    active: root.speed-percent != 100;
+                    pressed => {
+                        speed-panel.show();
+                    }
+                }
+
+                // A child of the column, as the sleep menu is, so both open
+                // from the same line: the top of the bar.
+                speed-panel := SpeedPanel {
+                    x: parent.width - self.width;
+                    y: -self.height - Theme.px(8);
+                    percent: root.speed-percent;
+                    chosen(percent) => {
+                        root.set-speed(percent);
+                    }
+                }
+            }
+
+            // How long is left, beside the hourglass, while a timer runs: a timer
+            // set and then forgotten is the one that surprises somebody.
+            if root.sleep != "": VerticalLayout {
+                alignment: center;
+
+                Text {
+                    text: root.sleep;
+                    font-family: Theme.mono;
+                    font-size: Theme.text-label;
+                    height: Theme.px(18);
+                    letter-spacing: Theme.number-spacing;
+                    color: Theme.ink-2;
+                    vertical-alignment: center;
+                }
+            }
+
+            VerticalLayout {
+                alignment: center;
+
+                TransportButton {
+                    glyph: @image-url("../../../../resources/ui/icons/hourglass.svg");
+                    active: root.sleep != "";
+                    pressed => {
+                        sleep-menu.show();
+                    }
+                }
+
+                // Upwards: the bar is the bottom of the window.
+                sleep-menu := SleepMenu {
+                    x: parent.width - self.width;
+                    y: -self.height - Theme.px(8);
+                    running: root.sleep != "";
+                    chosen(action) => {
+                        root.set-sleep(action);
+                    }
+                }
+            }
+
+            // How tracks meet and how loud they sit, behind one button.
+            VerticalLayout {
+                alignment: center;
+
+                TransportButton {
+                    glyph: @image-url("../../../../resources/ui/icons/sliders-horizontal.svg");
+                    active: root.crossfade-on || root.normalise-on;
+                    pressed => {
+                        sound-panel.show();
+                    }
+                }
+
+                sound-panel := SoundPanel {
+                    x: parent.width - self.width;
+                    y: -self.height - Theme.px(8);
+                    crossfade-on: root.crossfade-on;
+                    crossfade-seconds: root.crossfade-seconds;
+                    normalise-on: root.normalise-on;
+                    set-crossfade(on, seconds) => {
+                        root.set-crossfade(on, seconds);
+                    }
+                    set-normalise(on) => {
+                        root.set-normalise(on);
+                    }
+                }
+            }
+
+            VerticalLayout {
+                alignment: center;
+
+                TransportButton {
+                    glyph: root.muted
+                        ? @image-url("../../../../resources/ui/icons/volume-muted.svg")
+                        : @image-url("../../../../resources/ui/icons/volume.svg");
+                    active: root.muted;
+                    pressed => {
+                        root.toggle-mute();
+                    }
+                }
+            }
+
+            // Gives way first when the side is narrow, or a timer's time is
+            // showing beside the hourglass.
+            VerticalLayout {
+                min-width: Theme.px(96);
+                max-width: Theme.px(176);
+                horizontal-stretch: 1;
+                alignment: center;
+
+                Scrubber {
+                    progress: root.muted ? 0 : root.volume;
+                    live: true;
+                    fill: Theme.ink-2;
+                    moved(fraction) => {
+                        root.set-volume(fraction);
+                    }
+                }
+            }
+        }
+    }
+
+    // The seam between the bar and the page, drawn last so that it is drawn on
+    // top. It used to be first, and the highlight behind what is playing —
+    // which runs the full height of the bar — painted over it.
+    Rectangle {
+        y: 0;
+        height: 1px;
+        background: Theme.line-soft;
+    }
+}

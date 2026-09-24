@@ -1,0 +1,14 @@
+import { TrackRowData } from "TrackRow.slint";
+
+// The home page's lists and what its buttons do.
+//
+// A global, like `Player`: set and answered by the controller directly, read
+// by the shell, rather than declared twice and passed down line by line.
+export global Home {
+    in property <[TrackRowData]> recent;
+    in property <[TrackRowData]> fresh;
+    in property <[TrackRowData]> forgotten;
+    callback play-random-track();
+    callback play-random-playlist();
+    callback clear-favourites();
+}

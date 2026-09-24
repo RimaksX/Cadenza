@@ -1,0 +1,1335 @@
+//! Integration tests for scanning and import.
+//!
+//! Real files on a real disk, read by the real tag reader, into a real database.
+//! A scanner tested against a fake filesystem proves the branching and nothing
+//! about whether lofty can actually read what was written.
+
+use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex};
+
+use cadenza_core::application::services::{LibraryPorts, LibraryService, ScanReport};
+use cadenza_core::application::{AppContext, ProfileService};
+use cadenza_core::domain::ids::ProfileId;
+use cadenza_core::domain::media_file::{AudioFormat, FileState};
+use cadenza_core::domain::ports::file_watcher::{FileChange, FileChangeHandler, FileWatcherPort};
+use cadenza_core::domain::ports::repositories::MediaFileRepositoryPort;
+use cadenza_core::domain::review::{ReviewReason, ReviewResolution};
+use cadenza_infra::db::repositories::{
+    SqliteAlbumRepository, SqliteArtistRepository, SqliteGenreRepository,
+    SqliteImportReviewRepository, SqliteMediaFileRepository, SqliteProfileRepository,
+    SqliteSettingsRepository, SqliteTrackRepository,
+};
+use cadenza_infra::events::InProcessEventBus;
+use cadenza_infra::library::LocalFileSystem;
+use cadenza_infra::metadata::{FileArtworkCache, LoftyMetadataReader};
+use cadenza_testkit::audio_fixtures::write_wav;
+use cadenza_testkit::{TempDb, TestClock};
+use lofty::config::WriteOptions;
+use lofty::tag::{Accessor, Tag, TagExt, TagType};
+
+/// A watcher that registers nothing and remembers everything.
+///
+/// What the library is asked to watch is a decision the service makes; whether
+/// `notify` can register it with Windows is not, and it is tested where the real
+/// watcher is.
+#[derive(Default)]
+struct RecordingWatcher {
+    watched: Mutex<Vec<PathBuf>>,
+}
+
+impl RecordingWatcher {
+    fn paths(&self) -> Vec<PathBuf> {
+        self.watched.lock().expect("the recording").clone()
+    }
+}
+
+impl FileWatcherPort for RecordingWatcher {
+    fn watch(&self, path: &Path, _recursive: bool) -> cadenza_core::Result<()> {
+        self.watched
+            .lock()
+            .expect("the recording")
+            .push(path.to_path_buf());
+        Ok(())
+    }
+
+    fn unwatch(&self, path: &Path) -> cadenza_core::Result<()> {
+        self.watched
+            .lock()
+            .expect("the recording")
+            .retain(|watched| watched != path);
+        Ok(())
+    }
+
+    fn set_handler(&self, _handler: FileChangeHandler) {}
+}
+
+/// A profile, a music folder and a wired library service.
+struct Harness {
+    music: PathBuf,
+    library: LibraryService,
+    watcher: Arc<RecordingWatcher>,
+    media_files: Arc<SqliteMediaFileRepository>,
+    profiles: ProfileService,
+    profile_id: ProfileId,
+    /// Declared last on purpose: fields are dropped in declaration order, and
+    /// the fixture cannot delete its directory while anything above it still
+    /// holds a connection to the database inside it.
+    _db: TempDb,
+}
+
+fn harness(tag: &str) -> Harness {
+    let db = TempDb::new();
+    let root = db.directory().join(tag);
+    let music = root.join("music");
+    let cache = root.join("artwork");
+    std::fs::create_dir_all(&music).expect("a music folder");
+
+    let clock = Arc::new(TestClock::default());
+    let events = Arc::new(InProcessEventBus::new());
+    let profiles = Arc::new(SqliteProfileRepository::new(db.pool().clone()));
+    let settings = Arc::new(SqliteSettingsRepository::new(db.pool().clone()));
+    let media_files = Arc::new(SqliteMediaFileRepository::new(db.pool().clone()));
+
+    let context = Arc::new(AppContext::new(clock, events, profiles, settings));
+    let profile = ProfileService::new(Arc::clone(&context))
+        .create("Sasha")
+        .expect("a profile");
+
+    /// A chooser nobody opens: these tests hand the service paths directly.
+    struct NoPicker;
+    impl cadenza_core::domain::ports::folder_picker::FolderPickerPort for NoPicker {
+        fn pick_folder(&self, _title: &str) -> cadenza_core::Result<Option<std::path::PathBuf>> {
+            Ok(None)
+        }
+        fn pick_image(&self, _title: &str) -> cadenza_core::Result<Option<std::path::PathBuf>> {
+            Ok(None)
+        }
+        fn suggested_music_folder(&self) -> Option<std::path::PathBuf> {
+            None
+        }
+    }
+
+    let watcher = Arc::new(RecordingWatcher::default());
+
+    let ports = LibraryPorts {
+        picker: Arc::new(NoPicker),
+        files: Arc::new(LocalFileSystem),
+        metadata: Arc::new(LoftyMetadataReader),
+        artwork: Arc::new(FileArtworkCache::new(cache).expect("an artwork cache")),
+        media_files: Arc::clone(&media_files) as _,
+        tracks: Arc::new(SqliteTrackRepository::new(db.pool().clone())),
+        artists: Arc::new(SqliteArtistRepository::new(db.pool().clone())),
+        albums: Arc::new(SqliteAlbumRepository::new(db.pool().clone())),
+        genres: Arc::new(SqliteGenreRepository::new(db.pool().clone())),
+        reviews: Arc::new(SqliteImportReviewRepository::new(db.pool().clone())),
+        watcher: Some(Arc::clone(&watcher) as _),
+        // Nothing here fetches: a test that reaches a network is not a test.
+        fetcher: None,
+        // And nothing here gathers what it fetched into a playlist.
+        playlists: None,
+        saved: Arc::new(cadenza_infra::system::LocalSavedFiles),
+    };
+
+    Harness {
+        library: LibraryService::new(Arc::clone(&context), ports),
+        watcher,
+        music,
+        media_files,
+        profiles: ProfileService::new(context),
+        profile_id: profile.id,
+        _db: db,
+    }
+}
+
+impl Harness {
+    /// Adds the music folder once, then scans it.
+    fn scan(&self, include_subfolders: bool) -> ScanReport {
+        let folders = self.library.folders().expect("listing folders");
+        let folder = match folders.first() {
+            Some(existing) => existing.clone(),
+            None => self
+                .library
+                .add_folder(&self.music, include_subfolders)
+                .expect("adding the folder"),
+        };
+        self.library.scan_folder(&folder).expect("scanning")
+    }
+
+    fn titles(&self) -> Vec<String> {
+        let mut titles: Vec<String> = self
+            .library
+            .tracks()
+            .expect("listing tracks")
+            .into_iter()
+            .map(|track| track.title)
+            .collect();
+        titles.sort();
+        titles
+    }
+}
+
+/// Writes ID3 tags into a file lofty can already read.
+fn tag_file(path: &Path, title: &str, artist: &str, album: &str, genre: &str) {
+    let mut tag = Tag::new(TagType::Id3v2);
+    tag.set_title(title.to_owned());
+    tag.set_artist(artist.to_owned());
+    tag.set_album(album.to_owned());
+    tag.set_genre(genre.to_owned());
+    tag.save_to_path(path, WriteOptions::default())
+        .expect("writing tags");
+}
+
+#[test]
+fn a_folder_of_music_becomes_a_library() {
+    let harness = harness("basic");
+    write_wav(&harness.music, "one.wav", 1, 10);
+    write_wav(&harness.music, "two.wav", 1, 20);
+
+    let report = harness.scan(true);
+
+    assert_eq!(report.seen, 2);
+    assert_eq!(report.added, 2);
+    assert_eq!(report.failed, 0, "generated WAVs must be readable");
+    assert_eq!(harness.titles(), vec!["one", "two"]);
+}
+
+#[test]
+fn the_stream_properties_come_from_the_file_not_the_extension() {
+    let harness = harness("properties");
+    write_wav(&harness.music, "one.wav", 2, 10);
+    harness.scan(true);
+
+    let path = harness.music.join("one.wav");
+    let file = harness
+        .media_files
+        .find_by_path(&path)
+        .expect("looking it up")
+        .expect("it was catalogued");
+
+    assert_eq!(file.format, AudioFormat::Wav);
+    assert_eq!(file.properties.sample_rate, 44_100);
+    assert_eq!(file.properties.channels, 2);
+    assert!(
+        file.properties.duration.as_secs() >= 1,
+        "two seconds of audio should not read as zero, got {}",
+        file.properties.duration
+    );
+    assert!(
+        file.file_hash.is_some(),
+        "hashing feeds duplicate detection"
+    );
+}
+
+#[test]
+fn a_second_scan_finds_nothing_new() {
+    let harness = harness("rescan");
+    write_wav(&harness.music, "one.wav", 1, 10);
+
+    assert_eq!(harness.scan(true).added, 1);
+
+    let second = harness.scan(true);
+    assert_eq!(second.added, 0);
+    assert_eq!(second.updated, 0);
+    assert_eq!(
+        second.unchanged, 1,
+        "an unchanged file must not be re-read or re-hashed"
+    );
+}
+
+#[test]
+fn a_copy_of_a_track_is_held_back_for_a_decision() {
+    let harness = harness("duplicate");
+    // Same fill, so the bytes are identical: this is what a duplicate is.
+    write_wav(&harness.music, "original.wav", 1, 33);
+    write_wav(&harness.music.join("copies"), "same.wav", 1, 33);
+
+    let report = harness.scan(true);
+
+    assert_eq!(report.seen, 2);
+    assert_eq!(report.added, 1);
+    assert_eq!(
+        report.duplicates, 1,
+        "the second copy is not imported silently"
+    );
+    assert_eq!(
+        harness.titles(),
+        vec!["original"],
+        "only one of them reaches the library"
+    );
+
+    let pending = harness.library.pending_reviews().expect("the review queue");
+    assert_eq!(pending.len(), 1);
+    assert_eq!(pending[0].reason, ReviewReason::Duplicate);
+    assert!(
+        pending[0].duplicate_media_file_id.is_some(),
+        "the entry must say what it duplicates"
+    );
+}
+
+#[test]
+fn rescanning_does_not_stack_up_review_entries() {
+    let harness = harness("review-once");
+    write_wav(&harness.music, "original.wav", 1, 33);
+    write_wav(&harness.music, "copy.wav", 1, 33);
+
+    harness.scan(true);
+    harness.scan(true);
+
+    assert_eq!(
+        harness.library.pending_reviews().expect("the queue").len(),
+        1,
+        "the same unresolved problem must not be raised twice"
+    );
+}
+
+#[test]
+fn a_rescan_does_not_quietly_import_a_file_awaiting_a_decision() {
+    // Found by running the binary: on the second scan the duplicate took the
+    // unchanged path, which found no track row and added one — importing the
+    // very file the review queue was holding back.
+    let harness = harness("held-back-stays-back");
+    write_wav(&harness.music, "a_first.wav", 1, 33);
+    write_wav(&harness.music, "b_second.wav", 1, 33);
+
+    assert_eq!(harness.scan(true).added, 1);
+
+    let second = harness.scan(true);
+    assert_eq!(
+        second.added, 0,
+        "nothing new should be added by a scan that changed nothing"
+    );
+    assert_eq!(second.duplicates, 1, "it is still held back");
+    assert_eq!(
+        harness.titles(),
+        vec!["a first"],
+        "the undecided copy must stay out of the library"
+    );
+}
+
+#[test]
+fn choosing_to_add_a_duplicate_anyway_puts_it_in_the_library() {
+    let harness = harness("add-anyway");
+    // A folder is walked in sorted order, so the first name is the one that
+    // reaches the library and the second is the one held back.
+    write_wav(&harness.music, "a_first.wav", 1, 33);
+    write_wav(&harness.music, "b_second.wav", 1, 33);
+    harness.scan(true);
+
+    let pending = harness.library.pending_reviews().expect("the queue");
+    harness
+        .library
+        .resolve_review(pending[0].id, ReviewResolution::AddAnyway)
+        .expect("resolving");
+
+    assert_eq!(harness.titles(), vec!["a first", "b second"]);
+    assert!(
+        harness
+            .library
+            .pending_reviews()
+            .expect("the queue")
+            .is_empty(),
+        "a resolved entry leaves the queue"
+    );
+}
+
+#[test]
+fn choosing_to_keep_the_existing_track_leaves_the_library_alone() {
+    let harness = harness("keep-existing");
+    write_wav(&harness.music, "a_first.wav", 1, 33);
+    write_wav(&harness.music, "b_second.wav", 1, 33);
+    harness.scan(true);
+
+    let pending = harness.library.pending_reviews().expect("the queue");
+    harness
+        .library
+        .resolve_review(pending[0].id, ReviewResolution::KeepExisting)
+        .expect("resolving");
+
+    assert_eq!(
+        harness.titles(),
+        vec!["a first"],
+        "declining the copy leaves the library as it was"
+    );
+    assert!(
+        harness
+            .library
+            .pending_reviews()
+            .expect("the queue")
+            .is_empty()
+    );
+}
+
+#[test]
+fn a_vanished_copy_does_not_hold_back_a_new_file() {
+    // Found by running the binary: the catalogue is global and outlives the
+    // profiles that used it, so it fills up with rows for files that have since
+    // been deleted. Blocking an import as a duplicate of one of those leaves the
+    // listener with a decision they cannot act on and an empty library.
+    let harness = harness("vanished");
+    let original = write_wav(&harness.music, "gone.wav", 1, 77);
+    harness.scan(true);
+    assert_eq!(harness.titles(), vec!["gone"]);
+
+    // The file leaves, its catalogue row stays.
+    std::fs::remove_file(&original).expect("removing the original");
+
+    // The same content turns up somewhere else.
+    write_wav(&harness.music, "found_again.wav", 1, 77);
+    let report = harness.scan(true);
+
+    assert_eq!(
+        report.duplicates, 0,
+        "the other copy no longer exists, so there is nothing to decide about"
+    );
+    assert_eq!(
+        harness.titles(),
+        vec!["found again"],
+        "the content is in the library exactly once"
+    );
+
+    // Same content, old path gone: this is the same recording somewhere else,
+    // not a second one. Keeping the identity keeps its listening history and its
+    // playlist entries.
+    let moved = harness
+        .media_files
+        .find_by_path(&harness.music.join("found_again.wav"))
+        .expect("looking it up")
+        .expect("catalogued at the new path");
+    assert_eq!(moved.state, FileState::Available);
+    assert!(
+        harness
+            .media_files
+            .find_by_path(&original)
+            .expect("looking it up")
+            .is_none(),
+        "and nothing is left pointing at the old path"
+    );
+}
+
+#[test]
+fn subfolders_are_walked_only_when_asked() {
+    let harness = harness("shallow");
+    write_wav(&harness.music, "top.wav", 1, 10);
+    write_wav(&harness.music.join("album"), "deep.wav", 1, 20);
+
+    let report = harness.scan(false);
+
+    assert_eq!(report.seen, 1, "only the top level was requested");
+    assert_eq!(harness.titles(), vec!["top"]);
+}
+
+#[test]
+fn files_that_are_not_music_are_ignored() {
+    let harness = harness("ignore");
+    write_wav(&harness.music, "song.wav", 1, 10);
+    std::fs::write(harness.music.join("cover.jpg"), b"not audio").expect("a stray file");
+    std::fs::write(harness.music.join("notes.txt"), b"not audio").expect("a stray file");
+
+    let report = harness.scan(true);
+
+    assert_eq!(report.seen, 1);
+    assert_eq!(report.failed, 0, "a stray file is not a failure");
+}
+
+#[test]
+fn tags_become_artists_albums_and_genres() {
+    let harness = harness("tags");
+    let path = write_wav(&harness.music, "mysterons.wav", 1, 10);
+    tag_file(&path, "Mysterons", "Portishead", "Dummy", "Trip-Hop");
+
+    let report = harness.scan(true);
+    assert_eq!(report.failed, 0);
+
+    let tracks = harness.library.tracks().expect("listing");
+    assert_eq!(tracks.len(), 1);
+    assert_eq!(
+        tracks[0].title, "Mysterons",
+        "the tag wins over the filename"
+    );
+    assert!(
+        tracks[0].artist_id.is_some(),
+        "the artist tag should have produced an artist"
+    );
+    assert!(
+        tracks[0].album_id.is_some(),
+        "the album tag should have produced an album"
+    );
+}
+
+/// Names of the genres the active profile sees for its only track.
+fn genre_names(harness: &Harness) -> Vec<String> {
+    let tracks = harness.library.tracks().expect("listing");
+    let track = tracks.first().expect("one track");
+    harness
+        .library
+        .genres_of(track.media_file_id)
+        .expect("listing genres")
+        .into_iter()
+        .map(|genre| genre.name)
+        .collect()
+}
+
+#[test]
+fn a_listing_carries_names_rather_than_identifiers() {
+    let harness = harness("summaries");
+    let path = write_wav(&harness.music, "mysterons.wav", 2, 10);
+    tag_file(&path, "Mysterons", "Portishead", "Dummy", "Trip-Hop");
+    harness.scan(true);
+
+    let listing = harness.library.summaries().expect("listing");
+    assert_eq!(listing.len(), 1);
+
+    let row = &listing[0];
+    assert_eq!(row.title, "Mysterons");
+    assert_eq!(row.artist.as_deref(), Some("Portishead"));
+    assert_eq!(row.album.as_deref(), Some("Dummy"));
+    assert_eq!(
+        row.duration.as_millis(),
+        2_000,
+        "the length comes from the file, not from the library row"
+    );
+}
+
+#[test]
+fn a_listing_keeps_a_track_whose_tags_were_missing() {
+    let harness = harness("summaries-untagged");
+    write_wav(&harness.music, "01_unnamed.wav", 1, 10);
+    harness.scan(true);
+
+    let listing = harness.library.summaries().expect("listing");
+    assert_eq!(
+        listing.len(),
+        1,
+        "a left join, not an inner one: no artist must not mean no row"
+    );
+    assert!(listing[0].artist.is_none());
+    assert!(listing[0].album.is_none());
+}
+
+#[test]
+fn a_removed_track_leaves_the_listing() {
+    let harness = harness("summaries-removed");
+    let path = write_wav(&harness.music, "mysterons.wav", 1, 10);
+    tag_file(&path, "Mysterons", "Portishead", "Dummy", "Trip-Hop");
+    harness.scan(true);
+
+    let media_file_id = harness.library.summaries().expect("listing")[0].media_file_id;
+    harness
+        .library
+        .remove_track(media_file_id)
+        .expect("removing");
+
+    assert!(
+        harness.library.summaries().expect("listing").is_empty(),
+        "a tombstone is not part of the library"
+    );
+}
+
+#[test]
+fn correcting_a_genre_does_not_reach_the_other_profile() {
+    let harness = harness("genre-leak");
+    let path = write_wav(&harness.music, "mysterons.wav", 1, 10);
+    tag_file(&path, "Mysterons", "Portishead", "Dummy", "Trip-Hop");
+    harness.scan(true);
+
+    // Sasha disagrees with the tag.
+    let tracks = harness.library.tracks().expect("listing");
+    let media_file_id = tracks[0].media_file_id;
+    harness
+        .library
+        .set_genres(media_file_id, &["Downtempo".to_owned()])
+        .expect("correcting a genre");
+    assert_eq!(genre_names(&harness), vec!["downtempo".to_owned()]);
+
+    // Kim shares the machine, the folder and the file.
+    let kim = harness.profiles.create("Kim").expect("a second profile");
+    harness.profiles.switch_to(kim.id).expect("switching");
+    harness.scan(true);
+
+    assert_eq!(
+        genre_names(&harness),
+        vec!["trip-hop".to_owned()],
+        "Kim sees what the file says, not what Sasha decided"
+    );
+
+    harness
+        .profiles
+        .switch_to(harness.profile_id)
+        .expect("switching back");
+    assert_eq!(
+        genre_names(&harness),
+        vec!["downtempo".to_owned()],
+        "and Sasha still sees their own"
+    );
+}
+
+#[test]
+fn the_second_profile_to_import_a_file_gets_its_tags_too() {
+    let harness = harness("second-profile-tags");
+    let path = write_wav(&harness.music, "01_track.wav", 1, 10);
+    tag_file(&path, "Mysterons", "Portishead", "Dummy", "Trip-Hop");
+    harness.scan(true);
+
+    let kim = harness.profiles.create("Kim").expect("a second profile");
+    harness.profiles.switch_to(kim.id).expect("switching");
+    harness.scan(true);
+
+    let tracks = harness.library.tracks().expect("listing");
+    assert_eq!(
+        tracks[0].title, "Mysterons",
+        "the file was already catalogued, but Kim is owed its tags, not its filename"
+    );
+    assert!(
+        tracks[0].artist_id.is_some() && tracks[0].album_id.is_some(),
+        "and its artist and album"
+    );
+}
+
+#[test]
+fn filing_a_track_under_nothing_is_a_decision_and_survives() {
+    let harness = harness("genre-empty");
+    let path = write_wav(&harness.music, "mysterons.wav", 1, 10);
+    tag_file(&path, "Mysterons", "Portishead", "Dummy", "Trip-Hop");
+    harness.scan(true);
+
+    let media_file_id = harness.library.tracks().expect("listing")[0].media_file_id;
+    harness
+        .library
+        .set_genres(media_file_id, &[])
+        .expect("clearing every genre");
+
+    assert!(
+        genre_names(&harness).is_empty(),
+        "an empty correction is not the same as having made none"
+    );
+
+    // A rescan re-reads the tags into the catalogue and must not undo it.
+    harness.scan(true);
+    assert!(genre_names(&harness).is_empty(), "and a rescan leaves it");
+}
+
+#[test]
+fn resetting_a_genre_restores_what_the_file_says() {
+    let harness = harness("genre-reset");
+    let path = write_wav(&harness.music, "mysterons.wav", 1, 10);
+    tag_file(&path, "Mysterons", "Portishead", "Dummy", "Trip-Hop");
+    harness.scan(true);
+
+    let media_file_id = harness.library.tracks().expect("listing")[0].media_file_id;
+    harness
+        .library
+        .set_genres(media_file_id, &["Downtempo".to_owned()])
+        .expect("correcting a genre");
+    harness
+        .library
+        .reset_genres(media_file_id)
+        .expect("dropping the correction");
+
+    assert_eq!(genre_names(&harness), vec!["trip-hop".to_owned()]);
+}
+
+#[test]
+fn a_genre_cannot_be_set_on_a_track_this_profile_does_not_have() {
+    let harness = harness("genre-stranger");
+    let path = write_wav(&harness.music, "mysterons.wav", 1, 10);
+    tag_file(&path, "Mysterons", "Portishead", "Dummy", "Trip-Hop");
+    harness.scan(true);
+
+    let media_file_id = harness.library.tracks().expect("listing")[0].media_file_id;
+
+    let kim = harness.profiles.create("Kim").expect("a second profile");
+    harness.profiles.switch_to(kim.id).expect("switching");
+
+    assert!(
+        harness
+            .library
+            .set_genres(media_file_id, &["Downtempo".to_owned()])
+            .is_err(),
+        "the file is catalogued but not in Kim's library"
+    );
+}
+
+#[test]
+fn an_untagged_file_is_named_after_itself() {
+    let harness = harness("untagged");
+    write_wav(&harness.music, "01_Mysterons.wav", 1, 10);
+
+    harness.scan(true);
+
+    assert_eq!(
+        harness.titles(),
+        vec!["01 Mysterons"],
+        "a hundred rows of Unknown would help nobody"
+    );
+}
+
+#[test]
+fn a_removed_track_is_not_resurrected_by_the_next_scan() {
+    let harness = harness("removed");
+    write_wav(&harness.music, "one.wav", 1, 10);
+    harness.scan(true);
+
+    let track = harness.library.tracks().expect("listing")[0].media_file_id;
+    harness.library.remove_track(track).expect("removing");
+    assert!(harness.titles().is_empty());
+
+    harness.scan(true);
+    assert!(
+        harness.titles().is_empty(),
+        "removing a track inside a scanned folder must mean something"
+    );
+}
+
+#[test]
+fn an_unreadable_file_does_not_stop_the_scan() {
+    let harness = harness("broken");
+    write_wav(&harness.music, "good.wav", 1, 10);
+    // A supported extension over bytes that are not audio at all.
+    std::fs::write(
+        harness.music.join("broken.flac"),
+        b"this is not a FLAC file",
+    )
+    .expect("a broken file");
+
+    let report = harness.scan(true);
+
+    assert_eq!(report.seen, 2);
+    assert_eq!(report.added, 1, "the good file still imported");
+    assert_eq!(report.failed, 1);
+    assert_eq!(harness.titles(), vec!["good"]);
+}
+
+#[test]
+fn a_file_deleted_while_cadenza_was_closed_is_noticed() {
+    let harness = harness("refresh-missing");
+    let path = write_wav(&harness.music, "gone.wav", 1, 55);
+    harness.scan(true);
+
+    // A scan only ever meets files that exist, so on its own it can never see a
+    // deletion. This is the pass that closes that gap.
+    std::fs::remove_file(&path).expect("deleting");
+    assert_eq!(harness.library.refresh_missing().expect("refreshing"), 1);
+
+    let file = harness
+        .media_files
+        .find_by_path(&path)
+        .expect("looking it up")
+        .expect("the row survives the file");
+    assert_eq!(file.state, FileState::Missing);
+
+    assert_eq!(
+        harness.library.refresh_missing().expect("refreshing"),
+        0,
+        "a second pass over healthy rows must write nothing"
+    );
+}
+
+#[test]
+fn a_file_that_came_back_stops_being_missing() {
+    let harness = harness("refresh-returned");
+    let path = write_wav(&harness.music, "flaky.wav", 1, 56);
+    harness.scan(true);
+
+    let bytes = std::fs::read(&path).expect("reading");
+    std::fs::remove_file(&path).expect("deleting");
+    harness.library.refresh_missing().expect("refreshing");
+
+    // A network drive reconnects, a removable disk comes back.
+    std::fs::write(&path, bytes).expect("restoring");
+    assert_eq!(harness.library.refresh_missing().expect("refreshing"), 1);
+
+    let file = harness
+        .media_files
+        .find_by_path(&path)
+        .expect("looking it up")
+        .expect("catalogued");
+    assert_eq!(file.state, FileState::Available);
+}
+
+#[test]
+fn a_rename_moves_the_row_instead_of_replacing_it() {
+    let harness = harness("rename");
+    let from = write_wav(&harness.music, "old_name.wav", 1, 57);
+    harness.scan(true);
+
+    let before = harness
+        .media_files
+        .find_by_path(&from)
+        .expect("looking it up")
+        .expect("catalogued");
+
+    let to = harness.music.join("new_name.wav");
+    std::fs::rename(&from, &to).expect("renaming");
+    harness
+        .library
+        .apply_change(&FileChange::Renamed {
+            from: from.clone(),
+            to: to.clone(),
+        })
+        .expect("applying the rename");
+
+    let after = harness
+        .media_files
+        .find_by_path(&to)
+        .expect("looking it up")
+        .expect("catalogued at the new path");
+
+    assert_eq!(
+        after.id, before.id,
+        "a moved file is the same recording; a new identity would take its \
+         listening history and playlist entries with it"
+    );
+    assert_eq!(after.state, FileState::Available);
+    assert!(
+        harness
+            .media_files
+            .find_by_path(&from)
+            .expect("looking it up")
+            .is_none(),
+        "and nothing is left behind at the old path"
+    );
+}
+
+#[test]
+fn a_rename_reported_as_a_removal_and_a_creation_still_moves_the_row() {
+    // Found by running the watcher on Windows, which reports a rename as two
+    // separate events. Treating the second as a new file left a phantom entry
+    // pointing at nothing and a duplicate row beside it.
+    let harness = harness("split-rename");
+    let from = write_wav(&harness.music, "before.wav", 1, 60);
+    harness.scan(true);
+    let before = harness
+        .media_files
+        .find_by_path(&from)
+        .expect("looking it up")
+        .expect("catalogued");
+
+    let to = harness.music.join("after.wav");
+    std::fs::rename(&from, &to).expect("renaming");
+
+    harness
+        .library
+        .apply_change(&FileChange::Removed(from.clone()))
+        .expect("the removal half");
+    harness
+        .library
+        .apply_change(&FileChange::Created(to.clone()))
+        .expect("the creation half");
+
+    let after = harness
+        .media_files
+        .find_by_path(&to)
+        .expect("looking it up")
+        .expect("catalogued at the new path");
+    assert_eq!(after.id, before.id, "the same recording, moved");
+    assert_eq!(after.created_at, before.created_at);
+    assert_eq!(after.state, FileState::Available);
+
+    assert_eq!(
+        harness.titles(),
+        vec!["after"],
+        "no phantom left behind at the old name"
+    );
+}
+
+#[test]
+fn a_removal_keeps_the_row_and_marks_it() {
+    let harness = harness("watch-removal");
+    let path = write_wav(&harness.music, "one.wav", 1, 58);
+    harness.scan(true);
+
+    std::fs::remove_file(&path).expect("deleting");
+    harness
+        .library
+        .apply_change(&FileChange::Removed(path.clone()))
+        .expect("applying the removal");
+
+    let file = harness
+        .media_files
+        .find_by_path(&path)
+        .expect("looking it up")
+        .expect("the row survives, carrying history and playlist entries");
+    assert_eq!(file.state, FileState::Missing);
+}
+
+#[test]
+fn a_file_dropped_into_a_watched_folder_is_imported() {
+    let harness = harness("watch-create");
+    harness.scan(true);
+    assert!(harness.titles().is_empty());
+
+    let path = write_wav(&harness.music, "dropped.wav", 1, 59);
+    harness
+        .library
+        .apply_change(&FileChange::Created(path))
+        .expect("applying the creation");
+
+    assert_eq!(harness.titles(), vec!["dropped"]);
+}
+
+#[test]
+fn changes_to_things_that_are_not_music_are_shrugged_off() {
+    let harness = harness("watch-noise");
+    harness.scan(true);
+
+    // The watcher reports everything under the folder, including cover art the
+    // listener drops in and files that vanish before anything reads them.
+    let cover = harness.music.join("cover.jpg");
+    std::fs::write(&cover, b"not audio").expect("a stray file");
+
+    harness
+        .library
+        .apply_change(&FileChange::Created(cover))
+        .expect("a stray file is nothing to do");
+    harness
+        .library
+        .apply_change(&FileChange::Removed(
+            harness.music.join("never-existed.wav"),
+        ))
+        .expect("a removal of something unknown is nothing to do");
+    harness
+        .library
+        .apply_change(&FileChange::Modified(harness.music.join("gone.wav")))
+        .expect("a file that vanished before we looked is nothing to do");
+
+    assert!(harness.titles().is_empty());
+}
+
+#[test]
+fn adding_something_that_is_not_a_folder_is_refused() {
+    let harness = harness("not-a-folder");
+    let file = write_wav(&harness.music, "one.wav", 1, 10);
+
+    assert!(
+        harness.library.add_folder(&file, true).is_err(),
+        "a typo must be reported now, not as an empty library later"
+    );
+    assert!(
+        harness
+            .library
+            .add_folder(&harness.music.join("nowhere"), true)
+            .is_err()
+    );
+}
+
+#[test]
+fn the_folder_records_when_it_was_last_scanned() {
+    let harness = harness("last-scan");
+    write_wav(&harness.music, "one.wav", 1, 10);
+
+    assert!(
+        harness
+            .library
+            .add_folder(&harness.music, true)
+            .expect("adding")
+            .last_scan_at
+            .is_none()
+    );
+
+    harness.scan(true);
+
+    let folder = harness.library.folders().expect("listing")[0].clone();
+    assert!(
+        folder.last_scan_at.is_some(),
+        "a scan that leaves no trace cannot be resumed or reported"
+    );
+    assert_eq!(folder.profile_id, harness.profile_id);
+}
+
+#[test]
+fn a_listener_can_correct_a_track_without_touching_the_file_or_anyone_else() {
+    let harness = harness("edit");
+    write_wav(&harness.music, "one.wav", 1, 10);
+    harness.scan(true);
+
+    let track = harness
+        .library
+        .summaries()
+        .expect("a library")
+        .into_iter()
+        .next()
+        .expect("something was imported");
+
+    harness
+        .library
+        .edit_track(
+            track.media_file_id,
+            "Mysterons",
+            Some("Portishead"),
+            Some("Dummy"),
+        )
+        .expect("corrected");
+
+    let corrected = harness
+        .library
+        .summaries()
+        .expect("a library")
+        .into_iter()
+        .find(|row| row.media_file_id == track.media_file_id)
+        .expect("still there");
+
+    assert_eq!(corrected.title, "Mysterons");
+    assert_eq!(corrected.artist.as_deref(), Some("Portishead"));
+    assert_eq!(corrected.album.as_deref(), Some("Dummy"));
+
+    // The file itself was not touched: a rescan finds nothing to update, and
+    // what the listener called it survives.
+    let report = harness.scan(true);
+    assert_eq!(report.added, 0);
+    assert_eq!(
+        harness
+            .library
+            .summaries()
+            .expect("a library")
+            .into_iter()
+            .find(|row| row.media_file_id == track.media_file_id)
+            .expect("still there")
+            .title,
+        "Mysterons",
+        "a scan must not undo a correction"
+    );
+
+    // Clearing a field means the absence, not a name made of spaces.
+    harness
+        .library
+        .edit_track(track.media_file_id, "Mysterons", Some("   "), None)
+        .expect("cleared");
+
+    let cleared = harness
+        .library
+        .summaries()
+        .expect("a library")
+        .into_iter()
+        .find(|row| row.media_file_id == track.media_file_id)
+        .expect("still there");
+    assert_eq!(cleared.artist, None);
+    assert_eq!(cleared.album, None);
+
+    // A track has to be called something.
+    assert!(
+        harness
+            .library
+            .edit_track(track.media_file_id, "  ", None, None)
+            .is_err()
+    );
+}
+
+/// A folder in the library is a folder being watched — that is what makes the
+/// library keep itself current instead of waiting to be scanned again.
+#[test]
+fn a_folder_added_is_a_folder_watched() {
+    let harness = harness("watched-folder");
+    harness.scan(true);
+
+    assert_eq!(
+        harness.watcher.paths(),
+        vec![harness.music.clone()],
+        "adding a folder starts watching it"
+    );
+
+    // What the window does at startup for folders that were already there.
+    harness.library.watch_folders().expect("watching folders");
+    assert!(
+        harness.watcher.paths().contains(&harness.music),
+        "an enabled folder is watched again on the next start"
+    );
+
+    let folder = harness
+        .library
+        .folders()
+        .expect("listing folders")
+        .remove(0);
+    harness.library.remove_folder(&folder).expect("removing it");
+
+    assert!(
+        !harness.watcher.paths().contains(&harness.music),
+        "a folder taken out of the library is no longer watched"
+    );
+}
+
+/// A track dragged onto the window is taken where it lies — the listener is
+/// offering one recording, not the directory it happened to be sitting in.
+#[test]
+fn a_file_dropped_on_the_window_is_taken_where_it_lies() {
+    let harness = harness("drop-file");
+    harness.scan(true);
+    assert!(harness.titles().is_empty());
+
+    let elsewhere = harness
+        .music
+        .parent()
+        .expect("a parent directory")
+        .join("elsewhere");
+    std::fs::create_dir_all(&elsewhere).expect("somewhere else");
+    let dropped = write_wav(&elsewhere, "dropped.wav", 1, 59);
+
+    let report = harness
+        .library
+        .accept_drop(&[dropped, elsewhere.join("cover.jpg")])
+        .expect("the drop");
+
+    assert_eq!(report.added, 1, "the track arrived");
+    assert_eq!(harness.titles(), vec!["dropped"]);
+    assert!(
+        harness.library.folders().expect("folders").len() == 1,
+        "a file adds no folder to the library"
+    );
+}
+
+/// A folder dragged onto the window is an offer of somewhere to keep looking,
+/// which is what choosing one through the chooser means.
+#[test]
+fn a_folder_dropped_on_the_window_joins_the_library() {
+    let harness = harness("drop-folder");
+
+    let more = harness
+        .music
+        .parent()
+        .expect("a parent directory")
+        .join("more-music");
+    std::fs::create_dir_all(&more).expect("another folder");
+    write_wav(&more, "inside.wav", 1, 59);
+
+    let report = harness
+        .library
+        .accept_drop(std::slice::from_ref(&more))
+        .expect("the drop");
+
+    assert_eq!(report.added, 1);
+    assert!(
+        harness
+            .library
+            .folders()
+            .expect("folders")
+            .iter()
+            .any(|folder| folder.path == more),
+        "the folder is part of the library now"
+    );
+    assert!(
+        harness.watcher.paths().contains(&more),
+        "and it is watched, like any other folder in it"
+    );
+}
+
+/// Taking a track out is a decision, and a decision has to be reversible by
+/// somebody who did not think to add the folder again.
+#[test]
+fn what_was_taken_out_can_be_listed_and_put_back() {
+    let harness = harness("taken-out");
+    write_wav(&harness.music, "kept.wav", 1, 59);
+    write_wav(&harness.music, "hidden.wav", 1, 61);
+    harness.scan(true);
+
+    let victim = harness
+        .library
+        .summaries()
+        .expect("the library")
+        .into_iter()
+        .find(|summary| summary.title.as_str() == "hidden")
+        .expect("both were imported");
+
+    harness
+        .library
+        .remove_track(victim.media_file_id)
+        .expect("taken out");
+    assert_eq!(harness.titles(), vec!["kept"]);
+
+    let taken_out = harness.library.taken_out().expect("the list");
+    assert_eq!(taken_out.len(), 1);
+    assert_eq!(taken_out[0].title.as_str(), "hidden");
+
+    // A routine scan leaves it alone — that is what makes the removal a
+    // decision rather than a suggestion.
+    harness.scan(true);
+    assert_eq!(harness.titles(), vec!["kept"]);
+
+    harness
+        .library
+        .restore_track(victim.media_file_id)
+        .expect("put back");
+    assert_eq!(harness.titles(), vec!["hidden", "kept"]);
+    assert!(harness.library.taken_out().expect("the list").is_empty());
+}
+
+/// A removal with no file behind it can be taken off the list, and a removal
+/// with one cannot: the second is the removal itself.
+#[test]
+fn what_cannot_come_back_can_be_forgotten_and_the_rest_is_left_alone() {
+    let harness = harness("forget-gone");
+    write_wav(&harness.music, "kept.wav", 1, 59);
+    write_wav(&harness.music, "vanishing.wav", 1, 61);
+    write_wav(&harness.music, "staying.wav", 1, 63);
+    harness.scan(true);
+
+    let by_title = |title: &str| {
+        harness
+            .library
+            .summaries()
+            .expect("the library")
+            .into_iter()
+            .find(|summary| summary.title.as_str() == title)
+            .expect("imported")
+    };
+
+    let vanishing = by_title("vanishing");
+    let staying = by_title("staying");
+
+    harness
+        .library
+        .remove_track(vanishing.media_file_id)
+        .expect("taken out");
+    harness
+        .library
+        .remove_track(staying.media_file_id)
+        .expect("taken out");
+    assert_eq!(harness.library.gone_for_good().expect("counted"), 0);
+
+    // And now one of the two files leaves the disk, which is the whole of the
+    // listener's case: a folder deleted outside the application.
+    std::fs::remove_file(harness.music.join("vanishing.wav")).expect("deleted");
+
+    assert_eq!(
+        harness.library.gone_for_good().expect("counted"),
+        1,
+        "only the one with nothing behind it"
+    );
+
+    assert_eq!(harness.library.forget_gone().expect("forgotten"), 1);
+
+    let left = harness.library.taken_out().expect("the list");
+    assert_eq!(left.len(), 1, "the other removal is untouched");
+    assert_eq!(left[0].title.as_str(), "staying");
+
+    // Nothing happened to the library itself.
+    assert_eq!(harness.titles(), vec!["kept"]);
+
+    // And the removal that was kept still does its job: a scan does not put it
+    // back. That is why the other one had to be the only one forgotten.
+    harness.scan(true);
+    assert_eq!(harness.titles(), vec!["kept"]);
+    assert_eq!(harness.library.taken_out().expect("the list").len(), 1);
+
+    // Pressing it again with nothing to forget is not an error.
+    assert_eq!(harness.library.forget_gone().expect("nothing"), 0);
+}
+
+/// Synchronising says what it will do before it does it, and then does that.
+#[test]
+fn synchronising_brings_back_what_is_there_and_drops_what_is_not() {
+    let harness = harness("synchronise");
+    write_wav(&harness.music, "here.wav", 1, 59);
+    let leaving = write_wav(&harness.music, "leaving.wav", 1, 61);
+    harness.scan(true);
+
+    let hidden = harness
+        .library
+        .summaries()
+        .expect("the library")
+        .into_iter()
+        .find(|summary| summary.title.as_str() == "here")
+        .expect("imported");
+    harness
+        .library
+        .remove_track(hidden.media_file_id)
+        .expect("taken out");
+
+    // And one file that leaves the folder behind the application's back.
+    std::fs::remove_file(&leaving).expect("removing the file");
+
+    let folder = harness
+        .library
+        .folders()
+        .expect("folders")
+        .into_iter()
+        .next()
+        .expect("the music folder");
+
+    let report = harness.library.synchronise(&folder).expect("synchronised");
+    assert_eq!(report.gone, 1, "the one whose file has gone was taken out");
+    assert_eq!(
+        harness.titles(),
+        vec!["here"],
+        "and the one that was taken out came back"
+    );
+
+    // And doing it again changes nothing: what was dropped had no file, so it
+    // is not something a second pass can offer to bring back.
+    let again = harness.library.synchronise(&folder).expect("synchronised");
+    assert_eq!(again.gone, 0);
+    assert_eq!(harness.titles(), vec!["here"]);
+}
+
+/// A file that went away and came back plays again.
+///
+/// The defect this pins down: nothing on the fast path of a scan wrote the
+/// catalogue state, and the pass that does was called by nobody — so a track
+/// whose file had returned stayed unplayable through a scan, a synchronise, and
+/// the folder removed and added again.
+#[test]
+fn a_file_that_came_back_is_playable_again() {
+    let harness = harness("came-back");
+    let path = write_wav(&harness.music, "returning.wav", 1, 59);
+    harness.scan(true);
+
+    let track = harness
+        .library
+        .summaries()
+        .expect("the library")
+        .into_iter()
+        .next()
+        .expect("imported");
+
+    // What the watcher does when a file disappears — a rename, a move, a copy
+    // that replaces it — leaves the catalogue saying so.
+    harness
+        .library
+        .apply_change(&FileChange::Removed(path.clone()))
+        .expect("the removal is applied");
+    assert_eq!(
+        harness
+            .media_files
+            .get(track.media_file_id)
+            .expect("the row")
+            .expect("still catalogued")
+            .state,
+        FileState::Missing
+    );
+
+    // The file is right where it was. A scan meets it, and meeting it is proof.
+    harness.scan(true);
+    assert_eq!(
+        harness
+            .media_files
+            .get(track.media_file_id)
+            .expect("the row")
+            .expect("still catalogued")
+            .state,
+        FileState::Available,
+        "a file the scan just read cannot still be missing"
+    );
+}
+
+#[test]
+fn adding_a_folder_that_is_already_a_folder_is_not_a_conflict() {
+    let harness = harness("twice");
+    write_wav(&harness.music, "one.wav", 1, 10);
+
+    let first = harness
+        .library
+        .add_folder(&harness.music, true)
+        .expect("adding");
+    let again = harness
+        .library
+        .add_folder(&harness.music, true)
+        .expect("a folder already in the library is the answer, not a conflict");
+
+    // The same folder, not a second row: the listener asked for this folder to
+    // be in their library and it is. Pressing the offer twice used to reach the
+    // unique index and put its name in front of somebody.
+    assert_eq!(again.id, first.id);
+    assert_eq!(
+        harness.library.folders().expect("listing").len(),
+        1,
+        "and there is one of it"
+    );
+}

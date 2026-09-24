@@ -1,0 +1,12 @@
+# Text is kept with LF in the repository and checked out as the platform
+# wants it. The tree used to hold both, file by file, and an edit could not
+# tell which a file expected.
+* text=auto
+
+# Pictures, fonts and the installer's artwork, which no line ending applies to.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.bmp binary
+*.ico binary
+*.ttf binary

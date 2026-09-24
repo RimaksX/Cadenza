@@ -1,0 +1,44 @@
+import { FolderRowData, TakenOutRowData } from "../views/SettingsView.slint";
+
+// The settings page: preferences, the folders the library is kept in, what was taken out of it, and the listeners.
+//
+// A global, like `Player`: set and answered by the controller directly, read
+// by the shell, rather than declared twice and passed down line by line.
+export global Settings {
+    in property <bool> dark;
+    in property <bool> crossfade-on;
+    in property <bool> normalise-on;
+    in property <int> crossfade-seconds;
+    in property <int> ui-scale;
+    in property <string> language;
+    in property <bool> history-on;
+    /// The now-playing panel folds to a strip of covers; off, it folds away.
+    in property <bool> panel-rail: true;
+    in property <[FolderRowData]> folders;
+    in property <[TakenOutRowData]> taken-out;
+    in property <int> gone-for-good;
+    in property <int> outside-folders;
+    in property <string> suggested-folder;
+    in property <string> summary;
+    callback set-theme(bool);
+    callback set-crossfade(bool, int);
+    callback set-normalise(bool);
+    callback set-ui-scale(int);
+    callback set-language(string);
+    callback set-history(bool);
+    callback set-panel-rail(bool);
+    callback add-folder();
+    callback use-suggested-folder();
+    callback remove-folder(string);
+    callback synchronise-folder(string);
+    callback restore-track(string);
+    callback forget-gone();
+    callback scan-now();
+
+    /// What Cadenza calls the listener from now on.
+    callback rename-profile(string);
+    /// Saves a copy of everything to a file.
+    callback save-backup();
+    /// Puts a copy back, replacing everything, and starts again on it.
+    callback restore-backup();
+}

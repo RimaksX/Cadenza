@@ -1,0 +1,28 @@
+/target
+**/*.rs.bk
+*.pdb
+
+# local DB / logs / cache produced while running from the repo
+*.db
+*.db-wal
+*.db-shm
+/logs
+
+# packaging output
+/packaging/windows/out
+
+# editors and local tooling
+.vscode/
+.idea/
+.claude/
+
+# What Python leaves beside the scripts it runs.
+__pycache__/
+*.pyc
+
+# Ours rather than the program's. The decision log, the plan, the design notes
+# and the master specification are how this project is built, not what it is,
+# and a listener who clones the repository came for a music player. They stay
+# on disk; they simply do not travel.
+/docs/
+/PROJECT_MASTER.json

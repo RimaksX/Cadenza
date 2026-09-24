@@ -1,0 +1,74 @@
+//! The system's folder chooser.
+
+use std::path::{Path, PathBuf};
+
+use directories::UserDirs;
+
+use cadenza_core::Result;
+use cadenza_core::domain::ports::folder_picker::{FileKind, FolderPickerPort};
+
+/// Opens the chooser Windows already has.
+///
+/// `rfd` is a thin wrapper over `IFileDialog`, which is COM and would mean
+/// `unsafe` in a crate that forbids it. What it buys is that one call: no
+/// runtime, no toolkit, and on this platform no second window system.
+pub struct SystemFolderPicker;
+
+impl FolderPickerPort for SystemFolderPicker {
+    fn pick_folder(&self, title: &str) -> Result<Option<PathBuf>> {
+        // No parent handle. The window that asked lives in `cadenza-ui`, which
+        // this crate cannot see and must not; the dialog still comes up in
+        // front, because the process asking is the foreground one. What it
+        // loses is being *owned* by that window, which shows only if somebody
+        // clicks behind it. A handle can be threaded through the port the day
+        // that matters.
+        Ok(rfd::FileDialog::new().set_title(title).pick_folder())
+    }
+
+    fn pick_image(&self, title: &str) -> Result<Option<PathBuf>> {
+        // Named for what the listener is looking for rather than for the
+        // extensions: somebody choosing a cover is choosing a picture, and the
+        // filter is what keeps them from having to know which pictures this
+        // application can read.
+        Ok(rfd::FileDialog::new()
+            .set_title(title)
+            .add_filter("Pictures", &["png", "jpg", "jpeg", "webp", "gif", "bmp"])
+            .pick_file())
+    }
+
+    fn pick_file(&self, title: &str, kind: FileKind) -> Result<Option<PathBuf>> {
+        Ok(rfd::FileDialog::new()
+            .set_title(title)
+            .add_filter(filter_name(kind), kind.extensions())
+            .pick_file())
+    }
+
+    fn save_file(&self, title: &str, kind: FileKind, suggested: &str) -> Result<Option<PathBuf>> {
+        // The system's dialog asks before replacing a file, and adds the
+        // extension when the name typed has none.
+        Ok(rfd::FileDialog::new()
+            .set_title(title)
+            .set_file_name(suggested)
+            .add_filter(filter_name(kind), kind.extensions())
+            .save_file())
+    }
+
+    fn suggested_music_folder(&self) -> Option<PathBuf> {
+        // The system's own music folder with a room of ours inside it, rather
+        // than the whole thing: somebody who accepts the suggestion is saying
+        // "put a library here", not "read everything I have ever downloaded".
+        UserDirs::new().map(|dirs| {
+            dirs.audio_dir()
+                .map_or_else(|| dirs.home_dir().join("Music"), Path::to_path_buf)
+                .join("Cadenza")
+        })
+    }
+}
+
+/// What the dialog calls each kind of file in its type list.
+fn filter_name(kind: FileKind) -> &'static str {
+    match kind {
+        FileKind::Playlist => "Playlists",
+        FileKind::Backup => "Cadenza copies",
+    }
+}

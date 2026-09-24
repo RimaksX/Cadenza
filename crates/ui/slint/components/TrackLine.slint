@@ -1,0 +1,142 @@
+import { Theme } from "../theme/tokens.slint";
+import { TrackRowData } from "TrackRow.slint";
+
+// A track on one short line, for the lists that sit beside something else:
+// the queue under what is playing, and what was played lately on Home.
+//
+// The library's row is a table - columns, a heading, a menu - and a list of
+// five in a side panel is not a table.
+export component TrackLine inherits Rectangle {
+    in property <TrackRowData> data;
+    /// Whether it can be taken out of the list it is in.
+    in property <bool> removable;
+
+    callback activated();
+    callback removed();
+
+    property <bool> hovered: touch.has-hover || take.has-hover;
+
+    height: Theme.px(52);
+    border-radius: Theme.radius;
+    background: root.hovered ? Theme.bg-2 : transparent;
+    animate background { duration: 120ms; }
+
+    touch := TouchArea {
+        mouse-cursor: pointer;
+        clicked => {
+            root.activated();
+        }
+    }
+
+    HorizontalLayout {
+        padding-left: Theme.space-2;
+        padding-right: Theme.space-2;
+        spacing: Theme.space-3;
+
+        VerticalLayout {
+            alignment: center;
+
+            // The cover, or the letter standing in for one.
+            Rectangle {
+                width: Theme.px(36);
+                height: Theme.px(36);
+                background: Theme.bg-3;
+                border-radius: Theme.radius;
+                clip: true;
+
+                Image {
+                    width: parent.width;
+                    height: parent.height;
+                    source: root.data.cover;
+                    image-fit: ImageFit.cover;
+                }
+
+                Text {
+                    text: root.data.initial;
+                    font-family: Theme.serif;
+                    font-italic: true;
+                    font-size: Theme.text-lead;
+                    height: Theme.px(26);
+                    color: Theme.ink-2;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                    opacity: root.data.cover.width > 0 ? 0.0 : 1.0;
+                }
+            }
+        }
+
+        VerticalLayout {
+            alignment: center;
+            horizontal-stretch: 1;
+
+            // The serif at lead, as a library row sets a title: one track,
+            // one face, wherever its name is written.
+            Text {
+                text: root.data.title;
+                font-family: Theme.serif;
+                font-size: Theme.text-lead;
+                height: Theme.px(26);
+                color: Theme.ink-1;
+                vertical-alignment: center;
+                overflow: elide;
+            }
+            Text {
+                text: root.data.artist;
+                font-family: Theme.mono;
+                font-size: Theme.text-label;
+                height: Theme.px(18);
+                letter-spacing: Theme.number-spacing;
+                color: Theme.ink-mute;
+                vertical-alignment: center;
+                overflow: elide;
+            }
+        }
+
+        // The length, until the pointer arrives on a row that can go - then the
+        // way to take it out, in the same place.
+        Rectangle {
+            width: Theme.px(44);
+
+            Text {
+                width: parent.width;
+                height: Theme.px(18);
+                text: root.data.duration;
+                font-family: Theme.mono;
+                font-size: Theme.text-label;
+                letter-spacing: Theme.number-spacing;
+                color: Theme.ink-mute;
+                horizontal-alignment: right;
+                vertical-alignment: center;
+                opacity: root.removable && root.hovered ? 0.0 : 1.0;
+            }
+
+            Rectangle {
+                x: parent.width - self.width;
+                y: round((parent.height - self.height) / 1px / 2) * 1px;
+                width: Theme.px(32);
+                height: Theme.px(32);
+                border-radius: Theme.radius;
+                background: take.has-hover ? Theme.danger.with-alpha(0.12) : transparent;
+                opacity: root.removable && root.hovered ? 1.0 : 0.0;
+                animate opacity, background { duration: 120ms; }
+
+                Image {
+                    source: @image-url("../../../../resources/ui/icons/trash.svg");
+                    width: Theme.icon-inline;
+                    height: self.width;
+                    x: round((parent.width - self.width) / 1px / 2) * 1px;
+                    y: round((parent.height - self.height) / 1px / 2) * 1px;
+                    colorize: take.has-hover ? Theme.danger : Theme.ink-2;
+                }
+
+                take := TouchArea {
+                    enabled: root.removable;
+                    mouse-cursor: pointer;
+                    clicked => {
+                        root.removed();
+                    }
+                }
+            }
+        }
+    }
+}

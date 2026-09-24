@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: -D warnings
+
+jobs:
+  check:
+    # Cadenza targets Windows 10/11 x86_64 only.
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fmt --all --check
+      - run: cargo clippy --workspace --all-targets -- -D warnings
+      - run: cargo build --workspace
+      - run: cargo test --workspace
+
+  # The minimum this workspace claims to build on. `stable` never proves it: it
+  # is whatever came out last week, and a feature added since 1.92 would compile
+  # there and fail for anybody holding the version the manifest promises.
+  minimum-toolchain:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.92
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo build --workspace
+
+  # What the dependency tree is allowed to contain: no known vulnerability, no
+  # licence nobody has agreed to, no wildcard version, nothing from a registry
+  # this project does not use. Deferred from the start when there were three
+  # dependencies; there are 682 now, and the terms are in `deny.toml`.
+  #
+  # On Linux because this one reads a manifest rather than building anything,
+  # and it is the cheapest runner there is.
+  dependencies:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          command: check
