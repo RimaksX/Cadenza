@@ -17,9 +17,20 @@ export component TrackLine inherits Rectangle {
     property <bool> hovered: touch.has-hover || take.has-hover;
 
     height: Theme.px(52);
-    border-radius: Theme.radius;
-    background: root.hovered ? Theme.bg-2 : transparent;
-    animate background { duration: 120ms; }
+
+    // The tile under the pointer reaches eight pixels past the line on either
+    // side, so that the cover and the words stand on the same edge as the
+    // heading above the list; drawn inside the line, the whole list sat eight
+    // pixels in from its own heading. Rounded to the cover's six plus those
+    // eight, so the two corners curve together. Whatever holds a list of
+    // these has to leave that eight free of clipping.
+    Rectangle {
+        x: -Theme.space-2;
+        width: parent.width + Theme.space-2 * 2;
+        border-radius: Theme.radius-small + Theme.space-2;
+        background: root.hovered ? Theme.bg-2 : transparent;
+        animate background { duration: 120ms; }
+    }
 
     touch := TouchArea {
         mouse-cursor: pointer;
@@ -28,8 +39,11 @@ export component TrackLine inherits Rectangle {
         }
     }
 
+    // Eight in at the far end. The cover's square corner sits eight from the
+    // tile's edge and reads as clear of it; the length is a line of type
+    // ending at the same eight, where the tile's curve is still bending, and
+    // looked pressed against it.
     HorizontalLayout {
-        padding-left: Theme.space-2;
         padding-right: Theme.space-2;
         spacing: Theme.space-3;
 
@@ -41,7 +55,7 @@ export component TrackLine inherits Rectangle {
                 width: Theme.px(36);
                 height: Theme.px(36);
                 background: Theme.bg-3;
-                border-radius: Theme.radius;
+                border-radius: Theme.radius-small;
                 clip: true;
 
                 Image {
@@ -115,7 +129,7 @@ export component TrackLine inherits Rectangle {
                 y: round((parent.height - self.height) / 1px / 2) * 1px;
                 width: Theme.px(32);
                 height: Theme.px(32);
-                border-radius: Theme.radius;
+                border-radius: Theme.radius-small;
                 background: take.has-hover ? Theme.danger.with-alpha(0.12) : transparent;
                 opacity: root.removable && root.hovered ? 1.0 : 0.0;
                 animate opacity, background { duration: 120ms; }

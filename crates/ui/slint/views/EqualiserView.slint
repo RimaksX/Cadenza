@@ -502,7 +502,7 @@ component PresetRow inherits Rectangle {
         y: round((parent.height - self.height) / 1px / 2) * 1px;
         width: Theme.px(32);
         height: Theme.px(32);
-        border-radius: Theme.radius;
+        border-radius: Theme.radius-small;
         background: dots.has-hover ? Theme.bg-3 : transparent;
         opacity: root.data.editable ? 1.0 : 0.0;
         animate background { duration: 120ms; }

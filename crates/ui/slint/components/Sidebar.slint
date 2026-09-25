@@ -36,9 +36,14 @@ component NavItem inherits Rectangle {
             ? Theme.ink-0
             : (touch.has-hover ? Theme.ink-1 : Theme.ink-2));
 
-    height: Theme.px(32);
-    background: root.selected ? Theme.bg-1 : transparent;
-    border-radius: Theme.radius;
+    // Forty high, and a tile of its own under the pointer and under the page
+    // that is open: `bg-1` for the open one was 1.04:1 against the sidebar,
+    // which is a change nobody sees.
+    height: Theme.px(40);
+    background: root.selected
+        ? Theme.bg-3
+        : (touch.has-hover && root.enabled ? Theme.bg-2 : transparent);
+    border-radius: Theme.radius-item;
     animate background { duration: 120ms; }
 
     touch := TouchArea {
@@ -72,7 +77,9 @@ component NavItem inherits Rectangle {
                 width: Theme.icon;
                 height: self.width;
                 image-fit: contain;
-                colorize: root.tone;
+                // The open page's icon in the accent: the one mark in the
+                // sidebar that says where you are, readable folded too.
+                colorize: root.selected && root.enabled ? Theme.accent : root.tone;
                 animate colorize { duration: 120ms; }
             }
         }

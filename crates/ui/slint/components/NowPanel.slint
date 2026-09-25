@@ -17,7 +17,7 @@ component RailCover inherits Rectangle {
 
     width: Theme.px(36);
     height: Theme.px(36);
-    border-radius: Theme.radius;
+    border-radius: Theme.radius-small;
     background: Theme.bg-2;
     border-width: root.current ? 1px : 0px;
     border-color: Theme.accent;
@@ -204,7 +204,7 @@ export component NowPanel inherits Rectangle {
                 Rectangle {
                     height: self.width;
                     background: Theme.bg-2;
-                    border-radius: Theme.radius;
+                    border-radius: Theme.radius-card;
                     clip: true;
 
                     CoverImage {
@@ -321,8 +321,13 @@ export component NowPanel inherits Rectangle {
                 Rectangle {
                     vertical-stretch: 1;
 
+                    // Eight wider than the column on each side, and the list
+                    // eight in again: the rows stand where they did, and the
+                    // tile under a row has room to reach past them without
+                    // being cut off at the edge of what scrolls.
                     upcoming := Flickable {
-                        width: parent.width;
+                        x: -Theme.space-2;
+                        width: parent.width + Theme.space-2 * 2;
                         height: parent.height;
                         viewport-width: self.width;
                         viewport-height: lines.preferred-height;
@@ -330,11 +335,14 @@ export component NowPanel inherits Rectangle {
                         lines := VerticalLayout {
                             width: parent.width;
                             alignment: start;
+                            padding-left: Theme.space-2;
+                            padding-right: Theme.space-2;
 
                             // The listener's own list: what they put here, to
                             // take out again or clear.
                             if root.queue.length > 0: HorizontalLayout {
                                 padding-top: Theme.space-5;
+                                padding-bottom: Theme.space-2;
 
                                 VerticalLayout {
                                     alignment: center;
@@ -431,6 +439,11 @@ export component NowPanel inherits Rectangle {
                                             root.open-source();
                                         }
                                     }
+                                }
+                                // Room between the heading and the first row,
+                                // which otherwise stood against it.
+                                Rectangle {
+                                    height: Theme.space-2;
                                 }
                                 for track in root.then: TrackLine {
                                     data: track;

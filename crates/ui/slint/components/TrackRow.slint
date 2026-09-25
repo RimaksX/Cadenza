@@ -148,7 +148,7 @@ export component TrackRow inherits Rectangle {
                 y: round((parent.height - Theme.px(36)) / 1px / 2) * 1px;
                 width: Theme.px(36);
                 height: Theme.px(36);
-                border-radius: Theme.radius;
+                border-radius: Theme.radius-small;
                 background: Theme.bg-2;
                 clip: true;
 
@@ -325,7 +325,7 @@ export component TrackRow inherits Rectangle {
                 width: parent.width;
                 height: Theme.px(26);
                 y: round((parent.height - self.height) / 1px / 2) * 1px;
-                border-radius: Theme.radius;
+                border-radius: Theme.radius-small;
                 border-width: 1px;
                 border-color: hover-queue.has-hover ? Theme.line : Theme.line-soft;
                 // A tint rather than a fill: enough to say the word is meant,
@@ -403,7 +403,7 @@ export component TrackRow inherits Rectangle {
                 width: Theme.px(32);
                 height: Theme.px(32);
                 y: round((parent.height - self.height) / 1px / 2) * 1px;
-                border-radius: Theme.radius;
+                border-radius: Theme.radius-small;
                 background: dots.has-hover ? Theme.bg-3 : transparent;
                 opacity: root.hovered ? 1.0 : 0.0;
                 animate background, opacity { duration: 120ms; }

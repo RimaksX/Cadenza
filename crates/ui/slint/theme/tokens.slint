@@ -147,13 +147,32 @@ export global Theme {
     // the page.
     out property <length> heading-box: root.px(50);
 
-    // Six, not four and not eight. Four was a chamfer that most people could
-    // not see; eight, on the shortest control this interface has — a 34-pixel
-    // button — turns the corner arc into nearly a quarter of the height and the
-    // button starts drifting towards a pill, which is a different family of
-    // shape from the one everything else here belongs to. Six is visibly softer
-    // than four while the straight run of the side still dominates.
-    out property <length> radius: root.px(6);
+    // Corners come in five sizes, set by how large the thing is: a corner is
+    // a share of an edge, and one radius on a 36-pixel cover and a 900-pixel
+    // band reads as sharp on the one and soft on the other.
+    //
+    // Controls - a button, a field, a 34-pixel square - take ten.
+    out property <length> radius: root.px(10);
+    // Small covers in rows and the player bar, small inline controls, hints.
+    out property <length> radius-small: root.px(8);
+    // Large covers and cards: a playlist's tile, a page's cover, a mood.
+    out property <length> radius-card: root.px(14);
+    // The largest surfaces: the favourites band, dialogs, the first run.
+    out property <length> radius-large: root.px(18);
+    // A rounded shape inside another shares its corner, and the two curves
+    // only run parallel when the inner radius is the outer one less the gap
+    // between their edges. So a surface under a cover is the cover's six plus
+    // that gap, never the same six again: equal radii at different sizes
+    // leave the inner corner looking pinched against the outer.
+    //
+    // A destination in the sidebar holds nothing rounded, so it takes a
+    // radius of its own: soft enough to read as a tile under the hand.
+    //
+    // Where the gap between two shapes is wider than twice the inner one's
+    // radius - a dialog's padding round its buttons, the plate on the
+    // favourites band - the corners no longer read as one shape, and each
+    // keeps the radius of its own size.
+    out property <length> radius-item: root.px(12);
     // What an icon is drawn at, and it is three numbers because an icon is
     // sized by what it stands beside rather than by a rule of its own.
     //

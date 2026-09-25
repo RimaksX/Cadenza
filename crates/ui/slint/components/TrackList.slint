@@ -371,12 +371,12 @@ export component TrackList inherits Rectangle {
                 Rectangle {
                     width: Theme.px(176);
                     height: Theme.px(176);
-                    border-radius: Theme.radius;
+                    border-radius: Theme.radius-card;
                     drop-shadow-blur: Theme.px(24);
                     drop-shadow-color: Colors.black.with-alpha(0.4 * Theme.shadow-depth);
 
                     Rectangle {
-                        border-radius: Theme.radius;
+                        border-radius: Theme.radius-card;
                         clip: true;
                         // With no picture, the stand-in a tile has: the name
                         // set large on the gradient, inside a hairline.
@@ -1017,7 +1017,7 @@ export component TrackList inherits Rectangle {
                 width: picks.preferred-width;
                 height: Theme.px(58);
                 background: Theme.bg-2;
-                border-radius: Theme.radius;
+                border-radius: Theme.radius + Theme.px(12);
                 border-width: 1px;
                 border-color: Theme.line;
                 drop-shadow-blur: Theme.px(24);

@@ -30,7 +30,7 @@ component Figure inherits Rectangle {
     height: Theme.px(78);
     // The one radius. These were the last square corners in the interface, on
     // a card standing beside eight rounded ones everywhere else.
-    border-radius: Theme.radius;
+    border-radius: Theme.radius-card;
     border-width: 1px;
     border-color: Theme.line-soft;
     background: Theme.bg-1;
@@ -125,7 +125,7 @@ component TopRow inherits Rectangle {
         Rectangle {
             width: Theme.px(36);
             height: Theme.px(36);
-            border-radius: Theme.radius;
+            border-radius: Theme.radius-small;
             background: Theme.bg-2;
             clip: true;
 

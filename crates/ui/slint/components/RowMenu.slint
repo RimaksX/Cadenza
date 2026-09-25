@@ -35,7 +35,7 @@ component MenuRow inherits Rectangle {
         y: Theme.px(2);
         width: parent.width - Theme.px(12);
         height: parent.height - Theme.px(4);
-        border-radius: Theme.radius;
+        border-radius: Theme.radius-small;
         background: touch.has-hover ? Theme.bg-3 : transparent;
         animate background { duration: 90ms; }
     }
@@ -77,11 +77,14 @@ export component RowMenu inherits PopupWindow {
         background: Theme.bg-1;
         border-width: 1px;
         border-color: Theme.line;
-        border-radius: Theme.radius;
+        // The highlight's six plus the six it stands in from this edge, and
+        // the first and last items stand in by the same six from the top and
+        // the bottom: four of padding and the two they are inset themselves.
+        border-radius: Theme.radius-small + Theme.px(6);
 
         layout := VerticalLayout {
-            padding-top: Theme.space-2;
-            padding-bottom: Theme.space-2;
+            padding-top: Theme.space-1;
+            padding-bottom: Theme.space-1;
 
             for item in root.items: Rectangle {
                 height: item.action == "" ? Theme.px(9) : Theme.px(34);
