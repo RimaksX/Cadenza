@@ -1103,3 +1103,27 @@ msgstr "МУЗЫКА, КОТОРАЯ УЖЕ ЕСТЬ"
 
 msgid "Your music stays on this computer. Cadenza needs to know what to call you and where your music is."
 msgstr "Ваша музыка остаётся на этом компьютере. Cadenza нужно знать, как к вам обращаться и где лежит музыка."
+
+msgid "Any track"
+msgstr "Случайный трек"
+
+msgid "Any playlist"
+msgstr "Случайный плейлист"
+
+msgid "Nothing in any playlist yet"
+msgstr "Пока ни в одном плейлисте ничего нет"
+
+msgid "Your only playlist, from the start"
+msgstr "Ваш единственный плейлист, с начала"
+
+msgid "One of {n} track, then the library"
+msgid_plural "One of {n} tracks, then the library"
+msgstr[0] "Один из {n} трека, затем библиотека"
+msgstr[1] "Один из {n} треков, затем библиотека"
+msgstr[2] "Один из {n} треков, затем библиотека"
+
+msgid "One of {n} playlist, from the start"
+msgid_plural "One of {n} playlists, from the start"
+msgstr[0] "Один из {n} плейлиста, с начала"
+msgstr[1] "Один из {n} плейлистов, с начала"
+msgstr[2] "Один из {n} плейлистов, с начала"

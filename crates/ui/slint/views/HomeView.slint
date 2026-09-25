@@ -6,21 +6,28 @@ import { ScrollFade } from "../components/ScrollFade.slint";
 import { CoverTile } from "../components/CoverTile.slint";
 import { FavouritesBanner, PlaylistCardData } from "PlaylistsView.slint";
 import { SectionLabel } from "SettingsView.slint";
-import { SoundCircle } from "../components/Controls.slint";
 import { EmptyState } from "../components/EmptyState.slint";
 
-// A way to have something play, as the sound circle it is and the words
-// beside it. One object: the pointer over either part lights both.
-component ChanceButton inherits Rectangle {
+// Something to play when nothing in particular is wanted: a tile like a
+// destination in the sidebar, with what it will do written under its name.
+//
+// No sound circle. The circle is the shortcut a cover offers - play this
+// without opening it - and there is no cover here to be a shortcut on.
+component ChanceTile inherits Rectangle {
     in property <image> glyph;
-    in property <string> label;
+    in property <string> title;
+    in property <string> caption;
 
     callback pressed();
 
-    property <bool> hovered: touch.has-hover || mark.hovered;
-
-    width: row.preferred-width;
-    height: Theme.px(44);
+    height: Theme.px(64);
+    min-width: Theme.px(240);
+    preferred-width: Theme.px(360);
+    border-radius: Theme.radius-item;
+    border-width: 1px;
+    border-color: touch.has-hover ? Theme.line : Theme.line-soft;
+    background: touch.pressed ? Theme.bg-3 : (touch.has-hover ? Theme.bg-2 : transparent);
+    animate background, border-color { duration: 120ms; }
 
     touch := TouchArea {
         mouse-cursor: pointer;
@@ -29,28 +36,49 @@ component ChanceButton inherits Rectangle {
         }
     }
 
-    row := HorizontalLayout {
-        spacing: Theme.space-3;
+    // Sixteen from the edge to the icon and sixteen from the icon to the
+    // words: at twelve the icon sat nearer its words than its edge, and read
+    // as squeezed to the left.
+    HorizontalLayout {
+        padding-left: Theme.space-4;
+        padding-right: Theme.space-4;
+        spacing: Theme.space-4;
 
-        mark := SoundCircle {
-            glyph: root.glyph;
-            pressed => {
-                root.pressed();
+        VerticalLayout {
+            alignment: center;
+
+            Image {
+                source: root.glyph;
+                width: Theme.icon;
+                height: self.width;
+                colorize: touch.has-hover ? Theme.ink-0 : Theme.ink-2;
+                animate colorize { duration: 120ms; }
             }
         }
 
         VerticalLayout {
             alignment: center;
+            horizontal-stretch: 1;
+            spacing: Theme.space-1;
 
             Text {
-                text: root.label;
+                text: root.title;
+                font-family: Theme.sans;
+                font-size: Theme.text-body;
+                height: Theme.px(22);
+                vertical-alignment: center;
+                color: Theme.ink-0;
+                overflow: elide;
+            }
+            Text {
+                text: root.caption;
                 font-family: Theme.mono;
                 font-size: Theme.text-label;
                 height: Theme.px(18);
-                letter-spacing: Theme.label-spacing;
                 vertical-alignment: center;
-                color: root.hovered ? Theme.ink-0 : Theme.ink-1;
-                animate color { duration: 120ms; }
+                letter-spacing: Theme.number-spacing;
+                color: Theme.ink-2;
+                overflow: elide;
             }
         }
     }
@@ -71,6 +99,8 @@ export component HomeView inherits Rectangle {
     in property <[TrackRowData]> fresh;
     /// Some of what has not been heard inside the history's window.
     in property <[TrackRowData]> forgotten;
+    in property <int> track-count;
+    in property <int> playlist-count;
 
 
     callback open-playlist(string);
@@ -181,7 +211,6 @@ export component HomeView inherits Rectangle {
 
                         // One press and something plays: the commonest way in,
                         // so it stands first after the list a listener keeps.
-                        // Sound circles, because what they do is start music.
                         if root.fresh.length > 0: VerticalLayout {
                             spacing: Theme.space-2;
 
@@ -190,18 +219,24 @@ export component HomeView inherits Rectangle {
                             }
                             HorizontalLayout {
                                 alignment: start;
-                                spacing: Theme.space-6;
+                                spacing: Theme.space-3;
 
-                                ChanceButton {
-                                    glyph: @image-url("../../../../resources/ui/icons/shuffle.svg");
-                                    label: @tr("ANY TRACK");
+                                ChanceTile {
+                                    glyph: @image-url("../../../../resources/ui/icons/dices.svg");
+                                    title: @tr("Any track");
+                                    caption: @tr("One of {n} track, then the library" | "One of {n} tracks, then the library" % root.track-count);
                                     pressed => {
                                         root.play-random-track();
                                     }
                                 }
-                                ChanceButton {
-                                    glyph: @image-url("../../../../resources/ui/icons/playlist.svg");
-                                    label: @tr("ANY PLAYLIST");
+                                ChanceTile {
+                                    glyph: @image-url("../../../../resources/ui/icons/dices.svg");
+                                    title: @tr("Any playlist");
+                                    caption: root.playlist-count == 0
+                                        ? @tr("Nothing in any playlist yet")
+                                        : root.playlist-count == 1
+                                            ? @tr("Your only playlist, from the start")
+                                            : @tr("One of {n} playlist, from the start" | "One of {n} playlists, from the start" % root.playlist-count);
                                     pressed => {
                                         root.play-random-playlist();
                                     }

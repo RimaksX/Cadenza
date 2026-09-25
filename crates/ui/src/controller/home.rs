@@ -12,13 +12,9 @@ impl Controller {
         let home_ui = window.global::<Home>();
         let lists = (|| {
             let recent = self.services.stats.recently_played(HOME_RECENT)?;
-            let fresh: Vec<_> = self
-                .services
-                .library
-                .summaries()?
-                .into_iter()
-                .take(HOME_TILES)
-                .collect();
+            let library = self.services.library.summaries()?;
+            home_ui.set_track_count(i32::try_from(library.len()).unwrap_or(i32::MAX));
+            let fresh: Vec<_> = library.into_iter().take(HOME_TILES).collect();
             // Full covers rather than thumbnails: a tile is drawn larger than a
             // thumbnail is, and there are six of them rather than thousands.
             // A different handful each time Home is drawn: the list is the
@@ -31,6 +27,16 @@ impl Controller {
             quiet.truncate(HOME_RECENT);
             Ok::<_, CoreError>((recent, fresh, quiet))
         })();
+        // What "any playlist" can land on: the listener's own lists with
+        // something in them. Not the favourites, which Home plays from its
+        // own band, and which the playlists page does not count either.
+        let playable = self
+            .services
+            .playlists
+            .list()
+            .map(|all| all.iter().filter(|list| is_chance_list(list)).count())
+            .unwrap_or(0);
+        home_ui.set_playlist_count(i32::try_from(playable).unwrap_or(i32::MAX));
         let (recent, fresh, quiet) = match lists {
             Ok(lists) => lists,
             Err(CoreError::NoActiveProfile) => Default::default(),
@@ -77,10 +83,7 @@ impl Controller {
             Ok(playlists) => playlists,
             Err(err) => return self.report(&err),
         };
-        let playable: Vec<_> = playlists
-            .into_iter()
-            .filter(|summary| summary.track_count > 0)
-            .collect();
+        let playable: Vec<_> = playlists.into_iter().filter(is_chance_list).collect();
         match chance(&playable) {
             Some(summary) => self.play_playlist(&summary.playlist.id.to_string()),
             None => self.say(crate::text::tr("no playlist has anything in it yet")),
@@ -147,4 +150,10 @@ impl Controller {
             .collect();
         listening_ui.set_top_tracks(ModelRc::new(VecModel::from(rows)));
     }
+}
+
+/// A list "any playlist" may land on: one of the listener's own, with
+/// something in it.
+fn is_chance_list(summary: &cadenza_core::application::services::PlaylistSummary) -> bool {
+    summary.track_count > 0 && !summary.playlist.is_favourites()
 }

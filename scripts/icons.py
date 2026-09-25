@@ -31,7 +31,7 @@ for size, names in {
          "settings", "circle", "circle-dot", "circle-question-mark", "dots", "dots-vertical",
          "repeat", "repeat-one", "shuffle", "chevron-up", "download", "play-16",
          "panel-left-open", "panel-left-close", "panel-right-open", "mic",
-         "panel-right-close"],
+         "panel-right-close", "dices"],
     18: ["next", "previous", "gauge", "hourglass", "sliders-horizontal", "volume", "volume-muted"],
     20: ["heart", "heart-filled", "play", "pause"],
 }.items():

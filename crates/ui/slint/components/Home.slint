@@ -8,6 +8,9 @@ export global Home {
     in property <[TrackRowData]> recent;
     in property <[TrackRowData]> fresh;
     in property <[TrackRowData]> forgotten;
+    /// How many tracks the library holds, and how many lists have something in.
+    in property <int> track-count;
+    in property <int> playlist-count;
     callback play-random-track();
     callback play-random-playlist();
     callback clear-favourites();
